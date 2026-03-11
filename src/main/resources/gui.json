@@ -6,7 +6,7 @@
 
   "wm_dashboard_summary": { "name": "공정진행현황", "templates": { "default": "dashboard/dash_summary_main.html" }},
   "wm_custom_order": { "name": "수주진행현황", "templates": { "default": "dashboard/dash_custom_order.html" } },
-
+  "wm_api_service": { "name": "더존 API 연동 서비스", "templates": { "default": "system/api_service.html" } },
   "wm_company": { "name": "거래처 정보", "templates": { "default": "definition/company.html" } },
   "wm_area": { "name": "에어리어", "templates": { "default": "definition/area.html" } },
   "wm_process": { "name": "공정정보", "templates": { "default": "definition/process.html" } },

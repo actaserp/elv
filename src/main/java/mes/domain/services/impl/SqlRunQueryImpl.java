@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import mes.app.common.TenantContext;
 import org.hibernate.exception.DataException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -24,63 +25,65 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Repository
 public class SqlRunQueryImpl implements SqlRunner {
 
-	@Autowired(required = true)
+	@Autowired
+	@Qualifier("namedParameterJdbcTemplate")
     private NamedParameterJdbcTemplate  jdbcTemplate;
 	
 	@Autowired
 	LogWriter logWriter;
 	
 	
-    public List<Map<String, Object>> getRows(String sql, MapSqlParameterSource dicParam){    	
-    	
+    public List<Map<String, Object>> getRows(String sql, MapSqlParameterSource dicParam){
+
     	List<Map<String, Object>> rows = null;
-		//
-		checkTenantSafety(sql);
-    	
+		applyDbRouting(sql);
+
     	try {
     		rows = this.jdbcTemplate.queryForList(sql, dicParam);
-		} 
+		}
     	catch(DataAccessException de) {
     		System.out.println(de);
     	}
     	catch (Exception e) {
-			// TODO: handle exception
 			logWriter.addDbLog("error", "SqlRunQueryImpl.getRows", e);
-		}
+		} finally {
+    		TenantContext.setForceMainDb(false);
+    	}
     	return rows;
     }
-    
-    public Map<String, Object> getRow(String sql, MapSqlParameterSource dicParam){    	
+
+    public Map<String, Object> getRow(String sql, MapSqlParameterSource dicParam){
 
     	Map<String, Object> row = null;
-		checkTenantSafety(sql);
-    	
+		applyDbRouting(sql);
+
     	try {
     		row = this.jdbcTemplate.queryForMap(sql, dicParam);
-		} 
+		}
     	catch(DataAccessException de) {
-    		
-    	
+
+
     	}
     	catch (Exception e) {
-			// TODO: handle exception
 			logWriter.addDbLog("error", "SqlRunQueryImpl.getRow", e);
-		}
+		} finally {
+    		TenantContext.setForceMainDb(false);
+    	}
     	return row;
     }
-    
+
     public int execute(String sql, MapSqlParameterSource dicParam) {
-    	
+
     	int rowEffected = 0;
-		checkTenantSafety(sql);
-    	// TODO Auto-generated method stub
+		applyDbRouting(sql);
     	try {
     		rowEffected = this.jdbcTemplate.update(sql, dicParam);
 		} catch (Exception e) {
-			// TODO: handle exception
 			logWriter.addDbLog("error", "SqlRunQueryImpl.excute", e);
-		}
-    	
+		} finally {
+    		TenantContext.setForceMainDb(false);
+    	}
+
     	return rowEffected;
     }
     
@@ -96,19 +99,46 @@ public class SqlRunQueryImpl implements SqlRunner {
 
 	public int[] batchUpdate(String sql, SqlParameterSource[] batchArgs) {
 		int[] result = new int[0];
-
+		applyDbRouting(sql);
 		try {
 			result = this.jdbcTemplate.batchUpdate(sql, batchArgs);
 		} catch (DataAccessException de) {
 			System.out.println(de);
 		} catch (Exception e) {
 			logWriter.addDbLog("error", "SqlRunQueryImpl.batchUpdate", e);
+		} finally {
+			TenantContext.setForceMainDb(false);
 		}
-
 		return result;
 	}
 
-	// 런타임 쿼리 검증
+	/** 메인 DB에 있는 시스템 테이블 목록 – 이 테이블이 SQL에 포함되면 mainDataSource로 라우팅 */
+	private static final String[] MAIN_DB_TABLES = {
+			"menu_folder", "menu_item", "user_group_menu", "bookmark",
+			"label_code_lang", "sys_option", "sys_code", "sys_common_code",
+			"auth_user", "tb_user", "user_profile", "user_group",
+			"login_log", "menu_use_log", "notification",
+			"bill_plans", "mat_comp_uprice", "seq_maker", "tb_xa012"
+	};
+
+	/**
+	 * SQL에 포함된 테이블명을 기준으로 메인 DB / 테넌트 DB 라우팅 결정
+	 * - 메인 DB 테이블이면 forceMainDb=true → RoutingDataSource가 mainDataSource 사용
+	 * - 그 외에는 forceMainDb=false → TenantContext.dbKey 기준으로 라우팅
+	 */
+	private void applyDbRouting(String sql) {
+		String lowSql = sql.toLowerCase();
+		for (String table : MAIN_DB_TABLES) {
+			if (lowSql.contains(table)) {
+				TenantContext.setForceMainDb(true);
+				return;
+			}
+		}
+		TenantContext.setForceMainDb(false);
+		checkTenantSafety(sql);
+	}
+
+	// 런타임 쿼리 검증 (테넌트 DB 쿼리 대상)
 	private void checkTenantSafety(String sql) {
 		String tenantId = TenantContext.get();
 

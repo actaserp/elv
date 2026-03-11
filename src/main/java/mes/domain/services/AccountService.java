@@ -8,7 +8,9 @@ import java.util.Optional;
 import javax.servlet.http.HttpServletRequest;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
@@ -16,15 +18,21 @@ import mes.domain.entity.User;
 import mes.domain.repository.UserRepository;
 import mes.domain.security.Pbkdf2Sha256;
 
+import javax.sql.DataSource;
+
  /*인터페이스 분리는 추후에 고민하자*/
 @Service
 public class AccountService {
-	
+
 	@Autowired
-	UserRepository userRepository;	
+	UserRepository userRepository;
 
 	@Autowired
 	SqlRunner sqlRunner;
+
+	@Autowired
+	@Qualifier("mainDataSource")
+	DataSource mainDataSource;
 		
 	public User getUser(String username) {
 		User user =null;
@@ -65,13 +73,14 @@ public class AccountService {
 		paramMap.addValue("IPAddress", clientIp);
 		paramMap.addValue("UserId", user.getId());
 		paramMap.addValue("spjangcd", user.getSpjangcd());
-		
+
 		String sql = """
 				insert into login_log("Type", "IPAddress", _created, "User_id", "spjangcd")
                 VALUES (:type, :IPAddress ::inet, now(),:UserId, :spjangcd)
 				""";
-		
-	    this.sqlRunner.execute(sql, paramMap);
+
+		// login_log는 메인 DB 테이블이므로 mainDataSource를 직접 사용
+		new NamedParameterJdbcTemplate(mainDataSource).update(sql, paramMap);
 	}
 
 

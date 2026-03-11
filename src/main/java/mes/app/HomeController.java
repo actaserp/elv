@@ -88,6 +88,7 @@ public class HomeController {
 		mv.addObject("userid", userid);
 		mv.addObject("groupname", groupname);
 		session.setAttribute("spjangcd", spjangcd);
+		session.setAttribute("db_key", spjangcd);  // DB 라우팅 키 (auth_user.spjangcd와 동일)
 		session.setAttribute("username", username);
 		session.setAttribute("userid", userid);
 		session.setAttribute("groupid", groupid);

@@ -6,7 +6,17 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import javax.servlet.http.HttpSession;
 
 public class TenantContext {
+
+    /** 사업장 코드 – SQL WHERE spjangcd 필터용 (테넌트 DB 내부 코드) */
     private static final ThreadLocal<String> currentTenant = new ThreadLocal<>();
+
+    /** DB 라우팅 키 – 메인 DB tb_xa012.spjangcd (어떤 물리 DB로 붙을지 결정) */
+    private static final ThreadLocal<String> currentDbKey = new ThreadLocal<>();
+
+    /** 메인 DB 강제 라우팅 플래그 – 시스템 테이블 쿼리 시 true */
+    private static final ThreadLocal<Boolean> forceMainDb = new ThreadLocal<>();
+
+    // ── spjangcd (SQL 필터) ──────────────────────────────────────────────────
 
     public static void set(String tenantId) {
         currentTenant.set(tenantId);
@@ -15,7 +25,6 @@ public class TenantContext {
     public static String get() {
         String tenantId = currentTenant.get();
 
-        // [복구 로직] ThreadLocal이 비어있다면 세션에서 재획득 시도
         if (tenantId == null) {
             try {
                 ServletRequestAttributes attr = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
@@ -23,17 +32,56 @@ public class TenantContext {
                     HttpSession session = attr.getRequest().getSession(false);
                     if (session != null) {
                         tenantId = (String) session.getAttribute("spjangcd");
-                        set(tenantId); // 다음 호출을 위해 다시 세팅
+                        set(tenantId);
                     }
                 }
-            } catch (Exception e) {
-                // HTTP 요청 밖(스케줄러 등)에서 호출될 경우 대비
+            } catch (Exception ignored) {
             }
         }
         return tenantId;
     }
 
+    // ── dbKey (DB 라우팅) ────────────────────────────────────────────────────
+
+    public static void setDbKey(String dbKey) {
+        currentDbKey.set(dbKey);
+    }
+
+    public static String getDbKey() {
+        String dbKey = currentDbKey.get();
+
+        if (dbKey == null) {
+            try {
+                ServletRequestAttributes attr = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+                if (attr != null) {
+                    HttpSession session = attr.getRequest().getSession(false);
+                    if (session != null) {
+                        dbKey = (String) session.getAttribute("db_key");
+                        setDbKey(dbKey);
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return dbKey;
+    }
+
+    // ── forceMainDb (시스템 테이블 라우팅) ───────────────────────────────────
+
+    public static void setForceMainDb(boolean value) {
+        if (value) forceMainDb.set(true);
+        else forceMainDb.remove();
+    }
+
+    public static boolean isForceMainDb() {
+        return Boolean.TRUE.equals(forceMainDb.get());
+    }
+
+    // ── clear ────────────────────────────────────────────────────────────────
+
     public static void clear() {
         currentTenant.remove();
+        currentDbKey.remove();
+        forceMainDb.remove();
     }
 }

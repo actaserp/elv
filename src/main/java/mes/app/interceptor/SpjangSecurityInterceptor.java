@@ -51,16 +51,18 @@ public class SpjangSecurityInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        // 3. 검증된 사업장 코드를 전역 컨텍스트에 저장
-        // SqlRunner의 checkTenantSafety에서 이 값을 기준으로 검사합니다.
+        // 3. 검증된 사업장 코드 + DB 라우팅 키를 컨텍스트에 저장
         TenantContext.set(sessionSpjangcd);
+
+        String dbKey = (String) session.getAttribute("db_key");
+        log.debug("[Interceptor] spjangcd={}, db_key={}, uri={}", sessionSpjangcd, dbKey, uri);
+        TenantContext.setDbKey(dbKey);
 
         return true;
     }
 
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
-        // 쓰레드 로컬 클린업
         TenantContext.clear();
     }
 }

@@ -306,6 +306,11 @@ var CommonUtil = {
 	    var str = p_date.getFullYear() + '-' + m + '-' + day + ' ' + hh + ':' + mm + ':' + ss;
 	    return str;
     },
+    getYYYYMMDDMonthFirst: function () {
+        var d = new Date();
+        var first = new Date(d.getFullYear(), d.getMonth(), 1);
+        return this.formatYYYYMMDD(first);
+    },
     zeoPadding: function (number, length){
 		var str = '' + number;
 	    while (str.length < length) {
