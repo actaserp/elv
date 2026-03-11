@@ -34,3 +34,7 @@ build/
 
 # .env 파일 제외
 .env
+
+# Claude Code 파일 제외
+CLAUDE.md
+.claude/
