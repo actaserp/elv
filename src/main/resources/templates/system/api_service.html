@@ -817,7 +817,6 @@
      let fnsuccess = function (result) {
       if (!result) return;
       // 🔹 일반 매출 조회는 그룹 없이 깔끔하게
-       console.log('result.data', result.data);
       _this.viewData = new wijmo.collections.CollectionView(result.data);
       _this.grid.itemsSource = _this.viewData;
      };

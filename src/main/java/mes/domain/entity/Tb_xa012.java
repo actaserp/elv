@@ -138,15 +138,4 @@ public class Tb_xa012 {
     @Column(name = "bill_plans_id")
     private Integer bill_plans_id;
 
-    @Column(name = "db_url")
-    private String db_url;
-
-    @Column(name = "db_username")
-    private String db_username;
-
-    @Column(name = "db_password")
-    private String db_password;
-
-    @Column(name = "db_type")
-    private String db_type;
 }

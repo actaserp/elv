@@ -10,6 +10,7 @@ import javax.servlet.http.HttpSession;
 
 import lombok.extern.slf4j.Slf4j;
 import mes.app.common.TenantContext;
+import mes.config.TenantDataSourceManager;
 import mes.domain.entity.User;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -35,6 +36,9 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
 	@Autowired
 	@Qualifier("mainDataSource")
 	DataSource mainDataSource;
+
+	@Autowired
+	TenantDataSourceManager tenantDataSourceManager;
 
 	@Override
 	public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -85,45 +89,31 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
 		TenantContext.clear();
 	}
 
-	/** host:port/dbname + db_type → JDBC URL 조립 */
-	private String buildJdbcUrl(String url, String dbType) {
-		if (url.startsWith("jdbc:")) return url;
-		String[] parts = url.split("/", 2);
-		String hostPort = parts[0];
-		String dbName   = parts.length > 1 ? parts[1] : "";
-		if ("mssql".equalsIgnoreCase(dbType)) {
-			return "jdbc:sqlserver://" + hostPort + ";databaseName=" + dbName
-					+ ";encrypt=false;trustServerCertificate=false";
-		} else {
-			return "jdbc:postgresql://" + hostPort + "/" + dbName;
-		}
-	}
-
 	/**
-	 * 메인 DB의 tb_xa012에서 해당 dbKey에 연결된 테넌트 DB의 사업장 목록을 조회합니다.
-	 * dbKey → db_url/db_username/db_password → 테넌트 DB 접속 → tb_xa012 조회
+	 * 메인 DB의 tb_tenant_db에서 해당 dbKey의 main DB 접속정보를 조회하여
+	 * 테넌트 DB에서 사업장 목록을 가져온다.
 	 */
 	private List<Map<String, Object>> loadTenantSpjangList(String dbKey) {
 		try {
 			JdbcTemplate mainJdbc = new JdbcTemplate(mainDataSource);
-			Map<String, Object> tenantDbInfo = mainJdbc.queryForMap(
-					"SELECT db_url, db_username, db_password, db_type FROM tb_xa012 WHERE spjangcd = ?", dbKey);
 
-			if (tenantDbInfo == null) return List.of();
+			List<Map<String, Object>> rows = mainJdbc.queryForList(
+					"SELECT db_url, db_username, db_password, db_type FROM tb_tenant_db WHERE spjangcd = ? AND db_alias = 'main'",
+					dbKey);
 
+			if (rows.isEmpty()) {
+				// tb_tenant_db에 등록 없음 → 메인 DB 자체 사용
+				return List.of(Map.of("spjangcd", dbKey, "spjangnm", dbKey));
+			}
+
+			Map<String, Object> tenantDbInfo = rows.get(0);
 			String dbUrl      = (String) tenantDbInfo.get("db_url");
 			String dbUsername = (String) tenantDbInfo.get("db_username");
 			String dbPassword = (String) tenantDbInfo.get("db_password");
 			String dbType     = (String) tenantDbInfo.get("db_type");
 
-			if (dbUrl == null || dbUrl.isBlank()) {
-				// 테넌트 DB 없음 → 메인 DB 자체 사용 (spjangcd = dbKey)
-				return List.of(Map.of("spjangcd", dbKey, "spjangnm", dbKey));
-			}
+			String jdbcUrl = TenantDataSourceManager.buildJdbcUrl(dbUrl, dbType);
 
-			String jdbcUrl = buildJdbcUrl(dbUrl, dbType);
-
-			// 테넌트 DB에서 사업장 목록 조회
 			com.zaxxer.hikari.HikariConfig config = new com.zaxxer.hikari.HikariConfig();
 			config.setJdbcUrl(jdbcUrl);
 			config.setUsername(dbUsername);

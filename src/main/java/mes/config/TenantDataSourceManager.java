@@ -34,8 +34,8 @@ public class TenantDataSourceManager {
         JdbcTemplate jdbc = new JdbcTemplate(mainDataSource);
 
         String sql = """
-                SELECT spjangcd, db_url, db_username, db_password, db_type
-                FROM tb_xa012
+                SELECT spjangcd, db_alias, db_url, db_username, db_password, db_type, pool_size
+                FROM tb_tenant_db
                 WHERE db_url IS NOT NULL AND db_url <> ''
                 """;
 
@@ -43,28 +43,33 @@ public class TenantDataSourceManager {
         try {
             rows = jdbc.queryForList(sql);
         } catch (Exception e) {
-            log.error("tb_xa012 테넌트 DB 정보 로드 실패", e);
+            log.error("tb_tenant_db 테넌트 DB 정보 로드 실패", e);
             return;
         }
 
         Map<Object, Object> targets = new HashMap<>();
         for (Map<String, Object> row : rows) {
             String spjangcd   = (String) row.get("spjangcd");
+            String dbAlias    = (String) row.get("db_alias");
             String dbUrl      = (String) row.get("db_url");
             String dbUsername = (String) row.get("db_username");
             String dbPassword = (String) row.get("db_password");
-            String dbType     = (String) row.get("db_type"); // mssql / postgresql
+            String dbType     = (String) row.get("db_type");
+            Integer poolSize  = row.get("pool_size") != null ? ((Number) row.get("pool_size")).intValue() : 5;
 
             if (dbUrl == null || dbUrl.isBlank()) continue;
 
-            log.info("테넌트 DB 연결 시도: spjangcd={}, db_url=[{}], db_type=[{}]", spjangcd, dbUrl, dbType);
+            // 라우팅 키: main이면 spjangcd, 보조 DB면 "spjangcd:db_alias"
+            String routingKey = "main".equalsIgnoreCase(dbAlias) ? spjangcd : spjangcd + ":" + dbAlias;
+
+            log.info("테넌트 DB 연결 시도: key={}, db_type={}, url={}", routingKey, dbType, dbUrl);
 
             try {
-                DataSource ds = createDataSource(dbUrl, dbUsername, dbPassword, dbType);
-                targets.put(spjangcd, ds);
-                log.info("테넌트 DataSource 로드 완료: spjangcd={}, url={}", spjangcd, dbUrl);
+                DataSource ds = createDataSource(dbUrl, dbUsername, dbPassword, dbType, poolSize);
+                targets.put(routingKey, ds);
+                log.info("테넌트 DataSource 로드 완료: key={}", routingKey);
             } catch (Exception e) {
-                log.error("테넌트 DataSource 생성 실패: spjangcd={}", spjangcd, e);
+                log.error("테넌트 DataSource 생성 실패: key={}", routingKey, e);
             }
         }
 
@@ -73,14 +78,12 @@ public class TenantDataSourceManager {
         log.info("총 {}개 테넌트 DataSource 등록 완료", targets.size());
     }
 
-    private DataSource createDataSource(String url, String username, String password, String dbType) {
-        String jdbcUrl = buildJdbcUrl(url, dbType);
-
+    private DataSource createDataSource(String url, String username, String password, String dbType, int poolSize) {
         HikariConfig config = new HikariConfig();
-        config.setJdbcUrl(jdbcUrl);
+        config.setJdbcUrl(buildJdbcUrl(url, dbType));
         config.setUsername(username);
         config.setPassword(password);
-        config.setMaximumPoolSize(5);
+        config.setMaximumPoolSize(poolSize);
         config.setMinimumIdle(1);
         config.setMaxLifetime(1800000);
         config.setIdleTimeout(600000);
@@ -89,17 +92,29 @@ public class TenantDataSourceManager {
     }
 
     /**
-     * db_url (host:port/dbname 형식) + db_type 으로 JDBC URL 조립
-     * - mssql  → jdbc:sqlserver://host:port;databaseName=dbname;encrypt=false;trustServerCertificate=false
-     * - 그 외  → jdbc:postgresql://host:port/dbname
+     * db_url + db_type → JDBC URL 조립 (완전한 JDBC URL이면 그대로 반환)
+     *
+     * postgresql : host:port/dbname        → jdbc:postgresql://host:port/dbname
+     * mssql      : host:port/dbname        → jdbc:sqlserver://host:port;databaseName=dbname;...
+     * oracle SID : host:port:SID           → jdbc:oracle:thin:@host:port:SID
+     * oracle SVC : host:port/serviceName   → jdbc:oracle:thin:@//host:port/serviceName
      */
-    private String buildJdbcUrl(String url, String dbType) {
-        if (url.startsWith("jdbc:")) return url; // 이미 완전한 JDBC URL이면 그대로 사용
+    public static String buildJdbcUrl(String url, String dbType) {
+        if (url.startsWith("jdbc:")) return url;
 
-        // host:port/dbname 파싱
-        String[] hostAndDb = url.split("/", 2);
-        String hostPort = hostAndDb[0];
-        String dbName   = hostAndDb.length > 1 ? hostAndDb[1] : "";
+        if ("oracle".equalsIgnoreCase(dbType)) {
+            // 슬래시 없으면 SID 형식 (host:port:SID)
+            if (!url.contains("/")) {
+                return "jdbc:oracle:thin:@" + url;
+            }
+            // 슬래시 있으면 Service Name 형식 (host:port/serviceName)
+            String[] parts = url.split("/", 2);
+            return "jdbc:oracle:thin:@//" + parts[0] + "/" + parts[1];
+        }
+
+        String[] parts = url.split("/", 2);
+        String hostPort = parts[0];
+        String dbName   = parts.length > 1 ? parts[1] : "";
 
         if ("mssql".equalsIgnoreCase(dbType)) {
             return "jdbc:sqlserver://" + hostPort + ";databaseName=" + dbName
