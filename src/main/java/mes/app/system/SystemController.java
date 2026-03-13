@@ -40,6 +40,7 @@ public class SystemController {
 		User user = (User) auth.getPrincipal();
        
         List<Map<String, Object>> items = this.systemService.getWebMenuList(user);
+        List<Map<String, Object>> frontFolders = this.systemService.getFrontFolderList();
         
         Map<Integer, Object> nodeMap = new HashMap<Integer, Object>(); 
         List<Map<String, Object>> menuItems = new ArrayList<>();
@@ -53,12 +54,7 @@ public class SystemController {
         	boolean isbookmark = (boolean)dicData.get("isbookmark");
         	String css = (String)dicData.get("css");
 
-//			boolean isbookmark = (dicData.get("isbookmark") != null) && ((int) dicData.get("isbookmark") != 0);
 			Integer frontfolder_id = (Integer) dicData.get("frontfolder_id");
-        	
-        	//String log = String.format("id:%s, menu_code:%s, pid:%s, name:%s",id,menu_code, pid, name);
-        	//System.out.println(log);
-        	
         	
         	if (id!=null) {
         		List<Map<String, Object>> nodes = new ArrayList<Map<String, Object>>();
@@ -67,10 +63,6 @@ public class SystemController {
 				folder.put("folder_id", id);
 				folder.put("folder_name", name);
 				folder.put("frontfolder_id", frontfolder_id);
-//        		folder.put("objId", menu_code);
-//        		folder.put("objNm", name);
-//        		folder.put("objUrl", "");
-//        		folder.put("menuIconCls", css);
         		folder.put("nodes", nodes);
         		folder.put("ismanual", false);
         		folder.put("isbookmark", false);
@@ -87,8 +79,6 @@ public class SystemController {
         		menuItem.put("objId", menu_code);
         		menuItem.put("objNm", name);
         		menuItem.put("objUrl", url);
-//        		menuItem.put("menuIconCls", css);
-//        		menuItem.put("nodes", new ArrayList<Map<String, Object>>());
         		menuItem.put("ismanual", false);
         		menuItem.put("isbookmark", isbookmark);
         		menuItem.put("menuDepth", 2);
@@ -98,9 +88,13 @@ public class SystemController {
 
         }
         
+        Map<String, Object> resultData = new HashMap<>();
+        resultData.put("menuItems", menuItems);
+        resultData.put("frontFolders", frontFolders);
+
         AjaxResult result = new AjaxResult();
         result.success = true;
-        result.data = menuItems;        				
+        result.data = resultData;        				
         
 		return result;
 	}

@@ -18,6 +18,11 @@ import java.util.Map;
 @Component
 public class TenantDataSourceManager {
 
+    /**
+     *  * 애플리케이션 시작 시(@PostConstruct), 메인 DB의 tb_tenant_db 테이블에서 테넌트별 DB 접속 정보(URL, 계정, DB 타입 등)를 읽어옵니다.
+     *        * 읽어온 정보를 바탕으로 각 테넌트용 HikariDataSource를 동적으로 생성하여 RoutingDataSource에 등록합니다.
+     * **/
+
     @Autowired
     @Qualifier("mainDataSource")
     private DataSource mainDataSource;

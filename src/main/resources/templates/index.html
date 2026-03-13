@@ -441,110 +441,6 @@
 <!--                        </div>-->
                         <nav class="layout-nav sidebar-tabcont" id="menu">
                             <ul class="dep1">
-                                <li class="dep1-1">
-                                    <a href="#a" title="모니터링" class="ico-lnb01">
-                                        모니터링
-                                    </a>
-                                    <ul class="dep2" id="dep2-monitoring">
-
-                                    </ul>
-                                </li>
-                                <li class="dep1-1">
-                                    <a href="#a" title="기준정보" class="ico-lnb05">
-                                        기준정보
-                                    </a>
-                                    <ul class="dep2" id="dep2-information">
-
-                                    </ul>
-                                </li>
-                                <li class="dep1-1">
-                                    <a href="#a" title="영업 관리" class="ico-lnb02">
-                                        영업 관리
-                                    </a>
-                                    <ul class="dep2" id="dep2-sales-management">
-
-                                    </ul>
-                                </li>
-                                <li class="dep1-1">
-                                    <a href="#a" title="구매 관리" class="ico-lnb03">
-                                        구매 관리
-                                    </a>
-                                    <ul class="dep2" id="dep2-purchase-materials">
-
-                                    </ul>
-                                </li>
-                                <li class="dep1-1">
-                                    <a href="#a" title="구매 관리" class="ico-lnb03">
-                                        재고 관리
-                                    </a>
-                                    <ul class="dep2" id="dep2-inventory-materials">
-
-                                    </ul>
-                                </li>
-                                <li class="dep1-1">
-                                    <a href="#a" title="생산 관리" class="ico-lnb03">
-                                        생산 관리
-                                    </a>
-                                    <ul class="dep2" id="dep2-production-management">
-
-                                    </ul>
-                                </li>
-                                <li class="dep1-1">
-                                    <a href="#a" title="품질 관리" class="ico-lnb04">
-                                        품질 관리
-                                    </a>
-                                    <ul class="dep2" id="dep2-quality">
-
-                                    </ul>
-                                </li>
-                                <li class="dep1-1">
-                                    <a href="#a" title="보고서 관리" class="ico-lnb04">
-                                        보고서 관리
-                                    </a>
-                                    <ul class="dep2" id="dep2-report">
-
-                                    </ul>
-                                </li>
-                                <li class="dep1-1">
-                                    <a href="#a" title="입출금 관리" class="ico-lnb04">
-                                        입출금 관리
-                                    </a>
-                                    <ul class="dep2" id="dep2-transaction">
-
-                                    </ul>
-                                </li>
-                                <li class="dep1-1">
-                                    <a href="#a" title="근태관리" class="ico-lnb04">
-                                        근태 관리
-                                    </a>
-                                    <ul class="dep2" id="dep2-clock-inout">
-
-                                    </ul>
-                                </li>
-                                <li class="dep1-1">
-                                    <a href="#a" title="유지보수" class="ico-lnb04">
-                                        유지보수
-                                    </a>
-                                    <ul class="dep2" id="dep2-request">
-
-                                    </ul>
-                                </li>
-                                <li class="dep1-1">
-                                    <a href="#a" title="시스템설정" class="ico-lnb05">
-                                        시스템 설정
-                                    </a>
-                                    <ul class="dep2" id="dep2-system-settings">
-
-                                    </ul>
-                                </li>
-                                <li class="dep1-1">
-                                    <a href="#a" title="관리자" class="ico-lnb01">
-                                        관리자 메뉴
-                                    </a>
-                                    <ul class="dep2" id="dep2-admin">
-
-                                    </ul>
-                                </li>
                             </ul>
 
                         </nav> <!-- // nav end -->
@@ -636,24 +532,6 @@
 
         nthTabs = $('#main-tabs').nthTabs();
 
-        const dep2Mappings = {
-            1: '#dep2-monitoring',
-            2: '#dep2-information',
-            3: '#dep2-sales-management',
-            4: '#dep2-purchase-materials',
-            5: '#dep2-production-management',
-            6: '#dep2-quality',
-            7: '#dep2-report',
-            8: '#dep2-transaction',
-            9: '#dep2-system-settings',
-            10: '#dep2-clock-inout',
-            11: '#dep2-clock-inout',
-            12: '#dep2-approval',
-            13: '#dep2-inventory-materials',
-            14: '#dep2-request',
-            15: '#dep2-admin',
-        };
-
         function renderMenuByFrontFolder(menus, FrontFolderId, $FrontFolderElement) {
 
             // 메뉴리스트 초기화 (⚠️ 전체 기준, 1회만)
@@ -685,7 +563,7 @@
                 $li.append($subUl);
 
                 folder.nodes.forEach(function (item) {
-                    let $itemLi = $('<li class="dep3-custom-list-style"></li>');
+                    let $itemLi = $('<li class="dep3-custom-list-style" style="cursor: default; list-style-image: none;"></li>');
                     let $itemA = $('<a href="#" ' +
                         'menuurl="' + item.objUrl + '" ' +
                         'data-bookmark="' + item.isbookmark + '" ' +
@@ -700,30 +578,49 @@
 
                 $FrontFolderElement.append($li);
 
-                // dep2 클릭 이벤트
+                // dep2(중메뉴) 클릭 이벤트
                 $a.on('click', function (e) {
                     e.preventDefault();
+                    e.stopPropagation();
 
-                    let $dep3 = $li.find('.dep3 li');
+                    const isActive = $li.hasClass('active');
 
-                    if ($dep3.length === 1) {
-                        let $a = $dep3.find('a');
-                        let objid = $a.data('objid');
-                        let title = $a.text();
+                    if (isActive) {
+                        // 닫기: 클래스 먼저 제거하고 스르륵 접기
+                        $li.removeClass('active');
+                        $subUl.slideUp(300);
+                    } else {
+                        // 열기: 다른 중메뉴들 닫기
+                        $li.siblings().removeClass('active').find('.dep3').slideUp(300);
+                        
+                        // 스르륵 펼치기
+                        $subUl.slideDown(300, function() {
+                            // 펼쳐진 후 active 클래스 추가 (CSS 간섭 방지)
+                            $li.addClass('active');
+                            
+                            let $dep3 = $li.find('.dep3 li');
+                            if ($dep3.length === 1) {
+                                let $itemA = $dep3.find('a');
+                                let objid = $itemA.data('objid');
+                                let title = $itemA.attr('title');
+                                let bookmark = $itemA.data('bookmark');
 
-                        if (nthTabs.isExistsTab('#' + objid)) {
-                            nthTabs.toggleTab('#' + objid);
-                        } else {
-                            nthTabs.addTab({
-                                id: objid,
-                                title: title,
-                                url: withCtx('/gui/' + objid + '/default'),
-                                active: true,
-                                allowClose: true
-                            });
-                        }
+                                $dep3.addClass('on');
 
-                        $subUl.hide();
+                                if (nthTabs.isExistsTab('#' + objid)) {
+                                    nthTabs.toggleTab('#' + objid);
+                                } else {
+                                    nthTabs.addTab({
+                                        id: objid,
+                                        title: title,
+                                        url: withCtx('/gui/' + objid + '/default'),
+                                        active: true,
+                                        allowClose: true,
+                                        isbookmark: bookmark
+                                    });
+                                }
+                            }
+                        });
                     }
                 });
             });
@@ -764,15 +661,58 @@
             );
         }
 
-        loadMenusOnce(function (menus) {
+        loadMenusOnce(function (data) {
+            const menus = data.menuItems;
+            const frontFolders = data.frontFolders;
+
             initializeMenuSearchData(menus);
 
-            Object.keys(dep2Mappings).forEach(FrontFolderId => {
+            const $menuContainer = $('.dep1');
+            $menuContainer.empty();
+
+            frontFolders.forEach(ff => {
+                const ffHtml = `
+                    <li class="dep1-1" style="display: none;">
+                        <a href="#a" title="${ff.folder_name}" class="${ff.icon_css}">
+                            ${ff.folder_name}
+                        </a>
+                        <ul class="dep2" id="dep2-${ff.dom_id}">
+                        </ul>
+                    </li>
+                `;
+                const $ffLi = $(ffHtml);
+                $menuContainer.append($ffLi);
+
                 renderMenuByFrontFolder(
                     menus,
-                    FrontFolderId,
-                    $(dep2Mappings[FrontFolderId])
+                    ff.id,
+                    $ffLi.find('.dep2')
                 );
+            });
+
+            // 동적 생성된 대분류 클릭 이벤트 추가 (이벤트 위임)
+            $menuContainer.off('click', '.dep1-1 > a').on('click', '.dep1-1 > a', function (e) {
+                e.preventDefault();
+                const $parent = $(this).parent();
+                const $subMenu = $(this).next('.dep2');
+                const isActive = $parent.hasClass('active');
+
+                if (isActive) {
+                    $parent.removeClass('active');
+                    $subMenu.find('.dep2-1').removeClass('active');
+                    $subMenu.slideUp(300);
+                } else {
+                    $parent.siblings().removeClass('active').find('.dep2').slideUp(300);
+                    
+                    $parent.addClass('active');
+                    $subMenu.slideDown(300, function() {
+                        const $dep2Items = $subMenu.find('.dep2-1');
+                        if ($dep2Items.length === 1) {
+                            // 대분류가 다 펼쳐진 후 중메뉴를 트리거
+                            $dep2Items.find('> a').click();
+                        }
+                    });
+                }
             });
         });
 
@@ -989,12 +929,12 @@
         //     let notify_text = notify_list[notify_index];
         //     $('#notify_text').text(notify_text);
         //     notify_index++;
-        // }, 5000);
+        // }, 3000);
         //
         // // 내정보 클릭
         $('#myinfo').on('click', function (e) {
             e.preventDefault();
-            Ax5Modal.open({url: CTX + 'page/account/myinfo', width: 500, height: 450});
+            Ax5Modal.open({url: CTX + 'page/account/myinfo', width: 300, height: 450});
             $(".profile_contbox").hide();
         });
         //
@@ -1705,7 +1645,7 @@
             existing.timer = setTimeout(() => {
                 existing.toast.remove();
                 toastMap.delete(notiId);
-            }, 5000);
+            }, 3000);
 
             return;
         }
@@ -1756,7 +1696,7 @@
         let autoClose = setTimeout(() => {
             toast.remove();
             toastMap.delete(notiId);
-        }, 5000);
+        }, 3000);
 
         // Map에 등록
         toastMap.set(notiId, {
