@@ -1099,35 +1099,6 @@
 
         }
 
-        function getspjangcd() {
-
-            $.ajax({
-                url: '/api/system/user/getspjangcd',
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken
-                },
-                success: function (response) {
-                    let select = $('#spjangcd');
-                    select.empty(); // 기존 옵션 제거
-
-                    // 선택 안 했을 때 기본 안내 옵션 추가 (선택사항)
-                    select.append('<option value="">-- 선택하세요 --</option>');
-
-                    // 받아온 데이터로 옵션 추가
-                    response.data.forEach(function(item) {
-                        let option = $('<option></option>')
-                            .val(item.spjangcd)
-                            .text(item.spjangnm);
-                        select.append(option);
-                    });
-                },
-                error: function (error) {
-                    Alert.alert('', '에러가 발생하였습니다.');
-                }
-            });
-        }
-
         /*this.close();*/
 
         //let items = [];

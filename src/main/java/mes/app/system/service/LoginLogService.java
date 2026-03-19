@@ -6,6 +6,7 @@ import java.util.Map;
 
 import mes.app.common.TenantContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Service;
 
@@ -16,10 +17,11 @@ import mes.domain.services.SqlRunner;
 public class LoginLogService {
 
 	@Autowired
+	@Qualifier("mainSqlRunner")
 	SqlRunner sqlRunner;
 
 	public List<Map<String, Object>> getLoginLogList(Timestamp start, Timestamp end, String keyword, String type) {
-		String tenantId = TenantContext.get();
+		String tenantId = TenantContext.getDbKey();
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		dicParam.addValue("spjangcd", tenantId);
 		dicParam.addValue("start", start);

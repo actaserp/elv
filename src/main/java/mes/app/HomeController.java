@@ -69,26 +69,17 @@ public class HomeController {
 		Integer groupid = user.getUserProfile().getUserGroup().getId();
 		String groupname = user.getUserProfile().getUserGroup().getName();
 		String spjangcd = user.getSpjangcd();
+		String db_key = user.getDbKey();
                 
         SystemOption sysOpt= this.systemOptionRepository.getByCode("LOGO_TITLE");
         String logoTitle = sysOpt.getValue();
-        
-        //q = this.systemOptionRepository.getByCode("main_menu");        
-
-		List<Map<String, Object>> spjangList = null;
-		if (groupid == 1){ //관리자
-			spjangList = userService.getSpjangList();
-		} else {
-			spjangList = userService.getSpjang(spjangcd);
-		}
 
 		ModelAndView mv = new ModelAndView();
-		session.setAttribute("spjangList", spjangList);
 		mv.addObject("username", username);
 		mv.addObject("userid", userid);
 		mv.addObject("groupname", groupname);
 		session.setAttribute("spjangcd", spjangcd);
-		session.setAttribute("db_key", spjangcd);  // DB 라우팅 키 (auth_user.spjangcd와 동일)
+		session.setAttribute("db_key", db_key);
 		session.setAttribute("username", username);
 		session.setAttribute("userid", userid);
 		session.setAttribute("groupid", groupid);

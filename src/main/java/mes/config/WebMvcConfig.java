@@ -18,7 +18,7 @@ public class WebMvcConfig implements WebMvcConfigurer{
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(spjangSecurityInterceptor)
-                .addPathPatterns("/api/**")
+                .addPathPatterns("/**")
                 .excludePathPatterns(
                         // 1. 인증 관련 (Security permitAll과 일치)
                         "/login", "/logout", "/postLogin", "/intro", "/error", "/alive", "/bill_plan_read", "/biz/save",

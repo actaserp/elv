@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import mes.app.common.TenantContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -32,6 +33,7 @@ public class GuiController {
     Settings settings;
 
     @Autowired
+    @Qualifier("mainSqlRunner")
     SqlRunner sqlRunner;
 
     @Autowired
@@ -43,14 +45,8 @@ public class GuiController {
     private ModelAndView getView(String gui, String templateName, User user, MultiValueMap<String, String> allRequestParams) {
         ModelAndView mv = new ModelAndView();
 
-        // menu_item 은 Main DB 테이블
-        TenantContext.setForceMainDb(true);
-        MenuItem menuItem;
-        try {
-            menuItem = menuItemRepository.findByMenuCode(gui);
-        } finally {
-            TenantContext.setForceMainDb(false);
-        }
+        // menuItemRepository → JPA → mainDataSource (항상 메인 DB)
+        MenuItem menuItem = menuItemRepository.findByMenuCode(gui);
 
         if (menuItem != null && menuItem.getTemplate() != null) {
             String username = user.getUserProfile().getName();
@@ -94,13 +90,7 @@ public class GuiController {
                         where ugm."MenuCode" = :MenuCode and "UserGroup_id" = :UserGroupId
                         """;
 
-                Map<String, Object> map;
-                TenantContext.setForceMainDb(true);
-                try {
-                    map = this.sqlRunner.getRow(sql, dicParam);
-                } finally {
-                    TenantContext.setForceMainDb(false);
-                }
+                Map<String, Object> map = this.sqlRunner.getRow(sql, dicParam);
 
                 if (map == null) {
                     mv.setViewName("errors/403");
@@ -126,8 +116,8 @@ public class GuiController {
             // 메뉴 접속 로그 기록
             if ("default".equals(templateName)) {
                 try {
-                    String tenantId = user.getSpjangcd();
-                    if (tenantId == null) tenantId = TenantContext.get();
+                    String tenantId = user.getDbKey();
+                    if (tenantId == null) tenantId = TenantContext.getDbKey();
 
                     MenuUseLog menuUseLog = new MenuUseLog();
                     menuUseLog.setMenuCode(gui);

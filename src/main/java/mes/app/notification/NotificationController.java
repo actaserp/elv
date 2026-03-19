@@ -1,6 +1,7 @@
 package mes.app.notification;
 
 import lombok.RequiredArgsConstructor;
+import mes.app.common.TenantContext;
 import mes.domain.entity.Notification;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
@@ -95,12 +96,11 @@ public class NotificationController {
             @RequestParam(value="keyword", required=false) String keyword,
             @RequestParam(value="depart_id", required=false) Integer departId,
             @RequestParam(value="username", required=false) String username,
-            @RequestParam(value ="spjangcd") String spjangcd,
             HttpServletRequest request,
             Authentication auth) {
 
         AjaxResult result = new AjaxResult();
-
+        String spjangcd = TenantContext.getDbKey();
         List<Map<String, Object>> items = this.notificationService.getUserList(group, keyword, spjangcd);
 
         result.data = items;

@@ -1,5 +1,6 @@
 package mes.app.weather.service;
 
+import mes.app.common.TenantContext;
 import mes.domain.services.SqlRunner;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -15,15 +16,16 @@ public class TB_xusersService {
   SqlRunner sqlRunner;
 
 
-  // 로그인 한 사람의 사업장 주소 가지고 감
-  public String getUserAddress(String userId) {
+  // 로그인 한 사람의 spjangcd 사업장 주소 가지고 감
+  public String getUserAddress() {
     MapSqlParameterSource params = new MapSqlParameterSource();
-    params.addValue("userid", userId);
+    String spjangcd = TenantContext.get();
+    params.addValue("spjangcd", spjangcd);
     // 사용자 주소를 조회하는 SQL 쿼리 작성
     String sql = """
             SELECT adresa AS address
             FROM tb_xa012 
-            WHERE spjangcd = (select spjangcd from auth_user where username = :userid)
+            WHERE spjangcd = :spjangcd
             """;
 
     List<Map<String, Object>> result = sqlRunner.getRows(sql, params);

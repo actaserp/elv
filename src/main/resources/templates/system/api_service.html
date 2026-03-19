@@ -1,4 +1,4 @@
-<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<html layout:decorate="~{layout_page}">
 <head>
   <style>
       .wj-flexgrid .wj-cell input.wj-column-selector {
@@ -550,7 +550,7 @@
        { binding: 'dzIssueNo', header: '더존발행번호', align: 'center', width: 150 },
        { binding: 'MISDATE',  header: 'mijdate',  visible: false },
        { binding: 'MISNUM',   header: 'mijnum',   visible: false },
-       { binding: 'SPJANGCD', header: 'SPJANGCD', visible: false },
+       { binding: 'spjangcd', header: 'SPJANGCD',visible: false },
        { binding: 'divicd', header: 'divicd', visible: false },
        { binding: 'dzdivicd', header: 'dzdivicd', visible: false },
        { binding: 'divinm', header: 'divinm', visible: false },
@@ -601,7 +601,7 @@
        { binding: 'SUBJECT', header: '적요', align: 'left',width: 150, visible: false },
        { binding: 'MISDATE',  header: 'MISDATE', align: 'center', width: 130 , visible: false},
        { binding: 'MISNUM',   header: 'MISNUM',  align: 'center', width: 130 , visible: false},
-       { binding: 'SPJANGCD', header: 'SPJANGCD',align: 'center', width: 130 , visible: false},
+       { binding: 'spjangcd', header: 'SPJANGCD',align: 'center', width: 130 , visible: false},
       ],
       itemsSource: _this.viewData3,
      });
@@ -1423,6 +1423,11 @@
 
        // ① 부가세대급금(차변)
        if (grp.vatSum !== 0) {
+        // ✅ vatDivCd 결정 로직
+        const vatDivCd = (repRow.vatDivCd && repRow.vatDivCd.trim() !== '')
+         ? repRow.vatDivCd    // SQL에서 가져온 값
+         : '1000';            // 기본값
+
         lines.push({
          ...grp.common,
          menuLnSq: lineNo++,
@@ -1430,6 +1435,7 @@
          acctCd:   _this.getDzAcctCd(repRow, grp.acctCd[2], 2),
          acctNm:   grp.acctNm[2] || '부가세대급금',
          acctAm:   grp.vatSum,
+         vatDivCd: vatDivCd,
          issDt:    grp.common.menuDt,
          jeonjaYn: '1',
          supAm:    grp.supplySum,

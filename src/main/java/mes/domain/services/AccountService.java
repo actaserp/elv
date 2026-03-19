@@ -72,7 +72,7 @@ public class AccountService {
 		paramMap.addValue("type", type);
 		paramMap.addValue("IPAddress", clientIp);
 		paramMap.addValue("UserId", user.getId());
-		paramMap.addValue("spjangcd", user.getSpjangcd());
+		paramMap.addValue("spjangcd", user.getDbKey());
 
 		String sql = """
 				insert into login_log("Type", "IPAddress", _created, "User_id", "spjangcd")

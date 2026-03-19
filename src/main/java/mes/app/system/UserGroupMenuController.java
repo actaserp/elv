@@ -8,6 +8,7 @@ import javax.transaction.Transactional;
 
 import mes.app.common.TenantContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,7 +31,8 @@ public class UserGroupMenuController {
 	SystemService systemService;
 	
 	@Autowired
-	SqlRunner sqlRunner;	
+	@Qualifier("mainSqlRunner")
+	SqlRunner sqlRunner;
 	
 	
 	@GetMapping("/read")
@@ -41,10 +43,10 @@ public class UserGroupMenuController {
 			) {
 
 		String loginId = (String) session.getAttribute("userid");
-		String spjangcd = (String) session.getAttribute("spjangcd");
+		String dbKey = (String) session.getAttribute("db_key");
 
 		AjaxResult result = new AjaxResult();
-		result.data = this.systemService.getUserGroupMenuList(groupId, folderId, loginId, spjangcd);
+		result.data = this.systemService.getUserGroupMenuList(groupId, folderId, loginId, dbKey);
 		return result;
 	}
 	
@@ -79,7 +81,7 @@ public class UserGroupMenuController {
 			if (a) authCode += "A";
 			
 			MapSqlParameterSource dicParam = new MapSqlParameterSource();
-			String tenantId = TenantContext.get();
+			String tenantId = TenantContext.getDbKey();
 			dicParam.addValue("spjangcd", tenantId);
 			dicParam.addValue("auth_code", authCode);
 			dicParam.addValue("menu_code", menuCode);

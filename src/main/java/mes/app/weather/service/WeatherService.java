@@ -87,10 +87,10 @@ public class WeatherService {
 	}
 
 	// getWeatherData 메서드 내에서 fetchWeatherData 호출 시 latitude와 longitude를 인자로 전달
-	public ResponseEntity<?> getWeatherData(String userId){
+	public ResponseEntity<?> getWeatherData(){
 
 		// 사용자 주소를 가져오기(사업장 주소 사용)
-			String address = xusersService.getUserAddress(userId);
+			String address = xusersService.getUserAddress();
 		if (address == null || address.isEmpty()) {
 			return ResponseEntity.badRequest().body("주소가 유효하지 않습니다.");
 		}

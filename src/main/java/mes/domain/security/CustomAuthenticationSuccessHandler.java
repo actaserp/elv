@@ -42,18 +42,18 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
 			Authentication authentication) throws IOException, ServletException {
 
 		User user = (User) authentication.getPrincipal();
-		String spjangcd = user.getSpjangcd(); // CustomAuthenticationManager에서 세팅됨
+		String dbKey = user.getDbKey(); // DB 라우팅 전용 키
 
 		// 테넌트 DB 라우팅 키 설정
-		TenantContext.setDbKey(spjangcd);
+		TenantContext.setDbKey(dbKey);
 
 		// 테넌트 DB에서 사업장 목록 조회 (단일 DB이므로 대부분 1개)
-		List<Map<String, Object>> spjangList = loadSpjangList(spjangcd);
+		List<Map<String, Object>> spjangList = loadSpjangList(dbKey);
 
 		// 세션 저장
 		HttpSession session = request.getSession(true);
-		session.setAttribute("db_key", spjangcd);
-		session.setAttribute("spjangcd_login", spjangcd); // 로그인 URL 복원용
+		session.setAttribute("db_key", dbKey);
+		session.setAttribute("spjangcd_login", dbKey); // 로그인 URL 복원용
 		session.setAttribute("is_superuser", Boolean.TRUE.equals(user.getSuperUser()));
 
 		if (spjangList.size() == 1) {
@@ -61,7 +61,7 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
 			session.setAttribute("spjangcd", tenantSpjangcd);
 			TenantContext.set(tenantSpjangcd);
 		} else if (spjangList.size() > 1) {
-			log.info("사업장 복수 선택 필요: spjangcd={}, count={}", spjangcd, spjangList.size());
+			log.info("사업장 복수 선택 필요: dbKey={}, count={}", dbKey, spjangList.size());
 		}
 
 		// 로그인 로그
@@ -85,14 +85,14 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
 	 * 테넌트 DB의 tb_xa012에서 사업장 목록 조회
 	 * (이미 RoutingDataSource에 spjangcd로 등록된 DB에서 직접 조회)
 	 */
-	private List<Map<String, Object>> loadSpjangList(String spjangcd) {
+	private List<Map<String, Object>> loadSpjangList(String dbKey) {
 		try {
-			TenantContext.setDbKey(spjangcd);
+			TenantContext.setDbKey(dbKey);
 			JdbcTemplate tenantJdbc = new JdbcTemplate(routingDataSource);
 			return tenantJdbc.queryForList("SELECT spjangcd, spjangnm FROM tb_xa012 ORDER BY spjangcd");
 		} catch (Exception e) {
-			log.error("사업장 목록 조회 실패: spjangcd={}", spjangcd, e);
-			return List.of(Map.of("spjangcd", spjangcd, "spjangnm", spjangcd));
+			log.error("사업장 목록 조회 실패: dbKey={}", dbKey, e);
+			return List.of(Map.of("spjangcd", dbKey, "spjangnm", dbKey));
 		}
 	}
 }

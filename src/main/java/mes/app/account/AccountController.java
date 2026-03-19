@@ -639,19 +639,6 @@ public class AccountController {
 		return result;
 	}
 
-
-
-	@PostMapping("/user-auth/getspjangcd")
-	public AjaxResult getspjangcd(){
-
-		AjaxResult result = new AjaxResult();
-
-		List<Map<String, String>> list = accountService.findspjangcd();
-
-		result.data = list;
-		return result;
-	}
-
 	@PostMapping("/account/myinfosave")
 	public AjaxResult setUserInfo(
 			@RequestParam("name") final String name,

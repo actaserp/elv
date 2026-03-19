@@ -2072,7 +2072,7 @@
     // 날씨 정보를 서버에서 가져오는 함수
     function fetchWeatherData() {
         $.ajax({
-            url: withCtx('/weather/current'),
+            url: '/weather/current',
             type: 'GET',
             dataType: 'json',
             success: function (data) {

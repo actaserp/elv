@@ -10,11 +10,8 @@ public class TenantContext {
     /** 사업장 코드 – SQL WHERE spjangcd 필터용 (테넌트 DB 내부 코드) */
     private static final ThreadLocal<String> currentTenant = new ThreadLocal<>();
 
-    /** DB 라우팅 키 – 메인 DB tb_xa012.spjangcd (어떤 물리 DB로 붙을지 결정) */
+    /** DB 라우팅 키 – 어떤 물리 DB로 붙을지 결정 (RoutingDataSource 사용) */
     private static final ThreadLocal<String> currentDbKey = new ThreadLocal<>();
-
-    /** 메인 DB 강제 라우팅 플래그 – 시스템 테이블 쿼리 시 true */
-    private static final ThreadLocal<Boolean> forceMainDb = new ThreadLocal<>();
 
     // ── spjangcd (SQL 필터) ──────────────────────────────────────────────────
 
@@ -66,22 +63,10 @@ public class TenantContext {
         return dbKey;
     }
 
-    // ── forceMainDb (시스템 테이블 라우팅) ───────────────────────────────────
-
-    public static void setForceMainDb(boolean value) {
-        if (value) forceMainDb.set(true);
-        else forceMainDb.remove();
-    }
-
-    public static boolean isForceMainDb() {
-        return Boolean.TRUE.equals(forceMainDb.get());
-    }
-
     // ── clear ────────────────────────────────────────────────────────────────
 
     public static void clear() {
         currentTenant.remove();
         currentDbKey.remove();
-        forceMainDb.remove();
     }
 }

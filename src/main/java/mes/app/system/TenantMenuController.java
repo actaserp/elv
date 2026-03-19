@@ -4,6 +4,7 @@ import mes.domain.model.AjaxResult;
 import mes.domain.services.CommonUtil;
 import mes.domain.services.SqlRunner;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +18,7 @@ import java.util.Map;
 public class TenantMenuController {
 
     @Autowired
+    @Qualifier("mainSqlRunner")
     SqlRunner sqlRunner;
 
     /**
@@ -97,6 +99,16 @@ public class TenantMenuController {
             param.addValue("menu_code", menuCode);
             sqlRunner.execute(sql, param);
         }
+
+        // tenant_menu에서 빠진 메뉴는 user_group_menu에서도 삭제
+        String cleanupSql = """
+            delete from user_group_menu
+            where spjangcd = :spjangcd
+            and "MenuCode" not in (
+                select menu_code from tenant_menu where spjangcd = :spjangcd
+            )
+        """;
+        sqlRunner.execute(cleanupSql, delParam);
 
         return result;
     }

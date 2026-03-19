@@ -9,6 +9,7 @@ import javax.transaction.Transactional;
 
 import mes.app.common.TenantContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.security.core.Authentication;
@@ -45,7 +46,9 @@ public class UserController {
 	RelationDataRepository relationDataRepository;
 	
 	@Autowired
+	@Qualifier("mainSqlRunner")
 	SqlRunner sqlRunner;
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -57,7 +60,6 @@ public class UserController {
 			@RequestParam(value="keyword", required=false) String keyword,
 			@RequestParam(value="depart_id", required=false) Integer departId,
 			@RequestParam(value="username", required=false) String username,
-			@RequestParam(value ="spjangcd") String spjangcd,
 			HttpServletRequest request,
 			Authentication auth) {
 		
@@ -65,6 +67,7 @@ public class UserController {
 		
 		User user = (User)auth.getPrincipal();
 		boolean superUser = user.getSuperUser();
+		String spjangcd = TenantContext.getDbKey();
 		
 		if (!superUser) {
 			superUser = user.getUserProfile().getUserGroup().getCode().equals("dev");
@@ -119,7 +122,7 @@ public class UserController {
 			) {
 		
 		AjaxResult result = new AjaxResult();
-		String spjangcd = TenantContext.get();
+		String spjangcd = TenantContext.getDbKey();
 		
 		String sql = null;
 		User user = null;
@@ -341,28 +344,17 @@ public class UserController {
 	@GetMapping("/getPerson")
 	public AjaxResult getAccSearchList(
 			@RequestParam(value="searchCode", required=false) String code,
-			@RequestParam(value="searchName", required=false) String name,
-			@RequestParam(value ="spjangcd") String spjangcd
+			@RequestParam(value="searchName", required=false) String name
 	) {
 
 		AjaxResult result = new AjaxResult();
+		String spjangcd = TenantContext.getDbKey();
 		List<Map<String, Object>> items = this.userService.getPSearchitem(code,name,spjangcd);
-
 		result.data = items;
 		return result;
 	}
 
 
-	@PostMapping("/getspjangcd")
-	public AjaxResult getspjangcd(){
-
-		AjaxResult result = new AjaxResult();
-
-		List<Map<String, String>> list = userService.findspjangcd();
-
-		result.data = list;
-		return result;
-	}
 
 
 

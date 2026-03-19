@@ -66,6 +66,9 @@ public class User implements Serializable {
 	@Column(name = "spjangcd")
 	String spjangcd;
 
+	@Column(name = "db_key")
+	String dbKey;
+
 	@Column(name = "personid")
 	Integer personid;
 

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +15,7 @@ import mes.domain.services.SqlRunner;
 public class MenuLogService {
 
 	@Autowired
+	@Qualifier("mainSqlRunner")
 	SqlRunner sqlRunner;
 	
 	public List<Map<String, Object>> getLogCount(String dateFrom, String dateTo, String menuCode, String userPk, String spjangcd) {
@@ -90,7 +92,7 @@ public class MenuLogService {
 	            where u.is_active 
 	            and not u.is_superuser 
 	            and  ug."Code" not in ('dev')
-	            and u.spjangcd = :spjangcd
+	            and u.db_key = :spjangcd
 	            order by 2
     	        """;
         

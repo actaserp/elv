@@ -5,6 +5,7 @@ import java.util.Map;
 
 import mes.domain.entity.User;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Service;
 
@@ -13,6 +14,7 @@ import mes.domain.services.SqlRunner;
 public class UserGroupService {
 	
 	@Autowired
+	@Qualifier("mainSqlRunner")
 	SqlRunner sqlRunner;
 	
 	public List<Map<String,Object>> getUserGroupList(Boolean super_user, String spjangcd) {

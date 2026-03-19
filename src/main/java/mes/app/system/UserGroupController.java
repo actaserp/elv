@@ -42,7 +42,7 @@ public class UserGroupController{
 		
 		User user = (User)auth.getPrincipal();
 		Boolean super_user = user.getSuperUser();
-		String spjangcd = TenantContext.get();
+		String spjangcd = TenantContext.getDbKey();
 
 		if (super_user == false ) {
 			super_user = Objects.equals(user.getUserProfile().getUserGroup().getCode(), "dev");
@@ -73,11 +73,10 @@ public class UserGroupController{
 			@RequestParam("name") String name,
 			@RequestParam ("description") String description,
 			@RequestParam ("gmenu") String gmenu,
-			@RequestParam(value ="spjangcd") String spjangcd,
 			HttpServletRequest request,
 			Authentication auth) {
 			User user = (User)auth.getPrincipal();
-			
+			String spjangcd = TenantContext.getDbKey();
 			UserGroup ug=null;
 			
 			if(id == null) {

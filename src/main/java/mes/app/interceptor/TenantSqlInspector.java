@@ -18,12 +18,22 @@ public class TenantSqlInspector implements StatementInspector {
 
         String lowSql = sql.toLowerCase();
 
-        // 2. 화이트리스트 테이블 (격리 제외 대상)
-        if (lowSql.contains("menu_use_log")
+        // 2. 메인 DB 테이블은 spjangcd 격리 대상이 아님 (JPA → mainDataSource 고정)
+        if (lowSql.contains("menu_item")
+                || lowSql.contains("menu_folder")
+                || lowSql.contains("menu_front_folder")
+                || lowSql.contains("menu_use_log")
+                || lowSql.contains("user_group_menu")
+                || lowSql.contains("user_group")
+                || lowSql.contains("user_profile")
+                || lowSql.contains("auth_user")
+                || lowSql.contains("tenant_menu")
+                || lowSql.contains("login_log")
+                || lowSql.contains("sys_log")
                 || lowSql.contains("sys_option")
                 || lowSql.contains("label_code")
-                || lowSql.contains("label_code_lang")
                 || lowSql.contains("sys_code")
+                || lowSql.contains("bookmark")
         ) {
             return sql;
         }

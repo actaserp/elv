@@ -37,7 +37,9 @@ public class ControllerExecutionTimeAspect implements Filter {
 
 
         // /api 로 시작하는 요청만 측정
-        if (!uri.startsWith("/api") || isExcludedPath(uri)) {
+        if (!uri.startsWith("/api")
+//                || isExcludedPath(uri)
+        ) {
             chain.doFilter(request, response);
             return;
         }

@@ -35,10 +35,10 @@ public class CustomAuthenticationManager implements AuthenticationManager {
             spjangcd = details.getSpjangcd();
         }
 
-        // 항상 Main DB에서 인증 — spjangcd 있으면 필터, 없으면 전체 조회 (관리자)
+        // 항상 Main DB에서 인증 — spjangcd(=db_key) 있으면 필터, 없으면 전체 조회 (관리자)
         User user;
         if (spjangcd != null && !spjangcd.isBlank()) {
-            user = userRepository.findByUsernameAndSpjangcd(username, spjangcd)
+            user = userRepository.findByUsernameAndDbKey(username, spjangcd)
                     .orElseThrow(() -> new UsernameNotFoundException(username));
         } else {
             user = userRepository.findByUsername(username)

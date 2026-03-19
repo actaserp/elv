@@ -5,12 +5,11 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
-import mes.app.common.TenantContext;
 import mes.domain.entity.User;
 import mes.domain.entity.UserGroup;
 import mes.domain.services.SqlRunner;
@@ -18,11 +17,13 @@ import mes.domain.services.SqlRunner;
 @Repository
 public class SystemService {
 
+	/** 메인 DB 전용 SqlRunner – 메뉴/권한/로그 등 시스템 테이블 */
+	@Autowired
+	@Qualifier("mainSqlRunner")
+	SqlRunner mainSqlRunner;
+
 	@Autowired
 	SqlRunner sqlRunner;
-	
-	@Autowired
-    private NamedParameterJdbcTemplate  jdbcTemplate;
 
 
 	public List<Map<String, Object>> getFrontFolderList() {
@@ -32,7 +33,7 @@ public class SystemService {
             where use_yn = 'Y'
             order by _order
         """;
-		return this.sqlRunner.getRows(sql, null);
+		return this.mainSqlRunner.getRows(sql, null);
 	}
 
 	public List<Map<String, Object>> getWebMenuList(User user) {
@@ -147,13 +148,7 @@ public class SystemService {
 		dicParam.addValue("group_code", group_code);
 		dicParam.addValue("super_user", super_user);
 
-		// menu_item, menu_folder, user_group_menu 는 Main DB 테이블
-		TenantContext.setForceMainDb(true);
-		try {
-			return this.sqlRunner.getRows(sql, dicParam);
-		} finally {
-			TenantContext.setForceMainDb(false);
-		}
+		return this.mainSqlRunner.getRows(sql, dicParam);
 
 	}
 
@@ -163,7 +158,7 @@ public class SystemService {
 	 * @param folderId
 	 * @return
 	 */
-	public List<Map<String, Object>> getUserGroupMenuList(Integer userGroupId, Integer folderId, String loginId, String spjangcd) {
+	public List<Map<String, Object>> getUserGroupMenuList(Integer userGroupId, Integer folderId, String loginId, String dbKey) {
 
 		boolean isAdmin = "admin".equals(loginId);
 
@@ -195,8 +190,8 @@ public class SystemService {
 		}
 
 		// admin은 전체 메뉴, 일반 사용자는 tenant_menu에 등록된 메뉴만 표시
-		String tenantJoin = (!isAdmin && spjangcd != null && !spjangcd.isBlank())
-				? "inner join tenant_menu tm on tm.menu_code = mi.\"MenuCode\" and tm.spjangcd = :spjangcd"
+		String tenantJoin = (!isAdmin && dbKey != null && !dbKey.isBlank())
+				? "inner join tenant_menu tm on tm.menu_code = mi.\"MenuCode\" and tm.spjangcd = :db_key"
 				: "";
 
 		sql += """
@@ -235,15 +230,15 @@ public class SystemService {
                         from tree
                         left join user_group_menu ugm on ugm."MenuCode" = tree.menu_code
                         and ugm."UserGroup_id" = :group_id
-                        and ugm.spjangcd = :spjangcd
+                        and ugm.spjangcd = :db_key
                         order by path, tree.ord
                 """;
 
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		dicParam.addValue("folder_id", folderId);
 		dicParam.addValue("group_id", userGroupId);
-		dicParam.addValue("spjangcd", spjangcd != null ? spjangcd : "");
-		return this.sqlRunner.getRows(sql, dicParam);
+		dicParam.addValue("db_key", dbKey != null ? dbKey : "");
+		return this.mainSqlRunner.getRows(sql, dicParam);
 	}
 
 	public List<Map<String, Object>> getBookmarkList(int userId){
@@ -264,13 +259,11 @@ public class SystemService {
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 
         dicParam.addValue("user_id", userId);
-        List<Map<String, Object>> items = this.sqlRunner.getRows(sql, dicParam);        
+        List<Map<String, Object>> items = this.mainSqlRunner.getRows(sql, dicParam);
         return items;
 	}
 	
 	public int saveBookmark(String menucode, String isbookmark, User user) {
-		int iRowEffected = 0;
-		
 		MapSqlParameterSource namedParameters = new MapSqlParameterSource();
 		namedParameters.addValue("menucode", menucode);
 		namedParameters.addValue("user_id", user.getId());
@@ -280,16 +273,14 @@ public class SystemService {
 			String sql = """
                 insert into bookmark ("User_id", "MenuCode", _created) values(:user_id, :menucode, now())
                 """;
-			iRowEffected = this.jdbcTemplate.update(sql, namedParameters);
+			return this.sqlRunner.execute(sql, namedParameters);
 		} else {
 			// isbookmark가 'true'일 경우, 북마크 삭제
 			String sql = """
                 delete from bookmark where "User_id"=:user_id and "MenuCode"=:menucode
                 """;
-			iRowEffected = this.jdbcTemplate.update(sql, namedParameters);
-		}    
-		
-		return iRowEffected;
+			return this.mainSqlRunner.execute(sql, namedParameters);
+		}
 	}
 	
 	public List<Map<String, Object>> getLabelList(String lang_code, String gui_code, String template_key){
@@ -318,7 +309,7 @@ public class SystemService {
         dicParam.addValue("lang_code", lang_code);
         dicParam.addValue("gui_code", gui_code);
         dicParam.addValue("template_key", template_key);
-        List<Map<String, Object>> items = this.sqlRunner.getRows(sql, dicParam);
+        List<Map<String, Object>> items = this.mainSqlRunner.getRows(sql, dicParam);
         return items;
 		        
 	}
@@ -347,7 +338,7 @@ public class SystemService {
         dicParam.addValue("template_name", templateName);
         dicParam.addValue("grid_name", gridName);
         dicParam.addValue("lang_code", langCode);
-        List<Map<String, Object>> items = this.sqlRunner.getRows(sql, dicParam);
+        List<Map<String, Object>> items = this.mainSqlRunner.getRows(sql, dicParam);
         
 		return items;
 	}
@@ -381,7 +372,7 @@ public class SystemService {
 		namedParameters.addValue("type", type);
 		namedParameters.addValue("source", source);
 
-		return this.jdbcTemplate.queryForList(sql, namedParameters);
+		return this.sqlRunner.getRows(sql, namedParameters);
 	}
 
 
@@ -394,117 +385,9 @@ public class SystemService {
     	""";
     	MapSqlParameterSource namedParameters = new MapSqlParameterSource();
     	namedParameters.addValue("log_id", id);
-    	
-    	return this.jdbcTemplate.queryForMap(sql, namedParameters);    	
+
+    	return this.sqlRunner.getRow(sql, namedParameters);
     }
-    
-//    @Cacheable(value="grid_column",key="{#moduleName, #templateName, #gridName, #key}")    
-//    public Map<String, Object> getGridColums(String moduleName, String templateName, String gridName, String key){
-//    	
-//    	String sql = """    			
-//        select  id, "ModuleName", "TemplateKey", "GridName", "Key", "Index", "Label", "Width", "Hidden"
-//        , _status, _created, _modified, _creater_id, _modifier_id
-//        from public.grid_col
-//    	where  "ModuleName" = :moduleName and "TemplateKey" = :templateName and "GridName" = :gridName and "Key" = :key
-//    	""";
-//    	
-//    	MapSqlParameterSource namedParameters = new MapSqlParameterSource();
-//    	namedParameters.addValue("moduleName", moduleName);
-//    	namedParameters.addValue("templateName", templateName);
-//    	namedParameters.addValue("gridName", gridName);
-//    	namedParameters.addValue("key", key);
-//    	
-//    	Map<String, Object> items = this.sqlRunner.getRow(sql, namedParameters);
-//    	//return this.jdbcTemplate.queryForObject(sql, namedParameters, GridColumn.class);
-//    	return items;
-//    }
-    
-//    @CachePut(value = "grid_column",key="{#gridColumn.moduleName, #gridColumn.templateName, #gridColumn.gridName, #key}")
-//    public GridColumn saveGridColumn(GridColumn gridColumn) {
-//    	
-//    	MapSqlParameterSource namedParameters = new MapSqlParameterSource();
-//    	namedParameters.addValue("id", gridColumn.getId());
-//		namedParameters.addValue("ModuleName", gridColumn.getModuleName());
-//		namedParameters.addValue("TemplateKey", gridColumn.getTemplateKey());
-//		namedParameters.addValue("GridName", gridColumn.getGridName());
-//		namedParameters.addValue("Key", gridColumn.getKey());
-//		namedParameters.addValue("Index", gridColumn.getIndex());
-//		namedParameters.addValue("Label", gridColumn.getLabel());
-//		namedParameters.addValue("Width", gridColumn.getWidth());
-//		namedParameters.addValue(":Hidden", gridColumn.getHidden());
-//		
-//		namedParameters.addValue(":_status", gridColumn.get_status());
-//		namedParameters.addValue(":_created", gridColumn.get_created());
-//		namedParameters.addValue(":_modified", gridColumn.get_modified());
-//		namedParameters.addValue(":_creater_id", gridColumn.get_creater_id());
-//		namedParameters.addValue(":_modifier_id", gridColumn.get_modifier_id());		
-//    	
-//    	if(gridColumn.getId()==null) {
-//    		
-//    		String sql = """
-//            INSERT INTO grid_col("ModuleName", "TemplateKey", "GridName", "Key", "Index", "Label", "Width", "Hidden", "_status", "_created", "_modified", "_creater_id", "_modifier_id",)
-//            VALUES(
-//            :ModuleName
-//            , :TemplateKey
-//            , :GridName
-//            , :Key
-//            , :Index
-//            , :Label
-//            , :Width
-//            , :Hidden
-//            , :_status
-//            , :_created
-//            , :_modified
-//            , :_creater_id
-//            , :_modifier_id
-//            )
-//            """;
-//    		
-//    		KeyHolder keyHolder = new GeneratedKeyHolder();
-//        	this.jdbcTemplate.update(sql, namedParameters, keyHolder, new String[] {"id"});    	
-//        	Integer id = keyHolder.getKey().intValue();
-//        	gridColumn.setId(id);
-//    		
-//    	}else {
-//    		String sql = """
-//            UPDATE grid_col SET
-//            "_status"=:_status
-//            , "_created"=:_created
-//            , "_modified"=:_modified
-//            , "_creater_id"=:_creater_id
-//            , "_modifier_id"=:_modifier_id
-//            , "ModuleName"=:ModuleName
-//            , "TemplateKey"=:TemplateKey
-//            , "GridName"=:GridName
-//            , "Key"=:Key
-//            , "Index"=:Index
-//            , "Label"=:Label
-//            , "Width"=:Width
-//            , "Hidden"=:Hidden
-//            WHERE id=:id 			
-//    		""";
-//    		
-//    		this.jdbcTemplate.update(sql, namedParameters);
-//    	}    	
-//    	return gridColumn;
-//    }
-    
-//    @CacheEvict(value = "grid_column", key="{#moduleName, #templateName, #gridName}")
-//    public int deleteGridColumns(String moduleName, String templateName, String gridName) {
-//    	int iRowEffected = 0;
-//    	
-//    	String sql = """
-//    	delete from grid_col where "ModuleName"=:ModuleName and "TemplateKey"=:TemplateKey and "GridName"=:GridName
-//    	""";
-//    	
-//    	MapSqlParameterSource namedParameters = new MapSqlParameterSource();    	
-//    	namedParameters.addValue("ModuleName", moduleName);
-//    	namedParameters.addValue("TemplateKey", templateName);
-//    	namedParameters.addValue("GridName", gridName);
-//    	
-//    	iRowEffected = this.jdbcTemplate.update(sql, namedParameters);    	
-//    	return iRowEffected;
-//    }
 
 	public Map<String, Object> getLabelCodeLangDetail(String guiCode, String labelCode, String langCode,
 			String templateKey) {
@@ -534,7 +417,7 @@ public class SystemService {
                 and lc."LabelCode" = :labelCode
 				""";
 		
-		Map<String, Object> item = this.sqlRunner.getRow(sql, paramMap);
+		Map<String, Object> item = this.mainSqlRunner.getRow(sql, paramMap);
 		return item;
 	}
 
@@ -559,7 +442,7 @@ public class SystemService {
 	            order by id  
 				""";
 		
-		List<Map<String,Object>> items = this.sqlRunner.getRows(sql, null);
+		List<Map<String,Object>> items = this.mainSqlRunner.getRows(sql, null);
 		
 		return items;
 	}

@@ -11,6 +11,7 @@ import mes.domain.services.SqlRunner;
 import mes.sse.Service.SseService;
 import mes.sse.SseController;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Service;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ import java.util.Map;
 public class NotificationService {
 
     @Autowired
+    @Qualifier("mainSqlRunner")
     SqlRunner sqlRunner;
 
     private final NotificationRepository notificationRepository;

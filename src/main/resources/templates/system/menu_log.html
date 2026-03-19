@@ -128,7 +128,7 @@
                             <dl>
                                 <dt>
                                     <label for="cboMenu2">
-                                        그룹<span class="eq"></span>
+                                        메뉴<span class="eq"></span>
                                     </label>
                                 </dt>
                                 <dd>
@@ -228,7 +228,6 @@
             let date_to = $('#date_to').val();
             let cboMenu = $('#cboMenu').val();
             let cboUser = $('#cboUser').val();
-            const spjangcd = sessionStorage.getItem('spjangcd');
 
             $.ajax({
                 url: '/api/system/menulog/log_count',
@@ -237,8 +236,7 @@
                     'date_from': date_from,
                     'date_to': date_to,
                     'cboMenu': cboMenu,
-                    'cboUser': cboUser,
-                    'spjangcd': spjangcd
+                    'cboUser': cboUser
                 },
                 async: false,
                 success: function (data) {
@@ -272,7 +270,6 @@
             let date_from = $('#date_from').val();
             let date_to = $('#date_to').val();
             let cboUser = $('#cboUser').val();
-            const spjangcd = sessionStorage.getItem('spjangcd');
 
             $.ajax({
                 url: '/api/system/menulog/log_count',
@@ -281,8 +278,7 @@
                     'cboMenu': cboMenu,
                     'date_from': date_from,
                     'date_to': date_to,
-                    'cboUser': cboUser,
-                    'spjangcd': spjangcd
+                    'cboUser': cboUser
                 },
                 async: false,
                 success: function (result) {
@@ -354,8 +350,7 @@
                     'date_from': date_from,
                     'date_to': date_to,
                     'cboMenu': cboMenu,
-                    'cboUser': cboUser,
-                    'spjangcd': sessionStorage.getItem('spjangcd')
+                    'cboUser': cboUser
                 },
                 async: false,
                 success: function (data) {
@@ -400,8 +395,7 @@
                     'cboMenu': cboMenu,
                     'cboUser': cboUser,
                     'date_from': date_from,
-                    'date_to': date_to,
-                    'spjangcd': sessionStorage.getItem('spjangcd')
+                    'date_to': date_to
                 },
                 async: false,
                 success: function (result) {
@@ -473,9 +467,8 @@
 
             // tab2의 사용자 폴더의 값들을 불러옴
             let url = '/api/system/menulog/user_list';
-            let spjangcd = sessionStorage.getItem('spjangcd');
-            let user_list = AjaxUtil.getSyncData(url, {spjangcd: spjangcd});
-            console.log('user_list', user_list);
+            let user_list = AjaxUtil.getSyncData(url);
+
             let $combo = $('#cboUser');
             $combo.empty();
             let option = $('<option>',

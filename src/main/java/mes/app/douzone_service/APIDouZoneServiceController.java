@@ -27,13 +27,13 @@ public class APIDouZoneServiceController { //더존 api 연동서비스
 	ObjectMapper objectMapper;
 
 	@GetMapping("/sales_read")
-	public AjaxResult getSalesRead(@RequestParam("start")    String start,
-																 @RequestParam("end")      String end,
-																 @RequestParam("company")  String company,
-																 @RequestParam("sale_type")String sale_type,
-																 Authentication auth) {
+	public AjaxResult getSalesRead(@RequestParam("start") String start,
+			@RequestParam("end")      String end,
+			@RequestParam("company")  String company,
+			@RequestParam("sale_type")String sale_type,
+			Authentication auth) {
 		User user = (User)auth.getPrincipal();
-		String spjangcd = "ZZ";
+		String spjangcd = user.getSpjangcd();
 		List<Map<String, Object>> items =
 			this.apidouZoneService.getSalesRead(start, end, company, sale_type, spjangcd);
 

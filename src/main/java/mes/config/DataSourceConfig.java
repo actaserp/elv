@@ -138,7 +138,18 @@ public class DataSourceConfig {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 5. MyBatis → mainDataSource (로그/공통 mapper 용)
+    // 5. Main DB 전용 SqlRunner (메인 DB 시스템 테이블 전용)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Bean("mainSqlRunner")
+    mes.domain.services.SqlRunner mainSqlRunner(@Qualifier("mainDataSource") DataSource mainDataSource) {
+        return new mes.domain.services.impl.MainSqlRunnerImpl(
+                new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(mainDataSource)
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 6. MyBatis → mainDataSource (로그/공통 mapper 용)
     // ──────────────────────────────────────────────────────────────────────────
 
     @Bean
@@ -160,23 +171,14 @@ public class DataSourceConfig {
     // ──────────────────────────────────────────────────────────────────────────
 
     private void validateTenantIsolation(String sql) {
-        // 메인 DB 라우팅이 강제된 경우 검증 생략
-        if (TenantContext.isForceMainDb()) return;
-
+        // routingDataSource 기반 jdbcTemplate은 사업장 DB 쿼리 전용
+        // 메인 DB 테이블은 mainSqlRunner(@Qualifier("mainSqlRunner"))를 사용할 것
         String tenantId = TenantContext.get();
-        String lowSql = sql.toLowerCase();
-
-        if (lowSql.contains("tb_user") || lowSql.contains("menu_use_log") || lowSql.contains("sys_common_code")) {
-            return;
-        }
-
-        if (tenantId == null) {
-            throw new SecurityException("인증된 테넌트 정보가 없습니다. DB 접근이 차단되었습니다.");
-        }
-
-        if (!lowSql.contains("spjangcd")) {
-            log.error("!!! 격리 정책 위반 감지 !!! 실행 쿼리: {}", sql);
-            throw new SecurityException("데이터 격리 정책 위반: 쿼리에 spjangcd 조건이 누락되었습니다.");
+        if (tenantId != null && !"SYSTEM".equals(tenantId)) {
+            String lowSql = sql.toLowerCase();
+            if (!lowSql.contains("spjangcd") && !lowSql.contains("/* skip_tenant_check */")) {
+                log.warn("⚠️ [테넌트 격리 권고] spjangcd 누락 감지 (사업장 DB 쿼리): {}", sql);
+            }
         }
     }
 }

@@ -7,6 +7,7 @@ import java.util.Map;
 
 import mes.app.common.TenantContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -18,6 +19,10 @@ public class ComboService {
 
 	@Autowired
 	SqlRunner sqlRunner;
+
+	@Autowired
+	@Qualifier("mainSqlRunner")
+	SqlRunner MainsqlRunner;
 	
 	Map<String, ComboDataFunction> _dicFunc_;
 
@@ -491,22 +496,26 @@ public class ComboService {
 		dicParam.addValue("cond1", cond1);
 		dicParam.addValue("cond2", cond2);
 		dicParam.addValue("cond3", cond3);
-		return this.sqlRunner.getRows(sql, dicParam);
+		return this.MainsqlRunner.getRows(sql, dicParam);
 	};
 	
 	ComboDataFunction menu_item=(String cond1, String cond2, String cond3)-> {
 		String sql = """
-			select mi."MenuCode" as value, 
-			format('%s(%s)',mi."MenuName", mf."FolderName") as text 
-			from menu_item mi inner join menu_folder mf on mf.id = mi."MenuFolder_id"
-			where mi."MenuFolder_id" != 55
-			order by mi."MenuFolder_id";  
+			select tn.menu_code as value,
+				format('%s(%s)', mi."MenuName", mf."FolderName") as text
+			from tenant_menu tn
+			join menu_item mi on mi."MenuCode" = tn.menu_code
+			join menu_folder mf on mf.id = mi."MenuFolder_id"
+			where tn.spjangcd = :spjangcd
+			order by mf._order, mi._order;
 			""";
+		String spjangcd = TenantContext.getDbKey();
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
+		dicParam.addValue("spjangcd", spjangcd);
 		dicParam.addValue("cond1", cond1);
 		dicParam.addValue("cond2", cond2);
 		dicParam.addValue("cond3", cond3);
-		return this.sqlRunner.getRows(sql, dicParam);
+		return this.MainsqlRunner.getRows(sql, dicParam);
 	};
 	
 	//ComboDataFunction menu_template=(String cond1, String cond2, String cond3)-> {
@@ -819,12 +828,12 @@ public class ComboService {
 		""";
 		
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
-		String tenantId = TenantContext.get();
+		String tenantId = TenantContext.getDbKey();
 		dicParam.addValue("spjangcd", tenantId);
 		dicParam.addValue("cond1", cond1);
 		dicParam.addValue("cond2", cond2);
 		dicParam.addValue("cond3", cond3);
-		return this.sqlRunner.getRows(sql, dicParam);		
+		return this.MainsqlRunner.getRows(sql, dicParam);
 	};
 	
 	ComboDataFunction user_profile=(String cond1, String cond2, String cond3)-> {

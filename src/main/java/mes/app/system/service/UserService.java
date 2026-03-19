@@ -6,6 +6,7 @@ import java.util.Map;
 
 import mes.app.common.TenantContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +17,7 @@ import mes.domain.services.SqlRunner;
 public class UserService {
 	
 	@Autowired
+	@Qualifier("mainSqlRunner")
 	SqlRunner sqlRunner;
 	
 	// 사용자 리스트 조회
@@ -48,13 +50,13 @@ public class UserService {
               , au.personid as personid
               , p."Code" as personcode
             from auth_user au
-            left join user_profile up on up."User_id" = au.id and up.spjangcd = au.spjangcd
+            left join user_profile up on up."User_id" = au.id and up.spjangcd = au.db_key
             left join user_group ug on ug.id = up."UserGroup_id" and ug.spjangcd = up.spjangcd
             left join factory f on f.id = up."Factory_id" and f.spjangcd = up.spjangcd
             left join depart d on d.id = up."Depart_id" and d.spjangcd = up.spjangcd
             left join person p on p.id = au.personid
             where is_superuser = false
-            AND au.spjangcd = :spjangcd
+            AND au.db_key = :spjangcd
 		    """;
         
         if (superUser != true) {
@@ -118,10 +120,10 @@ public class UserService {
 	
 	// 사용자 그룹 조회
 	public List<Map<String, Object>> getUserGrpList(Integer id) {
-		String tenantId = TenantContext.get();
+		String spjangcd = TenantContext.getDbKey();
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
         dicParam.addValue("id", id);
-		dicParam.addValue("spjangcd", tenantId);
+		dicParam.addValue("spjangcd", spjangcd);
         String sql = """
         		select ug.id as grp_id
 	            , ug."Name" as grp_name
@@ -137,33 +139,6 @@ public class UserService {
         List<Map<String, Object>> items = this.sqlRunner.getRows(sql, dicParam);
         return items;
 	}
-
-	public List<Map<String, Object>> getSpjangList() {
-
-		MapSqlParameterSource dicParam = new MapSqlParameterSource();
-
-		String sql = """
-        		select spjangcd, spjangnm, saupnum from tb_xa012;
-        		""";
-
-		List<Map<String, Object>> items = this.sqlRunner.getRows(sql, dicParam);
-		return items;
-	}
-
-	public List<Map<String, Object>> getSpjang(String spjangcd) {
-
-		MapSqlParameterSource dicParam = new MapSqlParameterSource();
-		dicParam.addValue("spjangcd", spjangcd);
-
-		String sql = """
-        		select spjangcd, spjangnm, saupnum from tb_xa012 where spjangcd = :spjangcd;
-        		""";
-
-		List<Map<String, Object>> items = this.sqlRunner.getRows(sql, dicParam);
-		return items;
-	}
-
-
 
 	public List<Map<String, Object>> getPSearchitem(String code, String name, String spjangcd) {
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
@@ -189,29 +164,6 @@ public class UserService {
 
 		List<Map<String, Object>> items = this.sqlRunner.getRows(sql, dicParam);
 		return items;
-	}
-
-	public List<Map<String, String>> findspjangcd() {
-
-		MapSqlParameterSource dicParam = new MapSqlParameterSource();
-
-		String sql = """
-                SELECT spjangcd, spjangnm
-                FROM tb_xa012
-            """;
-		// SQL 실행
-		List<Map<String, Object>> rows = this.sqlRunner.getRows(sql, dicParam);
-
-		List<Map<String, String>> result = rows.stream()
-				.map(row -> {
-					Map<String, String> map = new HashMap<>();
-					map.put("spjangcd", (String) row.get("spjangcd"));
-					map.put("spjangnm", (String) row.get("spjangnm"));
-					return map;
-				})
-				.toList();
-
-		return result;
 	}
 
 }
