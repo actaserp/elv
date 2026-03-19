@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import mes.app.common.TenantContext;
 import mes.domain.entity.User;
 import mes.domain.entity.UserGroup;
 import mes.domain.services.SqlRunner;
@@ -145,9 +146,14 @@ public class SystemService {
 		dicParam.addValue("user_id", user.getId());
 		dicParam.addValue("group_code", group_code);
 		dicParam.addValue("super_user", super_user);
-		List<Map<String, Object>> items = this.sqlRunner.getRows(sql, dicParam);
 
-		return items;
+		// menu_item, menu_folder, user_group_menu 는 Main DB 테이블
+		TenantContext.setForceMainDb(true);
+		try {
+			return this.sqlRunner.getRows(sql, dicParam);
+		} finally {
+			TenantContext.setForceMainDb(false);
+		}
 
 	}
 
@@ -157,10 +163,12 @@ public class SystemService {
 	 * @param folderId
 	 * @return
 	 */
-	public List<Map<String, Object>> getUserGroupMenuList(Integer userGroupId, Integer folderId, String loginId) {
+	public List<Map<String, Object>> getUserGroupMenuList(Integer userGroupId, Integer folderId, String loginId, String spjangcd) {
+
+		boolean isAdmin = "admin".equals(loginId);
 
 		String sql = """
-                with recursive tree as (  
+                with recursive tree as (
                         select a.id
                             , a."Parent_id" as pid
                             , '' as menu_code
@@ -173,18 +181,23 @@ public class SystemService {
                             ,'folder' as data_div
                             , a.id as folder_id
                             , true as is_folder
-                            from menu_folder a   
+                            from menu_folder a
                             where a."Parent_id" is null
                              and a."FrontFolder_id" is not null
                 """;
 
-		if (!"admin".equals(loginId)) {
+		if (!isAdmin) {
 			sql += " and a.\"FrontFolder_id\" != 15";
 		}
 
 		if (folderId != null) {
 			sql += " and a.id = :folder_id";
 		}
+
+		// admin은 전체 메뉴, 일반 사용자는 tenant_menu에 등록된 메뉴만 표시
+		String tenantJoin = (!isAdmin && spjangcd != null && !spjangcd.isBlank())
+				? "inner join tenant_menu tm on tm.menu_code = mi.\"MenuCode\" and tm.spjangcd = :spjangcd"
+				: "";
 
 		sql += """
                       union all
@@ -201,6 +214,7 @@ public class SystemService {
                                     , mi."MenuFolder_id" as folder_id
                                     , false as is_folder
                               from menu_item mi
+                """ + tenantJoin + """
                               inner join tree on mi."MenuFolder_id" = tree.id
                         )
                         select tree.pid
@@ -218,16 +232,17 @@ public class SystemService {
                             , case when tree.is_folder then null else coalesce(ugm."AuthCode" like '%%X%%', false) end  as x
                             , tree.is_folder
                             , ugm.id as ugm_id
-                        from tree 
-                        left join user_group_menu ugm on ugm."MenuCode" = tree.menu_code 
+                        from tree
+                        left join user_group_menu ugm on ugm."MenuCode" = tree.menu_code
                         and ugm."UserGroup_id" = :group_id
-                        order by path, tree.ord						
+                        and ugm.spjangcd = :spjangcd
+                        order by path, tree.ord
                 """;
 
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		dicParam.addValue("folder_id", folderId);
 		dicParam.addValue("group_id", userGroupId);
-		dicParam.addValue("loginId", loginId);
+		dicParam.addValue("spjangcd", spjangcd != null ? spjangcd : "");
 		return this.sqlRunner.getRows(sql, dicParam);
 	}
 

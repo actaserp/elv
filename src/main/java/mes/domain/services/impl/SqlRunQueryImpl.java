@@ -114,11 +114,12 @@ public class SqlRunQueryImpl implements SqlRunner {
 
 	/** 메인 DB에 있는 시스템 테이블 목록 – 이 테이블이 SQL에 포함되면 mainDataSource로 라우팅 */
 	private static final String[] MAIN_DB_TABLES = {
-			"menu_folder", "menu_item", "user_group_menu", "bookmark",
+			"menu_front_folder", "menu_folder", "menu_item", "user_group_menu", "bookmark",
 			"label_code_lang", "sys_option", "sys_code", "sys_common_code",
 			"auth_user", "tb_user", "user_profile", "user_group",
 			"login_log", "menu_use_log", "notification",
-			"bill_plans", "mat_comp_uprice", "seq_maker", "tb_xa012"
+			"bill_plans", "mat_comp_uprice", "seq_maker", "tb_xa012",
+			"tenant_menu"
 	};
 
 	/**

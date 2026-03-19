@@ -18,6 +18,7 @@ import mes.domain.security.CustomAccessDeniedHandler;
 import mes.domain.security.CustomAuthenticationFailureHandler;
 import mes.domain.security.CustomAuthenticationManager;
 import mes.domain.security.CustomAuthenticationSuccessHandler;
+import mes.domain.security.TenantWebAuthenticationDetailsSource;
 import org.springframework.beans.factory.annotation.Value;
 
 
@@ -30,6 +31,9 @@ public class SecurityConfiguration {
 
 	@Autowired
 	private CustomAuthenticationFailureHandler customAuthenticationFailureHandler;
+
+	@Autowired
+	private TenantWebAuthenticationDetailsSource tenantWebAuthenticationDetailsSource;
 
     @Value("${server.servlet.session.cookie.name}")
     private String sessionCookieName;
@@ -95,6 +99,7 @@ public class SecurityConfiguration {
                 .formLogin(form -> form
                         .loginPage("/login")
                         .loginProcessingUrl("/postLogin")
+                        .authenticationDetailsSource(tenantWebAuthenticationDetailsSource)
                         .successHandler(customAuthenticationSuccessHandler)
                         .failureHandler(customAuthenticationFailureHandler)
                         .permitAll()

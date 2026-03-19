@@ -33,4 +33,6 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
 	Optional<User> findBySpjangcd(String spjangcd);
 
+	Optional<User> findByUsernameAndSpjangcd(String username, String spjangcd);
+
 }

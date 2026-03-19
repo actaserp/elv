@@ -555,9 +555,10 @@ $(document).ready(function () {
             $target.parent().addClass('active');
         }
     }
-    $(function () {
-        lnbUI.click('.layout-nav li', 300);
-    });
+    // lnbUI는 동적 메뉴(index.html의 dep1-1 핸들러)와 충돌하므로 비활성화
+    // $(function () {
+    //     lnbUI.click('.layout-nav li', 300);
+    // });
 }(jQuery));
 
 

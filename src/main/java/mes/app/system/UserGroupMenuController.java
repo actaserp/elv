@@ -41,10 +41,11 @@ public class UserGroupMenuController {
 			) {
 
 		String loginId = (String) session.getAttribute("userid");
+		String spjangcd = (String) session.getAttribute("spjangcd");
 
 		AjaxResult result = new AjaxResult();
-		result.data = this.systemService.getUserGroupMenuList(groupId, folderId, loginId);
-		return result;		
+		result.data = this.systemService.getUserGroupMenuList(groupId, folderId, loginId, spjangcd);
+		return result;
 	}
 	
 	@PostMapping("/save")

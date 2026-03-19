@@ -1,7 +1,6 @@
 package mes.app.account;
 
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -30,7 +29,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -168,6 +166,8 @@ public class AccountController {
     	result.data = data;
     	
         UsernamePasswordAuthenticationToken authReq = new UsernamePasswordAuthenticationToken(username, password);
+        // 폼의 hidden spjangcd를 details로 전달 → CustomAuthenticationManager에서 테넌트 DB 선택에 사용
+        authReq.setDetails(new mes.domain.security.TenantWebAuthenticationDetails(request));
 		CustomAuthenticationToken auth = null;
 
 		try{
@@ -192,6 +192,7 @@ public class AccountController {
 			} else{
 				String spjangcd = user.getSpjangcd();
 				Tb_xa012 xa012 = xa012Repository.findById(spjangcd).orElse(null);
+
 				if (xa012 == null) {
 					data.put("code", "noactive");
 				} else if ("중지".equals(xa012.getState())) {
@@ -222,6 +223,15 @@ public class AccountController {
 			sc.setAuthentication(auth);
 			HttpSession session = request.getSession(true);
 			session.setAttribute("SPRING_SECURITY_CONTEXT", sc);
+
+			String spjangcd = auth.getPrincipal() instanceof User
+					? ((User) auth.getPrincipal()).getSpjangcd() : null;
+
+			if (spjangcd != null && !spjangcd.isBlank()) {
+				// 테넌트 로그인: db_key + spjangcd 세션 세팅 (Main DB 인증이므로 ID 일관성 보장)
+				session.setAttribute("db_key", spjangcd);
+				session.setAttribute("spjangcd", spjangcd);
+			}
 		}
 		return result;
 	}

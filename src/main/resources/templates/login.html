@@ -317,8 +317,8 @@
                             <ul class="btn-login-etc">
                                 <li><a class="btn btn-popup-open" data-popup="popup1" title="사업장 신청"
                                        onclick="RegisterUser()">사업장 신청</a></li>
-                                <li><a href="#" class="btn btn-popup-open" data-popup="popup2" title="구독 정보"
-                                       onclick="subscriptionModalOpen()">구독 정보</a></li>
+<!--                                <li><a href="#" class="btn btn-popup-open" data-popup="popup2" title="구독 정보"-->
+<!--                                       onclick="subscriptionModalOpen()">구독 정보</a></li>-->
                             </ul>
                         </div>
                     </div>
@@ -392,16 +392,16 @@
                                 <th>사업장 주소</th>
                                 <td colspan="3"><input type="text" id="bizAddr" name="bizAddr" class="wp100"></td>
                             </tr>
-                            <tr>
-                                <th>선택한 구독 플랜</th>
-                                <td colspan="3">
-                                    <select id="bill_plan" name="bill_plan" class="wp35">
-                                        <option value="">플랜을 선택해 주세요</option>
+<!--                            <tr>-->
+<!--                                <th>선택한 구독 플랜</th>-->
+<!--                                <td colspan="3">-->
+<!--                                    <select id="bill_plan" name="bill_plan" class="wp35">-->
+<!--                                        <option value="">플랜을 선택해 주세요</option>-->
 
-                                    </select>
-                                    <span class="hint-text" style="margin-left: 10px; color: #666;">* 입금 확인 후 최종 승인됩니다.</span>
-                                </td>
-                            </tr>
+<!--                                    </select>-->
+<!--                                    <span class="hint-text" style="margin-left: 10px; color: #666;">* 입금 확인 후 최종 승인됩니다.</span>-->
+<!--                                </td>-->
+<!--                            </tr>-->
                             </tbody>
                         </table>
                     </div>
@@ -1220,10 +1220,10 @@
                 return false;
             }
 
-            if (!data.bill_plan) {
-                Alert.alert('', '구독 플랜을 선택해 주세요.');
-                return false;
-            }
+            // if (!data.bill_plan) {
+            //     Alert.alert('', '구독 플랜을 선택해 주세요.');
+            //     return false;
+            // }
 
             // [Step 1] 사업장 정보(tb_xa012)부터 저장
             $.ajax({
@@ -1235,7 +1235,7 @@
                     bizType: data.bizType,
                     bizItem: data.bizItem,
                     bizAddr: data.bizAddr,
-                    bill_plan_id: data.bill_plan
+                    bill_plan_id: 2
                 },
                 headers: { 'X-CSRF-TOKEN': $('input[name="_csrf"]').val() },
                 success: function (bizRes) {

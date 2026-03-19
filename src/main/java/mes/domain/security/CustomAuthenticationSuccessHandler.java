@@ -10,10 +10,10 @@ import javax.servlet.http.HttpSession;
 
 import lombok.extern.slf4j.Slf4j;
 import mes.app.common.TenantContext;
+import mes.config.RoutingDataSource;
 import mes.config.TenantDataSourceManager;
 import mes.domain.entity.User;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
@@ -24,8 +24,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import mes.domain.model.AjaxResult;
 import mes.domain.services.AccountService;
 
-import javax.sql.DataSource;
-
 @Slf4j
 @Component
 public class CustomAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
@@ -34,8 +32,7 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
 	AccountService accountService;
 
 	@Autowired
-	@Qualifier("mainDataSource")
-	DataSource mainDataSource;
+	RoutingDataSource routingDataSource;
 
 	@Autowired
 	TenantDataSourceManager tenantDataSourceManager;
@@ -45,88 +42,57 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
 			Authentication authentication) throws IOException, ServletException {
 
 		User user = (User) authentication.getPrincipal();
-		String dbKey = user.getSpjangcd(); // 메인 DB tb_xa012.spjangcd (DB 라우팅 키)
+		String spjangcd = user.getSpjangcd(); // CustomAuthenticationManager에서 세팅됨
 
-		// 1. 테넌트 DB의 사업장 목록 조회
-		List<Map<String, Object>> spjangList = loadTenantSpjangList(dbKey);
+		// 테넌트 DB 라우팅 키 설정
+		TenantContext.setDbKey(spjangcd);
 
-		// 2. 세션에 저장
+		// 테넌트 DB에서 사업장 목록 조회 (단일 DB이므로 대부분 1개)
+		List<Map<String, Object>> spjangList = loadSpjangList(spjangcd);
+
+		// 세션 저장
 		HttpSession session = request.getSession(true);
-		session.setAttribute("db_key", dbKey);
+		session.setAttribute("db_key", spjangcd);
+		session.setAttribute("spjangcd_login", spjangcd); // 로그인 URL 복원용
+		session.setAttribute("is_superuser", Boolean.TRUE.equals(user.getSuperUser()));
 
 		if (spjangList.size() == 1) {
-			// 사업장이 1개면 자동 선택
 			String tenantSpjangcd = (String) spjangList.get(0).get("spjangcd");
 			session.setAttribute("spjangcd", tenantSpjangcd);
 			TenantContext.set(tenantSpjangcd);
 		} else if (spjangList.size() > 1) {
-			// 복수 사업장 – 프론트엔드에서 선택 필요 (spjangcd 미설정)
-			log.info("사업장 복수 선택 필요: dbKey={}, count={}", dbKey, spjangList.size());
+			log.info("사업장 복수 선택 필요: spjangcd={}, count={}", spjangcd, spjangList.size());
 		}
-		TenantContext.setDbKey(dbKey);
 
-		// 3. 로그인 로그 저장
+		// 로그인 로그
 		this.accountService.saveLoginLog("login", authentication, request);
 
-		// 4. 응답
-		ObjectMapper mapper = new ObjectMapper();
+		// 응답
 		AjaxResult result = new AjaxResult();
 		result.success = true;
 		result.message = "OK";
-
-		if (spjangList.size() > 1) {
-			// 복수 사업장일 때 목록 반환
-			result.data = spjangList;
-		} else {
-			result.data = "OK";
-		}
+		result.data = spjangList.size() > 1 ? spjangList : "OK";
 
 		response.setCharacterEncoding("UTF-8");
 		response.setStatus(HttpServletResponse.SC_OK);
-		response.getWriter().print(mapper.writeValueAsString(result));
+		response.getWriter().print(new ObjectMapper().writeValueAsString(result));
 		response.getWriter().flush();
 
 		TenantContext.clear();
 	}
 
 	/**
-	 * 메인 DB의 tb_tenant_db에서 해당 dbKey의 main DB 접속정보를 조회하여
-	 * 테넌트 DB에서 사업장 목록을 가져온다.
+	 * 테넌트 DB의 tb_xa012에서 사업장 목록 조회
+	 * (이미 RoutingDataSource에 spjangcd로 등록된 DB에서 직접 조회)
 	 */
-	private List<Map<String, Object>> loadTenantSpjangList(String dbKey) {
+	private List<Map<String, Object>> loadSpjangList(String spjangcd) {
 		try {
-			JdbcTemplate mainJdbc = new JdbcTemplate(mainDataSource);
-
-			List<Map<String, Object>> rows = mainJdbc.queryForList(
-					"SELECT db_url, db_username, db_password, db_type FROM tb_tenant_db WHERE spjangcd = ? AND db_alias = 'main'",
-					dbKey);
-
-			if (rows.isEmpty()) {
-				// tb_tenant_db에 등록 없음 → 메인 DB 자체 사용
-				return List.of(Map.of("spjangcd", dbKey, "spjangnm", dbKey));
-			}
-
-			Map<String, Object> tenantDbInfo = rows.get(0);
-			String dbUrl      = (String) tenantDbInfo.get("db_url");
-			String dbUsername = (String) tenantDbInfo.get("db_username");
-			String dbPassword = (String) tenantDbInfo.get("db_password");
-			String dbType     = (String) tenantDbInfo.get("db_type");
-
-			String jdbcUrl = TenantDataSourceManager.buildJdbcUrl(dbUrl, dbType);
-
-			com.zaxxer.hikari.HikariConfig config = new com.zaxxer.hikari.HikariConfig();
-			config.setJdbcUrl(jdbcUrl);
-			config.setUsername(dbUsername);
-			config.setPassword(dbPassword);
-			config.setMaximumPoolSize(2);
-			config.setConnectionTimeout(5000);
-			try (com.zaxxer.hikari.HikariDataSource ds = new com.zaxxer.hikari.HikariDataSource(config)) {
-				JdbcTemplate tenantJdbc = new JdbcTemplate(ds);
-				return tenantJdbc.queryForList("SELECT spjangcd, spjangnm FROM tb_xa012 ORDER BY spjangcd");
-			}
+			TenantContext.setDbKey(spjangcd);
+			JdbcTemplate tenantJdbc = new JdbcTemplate(routingDataSource);
+			return tenantJdbc.queryForList("SELECT spjangcd, spjangnm FROM tb_xa012 ORDER BY spjangcd");
 		} catch (Exception e) {
-			log.error("테넌트 사업장 목록 조회 실패: dbKey={}", dbKey, e);
-			return List.of();
+			log.error("사업장 목록 조회 실패: spjangcd={}", spjangcd, e);
+			return List.of(Map.of("spjangcd", spjangcd, "spjangnm", spjangcd));
 		}
 	}
 }

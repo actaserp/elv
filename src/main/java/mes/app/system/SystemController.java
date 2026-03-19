@@ -41,10 +41,12 @@ public class SystemController {
        
         List<Map<String, Object>> items = this.systemService.getWebMenuList(user);
         List<Map<String, Object>> frontFolders = this.systemService.getFrontFolderList();
-        
-        Map<Integer, Object> nodeMap = new HashMap<Integer, Object>(); 
+        if (items == null) items = new ArrayList<>();
+        if (frontFolders == null) frontFolders = new ArrayList<>();
+
+        Map<Integer, Object> nodeMap = new HashMap<Integer, Object>();
         List<Map<String, Object>> menuItems = new ArrayList<>();
-        
+
         for(int idx=0; idx<items.size();idx++) {
         	Map<String, Object> dicData = items.get(idx);
         	Integer id = (Integer)dicData.get("id");

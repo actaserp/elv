@@ -595,31 +595,7 @@
                         
                         // 스르륵 펼치기
                         $subUl.slideDown(300, function() {
-                            // 펼쳐진 후 active 클래스 추가 (CSS 간섭 방지)
                             $li.addClass('active');
-                            
-                            let $dep3 = $li.find('.dep3 li');
-                            if ($dep3.length === 1) {
-                                let $itemA = $dep3.find('a');
-                                let objid = $itemA.data('objid');
-                                let title = $itemA.attr('title');
-                                let bookmark = $itemA.data('bookmark');
-
-                                $dep3.addClass('on');
-
-                                if (nthTabs.isExistsTab('#' + objid)) {
-                                    nthTabs.toggleTab('#' + objid);
-                                } else {
-                                    nthTabs.addTab({
-                                        id: objid,
-                                        title: title,
-                                        url: withCtx('/gui/' + objid + '/default'),
-                                        active: true,
-                                        allowClose: true,
-                                        isbookmark: bookmark
-                                    });
-                                }
-                            }
                         });
                     }
                 });
@@ -708,8 +684,8 @@
                     $subMenu.slideDown(300, function() {
                         const $dep2Items = $subMenu.find('.dep2-1');
                         if ($dep2Items.length === 1) {
-                            // 대분류가 다 펼쳐진 후 중메뉴를 트리거
-                            $dep2Items.find('> a').click();
+                            $dep2Items.addClass('active');
+                            $dep2Items.find('> ul.dep3').slideDown(300);
                         }
                     });
                 }

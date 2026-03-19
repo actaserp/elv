@@ -86,6 +86,7 @@ public class ComboService {
 		this._dicFunc_.put("user_code_id", this.user_code_id);
 		this._dicFunc_.put("user_group", this.user_group);
 		this._dicFunc_.put("user_profile", this.user_profile);
+		this._dicFunc_.put("spjang", this.spjang);
 		this._dicFunc_.put("workcenter", this.workcenter);
 		this._dicFunc_.put("workcd", this.workcd);
 		this._dicFunc_.put("iotype", this.iotype);
@@ -828,6 +829,15 @@ public class ComboService {
 	
 	ComboDataFunction user_profile=(String cond1, String cond2, String cond3)-> {
 		String sql = "select \"User_id\" as Value, \"Name\" as text from user_profile where 1=1 order by \"Name\" ";
+		MapSqlParameterSource dicParam = new MapSqlParameterSource();
+		dicParam.addValue("cond1", cond1);
+		dicParam.addValue("cond2", cond2);
+		dicParam.addValue("cond3", cond3);
+		return this.sqlRunner.getRows(sql, dicParam);
+	};
+
+	ComboDataFunction spjang=(String cond1, String cond2, String cond3)-> {
+		String sql = "select spjangcd as value, spjangnm as text from tb_xa012 where state = 'O' order by spjangnm";
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		dicParam.addValue("cond1", cond1);
 		dicParam.addValue("cond2", cond2);

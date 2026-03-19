@@ -10,7 +10,7 @@ import javax.servlet.http.HttpServletResponse;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 
-public class AjaxAwareLoginUrlAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoint {	
+public class AjaxAwareLoginUrlAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoint {
 
     public AjaxAwareLoginUrlAuthenticationEntryPoint(String loginFormUrl) {
 		super(loginFormUrl);
@@ -20,8 +20,7 @@ public class AjaxAwareLoginUrlAuthenticationEntryPoint extends LoginUrlAuthentic
         if ("XMLHttpRequest".equals(request.getHeader("X-Requested-With"))) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHORIZED");
         } else {
-        	super.commence(request, response, authException);
+            super.commence(request, response, authException);
         }
-        
-    }	
+    }
 }

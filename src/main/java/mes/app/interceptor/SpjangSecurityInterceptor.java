@@ -19,6 +19,7 @@ public class SpjangSecurityInterceptor implements HandlerInterceptor {
 
         // API 요청이 아니면 통과
         if (!uri.contains("/api/")) return true;
+        if (!uri.contains("/api/system/tenantmenu/**")) return true;
 
         HttpSession session = request.getSession(false);
 

@@ -151,16 +151,16 @@ public class UserController {
 
 			Map<String, Object> limitMap = this.sqlRunner.getRow(limitSql, limitParam);
 
-			if (limitMap != null) {
-				int userLimit = ((Number) limitMap.get("user_limit")).intValue();
-				int currentCount = ((Number) limitMap.get("current_count")).intValue();
-
-				if (currentCount >= userLimit) {
-					result.success = false;
-					result.message = "사용자 수 제한(" + userLimit + "명)에 도달했습니다. 플랜을 업그레이드해주세요.";
-					return result;
-				}
-			}
+//			if (limitMap != null) {
+//				int userLimit = ((Number) limitMap.get("user_limit")).intValue();
+//				int currentCount = ((Number) limitMap.get("current_count")).intValue();
+//
+//				if (currentCount >= userLimit) {
+//					result.success = false;
+//					result.message = "사용자 수 제한(" + userLimit + "명)에 도달했습니다. 플랜을 업그레이드해주세요.";
+//					return result;
+//				}
+//			}
 
 			if (username_chk == false) {
 				result.success = false;
