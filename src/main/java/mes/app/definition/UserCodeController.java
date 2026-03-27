@@ -5,9 +5,8 @@ import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
-import mes.domain.entity.SystemCode;
-import mes.domain.repository.SysCodeRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,36 +16,27 @@ import org.springframework.web.bind.annotation.RestController;
 
 import mes.app.definition.service.UserCodeService;
 import mes.domain.entity.User;
-import mes.domain.entity.UserCode;
 import mes.domain.model.AjaxResult;
-import mes.domain.repository.UserCodeRepository;
+import mes.domain.services.SqlRunner;
 
 
 @RestController
 @RequestMapping("/api/definition/code")
 public class UserCodeController {
-	
-	
-	@Autowired
-	private UserCodeService codeService;
 
 	@Autowired
-	UserCodeRepository userCodeRepository;
-
+	private UserCodeService syscodeService;
 
 	@Autowired
-	SysCodeRepository sysCodeRepository;
+	SqlRunner sqlRunner;
 
-	
+
 	@GetMapping("/read")
 	public AjaxResult getCodeList(
 			@RequestParam("txtCode") String txtCode
-			) {
-		
-		List<Map<String, Object>> items = this.codeService.getCodeList(txtCode);
+	) {
 		AjaxResult result = new AjaxResult();
-		
-		result.data = items;
+		result.data = this.syscodeService.getCodeList(txtCode);
 		return result;
 	}
 
@@ -54,129 +44,132 @@ public class UserCodeController {
 	public AjaxResult getSystemCodeList(
 			@RequestParam("txtCode") String txtCode,
 			@RequestParam("txtCodeType") String txtCodeType,
-			@RequestParam(value ="spjangcd") String spjangcd
+			@RequestParam(value = "txtDescription") String txtDescription
 	) {
-
-		List<Map<String, Object>> items = this.codeService.getSystemCodeList(txtCode,txtCodeType,spjangcd);
 		AjaxResult result = new AjaxResult();
-
-		result.data = items;
+		result.data = this.syscodeService.getSystemCodeList(txtCode, txtCodeType, txtDescription);
 		return result;
 	}
-	
+
 	@GetMapping("/detail")
 	public AjaxResult getCode(@RequestParam("id") int id) {
-		Map<String, Object> item = this.codeService.getCode(id);
-		
 		AjaxResult result = new AjaxResult();
-		result.data = item;
+		result.data = this.syscodeService.getCode(id);
 		return result;
 	}
 
 	@GetMapping("/Systemcodedetail")
-	public AjaxResult getSystemCode(@RequestParam("id") int id,
-									@RequestParam(value ="spjangcd") String spjangcd) {
-		Map<String, Object> item = this.codeService.getSystemcCode(id,spjangcd);
-
+	public AjaxResult getSystemCode(@RequestParam("id") int id) {
 		AjaxResult result = new AjaxResult();
-		result.data = item;
+		result.data = this.syscodeService.getSystemcCode(id);
 		return result;
 	}
 
-	
+
 	@PostMapping("/save")
 	public AjaxResult saveCode(
-			@RequestParam(value="id", required=false) Integer id,
+			@RequestParam(value = "id", required = false) Integer id,
 			@RequestParam("name") String value,
 			@RequestParam("code") String code,
-			@RequestParam(value="parent_id" , required=false) Integer parent_id,
+			@RequestParam(value = "parent_id", required = false) Integer parent_id,
 			@RequestParam("description") String description,
 			HttpServletRequest request,
 			Authentication auth) {
-		User user = (User)auth.getPrincipal();
-		
-		UserCode c = null;
-		
-		if(id == null) {
-			c = new UserCode();
+
+		User user = (User) auth.getPrincipal();
+
+		MapSqlParameterSource param = new MapSqlParameterSource();
+		param.addValue("code", code);
+		param.addValue("value", value);
+		param.addValue("description", description);
+		param.addValue("parent_id", parent_id);
+		param.addValue("user_id", user.getId());
+
+		if (id == null) {
+			String sql = """
+				insert into sys_code ("Code", "Value", "Description", "Parent_id", _creater_id, _created, _modifier_id, _modified)
+				values (:code, :value, :description, :parent_id, :user_id, now(), :user_id, now())
+				""";
+			sqlRunner.execute(sql, param);
 		} else {
-			c = this.userCodeRepository.getUserCodeById(id);
+			param.addValue("id", id);
+			String sql = """
+				update sys_code
+				set "Code"=:code, "Value"=:value, "Description"=:description, "Parent_id"=:parent_id,
+				    _modifier_id=:user_id, _modified=now()
+				where id=:id
+				""";
+			sqlRunner.execute(sql, param);
 		}
-		c.setValue(value);
-		c.setCode(code);
-		c.setDescription(description);
-		c.setParentId(parent_id);
-		c.set_audit(user);
-		
-		c = this.userCodeRepository.save(c);
-		
+
 		AjaxResult result = new AjaxResult();
-		result.data = c;
-		
+		result.success = true;
 		return result;
 	}
 
 	@PostMapping("/Systemcodesave")
 	public AjaxResult Systemcodesave(
-			@RequestParam(value="id", required=false) Integer id,
+			@RequestParam(value = "id", required = false) Integer id,
 			@RequestParam("code_type") String code_type,
 			@RequestParam("name") String value,
 			@RequestParam("code") String code,
 			@RequestParam("description") String description,
-			@RequestParam(value ="spjangcd") String spjangcd,
+			@RequestParam(value = "spjangcd") String spjangcd,
 			HttpServletRequest request,
 			Authentication auth) {
-		User user = (User)auth.getPrincipal();
 
-		SystemCode s = null;
+		User user = (User) auth.getPrincipal();
 
-		if(id == null) {
-			s = new SystemCode();
+		MapSqlParameterSource param = new MapSqlParameterSource();
+		param.addValue("code_type", code_type);
+		param.addValue("code", code);
+		param.addValue("value", value);
+		param.addValue("description", description);
+		param.addValue("spjangcd", spjangcd);
+		param.addValue("user_id", user.getId());
+
+		if (id == null) {
+			String sql = """
+        insert into sys_code ("CodeType", "Code", "Value", "Description", _creater_id, _created, _modifier_id, _modified)
+        values (:code_type, :code, :value, :description, :user_id, getdate(), :user_id, getdate())
+        """;
+			sqlRunner.execute(sql, param);
 		} else {
-			s = this.sysCodeRepository.getSysCodeById(id);
+			param.addValue("id", id);
+			String sql = """
+        update sys_code
+        set "CodeType"=:code_type, "Code"=:code, "Value"=:value, "Description"=:description,
+            _modifier_id=:user_id, _modified=getdate()
+        where id=:id
+        """;
+			sqlRunner.execute(sql, param);
 		}
 
-		s.setCodeType(code_type);
-		s.setValue(value);
-		s.setCode(code);
-		s.setDescription(description);
-		s.set_audit(user);
-		s.setSpjangcd(spjangcd);
-
-		s = this.sysCodeRepository.save(s);
-
 		AjaxResult result = new AjaxResult();
-		result.data = s;
-
+		result.success = true;
 		return result;
 	}
 
 
 	@PostMapping("/delete")
 	public AjaxResult deleteCode(@RequestParam("id") Integer id) {
-		this.userCodeRepository.deleteById(id);
-		AjaxResult result = new AjaxResult();
-		
-		return result;
+		MapSqlParameterSource param = new MapSqlParameterSource("id", id);
+		sqlRunner.execute("delete from sys_code where id=:id", param);
+		return new AjaxResult();
 	}
 
 
 	@PostMapping("/SystemCodedelete")
 	public AjaxResult deleteSystemCode(@RequestParam("id") Integer id) {
-		this.sysCodeRepository.deleteById(id);
-		AjaxResult result = new AjaxResult();
-
-		return result;
+		MapSqlParameterSource param = new MapSqlParameterSource("id", id);
+		sqlRunner.execute("delete from sys_code where id=:id", param);
+		return new AjaxResult();
 	}
 
 	@GetMapping("/getvalue")
 	public AjaxResult getValue(@RequestParam("code") String code) {
-		Map<String, Object> item = this.codeService.getValue(code);
-
 		AjaxResult result = new AjaxResult();
-		result.data = item;
+		result.data = this.syscodeService.getValue(code);
 		return result;
 	}
-
-	
 }

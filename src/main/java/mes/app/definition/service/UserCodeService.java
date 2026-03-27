@@ -14,46 +14,47 @@ public class UserCodeService {
 	
 	@Autowired 
 	SqlRunner sqlRunner;
-	
+
 	public List<Map<String, Object>> getCodeList(String txtCode){
-		
+
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		dicParam.addValue("txtCode", txtCode);
-		
+
 		String sql = """
-				select id
-                , "Parent_id" as parent_id
-                , "Code" as code
-                , "Value" as name
-                ,"Description" as description
-                from user_code
-                where "Value" ilike concat('%%',:txtCode,'%%')
-                order by "Value"
+			SELECT id,
+						 "Parent_id" AS parent_id,
+						 "Code" AS code,
+						 "Value" AS name,
+						 "Description" AS description
+			FROM user_code
+			WHERE LOWER("Value") LIKE '%' + LOWER(:txtCode) + '%'
+			ORDER BY "Value"
 				""";
 		List<Map<String, Object>> items = this.sqlRunner.getRows(sql, dicParam);
 		return items;
-	
+
 	}
 
 
-	public List<Map<String, Object>> getSystemCodeList(String txtCode,String txtCodeType, String spjangcd){
+	public List<Map<String, Object>> getSystemCodeList(String txtCode,String txtCodeType, String txtDescription){
 
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		dicParam.addValue("txtCode", txtCode);
 		dicParam.addValue("txtCodeType", txtCodeType);
-		dicParam.addValue("spjangcd", spjangcd);
+		dicParam.addValue("txtDescription", txtDescription);
 
 		String sql = """
-				select id
-				, "CodeType" as code_type
-                , "Code" as code
-                , "Value" as name
-                ,"Description" as description
-                from sys_code
-                where "Value" ilike concat('%%',:txtCode,'%%')
-                AND "Description" ilike concat('%%',:txtCodeType,'%%')
-                AND spjangcd = :spjangcd
-				""";
+				SELECT
+				id,
+				CodeType AS code_type,
+				Code AS code,
+				Value AS name,
+				Description AS description
+				FROM sys_code
+				WHERE Value LIKE '%' + :txtCode + '%'
+				AND CodeType LIKE '%' + :txtCodeType + '%'
+				and Description Like '%' + :txtDescription + '%'
+  				""";
 		List<Map<String, Object>> items = this.sqlRunner.getRows(sql, dicParam);
 		return items;
 
@@ -71,63 +72,62 @@ public class UserCodeService {
             left join user_code P on P.id = C."Parent_id"
             where C.id = :id
 			""";
-		
+
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		dicParam.addValue("id", id);
-		
+
 		Map<String, Object> item = this.sqlRunner.getRow(sql, dicParam);
 		return item;
 	}
 
 
-	public Map<String, Object> getSystemcCode(int id, String spjangcd) {
+	public Map<String, Object> getSystemcCode(int id) {
 		String sql = """
-				select S.id
-			, S."CodeType" as code_type
-            , S."Code" as code
-            , S."Value" as name
-            , S."Description" as description
-            from sys_code S
-            where S.id = :id
-            AND S.spjangcd = :spjangcd
+				select
+				S.id,
+				S."CodeType" as code_type,
+				S."Code" as code,
+				S."Value" as name,
+				S."Description" as description
+				from sys_code S
+				where S.id = :id
 			""";
 
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		dicParam.addValue("id", id);
-		dicParam.addValue("spjangcd", spjangcd);
 
 		Map<String, Object> item = this.sqlRunner.getRow(sql, dicParam);
 		return item;
 	}
-	
+
 
 	public List<Map<String, Object>> getUserCode(String parentCode, String baseDate, String type, String typeClassCode, String type2ClassCode, String typeClassTable, String type2ClassTable) {
-		
-		MapSqlParameterSource paramMap = new MapSqlParameterSource();        
-		paramMap.addValue("parentCode", parentCode);  
+
+		MapSqlParameterSource paramMap = new MapSqlParameterSource();
+		paramMap.addValue("parentCode", parentCode);
 		paramMap.addValue("baseDate", baseDate);
-		paramMap.addValue("type", type);  
+		paramMap.addValue("type", type);
 		paramMap.addValue("typeClassCode", typeClassCode);
-		paramMap.addValue("type2ClassCode", type2ClassCode);  
+		paramMap.addValue("type2ClassCode", type2ClassCode);
 		paramMap.addValue("typeClassTable", typeClassTable);
-		paramMap.addValue("type2ClassTable", type2ClassTable);  
-		
+		paramMap.addValue("type2ClassTable", type2ClassTable);
+
 		String funcName = "fn_code_name";
 		String funcName2 = "fn_code_name";
-		
+
 		if (typeClassTable != null) {
 			if(typeClassTable.equals("user_code")) {
 				funcName = "fn_user_code_name";
 			}
 		}
-		
+
 		if (type2ClassTable != null) {
 			if(type2ClassTable.equals("user_code")) {
 				funcName2 = "fn_user_code_name";
 			}
 		}
-		
-		
+
+
 		String sql = """
 				select c.id
 	            , c."Parent_id" as parent_id, c."Code" as code
@@ -139,11 +139,11 @@ public class UserCodeService {
 	            , c."EndDate" as end_date
 				""";
 		if (typeClassCode != null) {
-			sql += "," + funcName + "(:typeClassCode, c.\"Type\") as code_type_name ";			
+			sql += "," + funcName + "(:typeClassCode, c.\"Type\") as code_type_name ";
 		}
-		
+
 		if (type2ClassCode != null) {
-			sql += "," + funcName2 + "(:type2ClassCode, c.\"Type2\") as code_type_name2 ";	
+			sql += "," + funcName2 + "(:type2ClassCode, c.\"Type2\") as code_type_name2 ";
 		}
 		sql += """
 			from user_code c
@@ -151,23 +151,23 @@ public class UserCodeService {
             where pc."Code" = :parentCode
             and cast(:baseDate as date) between coalesce(c."StartDate",'2000-01-01') and coalesce(c."EndDate",'2100-12-31')
 			""";
-		
+
 		if (type != null) {
-			sql += " and c.\"Type\" = :type "; 
+			sql += " and c.\"Type\" = :type ";
 		}
-		
+
 		sql += " order by c.\"Type\", c._order ";
-		
-        List<Map<String, Object>> items = this.sqlRunner.getRows(sql, paramMap);
-        
-        return items;
+
+		List<Map<String, Object>> items = this.sqlRunner.getRows(sql, paramMap);
+
+		return items;
 	}
 
 	public Map<String, Object> userCodeDetail(Integer id) {
-		
-		MapSqlParameterSource paramMap = new MapSqlParameterSource();        
-		paramMap.addValue("id", id);  
-		
+
+		MapSqlParameterSource paramMap = new MapSqlParameterSource();
+		paramMap.addValue("id", id);
+
 		String sql = """
 				select c.id
                 , c."Parent_id"
@@ -181,19 +181,19 @@ public class UserCodeService {
 		            from user_code C
 		            where C.id = :id
 				""";
-		
-        Map<String, Object> items = this.sqlRunner.getRow(sql, paramMap);
-        
-        return items;
+
+		Map<String, Object> items = this.sqlRunner.getRow(sql, paramMap);
+
+		return items;
 	}
 
 	public List<Map<String, Object>> relationDataList(String tableName2, String relationName, String baseId) {
-		
-		MapSqlParameterSource paramMap = new MapSqlParameterSource();        
-		paramMap.addValue("tableName2", tableName2);  
-		paramMap.addValue("relationName", relationName);  
+
+		MapSqlParameterSource paramMap = new MapSqlParameterSource();
+		paramMap.addValue("tableName2", tableName2);
+		paramMap.addValue("relationName", relationName);
 		paramMap.addValue("baseId", baseId);
-		
+
 		String sql = "";
 		if(tableName2.equals("master_t")) {
 			sql = """
@@ -223,10 +223,10 @@ public class UserCodeService {
 	            and rd."RelationName" = :relationName
 	            order by rd._order, rd.id 
 			     """;
-		
-        List<Map<String, Object>> items = this.sqlRunner.getRows(sql, paramMap);
-        
-        return items;
+
+		List<Map<String, Object>> items = this.sqlRunner.getRows(sql, paramMap);
+
+		return items;
 	}
 
 	public Map<String, Object> getValue(String code) {
@@ -241,5 +241,5 @@ public class UserCodeService {
 		Map<String, Object> item = this.sqlRunner.getRow(sql, dicParam);
 		return item;
 	}
-	
+
 }
