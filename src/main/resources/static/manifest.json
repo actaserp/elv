@@ -1,6 +1,6 @@
 {
-  "name": "ACTAS MES",
-  "short_name": "ACTAS",
+  "name": "ELV MES",
+  "short_name": "ELV",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

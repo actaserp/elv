@@ -4,6 +4,7 @@ import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 
+import mes.app.common.TenantContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -273,7 +274,7 @@ public class SystemService {
 			String sql = """
                 insert into bookmark ("User_id", "MenuCode", _created) values(:user_id, :menucode, now())
                 """;
-			return this.sqlRunner.execute(sql, namedParameters);
+			return this.mainSqlRunner.execute(sql, namedParameters);
 		} else {
 			// isbookmark가 'true'일 경우, 북마크 삭제
 			String sql = """
@@ -313,37 +314,10 @@ public class SystemService {
         return items;
 		        
 	}
-	
-	
-	public List<Map<String, Object>> getGridColumnList(String moduleName, String templateName, String gridName, String langCode){
-		
-		String sql = """
-            select gc."Index" as index2, gc."Key" as "key"
-            , gc."Label" as src_label
-            , gc."Width" as width
-            , case when gc."Hidden" = 'Y' then 'true' else 'false' end as hidden
-	        , coalesce(cl."DispText", gc."Label") as label
-	        , cl."DispText" as text
-	        from grid_col gc 
-	        left join grid_col_lang cl on cl."GridColumn_id" = gc.id
-	        and cl."LangCode" = :lang_code
-	        where gc."ModuleName" = :module_name
-	        and gc."TemplateKey" = :template_name
-	        and gc."GridName" = :grid_name
-	        order by gc."Index"
-		""";
-		
-		MapSqlParameterSource dicParam = new MapSqlParameterSource();
-        dicParam.addValue("module_name", moduleName);
-        dicParam.addValue("template_name", templateName);
-        dicParam.addValue("grid_name", gridName);
-        dicParam.addValue("lang_code", langCode);
-        List<Map<String, Object>> items = this.mainSqlRunner.getRows(sql, dicParam);
-        
-		return items;
-	}
 
 	public List<Map<String, Object>> getSystemLogList(Timestamp start, Timestamp end, String type, String source) {
+		String spjangcd = TenantContext.getDbKey();
+
 		String sql = """
         SELECT 
             ROW_NUMBER() OVER (ORDER BY sl."_created" DESC) AS row_num,
@@ -354,6 +328,7 @@ public class SystemService {
             TO_CHAR(sl."_created", 'yyyy-mm-dd hh24:mi:ss') AS created
         FROM sys_log sl
         WHERE sl."_created" BETWEEN :start AND :end
+        and sl.spjangcd = :spjangcd
     """;
 
 		if (StringUtils.hasText(type)) {
@@ -371,8 +346,9 @@ public class SystemService {
 		namedParameters.addValue("end", end, java.sql.Types.TIMESTAMP);
 		namedParameters.addValue("type", type);
 		namedParameters.addValue("source", source);
+		namedParameters.addValue("spjangcd", spjangcd);
 
-		return this.sqlRunner.getRows(sql, namedParameters);
+		return this.mainSqlRunner.getRows(sql, namedParameters);
 	}
 
 
@@ -386,7 +362,7 @@ public class SystemService {
     	MapSqlParameterSource namedParameters = new MapSqlParameterSource();
     	namedParameters.addValue("log_id", id);
 
-    	return this.sqlRunner.getRow(sql, namedParameters);
+    	return this.mainSqlRunner.getRow(sql, namedParameters);
     }
 
 	public Map<String, Object> getLabelCodeLangDetail(String guiCode, String labelCode, String langCode,
