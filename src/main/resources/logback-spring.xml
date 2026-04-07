@@ -136,7 +136,7 @@
     </springProfile>
 
     <!-- 운영환경 (prod): 파일만 -->
-    <springProfile name="prod">
+    <springProfile name="ncp">
         <root level="INFO">
             <appender-ref ref="CONSOLE" />
             <appender-ref ref="ASYNC_INFO_WARN" />
