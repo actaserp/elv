@@ -16,7 +16,7 @@
     <link rel="stylesheet" th:href="@{/resource/ax5ui/ax5ui.all.css}"/>
 
 
-    <title>ELV MES</title>
+    <title>ACTAS EMMS</title>
     <style>
         /* 공통 Modal 스타일 */
         .modal {
@@ -263,7 +263,7 @@
     <div class="dashboard-login-wrap">
         <div class="login-wrap">
             <div class="left">
-                <img th:src="@{/img/login_bg_mes.png}"
+                <img th:src="@{/img/login_bg_emms.png}"
                      alt="로그인 이미지"
                      style="height: 660px">
             </div>
@@ -271,7 +271,7 @@
                 <form method="post" class="form" role="form" id="loginFrm" action="/postLogin">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                     <div class="login-logo">
-                        <h1>ELV MES</h1>
+                        <h1>ACTAS EMMS</h1>
                     </div>
                     <div class="login-form">
                         <dl>
@@ -317,8 +317,8 @@
                             <ul class="btn-login-etc">
                                 <li><a class="btn btn-popup-open" data-popup="popup1" title="사업장 신청"
                                        onclick="RegisterUser()">사업장 신청</a></li>
-<!--                                <li><a href="#" class="btn btn-popup-open" data-popup="popup2" title="구독 정보"-->
-<!--                                       onclick="subscriptionModalOpen()">구독 정보</a></li>-->
+                                <li><a href="#" class="btn btn-popup-open" data-popup="popup2" title="구독 정보"
+                                       onclick="subscriptionModalOpen()">구독 정보</a></li>
                             </ul>
                         </div>
                     </div>
