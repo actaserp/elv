@@ -1,5 +1,6 @@
 package mes.app.dashboard.service;
 
+import mes.app.common.TenantContext;
 import io.micrometer.core.instrument.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import mes.app.common.TenantContext;
@@ -25,7 +26,8 @@ public class DashSummaryService {
 
         MapSqlParameterSource params = new MapSqlParameterSource();
         params.addValue("perid", perid);
-        params.addValue("spjangcd", spjangcd);
+        String tenantSpjangcd = TenantContext.get();
+        params.addValue("spjangcd", tenantSpjangcd);
 
         if (startDate != null && !startDate.isEmpty()) {
             params.addValue("startDate", startDate);
@@ -326,109 +328,141 @@ public class DashSummaryService {
         return userInfo;
     }
 
-    //근태현황 그리드
+    // 근태현황 그리드
     public List<Map<String, Object>> getOrderList(String spjangcd, String searchType) {
+
         MapSqlParameterSource paramMap = new MapSqlParameterSource();
 
         paramMap.addValue("spjangcd", spjangcd);
 
         StringBuilder sql = new StringBuilder("""
-      SELECT
-          t.id as id,
-          t.spjangcd as spjangcd,
-          t.reqdate as reqdate,
-          t.personid as personid,
-          t.frdate as frdate,
-          t.todate as todate,
-          t.sttime as sttime,
-          t.edtime as edtime,
-          t.daynum as daynum,
-          t.workcd as workcd,
-          t.remark as remark,
-          t.fixflag as fixflag,
-          tb210.yearflag as yearflag,
-          tb210.worknm as worknm,
-          p."Name" as first_name,
-          s."Value" as jik_id,
-          sc."Value" as appgubunnm
-      FROM tb_pb204 t
-          LEFT JOIN person p ON p.id = t.personid
-          LEFT JOIN (
-              SELECT "Code", "Value"
-              FROM sys_code
-              WHERE "CodeType" = 'jik_type'
-          ) s ON s."Code" = p.jik_id
-          LEFT JOIN (
-              SELECT "Code", "Value"
-              FROM sys_code
-              WHERE "CodeType" = 'approval_status'
-          ) sc ON sc."Code" = t.appgubun
-          LEFT JOIN tb_pb210 tb210 ON tb210.workcd = t.workcd
-      WHERE
-          t.spjangcd = :spjangcd
-          AND TO_DATE(t.frdate, 'YYYYMMDD') BETWEEN
-              date_trunc('month', CURRENT_DATE)::date
-            AND (date_trunc('month', CURRENT_DATE) + INTERVAL '1 month - 1 day')::date
+        SELECT
+            t.id as id,
+            t.spjangcd as spjangcd,
+            t.reqdate as reqdate,
+            t.perid as personid,
+            t.frdate as frdate,
+            t.todate as todate,
+            t.sttime as sttime,
+            t.edtime as edtime,
+            t.daynum as daynum,
+            t.workcd as workcd,
+            t.remark as remark,
+            t.fixflag as fixflag,
+            tb210.yearflag as yearflag,
+            tb210.worknm as worknm,
+            p.[Name] as first_name,
+            s.[Value] as jik_id,
+            sc.[Value] as appgubunnm
+        FROM tb_pb204 t
+            LEFT JOIN person p 
+                ON p.id = t.perid
+
+            LEFT JOIN (
+                SELECT [Code], [Value]
+                FROM sys_code
+                WHERE [CodeType] = 'jik_type'
+            ) s ON s.[Code] = p.jik_id
+
+            LEFT JOIN (
+                SELECT [Code], [Value]
+                FROM sys_code
+                WHERE [CodeType] = 'approval_status'
+            ) sc ON sc.[Code] = t.appgubun
+
+            LEFT JOIN tb_pb210 tb210 
+                ON tb210.workcd = t.workcd
+
+        WHERE
+            t.spjangcd = :spjangcd
+
+            AND CONVERT(date, t.frdate, 112) BETWEEN
+                DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
+                AND EOMONTH(GETDATE())
     """);
 
         // 진행구분 필터
         if (searchType != null && !searchType.isEmpty()) {
-            paramMap.addValue("searchType", searchType);
-            sql.append(" AND t.workcd = :searchType ");
-        }
-        sql.append(" ORDER BY t.reqdate ");
 
-        List<Map<String, Object>> items = this.sqlRunner.getRows(String.valueOf(sql), paramMap);
+            paramMap.addValue("searchType", searchType);
+
+            sql.append("""
+            AND t.workcd = :searchType
+        """);
+        }
+
+        sql.append("""
+        ORDER BY t.reqdate
+    """);
+
+        List<Map<String, Object>> items =
+                this.sqlRunner.getRows(sql.toString(), paramMap);
+
         return items;
     }
 
     public List<Map<String, Object>> initDatas(String searchSpjangcd) {
+
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
+
         StringBuilder sql = new StringBuilder("""
-                SELECT
-                    hd.workcd,
-                    COUNT(*) AS workcd_count
-                FROM
-                    tb_pb204 hd
-                WHERE
-                    hd.spjangcd = :spjangcd
-                    AND TO_DATE(hd.frdate, 'YYYYMMDD') >= date_trunc('month', CURRENT_DATE)
-                    AND TO_DATE(hd.frdate, 'YYYYMMDD') < (date_trunc('month', CURRENT_DATE) + INTERVAL '1 month')
-                GROUP BY
-                    hd.workcd;
-                """);
+        SELECT
+            hd.workcd,
+            COUNT(*) AS workcd_count
+        FROM tb_pb204 hd
+        WHERE
+            hd.spjangcd = :spjangcd
+
+            AND CONVERT(date, hd.frdate, 112) >=
+                DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
+
+            AND CONVERT(date, hd.frdate, 112) <
+                DATEADD(month, 1,
+                    DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
+                )
+
+        GROUP BY
+            hd.workcd
+    """);
+
         dicParam.addValue("spjangcd", searchSpjangcd);
-        List<Map<String, Object>> items = this.sqlRunner.getRows(sql.toString(), dicParam);
+
+        List<Map<String, Object>> items =
+                this.sqlRunner.getRows(sql.toString(), dicParam);
+
         return items;
     }
 
     // 근태현황 캘린더
-    public List<Map<String, Object>> getOrderList2() {
+    public List<Map<String, Object>> getOrderList2(String spjangcd) {
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
 
-        String tenantId = TenantContext.get();
-        dicParam.addValue("spjangcd", tenantId);
+//        String tenantId = TenantContext.get();
+        dicParam.addValue("spjangcd", spjangcd);
 
         StringBuilder sql = new StringBuilder("""
-                SELECT
-                    tb204.*,
-                    tb210.worknm as worknm,
-                    per."Name"
-                FROM
-                    tb_pb204 tb204
-                    LEFT JOIN tb_pb210 tb210 ON tb210.workcd = tb204.workcd
-                    LEFT JOIN person per ON tb204.personid = per.id
-                WHERE
-                    TO_DATE(tb204.frdate, 'YYYYMMDD') BETWEEN
-                        TO_DATE((EXTRACT(YEAR FROM CURRENT_DATE) - 1)::text || '0101', 'YYYYMMDD')
-                        AND TO_DATE(EXTRACT(YEAR FROM CURRENT_DATE)::text || '1231', 'YYYYMMDD')
-                        and tb204.spjangcd = :spjangcd
-                """);
-        // 정렬 조건 추가
-        sql.append(" ORDER BY tb204.frdate ASC");
+            SELECT
+                tb204.*,
+                tb210.worknm AS worknm,
+                per.[Name]
+            FROM
+                tb_pb204 tb204
+                LEFT JOIN tb_pb210 tb210
+                    ON tb210.workcd = tb204.workcd
+                LEFT JOIN person per
+                    ON tb204.perid = per.id
+            WHERE
+                CONVERT(date, tb204.frdate, 112) BETWEEN
+                    DATEFROMPARTS(YEAR(GETDATE())-1,1,1)
+                    AND DATEFROMPARTS(YEAR(GETDATE()),12,31)
+                AND tb204.spjangcd = :spjangcd
+            ORDER BY tb204.frdate ASC
+        """);
 
-        List<Map<String, Object>> items = this.sqlRunner.getRows(sql.toString(), dicParam);
+        List<Map<String, Object>> items =
+                this.sqlRunner.getRows(sql.toString(), dicParam);
+
         return items;
     }
 //
@@ -732,5 +766,50 @@ public class DashSummaryService {
         List<Map<String, Object>> items = this.sqlRunner.getRows(sql, paramMap);
 
         return items;
+    }
+
+    // 일일 근태 지도 gps 좌표값 조회
+    public List<Map<String,Object>> getGpsList(
+            String spjangcd,
+            String date,
+            String username
+    ){
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+
+        param.addValue("spjangcd", spjangcd);
+
+        String yyyyMM = date.substring(0,7).replace("-","");
+        String dd = date.substring(8,10);
+
+        param.addValue("workym", yyyyMM);
+        param.addValue("workday", dd);
+
+        String sql = """
+            SELECT
+                t.perid,
+                p.[Name],
+                t.latitude,
+                t.longitude,
+                t.address,
+                t.remark,
+                t.starttime,
+                t.endtime
+            FROM TB_PB201 t
+            LEFT JOIN person p
+                ON p.id=t.perid
+            LEFT JOIN auth_user au
+                ON au.personid = t.perid
+            WHERE t.spjangcd = :spjangcd
+            AND t.workym = :workym
+            AND t.workday = :workday
+        """;
+        // username이 있을 때만 param에 추가
+        if (username != null) {
+            param.addValue("username", username);
+            sql += " AND au.username = :username";
+        }
+        return sqlRunner.getRows(sql,param);
+
     }
 }

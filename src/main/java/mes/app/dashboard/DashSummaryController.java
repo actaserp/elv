@@ -5,22 +5,20 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import mes.app.dashboard.service.DashSummaryService;
-import mes.domain.entity.TbAs010;
 import mes.domain.entity.User;
-import mes.domain.entity.UserCode;
-import mes.domain.entity.mobile.TB_PB204;
 import mes.domain.model.AjaxResult;
-import mes.domain.repository.TbAs010Repository;
 import mes.domain.repository.UserCodeRepository;
 import mes.domain.repository.mobile.TB_PB204Repository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.*;
-import java.util.stream.Collectors;
 
 
 @Slf4j
@@ -34,10 +32,6 @@ public class DashSummaryController {
     private UserCodeRepository userCodeRepository;
     @Autowired
     private TB_PB204Repository TB_PB204Repository;
-    @Autowired
-    private TbAs010Repository TbAs010Repository;
-    @Autowired
-    private TbAs010Repository tbAs010Repository;
 
     //
     @GetMapping("/read")
@@ -196,7 +190,7 @@ public class DashSummaryController {
                               Authentication auth) {
         User user = (User) auth.getPrincipal();
         String username = user.getUsername();  // 유저 사업자번호(id)
-        Map<String, Object> userInfo = dashSummaryService.getUserInfo(username);
+        // Map<String, Object> userInfo = dashSummaryService.getUserInfo(username);
         List<Map<String, Object>> items = this.dashSummaryService.getOrderList(
                 searchSpjangcd, searchType);
         for (Map<String, Object> item : items) {
@@ -223,7 +217,7 @@ public class DashSummaryController {
         return result;
     }
 
-//    @GetMapping("/isAdmin")
+    //    @GetMapping("/isAdmin")
 //    public AjaxResult isAdmin(Authentication auth) {
 //        User user = (User) auth.getPrincipal();
 //        int userCode = user.getUserProfile().getUserGroup().getId();
@@ -256,8 +250,8 @@ public class DashSummaryController {
             , Authentication auth) {
         User user = (User) auth.getPrincipal();
         String username = user.getUsername();  // 유저 사업자번호(id)
-        Map<String, Object> userInfo = dashSummaryService.getUserInfo(username);
-        List<Map<String, Object>> items = this.dashSummaryService.getOrderList2();
+//        Map<String, Object> userInfo = dashSummaryService.getUserInfo(username);
+        List<Map<String, Object>> items = this.dashSummaryService.getOrderList2(searchSpjangcd);
         for (Map<String, Object> item : items) {
 
             // 날짜 형식 변환 (frdate)
@@ -282,7 +276,7 @@ public class DashSummaryController {
 
         return result;
     }
-//
+    //
 //    @PostMapping("/confirm")
 //    public ResponseEntity<Map<String, Object>> UpdateOrdflag(@RequestBody Map<String, Object> formData) {
 //        Map<String, Object> response = new HashMap<>();
@@ -517,5 +511,27 @@ public class DashSummaryController {
         result.data = items;
 
         return result;
+    }
+
+    //일일근태 지도 gps 좌표 조회
+    @GetMapping("/readDailyGps")
+    public AjaxResult readDailyGps(
+            @RequestParam String search_spjangcd,
+            @RequestParam(value = "date", required = false) String date,
+            Authentication auth){
+        User user = (User)auth.getPrincipal();
+        List<Map<String, Object>> items = null;
+        String username = user.getUsername();
+        if(Boolean.TRUE.equals(user.getSuperUser())) {
+            // 관리자 (모든 사용자 위치정보 표시)
+            items = dashSummaryService.getGpsList(search_spjangcd, date, null);
+        } else {
+            // 일반 사용자
+            items = dashSummaryService.getGpsList(search_spjangcd, date, username);
+        }
+        AjaxResult result = new AjaxResult();
+        result.data = items;
+        return result;
+
     }
 }
