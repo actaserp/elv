@@ -1,6 +1,5 @@
 package mes.app.support;
 
-import java.sql.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -25,17 +24,11 @@ import mes.domain.services.DateUtil;
 @RestController
 @RequestMapping("/api/support/notice")
 public class NoticeController {
-	
-	@Autowired
-	private NoticeService noticeService;
-	
-	@Autowired
-	BoardRepository boardRepository;
 
 	@Autowired
-	private FileService fileService;
-	
-	// 공지사항 조회
+	private NoticeService noticeService;
+
+	// 공지사항 목록 조회
 	@GetMapping("/read")
 	public AjaxResult getBoardList(
 			@RequestParam(value = "srchStartDt", required = false) String srchStartDt,
@@ -43,86 +36,69 @@ public class NoticeController {
 			@RequestParam(value = "keyword", required = false) String keyword,
 			HttpServletRequest request) {
 
-        String date_from = srchStartDt + " 00:00:00";
-        String date_to = srchEndDt + " 23:59:59";
-        
-		List<Map<String, Object>> items = this.noticeService.getBoardList("notice", keyword, date_from, date_to);
+		// 프론트에서 yyyy-MM-dd 로 오므로 yyyyMMdd 로 변환
+		String dateFrom = (srchStartDt != null) ? srchStartDt.replace("-", "") : "";
+		String dateTo   = (srchEndDt   != null) ? srchEndDt.replace("-", "")   : "";
+
+		List<Map<String, Object>> items = this.noticeService.getBoardList(keyword, dateFrom, dateTo);
 
 		AjaxResult result = new AjaxResult();
 		result.data = items;
-
 		return result;
 	}
-		
+
 	// 공지사항 상세 조회
 	@GetMapping("/detail")
 	public AjaxResult getBoardDetail(
-			@RequestParam("id") int id, 
+			@RequestParam("id") int id,
 			HttpServletRequest request) {
-		
-        Map<String, Object> items = this.noticeService.getBoardDetail(id);
-        
-        AjaxResult result = new AjaxResult();
-        result.data = items;
-        
+
+		Map<String, Object> item = this.noticeService.getBoardDetail(id);
+
+		AjaxResult result = new AjaxResult();
+		result.data = item;
 		return result;
 	}
-		
-	// 공지사항 저장
+
+	// 활성 공지 조회 (index 팝업용)
+	@GetMapping("/active")
+	public AjaxResult getActiveNotices() {
+		AjaxResult result = new AjaxResult();
+		result.data = this.noticeService.getActiveNotices();
+		return result;
+	}
+
+	// 공지사항 저장 (신규/수정)
 	@PostMapping("/save")
 	public AjaxResult saveBoard(
-			@RequestParam(value="id", required=false) Integer id,
-			@RequestParam(value="title", required=false) String title,
-			@RequestParam(value="content", required=false) String content,
-			@RequestParam(value="notice_yn", required=false) String notice_yn,
-			@RequestParam(value="notice_end_date", required=false) Date notice_end_date,
-			@RequestParam(value="fileId", required=false) String file_id,
+			@RequestParam(value = "id", required = false) Integer id,
+			@RequestParam(value = "title", required = false) String title,
+			@RequestParam(value = "content", required = false) String content,
+			@RequestParam(value = "notice_yn", required = false) String notice_yn,
+			@RequestParam(value = "notice_from_date", required = false) String notice_from_date,
+			@RequestParam(value = "notice_end_date", required = false) String notice_end_date,
 			HttpServletRequest request,
 			Authentication auth) {
 
-        AjaxResult result = new AjaxResult();
-		User user = (User)auth.getPrincipal();
-		Board board = null;
-		
-		if (id == null) {
-			board = new Board();
+		User user = (User) auth.getPrincipal();
+
+		Integer savedId = this.noticeService.saveNotice(
+				id, title, content, notice_yn, notice_from_date, notice_end_date, user.getUsername());
+
+		AjaxResult result = new AjaxResult();
+		if (savedId == null) {
+			result.success = false;
+			result.message = "저장에 실패했습니다. 로그를 확인하세요.";
 		} else {
-			board = this.boardRepository.getBoardById(id);
+			result.data = savedId;
 		}
-
-        // fileId = posparam.get('fileId')
-      	board.setBoardGroup("notice");
-		board.setTitle(title);
-		board.setContent(content);
-        board.setNoticeYN (notice_yn);
-        board.setNoticeEndDate(notice_end_date);
-        board.setWriteDateTime(DateUtil.getNowTimeStamp());
-		board.set_audit(user);
-		
-		board = this.boardRepository.save(board);
-	
-		if (file_id != null && file_id != "") {
-			Integer DataPk = board.getId();
-
-			String[] fileIdList = file_id.split(",");
-			
-			for (String fileId : fileIdList) {
-				int fileid = Integer.parseInt(fileId);
-				this.fileService.updateDataPk(fileid, DataPk);
-			}
-		}
-		
-        result.data = board;
-		
 		return result;
 	}
 
 	// 공지사항 삭제
 	@PostMapping("/delete")
 	public AjaxResult deleteBoard(@RequestParam("id") Integer id) {
-		this.boardRepository.deleteById(id);
-		AjaxResult result = new AjaxResult();
-		return result;
+		this.noticeService.deleteNotice(id);
+		return new AjaxResult();
 	}
-
 }

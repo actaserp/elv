@@ -131,6 +131,7 @@ public class UserController {
 		@RequestParam(value="personid", required = false) String personid,
 		@RequestParam(value="person_code", required = false) String person_code,  // ← 추가
 		@RequestParam(value="tel", required = false) String tel,
+		@RequestParam(value="spjangcd", required = false) String selectedSpjangcd,
 		HttpServletRequest request,
 		Authentication auth
 	) {
@@ -234,7 +235,8 @@ public class UserController {
 		}
 
 		// ── 1단계: auth_user + user_profile 저장 ───────────────
-		user.setSpjangcd(spjangcd);
+		// selectedSpjangcd: 폼에서 선택한 사업장 코드. 없으면 현재 테넌트 기본값 사용
+		user.setSpjangcd(selectedSpjangcd != null && !selectedSpjangcd.isEmpty() ? selectedSpjangcd : spjangcd);
 		user.setUsername(login_id);
 		user.setFirst_name(Name);
 		user.setEmail(email);
@@ -402,6 +404,13 @@ public class UserController {
         return result;
 	}
 
+	// 사업장 목록 조회 (테넌트 DB tb_xa012)
+	@GetMapping("/spjangcd_list")
+	public AjaxResult getSpjangcdList() {
+		AjaxResult result = new AjaxResult();
+		result.data = this.userService.getSpjangcdList();
+		return result;
+	}
 
 	@GetMapping("/getPerson")
 	public AjaxResult getAccSearchList(

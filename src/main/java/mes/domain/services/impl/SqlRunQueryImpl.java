@@ -14,6 +14,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 
 import mes.domain.services.LogWriter;
@@ -31,50 +32,65 @@ public class SqlRunQueryImpl implements SqlRunner {
 
 	@Autowired
 	@Qualifier("namedParameterJdbcTemplate")
-    private NamedParameterJdbcTemplate jdbcTemplate;
+	private NamedParameterJdbcTemplate jdbcTemplate;
 
 	@Autowired
 	LogWriter logWriter;
 
-    public List<Map<String, Object>> getRows(String sql, MapSqlParameterSource dicParam) {
-    	try {
-    		return this.jdbcTemplate.queryForList(sql, dicParam);
+	public List<Map<String, Object>> getRows(String sql, MapSqlParameterSource dicParam) {
+		try {
+			return this.jdbcTemplate.queryForList(sql, dicParam);
 		} catch(DataAccessException de) {
-    		log.error("[SqlRunner] getRows 오류: {}", de.getMessage());
-    		return null;
-    	} catch (Exception e) {
+			log.error("[SqlRunner] getRows 오류: {}", de.getMessage());
+			return null;
+		} catch (Exception e) {
 			logWriter.addDbLog("error", "SqlRunQueryImpl.getRows", e);
 			return null;
 		}
-    }
+	}
 
-    public Map<String, Object> getRow(String sql, MapSqlParameterSource dicParam) {
-    	try {
-    		return this.jdbcTemplate.queryForMap(sql, dicParam);
+	public Map<String, Object> getRow(String sql, MapSqlParameterSource dicParam) {
+		try {
+			return this.jdbcTemplate.queryForMap(sql, dicParam);
 		} catch(DataAccessException de) {
+			log.error("[SqlRunner] getRow 오류: {}", de.getMessage(), de);
 			return null;
-    	} catch (Exception e) {
+		} catch (Exception e) {
+			log.error("[SqlRunner] getRow 예외: {}", e.getMessage(), e);
 			logWriter.addDbLog("error", "SqlRunQueryImpl.getRow", e);
 			return null;
 		}
-    }
+	}
 
-    public int execute(String sql, MapSqlParameterSource dicParam) {
-    	try {
-    		return this.jdbcTemplate.update(sql, dicParam);
+	public int execute(String sql, MapSqlParameterSource dicParam) {
+		try {
+			return this.jdbcTemplate.update(sql, dicParam);
 		} catch (Exception e) {
+			log.error("[SqlRunner] execute 오류: {}", e.getMessage(), e);
 			logWriter.addDbLog("error", "SqlRunQueryImpl.execute", e);
 			return 0;
 		}
-    }
+	}
 
-    public int queryForCount(String sql, MapSqlParameterSource dicParam) {
-    	return this.jdbcTemplate.queryForObject(sql, dicParam, int.class);
-    }
+	public int queryForCount(String sql, MapSqlParameterSource dicParam) {
+		return this.jdbcTemplate.queryForObject(sql, dicParam, int.class);
+	}
 
-    public <T> T queryForObject(String sql, MapSqlParameterSource dicParam, RowMapper<T> mapper) throws DataException {
-    	return this.jdbcTemplate.queryForObject(sql, dicParam, mapper);
-    }
+	public <T> T queryForObject(String sql, MapSqlParameterSource dicParam, RowMapper<T> mapper) throws DataException {
+		return this.jdbcTemplate.queryForObject(sql, dicParam, mapper);
+	}
+
+	public Number executeAndReturnKey(String sql, MapSqlParameterSource paramMap, String keyColumnName) {
+		try {
+			GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
+			this.jdbcTemplate.update(sql, paramMap, keyHolder, new String[]{keyColumnName});
+			return keyHolder.getKey();
+		} catch (Exception e) {
+			log.error("[SqlRunner] executeAndReturnKey 오류: {}", e.getMessage(), e);
+			logWriter.addDbLog("error", "SqlRunQueryImpl.executeAndReturnKey", e);
+			return null;
+		}
+	}
 
 	public int[] batchUpdate(String sql, SqlParameterSource[] batchArgs) {
 		try {
