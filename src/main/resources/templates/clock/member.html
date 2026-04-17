@@ -99,7 +99,7 @@
 
 </th:block>
 <th:block layout:fragment="scripts">
-    <th:block th:replace="common/columns_setting :: columns_setting"></th:block>
+    <th:block th:replace="/common/columns_setting :: columns_setting"></th:block>
     <script type="text/javascript">
         class MemberPage {
             constructor() {
@@ -160,7 +160,7 @@
                     columns: [
                         {binding: 'fixflag', width: 120, align: 'center', visible:false},
                         {binding: 'first_name', header: '사원명', width: 120, align: 'center'},
-                        {binding: 'jik_id', header: '직위', width: 100, align: 'center'},
+                        {binding: 'RSPNM', header: '직위', width: 100, align: 'center'},
                         {binding: 'reqdate', header: '신청일', width: 140, align: 'center'},
                         {binding: 'frdate', header: '시작일', width: 140, align: 'center'},
                         {binding: 'todate', header: '종료일', width: 140, align: 'center'},
@@ -202,28 +202,28 @@
                 let _this = this;
 
                 let url = '/api/clock/member/read'
-                 let data = {
-                     'start_date' :$('#start_date').val(),
-                     'end_date' :$('#end_date').val(),
-                     'person_name' :$('#person_name').val(),
-                     spjangcd: sessionStorage.getItem('spjangcd'),
-                 }
-                 let result = AjaxUtil.getSyncData(url, data);
-                 console.log(result);
+                let data = {
+                    'start_date' :$('#start_date').val(),
+                    'end_date' :$('#end_date').val(),
+                    'person_name' :$('#person_name').val(),
+                    spjangcd: sessionStorage.getItem('spjangcd'),
+                }
+                let result = AjaxUtil.getSyncData(url, data);
+                console.log(result);
 
-                 if (result && result.data) {
-                     _this.viewData.sourceCollection = result.data;
+                if (result && result.data) {
+                    _this.viewData.sourceCollection = result.data;
 
 
-                     setTimeout(() => {
-                         let hasFixedRow = false;
+                    setTimeout(() => {
+                        let hasFixedRow = false;
 
-                         _this.grid.rows.forEach((row, idx) => {
-                             if (_this.grid.getCellData(idx, 'fixflag', false) === '1') {
-                                 row.isSelected = true; // 선택 (체크박스 자동 연동)
-                                 hasFixedRow = true;    // 플래그 설정
-                             }
-                         });
+                        _this.grid.rows.forEach((row, idx) => {
+                            if (_this.grid.getCellData(idx, 'fixflag', false) === '1') {
+                                row.isSelected = true; // 선택 (체크박스 자동 연동)
+                                hasFixedRow = true;    // 플래그 설정
+                            }
+                        });
 
                         /* // fixflag === '1' 인 행이 있으면 버튼 상태 변경
                          if (hasFixedRow) {
@@ -233,9 +233,9 @@
                              $('#btncancel').hide();
                              $('#btnSave').show();
                          }*/
-                     });
+                    });
 
-                 }
+                }
 
             }//searchMainData
 
