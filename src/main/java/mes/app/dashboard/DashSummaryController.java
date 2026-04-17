@@ -522,7 +522,11 @@ public class DashSummaryController {
         User user = (User)auth.getPrincipal();
         List<Map<String, Object>> items = null;
         String username = user.getUsername();
-        if(Boolean.TRUE.equals(user.getSuperUser())) {
+        boolean isMaster = Boolean.TRUE.equals(user.getSuperUser())
+                || (user.getUserProfile() != null
+                    && user.getUserProfile().getUserGroup() != null
+                    && "Master".equals(user.getUserProfile().getUserGroup().getCode()));
+        if(isMaster) {
             // 관리자 (모든 사용자 위치정보 표시)
             items = dashSummaryService.getGpsList(search_spjangcd, date, null);
         } else {

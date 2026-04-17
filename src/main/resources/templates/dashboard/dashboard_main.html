@@ -1572,7 +1572,7 @@
         }
 
         function processSelectedOrders(selectedRows) {
-            let requestData = { orders: selectedRows };
+            let requestData = {orders: selectedRows};
 
             console.log(" 서버로 전송할 데이터:", JSON.stringify(requestData));
 
@@ -1584,12 +1584,12 @@
                 headers: {
                     'X-CSRF-Token': $('[name=_csrf]').val()
                 },
-                success: function(response) {
+                success: function (response) {
                     console.log("✅ 서버 응답:", response);
-                    Alert.alert('' ,"주문 확인 처리가 완료되었습니다.");
+                    Alert.alert('', "주문 확인 처리가 완료되었습니다.");
                     fetchListData2();
                 },
-                error: function(xhr, status, error) {
+                error: function (xhr, status, error) {
                     console.error("❌ 주문 확인 처리 중 오류 발생:", xhr.responseText);
 
                     try {
@@ -1604,7 +1604,7 @@
         }
 
         //주문취소
-        function CancelOrder(){
+        function CancelOrder() {
             let selectedRows = [];
 
             if (theGrid2) {
@@ -1629,8 +1629,8 @@
             processCancelOrder(selectedRows);
         }
 
-        function processCancelOrder(selectedRows){
-            let requestData = { orders: selectedRows };
+        function processCancelOrder(selectedRows) {
+            let requestData = {orders: selectedRows};
 
             console.log(" 서버로 전송할 데이터:", JSON.stringify(requestData));
 
@@ -1642,12 +1642,12 @@
                 headers: {
                     'X-CSRF-Token': $('[name=_csrf]').val()
                 },
-                success: function(response) {
+                success: function (response) {
                     console.log("✅ 서버 응답:", response);
-                    Alert.alert('' ,"주문 확인 처리가 완료되었습니다.");
+                    Alert.alert('', "주문 확인 처리가 완료되었습니다.");
                     fetchListData2();
                 },
-                error: function(xhr, status, error) {
+                error: function (xhr, status, error) {
                     console.error("❌ 주문 확인 처리 중 오류 발생:", xhr.responseText);
 
                     try {
@@ -1684,6 +1684,7 @@
             sessionStorage.removeItem("activeSection");
             sessionStorage.removeItem("searchState");
         }
+
         function activateSection() {
             $(".tab-item").hide(); // 모든 섹션 숨기기
             $("#tab2").show(); // 해당 섹션 표시
@@ -1692,6 +1693,7 @@
             // 특정 title을 가진 <a> 태그를 찾아 해당 <li>에 active 추가
             $(".tab-links a[title='주문 확인']").parent("li").addClass("active");
         }
+
         // option값 value bind
         function setSelectedIndex(selectElement, selectedValue) {
             let found = false;
@@ -1747,14 +1749,14 @@
             $.ajax({
                 url: withCtx('/api/dash_summary/readRequest'),
                 type: 'GET',
-                data : {
+                data: {
                     searchfrdate: $('#startDate4').val(),
                     searchtodate: $('#endDate4').val(),
                     // searchCompCd: $('#cboCompanyHidden2').val(),
                     searchCompnm: $('#searchCltnm').val(),
                     // aspernm: $('#aspernm2').val(),
                     // reqType : $('#reqType2').val(),
-                    recyn : $('#searchstate').val(),
+                    recyn: $('#searchstate').val(),
                     spjangcd: getSpjangcdFromSession(),
                 },
                 async: false,
@@ -1762,7 +1764,7 @@
                     // 응답이 올바르게 도착했고, data 속성이 배열인지 확인
                     if (response && Array.isArray(response.data)) {
                         data2 = response.data;
-                        console.log("data2",data2)
+                        console.log("data2", data2)
                         // 날짜 형식 변환 및 ordflag 변환
                         data2.forEach(item => {
 
@@ -1775,11 +1777,9 @@
             });
 
             // 빈 객체를 emptyRowsCount만큼 추가
-            if(data2.length < emptyRowsCount) {
-                for (let i = 0; emptyRowsCount - data2.length ; i++) {
-                    data2.push({
-
-                    });
+            if (data2.length < emptyRowsCount) {
+                for (let i = 0; emptyRowsCount - data2.length; i++) {
+                    data2.push({});
                 }
             }
             viewdata4 = new wijmo.collections.CollectionView(data2);
@@ -1789,16 +1789,16 @@
                     showMarquee: true,
                     isReadOnly: true,
                     columns: [
-                        { binding: 'asdate', header: '요청일자', align: 'center', width: 120 },
-                        { binding: 'cltnm', header: '업체명', align: 'left', width: 150 },
-                        { binding: 'usernm', header: '요청자', align: 'left', width: 120},
-                        { binding: 'retitle', header: '제목', align: 'left', width: '*' },
-                        { binding: 'asdv_nm', header: '요청구분', align: 'center', width: 120 },
-                        { binding: 'asmenu', header: '화면명', align: 'left', width: 150 },
-                        { binding: 'aspernm', header: '본사담당', align: 'left', width: 120 },
-                        { binding: 'recyn_nm', header: '진행구분', align: 'center', width: 120 },
+                        {binding: 'asdate', header: '요청일자', align: 'center', width: 120},
+                        {binding: 'cltnm', header: '업체명', align: 'left', width: 150},
+                        {binding: 'usernm', header: '요청자', align: 'left', width: 120},
+                        {binding: 'retitle', header: '제목', align: 'left', width: '*'},
+                        {binding: 'asdv_nm', header: '요청구분', align: 'center', width: 120},
+                        {binding: 'asmenu', header: '화면명', align: 'left', width: 150},
+                        {binding: 'aspernm', header: '본사담당', align: 'left', width: 120},
+                        {binding: 'recyn_nm', header: '진행구분', align: 'center', width: 120},
                         // { binding: 'hasProcess', header: '처리여부', align: 'center', width: 100 },
-                        { binding: 'recdate', header: '접수일자', align: 'center', width: 150 },
+                        {binding: 'recdate', header: '접수일자', align: 'center', width: 150},
                     ],
                     itemsSource: viewdata4 // 빈 객체가 추가된 배열 사용
                 });
@@ -1842,7 +1842,7 @@
                 url: withCtx('/api/dash_summary/readRequest2'),
                 type: 'GET',
                 async: false,
-                success: function(response) {
+                success: function (response) {
                     if (response && Array.isArray(response.data)) {
                         console.log('📦 유지보수 요청현황 데이터', response.data);
 
@@ -1876,16 +1876,16 @@
                                 selectionMode: wijmo.grid.SelectionMode.Row,
                                 isReadOnly: true,
                                 columns: [
-                                    { binding: 'id', header: 'ID', visible: false },
-                                    { binding: 'asdate', header: '요청일자', align: 'center', width: 120 },
-                                    { binding: 'cltnm', header: '업체명', align: 'left', width: 150 },
-                                    { binding: 'usernm', header: '요청자', align: 'left', width: 120 },
-                                    { binding: 'retitle', header: '제목', align: 'left', width: 300 },
-                                    { binding: 'asdv_nm', header: '요청구분', align: 'center', width: 120 },
-                                    { binding: 'asmenu', header: '화면명', align: 'left', width: 150 },
-                                    { binding: 'aspernm', header: '본사담당', align: 'left', width: 120 },
-                                    { binding: 'recyn_nm', header: '진행구분', align: 'center', width: 120 },
-                                    { binding: 'recdate', header: '접수일자', align: 'center', width: 150 },
+                                    {binding: 'id', header: 'ID', visible: false},
+                                    {binding: 'asdate', header: '요청일자', align: 'center', width: 120},
+                                    {binding: 'cltnm', header: '업체명', align: 'left', width: 150},
+                                    {binding: 'usernm', header: '요청자', align: 'left', width: 120},
+                                    {binding: 'retitle', header: '제목', align: 'left', width: 300},
+                                    {binding: 'asdv_nm', header: '요청구분', align: 'center', width: 120},
+                                    {binding: 'asmenu', header: '화면명', align: 'left', width: 150},
+                                    {binding: 'aspernm', header: '본사담당', align: 'left', width: 120},
+                                    {binding: 'recyn_nm', header: '진행구분', align: 'center', width: 120},
+                                    {binding: 'recdate', header: '접수일자', align: 'center', width: 150},
                                     // { binding: 'as_file', header: '첨부파일', align: 'center', width: 120 }
                                 ],
                                 itemsSource: new wijmo.collections.CollectionView(data)
@@ -1900,7 +1900,7 @@
                         console.warn('⚠️ 서버에서 빈 데이터가 반환되었습니다.');
                     }
                 },
-                error: function(xhr, status, error) {
+                error: function (xhr, status, error) {
                     console.error('❌ 유지보수 요청현황 데이터를 가져오는 중 오류 발생:', error);
                 }
             });
@@ -1928,7 +1928,7 @@
                     // 응답이 올바르게 도착했고, data 속성이 배열인지 확인
                     if (response && Array.isArray(response.data)) {
                         data2 = response.data;
-                        console.log("data2",data2)
+                        console.log("data2", data2)
                         // 최초 동작(페이지진입)시 미확인 공지사항 popup 출력
                         if (isFirstNoticeLoad) {
                             const popupTargets = getPopupTargetNotice(data2);
@@ -1942,11 +1942,9 @@
             });
 
             // 빈 객체를 emptyRowsCount만큼 추가
-            if(data2.length < emptyRowsCount) {
-                for (let i = 0; emptyRowsCount - data2.length ; i++) {
-                    data2.push({
-
-                    });
+            if (data2.length < emptyRowsCount) {
+                for (let i = 0; emptyRowsCount - data2.length; i++) {
+                    data2.push({});
                 }
             }
             viewdata5 = new wijmo.collections.CollectionView(data2);
@@ -2000,6 +1998,7 @@
             $content.find('#srchDt').ax5DatePicker({direction: 'top'});
             edit();
         }
+
         function edit() {
             nhn.husky.EZCreator.createInIFrame({
                 oAppRef: oEditors,
@@ -2012,7 +2011,7 @@
                     //bSkipXssFilter : true,		// client-side xss filter 무시 여부 (true:사용하지 않음 / 그외:사용)
                     //aAdditionalFontList : aAdditionalFontSet,		// 추가 글꼴 목록
                     fOnBeforeUnload: function () {
-                        Alert.alert('',"완료!");
+                        Alert.alert('', "완료!");
                     }
                 }, //boolean
                 fOnAppLoad: function () {
@@ -2100,7 +2099,7 @@
         }
 
         // 일일근태 지도 초기화
-        function initMap(){
+        function initMap() {
             const container =
                 document.getElementById('map');
             const options = {
@@ -2119,23 +2118,23 @@
         }
 
         // 일일근태 좌표값 표시
-        function loadDailyGps(date){
+        function loadDailyGps(date) {
             $.ajax({
-                url:'/api/dash_summary/readDailyGps',
-                type:'GET',
-                data:{
+                url: '/api/dash_summary/readDailyGps',
+                type: 'GET',
+                data: {
                     search_spjangcd:
                         sessionStorage.getItem("spjangcd"),
-                    date:date
+                    date: date
                 },
-                success:function(res){
+                success: function (res) {
                     clearMarkers();
-                    if(!res.data || res.data.length===0){
+                    if (!res.data || res.data.length === 0) {
                         $('#gpsInfo')
                             .text("근태 위치 없음");
                         return;
                     }
-                    res.data.forEach(row=>{
+                    res.data.forEach(row => {
                         let pos =
                             new kakao.maps.LatLng(
                                 row.latitude,
@@ -2143,8 +2142,8 @@
                             );
                         let marker =
                             new kakao.maps.Marker({
-                                position:pos,
-                                map:map
+                                position: pos,
+                                map: map
                             });
                         markers.push(marker);
                         let info =
@@ -2158,7 +2157,7 @@
                         kakao.maps.event.addListener(
                             marker,
                             'click',
-                            ()=>info.open(map,marker)
+                            () => info.open(map, marker)
                         );
                     });
                     $('#gpsInfo')
@@ -2171,11 +2170,11 @@
         }
 
         // 기존 marker 제거
-        function clearMarkers(){
+        function clearMarkers() {
             markers.forEach(
-                m=>m.setMap(null)
+                m => m.setMap(null)
             );
-            markers=[];
+            markers = [];
         }
     </script>
 </th:block>

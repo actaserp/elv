@@ -118,17 +118,32 @@
                     <div class="row">
                         <div class="col wp15">
                             <div class="container-fluid">
-                                <div id="grid" style="height: 650px; max-height: 650px;"></div>
+                                <div id="grid" style="height: 570px; max-height: 650px;"></div>
                             </div>
                         </div>
 
-                        <div class="wp85">
+                        <div class="wp60">
                             <div class="container-fluid">
                                 <p id="selectedItem"></p>
-                                <div id="day-grid" style="height: 650px; max-height: 650px;"></div>
+                                <div id="day-grid" style="height: 570px; max-height: 650px;"></div>
                             </div>
                         </div>
+                        <div style="display: flex; flex-direction: column; width: 25%;">
+                            <section style="flex: 1; box-sizing: border-box;">
+                                <!-- 지도 영역 -->
+                                <div style="">
+                                    <div id="map" style="width:100%; height:508px;"></div>
+                                    <div id="gpsInfo" style="margin-top:10px; font-weight:bold;"></div>
+                                </div>
+
+                                <!-- 기존 그리드 / 일일 근태 명단 -->
+                                <!--                                <div style="">-->
+                                <!--                                    <div id="theGrid2" style="height:250px;"></div>-->
+                                <!--                                </div>-->
+                            </section>
+                        </div>
                     </div>
+
                 </section>
 
                 <section class="tab-item" id="tab2" >
@@ -212,6 +227,7 @@
                     </div>
 
                 </section>
+
             </div>
         </div>
     </div> <!--//layout-contents end -->
@@ -222,8 +238,18 @@
 
 </th:block>
 <th:block layout:fragment="scripts">
-    <th:block th:replace="common/columns_setting :: columns_setting"></th:block>
+    <th:block th:replace="/common/columns_setting :: columns_setting"></th:block>
     <script type="text/javascript">
+        // 근태 지도 변수
+        let map;
+        let markers = [];
+        let markerMap = {};
+        let openInfoWindow = null;
+        // 지도 고정좌표
+        const DEFAULT_LAT = 37.3130;
+        const DEFAULT_LNG = 126.8272;
+        const DEFAULT_LEVEL = 7;
+
         class DayMonthlyPage {
             constructor() {
                 this.viewData = new wijmo.collections.CollectionView();
@@ -234,6 +260,7 @@
                 this.grid3 = null;
                 this.workList = [];
                 this.init();
+                initMap();  // 일일 근태 지도 초기화 (내부에서 loadDailyGps 호출)
             }
 
             init() {
@@ -245,7 +272,7 @@
                     autoGenerateColumns: false,
                     showMarquee: true,
                     isReadOnly: false,
-                    frozenColumns: 9,
+                    frozenColumns: 5,
                     formatItem: (sender, e) => {
                         if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader) {
                             e.cell.style.textAlign = 'center';
@@ -267,13 +294,17 @@
                     },
                     columns: [
                         {binding: 'fixflag',header: '마감', width: 70, align: 'center',visible: false},
+                        {binding: 'perid', visible: false},  // ✅ 추가
                         {binding: 'row_num', header: '순번', width: 60, align: 'center'},
                         {binding: 'workymd', header: '일자', width: 100, align: 'center', isReadOnly: true },
                         {binding: 'first_name', header: '사원명', width: 100, align: 'center' },
-                        {binding: 'jik_id', header: '직위', width: 100, align: 'center' },
+                        {binding: 'RSPNM', header: '직위', width: 100, align: 'center' },
                         {binding: 'starttime', header: '출근', width: 100, align: 'center' },
                         {binding: 'endtime', header: '퇴근', width: 100, align: 'center'},
-                        /*{binding: 'worknm', header: '구분', width: 100, align: 'center'},*/
+                        {
+                            binding: 'workcd',
+                            visible: false
+                        },
                         {
                             binding: 'worknm',
                             header: '구분',
@@ -282,7 +313,7 @@
                             dataMap: null,
                             cellTemplate: '${text}'
                         },
-                        {binding: 'group_name', header: '근무구분', width: 100, align: 'center'},
+                        {binding: 'address', header: '위치', width: 250, align: 'left'},
                         {binding: 'nomaltime', header: '근무시간', width: 100, align: 'center'},
                         {binding: 'worktime', header: '총근무시간', width: 100, align: 'center'},
                         {binding: 'jitime', header: '지각', width: 50, align: 'center'},
@@ -291,12 +322,45 @@
                         {binding: 'yuntime', header: '휴가', width: 50, align: 'center'},
                         {binding: 'abtime', header: '결근', width: 50, align: 'center'},
                         {binding: 'holitime', header: '특근', width: 50, align: 'center'},
-                        {binding: 'address', header: '비고', width: 250, align: 'left'},
+                        {binding: 'group_name', header: '근무구분', width: 100, align: 'center'},
+
                     ],
                     itemsSource: this.viewData, // 데이터를 설정할 배열
                 });
-
                 this.getWorkList();
+
+                // ✅ 행 선택 시 지도 포커스
+                this.isGridInitialLoad = true;
+                this.grid.selectionChanged.addHandler((s, e) => {
+                    if (_this.isGridInitialLoad) {
+                        _this.isGridInitialLoad = false;
+                        return;
+                    }
+
+                    const row = s.selection.row;
+                    if (row < 0) return;
+
+                    const item = s.rows[row]?.dataItem;
+                    if (!item || !item.id) return;
+
+                    const target = markerMap[String(item.id)];
+                    // 해당 id의 마커가 없으면 지도 이동하지 않음
+                    if (!target) return;
+
+                    map.setCenter(target.marker.getPosition());
+                    map.setLevel(3);
+
+                    // 기존 InfoWindow 닫기 (같은 것이면 닫기만)
+                    if (openInfoWindow) {
+                        openInfoWindow.close();
+                        if (openInfoWindow === target.infoWindow) {
+                            openInfoWindow = null;
+                            return;
+                        }
+                    }
+                    target.infoWindow.open(map, target.marker);
+                    openInfoWindow = target.infoWindow;
+                });
 
                 // 셀 편집 방지
                 this.grid.beginningEdit.addHandler((s, e) => {
@@ -419,7 +483,7 @@
                     columns: [
                         {binding: 'fixflag',header: '마감', width: 70, align: 'center',visible: false},
                         {binding: 'first_name', header: '사원명', width: 120, align: 'center' },
-                        {binding: 'jik_id', header: '직위', width: 120, align: 'center' },
+                        {binding: 'RSPNM', header: '직위', width: 120, align: 'center' },
                         {binding: 'workday', header: '근무일수', width: 120, align: 'center'},
                         {binding: 'nomaltime', header: '정상근무시간', width: 120, align: 'center'},
                         {binding: 'worktime', header: '총근무시간', width: 120, align: 'center'},
@@ -445,7 +509,7 @@
 
                 let selector2 = new wijmo.grid.selector.Selector(this.grid3, {
                     itemChecked: (s, e) => {
-                       let SelectItem = this.grid3.rows.filter(r => r.isSelected);
+                        let SelectItem = this.grid3.rows.filter(r => r.isSelected);
                     }
                 });
 
@@ -538,31 +602,35 @@
                 let result = AjaxUtil.getSyncData(url + '/read', data);
 
                 if (result && result.data) {
-                    /*console.log(result.data);*/
+                    _this.isGridInitialLoad = true; // GPS 로드 완료 전까지 지도 이동 차단
                     _this.viewData.sourceCollection = result.data;
-
 
                     setTimeout(() => {
                         let hasFixedRow = false;
 
+                        _this.isGridInitialLoad = true; // row.isSelected 설정 시 selectionChanged → 지도 이동 방지
                         _this.grid.rows.forEach((row, idx) => {
                             if (_this.grid.getCellData(idx, 'fixflag', false) === '1') {
                                 row.isSelected = true; // 선택 (체크박스 자동 연동)
                                 hasFixedRow = true;    // 플래그 설정
                             }
                         });
+                        _this.isGridInitialLoad = true; // GPS 로드 완료 전까지 계속 차단 유지
 
                         // fixflag === '1' 인 행이 있으면 버튼 상태 변경
-                     /*   if (hasFixedRow) {
-                            $('#btncancel3').show();
-                            $('#btnSave').hide();
-                        } else {
-                            $('#btncancel3').hide();
-                            $('#btnSave').show();
-                        }*/
+                        /*   if (hasFixedRow) {
+                               $('#btncancel3').show();
+                               $('#btnSave').hide();
+                           } else {
+                               $('#btncancel3').hide();
+                               $('#btnSave').show();
+                           }*/
                     });
 
                 }
+                loadDailyGps(selectedDate, function() {
+                    _this.isGridInitialLoad = false; // GPS 로드 완료 후 지도 이동 허용
+                });
                 _this.searchMainData2()
             }//searchMainData
 
@@ -778,7 +846,7 @@
 
                 }
             }
-/*월정산*/
+            /*월정산*/
             saveMonthly() {
                 let _this = this;
 
@@ -844,7 +912,7 @@
                 AjaxUtil.postJsonData(url, data, fnSuccess);
             }
 
-/*월정산취소*/
+            /*월정산취소*/
             cancelMonthly() {
                 let _this = this;
                 let url = '/api/clock/DayMonthly/delete';
@@ -962,7 +1030,20 @@
             $('#startdate2').val(CommonUtil.getYYYYMMDD().substring(0, 7));
             AjaxUtil.fillSelectOptions($('#work_division'), 'system_code', 'choose', '', 'work_division');
             AjaxUtil.fillSelectOptions($('#person_name'), 'person', 'choose', false);
-            AjaxUtil.fillSelectOptions($('#depart').add('#depart2'), 'depart', 'choose', false);
+            AjaxUtil.getAsyncData(
+                '/api/clock/DayMonthly/departList',
+                {
+                    spjangcd: sessionStorage.getItem('spjangcd')
+                },
+                function(res){
+
+                    bindSelectFromAPI(
+                        $('#depart').add('#depart2'),
+                        res.data
+                    );
+
+                }
+            );
 
             page.searchMainData();
 
@@ -1046,6 +1127,121 @@
             });
 
         });
+        function bindSelectFromAPI(selectElement, list, includeAll = true){
+
+            selectElement.empty();
+
+            if(includeAll){
+                selectElement.append(
+                    '<option value="">전체</option>'
+                );
+            }
+
+            list.forEach(item => {
+                selectElement.append(`
+                    <option value="${item.value}">
+                        ${item.text}
+                    </option>
+                `);
+            });
+        }
+
+        // 일일근태 지도 초기화
+        function initMap(){
+            kakao.maps.load(function() {
+                const container = document.getElementById('map');
+                const options = {
+                    center: new kakao.maps.LatLng(DEFAULT_LAT, DEFAULT_LNG),
+                    level: DEFAULT_LEVEL,
+                };
+                map = new kakao.maps.Map(container, options);
+                // 컨테이너 크기 정상화 후 relayout
+                setTimeout(function() {
+                    map.relayout();
+                    map.setCenter(new kakao.maps.LatLng(DEFAULT_LAT, DEFAULT_LNG));
+                }, 300);
+                // 지도 초기화 완료 후 GPS 로드
+                loadDailyGps(getToday());
+            });
+        }
+
+        // 일일근태 좌표값 표시
+        function loadDailyGps(date, callback) {
+            $.ajax({
+                url: '/api/dash_summary/readDailyGps',
+                type: 'GET',
+                data: {
+                    search_spjangcd: sessionStorage.getItem("spjangcd"),
+                    date: date
+                },
+                success: function (res) {
+                    clearMarkers();
+                    map.setCenter(new kakao.maps.LatLng(DEFAULT_LAT, DEFAULT_LNG));
+                    map.setLevel(DEFAULT_LEVEL);
+                    if (!res.data || res.data.length === 0) {
+                        $('#gpsInfo').text("근태 위치 없음");
+                        if (callback) callback();
+                        return;
+                    }
+
+                    res.data.forEach(row => {
+                        if (!row.latitude || !row.longitude) return;
+
+                        let pos = new kakao.maps.LatLng(row.latitude, row.longitude);
+                        let marker = new kakao.maps.Marker({ position: pos, map: map });
+                        let info = new kakao.maps.InfoWindow({
+                            content: `<div style="padding:5px;font-size:12px">
+                        이름 : ${row.Name}<br>
+                        ${row.address ?? ""}
+                    </div>`
+                        });
+
+                        markers.push(marker);
+                        markerMap[String(row.perid)] = { marker, infoWindow: info };
+
+                        kakao.maps.event.addListener(marker, 'click', () => {
+                            if (openInfoWindow) {
+                                openInfoWindow.close();
+                                if (openInfoWindow === info) {
+                                    openInfoWindow = null;
+                                    return;
+                                }
+                            }
+                            info.open(map, marker);
+                            openInfoWindow = info;
+                        });
+                    });
+
+                    // 지도 중심은 DEFAULT_LAT/LNG 고정 좌표 유지 (이동하지 않음)
+                    $('#gpsInfo').text(markers.length + "명 위치");
+                    if (callback) callback();
+                }
+            });
+        }
+
+        // 기존 marker 및 InfoWindow 제거
+        function clearMarkers() {
+            // 열린 InfoWindow 먼저 닫기
+            if (openInfoWindow) {
+                openInfoWindow.close();
+                openInfoWindow = null;
+            }
+            markers.forEach(m => m.setMap(null));
+            markers = [];
+            markerMap = {};
+        }
+
+        function getToday(){
+            const d = new Date();
+            const yyyy = d.getFullYear();
+            const mm =
+                String(d.getMonth()+1)
+                    .padStart(2,'0');
+            const dd =
+                String(d.getDate())
+                    .padStart(2,'0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
     </script>
 
 </th:block>
