@@ -1,7 +1,6 @@
 package mes.app.mobile;
 
 import mes.app.mobile.Service.AttendanceStatisticsService;
-import mes.app.mobile.Service.MobileMainService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +20,7 @@ public class AttendanceStatisticsController {
     @Autowired
     AttendanceStatisticsService attendanceStatisticsService;
 
-    // 사용자 출퇴근 현황 조회
+
     @GetMapping("/read")
     public AjaxResult getVacInfo(
             @RequestParam(value="searchYear") String searchYear,
@@ -37,7 +36,7 @@ public class AttendanceStatisticsController {
 
         return result;
     }
-    // 사용자 출퇴근 현황 조회
+
     @GetMapping("/getUserInfo")
     public AjaxResult getUserInfo(
             HttpServletRequest request,

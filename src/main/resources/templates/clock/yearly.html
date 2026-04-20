@@ -1,9 +1,9 @@
 <html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
 <head>
   <style>
-      .wj-header {
-          text-align: center !important;
-      }
+    .wj-header {
+      text-align: center !important;
+    }
 
   </style>
 
@@ -26,7 +26,7 @@
       </ul>
     </div>
 
-    <section class="section">
+    <section class="section" style="">
       <div class="section-top">
         <div class="search-wrap">
           <dl>
@@ -104,15 +104,15 @@
         </div>
       </div> <!--//section-top end -->
       <div class="container-fluid" style="flex-direction: row; gap: 5px">
-          <div style="flex: 0 0 50%; max-width: 50%;">
-            <p id="selectedItem1"></p>
-            <div id="member-grid" style="height: 100%;"></div>
-          </div>
+        <div style="flex: 0 0 50%; max-width: 50%;">
+          <p id="selectedItem1"></p>
+          <div id="member-grid" style="height: 100%;"></div>
+        </div>
 
-          <div style="flex: 0 0 50%; max-width: 50%;">
-            <p id="selectedItem2"></p>
-            <div id="list-grid" style="height: 100%;"></div>
-          </div>
+        <div style="flex: 0 0 50%; max-width: 50%;">
+          <p id="selectedItem2"></p>
+          <div id="list-grid" style="height: 100%;"></div>
+        </div>
       </div>
     </section>
   </div> <!--//layout-contents end -->
@@ -123,7 +123,7 @@
 
 </th:block>
 <th:block layout:fragment="scripts">
-  <th:block th:replace="common/columns_setting :: columns_setting"></th:block>
+  <th:block th:replace="/common/columns_setting :: columns_setting"></th:block>
   <script type="text/javascript">
     class YearlyPage {
       constructor() {
@@ -162,7 +162,7 @@
           columns: [
             {binding: 'rownum', header: '순번', width: 100, align: 'center'},
             {binding: 'person_name', header: '사원명', width: 120, align: 'center'},
-            {binding: 'jik_id', header: '직위', width: 100, align: 'center'},
+            {binding: 'RSPNM', header: '직위', width: 100, align: 'center'},
             {binding: 'rtdate', header: '입사일', width: 140, align: 'center'},
             {binding: 'ewolnum', header: '이월일', width: 140, align: 'center'},
             {binding: 'holinum', header: '연차일수', width: 140, align: 'center'},

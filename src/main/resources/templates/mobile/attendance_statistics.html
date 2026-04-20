@@ -28,15 +28,6 @@
         padding: 10px;
     }
 
-    /* 검색 아이콘 (SVG) */
-    .search-icon {
-        position: absolute;
-        right: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        cursor: pointer;
-    }
-
     /* 검색 가이드 스타일 */
     .search-guide {
         padding: 10px;
@@ -127,25 +118,22 @@
         overflow-wrap: break-word;
         white-space: normal;
     }
-
-
-
 </style>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ACTAS EMMS</title>
+    <title>ACTAS MES</title>
     <meta name="ctx" th:content="@{/}">
     <link rel="icon" type="image/png" th:href="@{/images/logo/actas_log_a.png}">
     <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/smoothness/jquery-ui.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css"/> <!-- Slide css -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css"/>
     <link rel="stylesheet" th:href="@{/resource/ax5ui/ax5ui.all.css}">
     <link rel="stylesheet" th:href="@{/assets_mobile/css/import.css}">
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
 
-    <script th:src="@{/assets_mobile/js/ui.js}"></script> <!-- Common js -->
+    <script th:src="@{/assets_mobile/js/ui.js}"></script>
 
     <script th:inline="javascript">
         var sandanData = /*[[${session.sandanList}]]*/ [];
@@ -154,21 +142,17 @@
     <script type="text/javascript" th:src="@{/resource/ax5ui/ax5ui.all.min.js}"></script>
     <script type="text/javascript" th:src="@{/js/ax5commUtil.js}"></script>
     <script th:src="@{/js/common.js}"></script>
-
-    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script> <!-- Slide js -->
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
     <script th:src="@{/js/Mobile.js}"></script>
-    <script src="https://kit.fontawesome.com/84dc79ac13.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 </head>
 
 <body>
-<div class="mobile-wrapper page-ticket-list"><!-- ★페이지 Class명 -->
+<div class="mobile-wrapper page-ticket-list">
     <!-- [모바일] 헤더  -->
     <div class="mobile-layout-header">
         <header>
             <div class="left">
-                <a href="#" title="전체메뉴" class="logo">
-                </a>
+                <a href="#" title="전체메뉴" class="logo"></a>
             </div>
             <div class="left" style="margin-left:35px; font-size: 25px;">
                 <h2>휴가통계</h2>
@@ -179,14 +163,14 @@
                 </a>
             </div>
         </header>
-    </div> <!-- //mobile-layout-header end-->
+    </div>
 
     <!-- [모바일] 메뉴  -->
     <div th:insert="~{mobile/mobile_menu :: mobile_menu}"></div>
-    <!-- [모바일] 컨덴츠  -->
+
+    <!-- [모바일] 컨텐츠  -->
     <div class="mobile-layout-contents">
-        <!--- (레이아웃) Contents 영역 -->
-        <div class="layout-contents" >
+        <div class="layout-contents">
             <!-- 검색 영역  -->
             <div class="search-wrap">
                 <div class="srch-tit aco-hd">
@@ -202,9 +186,7 @@
                             <div style="display: flex; gap: 10px">
                                 <div style="width: 100%">
                                     <select id="searchYear">
-                                        <option>
-                                            2025
-                                        </option>
+                                        <option>2025</option>
                                     </select>
                                 </div>
                             </div>
@@ -223,33 +205,23 @@
                         <canvas id="SignupOfWeek" style="width: 740px; height: 550px;"></canvas>
                     </div>
                 </div>
-            </div> <!--// contents-wrap end-->
-        </div> <!--//layout-contents end -->
+            </div>
+        </div>
+    </div>
+</div>
 
-    </div> <!-- //mobile-layout-contents end-->
-</div> <!-- //page-wrapper end-->
 <script th:inline="javascript">
-    // // Thymeleaf에서 값 설정: Null 체크와 기본값 처리
-    // var groupid = [[${session.groupid != null ? session.groupid : 'null'}]];
-    // var id = /*[[${id != null ? id : 'null'}]]*/;
-    // var groupname = /*[[${groupname != null ? groupname : 'null'}]]*/;
-    // var username = /*[[${username != null ? username : 'null'}]]*/;
-    //
-    // // 로컬스토리지에 값 유지 (null 또는 빈 문자열은 저장하지 않음)
-    // if (groupid && groupid !== 'null') localStorage.setItem('groupid', groupid);
-    // if (id && id !== 'null') localStorage.setItem('id', id);
-    // if (username && username !== 'null') localStorage.setItem('username', username);
-    // if (groupname && groupname !== 'null') localStorage.setItem('groupname', groupname);
+    // Thymeleaf에서 컨텍스트 패스 추출
+    var ctx = /*[[@{/}]]*/ '/';
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script type="text/javascript">
 
     $(document).ready(function () {
-        // ✅ 서버에서 연도 리스트 받아와 셀렉트 박스 바인딩
         loadAvailableYears().then(() => {
             searchDeductionData();
-            searchUserData();
         });
+        searchUserData();
     });
 
     // 파스텔톤 색상 리스트
@@ -259,9 +231,8 @@
         "#FFDEAD", "#e8b4c9", "#E4DBFF", "#FF6384"
     ];
 
-    // 색상을 랜덤으로 섞기 (Fisher-Yates 알고리즘)
     function shuffleColors(array) {
-        let shuffled = array.slice(); // 원본 배열을 복사해서 사용
+        let shuffled = array.slice();
         for (let i = shuffled.length - 1; i > 0; i--) {
             let j = Math.floor(Math.random() * (i + 1));
             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -269,51 +240,41 @@
         return shuffled;
     }
 
-    // 섞인 색상 배열 생성
     let shuffledColors = shuffleColors(colorPalette);
     let colorIndex = 0;
 
-    // 랜덤 색상 선택 함수 (겹치지 않게)
     function getRandomColor() {
         if (colorIndex >= shuffledColors.length) {
-            // 모든 색상을 사용했으면 다시 섞기
             shuffledColors = shuffleColors(colorPalette);
             colorIndex = 0;
         }
         return shuffledColors[colorIndex++];
     }
 
-    // 연차정보 조회 후 차트 업데이트
     function searchDeductionData() {
         $.ajax({
-            url: '/api/attendance_statistics/read',
+            url: ctx + 'api/attendance_statistics/read',
             type: 'GET',
             data: {
-                'searchYear' : document.getElementById('searchYear').value,
+                'searchYear': document.getElementById('searchYear').value,
             },
             success: function (response) {
-                console.log(response); // 응답 데이터 확인
+                console.log(response);
 
                 let chartWrap = document.querySelector(".chart-wrap");
                 chartWrap.innerHTML = `<canvas id="SignupOfWeek" style="width: 740px; height: 550px;"></canvas>`;
                 if (response.success && Array.isArray(response.data)) {
+                    let data2 = response.data;
+                    let labels = data2.map(item => `${item.HISNM} (${item.HISPOINT} 일)`);
+                    let data = data2.map(item => item.HISPOINT);
+                    let backgroundColors = labels.map(() => getRandomColor());
 
-                    data2 = response.data;
-                    // 데이터 변환
-                    let labels = data2.map(item => `${item.hisnm} (${item.hispoint} 일)`);
-                    let data = data2.map(item => item.hispoint);
-                    let backgroundColors = labels.map(() => getRandomColor()); // 각 항목별 랜덤 색상
-
-                    // 기존 차트 제거 (이미 생성된 경우)
                     if (window.myPieChart) {
                         window.myPieChart.destroy();
                     }
 
-                    // 캔버스 요소 가져오기
-                    let ctx = document.getElementById('SignupOfWeek').getContext('2d');
-
-                    // 새로운 차트 생성
-                    window.myPieChart = new Chart(ctx, {
+                    let ctx2 = document.getElementById('SignupOfWeek').getContext('2d');
+                    window.myPieChart = new Chart(ctx2, {
                         type: 'pie',
                         data: {
                             labels: labels,
@@ -328,15 +289,11 @@
                         options: {
                             responsive: true,
                             plugins: {
-                                legend: {
-                                    position: 'bottom'
-                                },
+                                legend: { position: 'bottom' },
                                 tooltip: {
                                     callbacks: {
                                         label: function (tooltipItem) {
-                                            let label = tooltipItem.label || '';
-                                            let value = tooltipItem.raw || 0;
-                                            return `${label}: ${value}`;
+                                            return `${tooltipItem.label}: ${tooltipItem.raw}`;
                                         }
                                     }
                                 }
@@ -346,49 +303,43 @@
                 } else {
                     console.error("데이터가 올바르지 않습니다.");
                 }
-                // 차트 보여주기
+
                 let contentsWrap = document.querySelector('.contents-wrap');
-                if (contentsWrap) {
-                    contentsWrap.style.display = 'block';
-                }
+                if (contentsWrap) contentsWrap.style.display = 'block';
+
                 let canvas = document.getElementById("SignupOfWeek");
-                if (canvas) {
-                    canvas.style.display = 'block';
-                } else {
-                    console.error("SignupOfWeek 요소를 찾을 수 없습니다.");
-                }
+                if (canvas) canvas.style.display = 'block';
+                else console.error("SignupOfWeek 요소를 찾을 수 없습니다.");
             },
             error: function (error) {
                 console.error("데이터 불러오기 실패:", error);
             }
         });
     }
-    // 유저정보 조회 후 통계차트 위 표기
+
     function searchUserData() {
         $.ajax({
-            url: '/api/attendance_statistics/getUserInfo',
+            url: ctx + 'api/attendance_statistics/getUserInfo',
             type: 'GET',
-            data: {
-            },
             success: function (response) {
-                console.log(response); // 응답 데이터 확인
-
-                // 등급, 점수 바인드
-                document.querySelector(".contents-wrap h4").innerText = `${response.data.departnm} ${response.data.Name} ${response.data.jiknm} 2025년 휴가통계`;
+                console.log(response);
+                let searchYear = document.getElementById('searchYear').value;
+                document.querySelector(".contents-wrap h4").innerText =
+                    `${response.data.divinm} ${response.data.Name} ${response.data.RSPNM}\n${searchYear} 휴가통계`;
             },
             error: function (error) {
                 console.error("데이터 불러오기 실패:", error);
             }
         });
     }
-    // 조회년도 바인드 로직
+
     async function loadAvailableYears() {
         try {
-            const res = await fetch('/api/attendance_current/years');
-            const result = await res.json(); // 전체 JSON 객체
-            const years = result.data;       // ✅ 실제 연도 배열만 추출
+            const res = await fetch(ctx + 'api/attendance_current/years');
+            const result = await res.json();
+            const years = result.data;
             const select = document.getElementById('searchYear');
-            select.innerHTML = ''; // 기존 옵션 제거
+            select.innerHTML = '';
 
             if (!years || years.length === 0) {
                 const opt = document.createElement('option');

@@ -116,7 +116,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ACTAS EMMS</title>
+  <title>ACTAS MES</title>
   <meta name="ctx" th:content="@{/}">
   <link rel="icon" type="image/png" th:href="@{/images/logo/actas_log_a.png}">
   <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/smoothness/jquery-ui.css">
@@ -177,83 +177,83 @@
       </div>
       <!-- 컨텐츠 영역  -->
       <div class="contents-wrap">
-          <dl>
-            <dt>사용자ID</dt>
-            <dd>
-              <div style="display: flex; gap: 10px">
-                <div style="width: 100%">
-                  <input type="text" id="userId" readonly>
-                </div>
+        <dl>
+          <dt>사용자ID</dt>
+          <dd>
+            <div style="display: flex; gap: 10px">
+              <div style="width: 100%">
+                <input type="text" id="userId" readonly>
               </div>
-            </dd>
-            <dt>사용자명</dt>
-            <dd>
-              <div style="display: flex; gap: 10px">
-                <div style="width: 100%">
-                  <input type="text" id="userName2" readonly>
-                </div>
-              </div>
-            </dd>
-            <dt>휴가항목</dt>
-            <dd>
-              <div style="display: flex; gap: 10%">
-                  <select style="width: 70%" id="attKind" onchange="bindPeriod();">
-                    <option>휴가</option>
-                  </select>
-                  <label style="display: flex; align-items: center">
-                    <input type="checkbox" style="margin: 0" id="isAnnual" disabled>
-                    &nbsp;&nbsp;연차</label>
-              </div>
-            </dd>
-            <dt>기간</dt>
-            <dd>
-              <!-- 시작 날짜/시간 -->
-              <div style="display: flex; flex-direction: column; gap: 5px;">
-                <div style="display: flex; gap: 10px;">
-                  <input type="date" id="startDate" style="width: 140px;">
-                  <input type="time" id="startTime" style="width: 140px;">
-                </div>
-              </div>
-
-              <span style="font-weight: bold;">~</span>
-
-              <!-- 종료 날짜/시간 -->
-              <div style="display: flex; flex-direction: column; gap: 5px;">
-                <div style="display: flex; gap: 10px;">
-                  <input type="date" id="endDate" style="width: 140px;">
-                  <input type="time" id="endTime" style="width: 140px;">
-                </div>
-              </div>
-
-            </dd>
-            <div style="display: flex;">
-              <dt>사용일수</dt>
-              <dt style="margin-left: auto">연차잔여일수</dt>
             </div>
-            <dd>
-              <div style="display: flex; gap: 10px">
-                <div style="width: 100%; display: flex;">
-                  <input type="number" id="useDate" style="width: 45%;" readonly>
-                  <input type="number" id="usedDate" style="width: 45%; margin-left: auto;" readonly>
-                </div>
+          </dd>
+          <dt>사용자명</dt>
+          <dd>
+            <div style="display: flex; gap: 10px">
+              <div style="width: 100%">
+                <input type="text" id="userName2" readonly>
               </div>
-            </dd>
-            <dt>사유</dt>
-            <dd>
-              <div style="display: flex; gap: 10px">
-                <div style="width: 100%">
-                  <input type="text" id="remark" >
-                </div>
+            </div>
+          </dd>
+          <dt>휴가항목</dt>
+          <dd>
+            <div style="display: flex; gap: 10%">
+              <select style="width: 70%" id="attKind" onchange="bindPeriod();">
+                <option>휴가</option>
+              </select>
+              <label style="display: flex; align-items: center">
+                <input type="checkbox" style="margin: 0" id="isAnnual" disabled>
+                &nbsp;&nbsp;연차</label>
+            </div>
+          </dd>
+          <dt>기간</dt>
+          <dd>
+            <!-- 시작 날짜/시간 -->
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+              <div style="display: flex; gap: 10px;">
+                <input type="date" id="startDate" style="width: 140px;">
+                <input type="time" id="startTime" style="width: 140px;">
               </div>
-            </dd>
-          </dl>
-          <div class="srch-btn">
-            <button class="btn-dark" onclick="saveAttendance()">등록</button>
+            </div>
+
+            <span style="font-weight: bold;">~</span>
+
+            <!-- 종료 날짜/시간 -->
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+              <div style="display: flex; gap: 10px;">
+                <input type="date" id="endDate" style="width: 140px;">
+                <input type="time" id="endTime" style="width: 140px;">
+              </div>
+            </div>
+
+          </dd>
+          <div style="display: flex;">
+            <dt>사용일수</dt>
+            <dt style="margin-left: auto">연차잔여일수</dt>
           </div>
+          <dd>
+            <div style="display: flex; gap: 10px">
+              <div style="width: 100%; display: flex;">
+                <input type="number" id="useDate" style="width: 45%;" readonly>
+                <input type="number" id="usedDate" style="width: 45%; margin-left: auto;" readonly>
+              </div>
+            </div>
+          </dd>
+          <dt>사유</dt>
+          <dd>
+            <div style="display: flex; gap: 10px">
+              <div style="width: 100%">
+                <input type="text" id="remark" >
+              </div>
+            </div>
+          </dd>
+        </dl>
+        <div class="srch-btn">
+          <button class="btn-dark" onclick="saveAttendance()">등록</button>
         </div>
-      </div><!--// contents-wrap end-->
-    </div> <!--//layout-contents end -->
-  </div> <!-- //mobile-layout-contents end-->
+      </div>
+    </div><!--// contents-wrap end-->
+  </div> <!--//layout-contents end -->
+</div> <!-- //mobile-layout-contents end-->
 </div> <!-- //page-wrapper end-->
 <script th:inline="javascript">
   // // Thymeleaf에서 값 설정: Null 체크와 기본값 처리

@@ -19,23 +19,18 @@ public class CommuteCurrentService {
         dicParam.addValue("username", username);
         dicParam.addValue("workcd", workcd);
 
-        // 날짜 포맷 처리 (yyyy-MM-dd -> yyyyMM, dd)
-        String fromYearMonth = searchFromDate.replace("-", "").substring(0, 6); //  yyyymm
-        String fromDay = searchFromDate.substring(8, 10); // dd
+        // 날짜 포맷 처리 (yyyy-MM-dd -> yyyyMMdd)
+        String fromDate = searchFromDate.replace("-", ""); // yyyyMMdd
+        String toDate = searchToDate.replace("-", "");     // yyyyMMdd
 
-        String toYearMonth = searchToDate.replace("-", "").substring(0, 6);
-        String toDay = searchToDate.substring(8, 10);
-
-        dicParam.addValue("fromYearMonth", fromYearMonth);
-        dicParam.addValue("fromDay", fromDay);
-        dicParam.addValue("toYearMonth", toYearMonth);
-        dicParam.addValue("toDay", toDay);
+        dicParam.addValue("fromDate", fromDate);
+        dicParam.addValue("toDate", toDate);
 
         String sql = """
-                SELECT
+            SELECT
                 t.workym,
                 t.workday,
-                t.personid,
+                t.perid,
                 t.worknum,
                 t.holiyn,
                 t.workyn,
@@ -53,59 +48,38 @@ public class CommuteCurrentService {
                 t.yuntime,
                 t.abtime,
                 t.bantime,
-                t.adttime01,
-                t.adttime02,
-                t.adttime03,
-                t.adttime04,
-                t.adttime05,
-                t.adttime06,
-                t.adttime07,
                 t.remark,
                 t.fixflag,
+                t.address,
                 a.first_name,
-                TRIM(BOTH ', ' FROM (
-                  CASE WHEN t.jitime = 1 THEN '지각, ' ELSE '' END ||
-                  CASE WHEN t.jotime = 1 THEN '조퇴, ' ELSE '' END ||
-                  CASE WHEN t.yuntime = 1 THEN '연차, ' ELSE '' END ||
-                  CASE WHEN t.abtime = 1 THEN '결근, ' ELSE '' END ||
-                  CASE WHEN t.bantime = 1 THEN '반차, ' ELSE '' END
-                )) AS status_text
+                STUFF(
+                    CASE WHEN t.jitime = 1 THEN ', 지각' ELSE '' END +
+                    CASE WHEN t.jotime = 1 THEN ', 조퇴' ELSE '' END +
+                    CASE WHEN t.yuntime = 1 THEN ', 연차' ELSE '' END +
+                    CASE WHEN t.abtime = 1 THEN ', 결근' ELSE '' END +
+                    CASE WHEN t.bantime = 1 THEN ', 반차' ELSE '' END
+                , 1, 2, '') AS status_text
             FROM tb_pb201 t
-            LEFT JOIN auth_user a ON a.personid = t.personid
+            LEFT JOIN auth_user a ON a.personid = t.perid
             LEFT JOIN person p ON p.id = a.personid
             LEFT JOIN tb_pb210 td ON t.workcd = td.workcd
             WHERE 1=1
               AND a.username = :username
-        		""";
+           """;
 
-        if(workcd != null && !workcd.isEmpty()){
-            sql += " AND t.workcd = :workcd";
+        if (workcd != null && !workcd.isEmpty()) {
+            sql += " AND t.workcd = :workcd ";
         }
-        // 날짜 조건 추가
+
+        // ✅ workym + workday 합쳐서 8자리 문자열로 비교 (MSSQL)
         sql += """
-        AND (
-            (t.workym > :fromYearMonth)
-            OR (
-                t.workym = :fromYearMonth AND t.workday >= :fromDay
-            )
-        )
-        AND (
-            (t.workym < :toYearMonth)
-            OR (
-                t.workym = :toYearMonth AND t.workday <= :toDay
-            )
-        )
-    """;
+            AND (t.workym + t.workday) >= :fromDate
+            AND (t.workym + t.workday) <= :toDate
+           """;
 
-        sql += """
-               ORDER BY t.workym DESC, t.workday DESC
-               """;
+        sql += " ORDER BY t.workym DESC, t.workday DESC ";
 
-
-
-        List<Map<String, Object>> items = this.sqlRunner.getRows(sql, dicParam);
-
-        return items;
+        return this.sqlRunner.getRows(sql, dicParam);
     }
 
 }
