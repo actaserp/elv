@@ -54,6 +54,7 @@ public class ComboService {
 		this._dicFunc_.put("equipment_group", this.equipment_group);
 		this._dicFunc_.put("equipment_type", this.equipment_type);
 		this._dicFunc_.put("factory", this.factory);
+		this._dicFunc_.put("fuel", this.fuel); // 유류 콤보 (TB_E037_1)
 		this._dicFunc_.put("haccp_item", this.haccp_item);
 		this._dicFunc_.put("haccp_process", this.haccp_process);
 		this._dicFunc_.put("haccp_process_workcenter", this.haccp_process_workcenter);
@@ -134,27 +135,15 @@ public class ComboService {
 
 	ComboDataFunction bank = (String banknm, String bankcd, String bankid) -> { //확인
 		String sql = "select bankpopcd as value, bankpopnm as text from tb_xbank where 1=1";
-		/*if (StringUtils.hasText(cond1)) {
-			sql += "and \"Material_id\" = :cond1 ";
-		}*/
 		sql += " order by \"bankid\" ";
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
-		/*dicParam.addValue("cond1", cond1);
-		dicParam.addValue("cond2", cond2);
-		dicParam.addValue("cond3", cond3);*/
 		return this.sqlRunner.getRows(sql, dicParam);
 	};
 
 	ComboDataFunction bankid = (String banknm, String bankcd, String bankid) -> { //확인
 		String sql = "select bankid as value, banknm as text from tb_xbank where 1=1";
-		/*if (StringUtils.hasText(cond1)) {
-			sql += "and \"Material_id\" = :cond1 ";
-		}*/
 		sql += " order by \"bankid\" ";
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
-		/*dicParam.addValue("cond1", cond1);
-		dicParam.addValue("cond2", cond2);
-		dicParam.addValue("cond3", cond3);*/
 		return this.sqlRunner.getRows(sql, dicParam);
 	};
 	
@@ -174,7 +163,6 @@ public class ComboService {
 	ComboDataFunction company=(String cond1, String cond2, String cond3)-> { 
 		String sql = "select id as value, \"Name\" as text from company where 1=1 and spjangcd =:spjangcd ";
 		if (StringUtils.hasText(cond1)) { 
-			//sql +="and \"CompanyType\" = :cond1 ";
 			sql += " and \"CompanyType\" in (select unnest(string_to_array(:cond1, ',')))";
 		}
 		sql += " order by \"Name\" ";
@@ -216,8 +204,6 @@ public class ComboService {
         return this.sqlRunner.getRows(sql, dicParam);
 	};
 	
-	//ComboDataFunction data_month=(String cond1, String cond2, String cond3) -> {
-	//};
 	ComboDataFunction data_month=(String cond1, String cond2, String cond3) -> {
 		String sql = "select generate_series(01,12)::text as value,generate_series(01,12)::text as text ";
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
@@ -243,9 +229,7 @@ public class ComboService {
 	};
 	
 	ComboDataFunction defect_type=(String cond1, String cond2, String cond3) -> {
-
 		String tenantId = TenantContext.get();
-
 		String sql = "select id as Value, \"Name\" as text from defect_type where spjangcd = :spjangcd order by \"Name\" ";
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		dicParam.addValue("spjangcd", tenantId);
@@ -265,9 +249,6 @@ public class ComboService {
         dicParam.addValue("cond3", cond3);
         return this.sqlRunner.getRows(sql, dicParam);
 	};
-	
-	//ComboDataFunction device_type=(String cond1, String cond2, String cond3)-> {
-	//};
 	
 	ComboDataFunction doc_form=(String cond1, String cond2, String cond3)-> { // 성공
 		String sql = "select id as Value, \"FormName\"as text, \"FormType\" as form_type from doc_form df where 1=1 ";
@@ -338,7 +319,7 @@ public class ComboService {
 					 "            where rd.\"TableName1\"='work_center' and rd.\"TableName2\"='equ'";
 
 		if (StringUtils.hasText(cond1)) {
-			sql += " and rd.\"DataPk1\" = :cond1"; // 중복 방지
+			sql += " and rd.\"DataPk1\" = :cond1";
 		}
 
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
@@ -376,7 +357,23 @@ public class ComboService {
         dicParam.addValue("cond3", cond3);
         return this.sqlRunner.getRows(sql, dicParam);	
 	};
-	
+
+	// 유류 콤보 - TB_E037_1 (fuelcd: 유류코드, fuelnm: 유류명)
+	// useyn = '1' 인 사용중인 유류만 조회, spjangcd로 사업장 필터
+	ComboDataFunction fuel = (String cond1, String cond2, String cond3) -> {
+		String tenantId = TenantContext.get();
+		String sql = """
+				SELECT fuelcd AS value, fuelnm AS text
+				FROM TB_E037_1
+				WHERE spjangcd = :spjangcd
+				AND useyn = '1'
+				ORDER BY fuelcd
+				""";
+		MapSqlParameterSource dicParam = new MapSqlParameterSource();
+		dicParam.addValue("spjangcd", tenantId);
+		return this.sqlRunner.getRows(sql, dicParam);
+	};
+
 	ComboDataFunction haccp_item=(String cond1, String cond2, String cond3)-> { 
 		String sql = "select id as Value, \"Name\" as text from haccp_item where 1=1 order by \"Name\" ";
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
@@ -387,7 +384,6 @@ public class ComboService {
 	};
 	
 	ComboDataFunction haccp_process=(String cond1, String cond2, String cond3) -> {
-		
 		String sql = """		
 		select id as value, \"Name\" as text from haccp_proc where 1=1 
 	    """;
@@ -404,9 +400,7 @@ public class ComboService {
 	};
 	
 	ComboDataFunction haccp_process_workcenter=(String cond1, String cond2, String cond3)-> {
-		
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
-		
 		String sql ="""
 			select wc.id as value
 	        , wc."Name" as text
@@ -424,14 +418,10 @@ public class ComboService {
 			sql += "and hp.id = :hp_id ";
 		}
 		sql += "order by wc.\"Name\" ";		
-
         dicParam.addValue("cond2", cond2);
         dicParam.addValue("cond3", cond3);		
 		return this.sqlRunner.getRows(sql, dicParam);
 	};
-	
-	//ComboDataFunction hmi_form = (String cond1, String cond2, String cond3)-> {	
-	//};
 	
 	ComboDataFunction material =(String cond1, String cond2, String cond3)-> { 
 		String sql ="select m.id as Value, m.\"Name\" as text from material m inner join mat_grp mg on mg.id = m.\"MaterialGroup_id\" where 1=1 ";
@@ -442,7 +432,6 @@ public class ComboService {
 			sql+="and \"StoreHouse_id\" = :cond2";
 		}
 		if (StringUtils.hasText(cond3)) {
-			//sql +="and mg.\"MaterialType\" = :cond3";
 			sql +=" and mg.\"MaterialType\" in (select unnest(string_to_array(:cond3, ',')))";
 		}
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
@@ -458,7 +447,6 @@ public class ComboService {
 		""";
 		if(StringUtils.hasText(cond1)) {
 			sql +=" and \"MaterialType\" in (select unnest(string_to_array(:cond1,',')))";
-			//sql +=" and \"MaterialType\" =:cond1 ";
 		}
 		if (StringUtils.hasText(cond2)) {
 			sql +=" and \"Code\" in (select unnest(string_to_array(:cond2, ',')))";
@@ -466,9 +454,7 @@ public class ComboService {
 		if (StringUtils.hasText(cond3)) {
 			sql +=" and \"Code\" not in (select unnest(stirng_to_array(:cond3, ',')))";
 		}
-		
 		sql += " order by \"Name\" ";
-		
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		String tenantId = TenantContext.get();
 		dicParam.addValue("spjangcd", tenantId);
@@ -483,7 +469,6 @@ public class ComboService {
 		if (StringUtils.hasText(cond1)) {
 			sql += "select \"MenuCode\" as Value, \"MenuName\" as text from menu_item where 1=1 and \"MenuFolder_id\" = cast(:cond1 as Integer)";
 		}
-		
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		dicParam.addValue("cond1", cond1);
 		dicParam.addValue("cond2", cond2);
@@ -518,9 +503,6 @@ public class ComboService {
 		dicParam.addValue("cond3", cond3);
 		return this.MainsqlRunner.getRows(sql, dicParam);
 	};
-	
-	//ComboDataFunction menu_template=(String cond1, String cond2, String cond3)-> {
-	//};
 	
 	ComboDataFunction mold_class=(String cond1, String cond2, String cond3)-> { //성공 - 데이터 없음 
 		String sql = "select id as Value, \"Name\" as text from mold_cls where 1=1 order by \"Name\" ";
@@ -665,7 +647,6 @@ public class ComboService {
 		String sql = "select id as value,\"Name\" as text from store_house where 1=1 ";
 		if (StringUtils.hasText(cond1)) sql +="and \"HouseType\" in (select unnest(string_to_array(:cond1,',')))";
 		sql += " order by \"Name\" ";
-		
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		dicParam.addValue("cond1", cond1);
 		dicParam.addValue("cond2", cond2);
@@ -683,13 +664,11 @@ public class ComboService {
 	};
 	
 	ComboDataFunction system_code = (String cond1, String cond2, String cond3)-> { 
-		
 		String sql = """
 		select "Code" as value ,"Value" as text from sys_code where 1=1 
         """;
 		if (StringUtils.hasText(cond1)) {
 			sql +=" and \"CodeType\" = :cond1 ";
-			//sql +=" and \"CodeType\" in (select unnest(string_to_array(cond1, ','))::string) ";
 		}
 		if (StringUtils.hasText(cond2)) {
 			if(cond2.indexOf(',')>0){
@@ -699,9 +678,7 @@ public class ComboService {
 				sql +="and \"Code\" = :cond2 ";	
 			}
 		}
-		
 		sql += " order by \"_ordering\" ";
-		
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		dicParam.addValue("cond1", cond1);
 		dicParam.addValue("cond2", cond2);
@@ -718,9 +695,6 @@ public class ComboService {
 		return this.sqlRunner.getRows(sql, dicParam);
 	};
 
-	//ComboDataFunction tag=(String cond1, String cond2, String cond3)-> {
-	//};
-	
 	ComboDataFunction tag_group=(String cond1, String cond2, String cond3)-> { 
 		String sql = "select id as Value, \"Name\" as text from tag_grp where 1=1 order by \"Name\" ";
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
@@ -747,17 +721,13 @@ public class ComboService {
 		if (StringUtils.hasText(cond1)) { 
 			sql +="and tm.\"TestMasterGroup_id\" = cast(:cond1 as Integer) ";
 		}
-		
 		if (StringUtils.hasText(cond2)) {
 			sql +="and tm.\"TestType\" = :cond2 ";
 		}
-		
 		if (StringUtils.hasText(cond3)) {
 			sql +="and tmg.\"TestClass\" = :cond3 ";
 		}
-		
 		sql += " order by tm.\"Name\" ";
-		
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
         dicParam.addValue("cond1", cond1);
         dicParam.addValue("cond2", cond2);
@@ -775,7 +745,6 @@ public class ComboService {
 	};	
 	
 	ComboDataFunction test_method = (String cond1, String cond2, String cond3)-> { //확인 -> 데이터 없음 
-		//String sql = "select id as Value, \"Name\" as text where test_method where 1=1 order by \"Name\" ";
 		String sql = "select id as Value, \"Name\" as text from test_method where 1=1 order by \"Name\" ";
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
         dicParam.addValue("cond1", cond1);
@@ -796,14 +765,11 @@ public class ComboService {
 	};
 	
 	ComboDataFunction user_code=(String cond1, String cond2, String cond3)-> {
-		
 		String sql = "select \"Code\" as value, \"Value\" as text from user_code where 1=1 ";
 		if (StringUtils.hasText(cond1)) { 
 			sql +="and \"Parent_id\" in (select id from user_code where \"Code\" = :cond1) ";
 		}
-		
 		sql += " order by \"Value\" ";
-		
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
         dicParam.addValue("cond1", cond1);
         dicParam.addValue("cond2", cond2);
@@ -821,13 +787,9 @@ public class ComboService {
 	};
 	
 	ComboDataFunction user_group=(String cond1, String cond2, String cond3)-> {
-
-
-
 		String sql = """
 		select id as value, "Name" as text from user_group where 1=1 and spjangcd = :spjangcd order by "Name"
 		""";
-		
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		String tenantId = TenantContext.getDbKey();
 		dicParam.addValue("spjangcd", tenantId);
@@ -875,19 +837,7 @@ public class ComboService {
 
 	ComboDataFunction iotype=(String cond1, String cond2, String cond3)-> {
 		String	sql = "select id as Value, \"Value\" as text from sys_code where \"CodeType\" = 'deposit_type'order by \"Value\" ";
-		/*if (StringUtils.hasText(cond1)) {
-			sql +="and \"Process_id\" in (select unnest(string_to_array(:cond1,','))::int)";
-		}
-		if (StringUtils.hasText(cond2)) {
-			sql +="and \"Area_id\" = :cond2 ";
-		}*/
-		//sql += " order by \"Name\" ";
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
-		/*
-		dicParam.addValue("cond1", cond1);
-		dicParam.addValue("cond2", cond2);
-		dicParam.addValue("cond3", cond3);
-		*/
 		return this.sqlRunner.getRows(sql, dicParam);
 	};
 	
@@ -941,25 +891,6 @@ public class ComboService {
 		dicParam.addValue("cond3", cond3);
 		return this.sqlRunner.getRows(sql, dicParam);
 	};
-
-//	ComboDataFunction trade=(String cond1, String cond2, String cond3)-> {
-//		String sql = "select \"trid\" as Value, ioflag, \"tradenm\" as text from tb_trade where 1=1 ";
-//		/*if (StringUtils.hasText(cond1)) {
-//			sql +="and \"Equipment_id\" = cast(:cond1 as Integer) ";
-//		}
-//		if (StringUtils.hasText(cond2)) {
-//			sql +="and \"tag_group_id\" = cast(:cond2 as Integer) ";
-//		}
-//		if (StringUtils.hasText(cond3)) {
-//			sql +="and \"DASConfig_id\" = cast(:cond3 as Integer) ";
-//		}*/
-//		sql += " order by \"trid\" ";
-//		MapSqlParameterSource dicParam = new MapSqlParameterSource();
-//		dicParam.addValue("cond1", cond1);
-//		dicParam.addValue("cond2", cond2);
-//		dicParam.addValue("cond3", cond3);
-//		return this.sqlRunner.getRows(sql, dicParam);
-//	};
 	
 	ComboDataFunction task_master=(String cond1, String cond2, String cond3)-> {  
 		String sql = "select id as value, \"TaskName\" as text from task_master where 1=1 ";
@@ -974,8 +905,6 @@ public class ComboService {
 	
 	ComboDataFunction ccp_proc=(String cond1, String cond2, String cond3)-> {  
 		String sql = "select id as value, \"Name\" as text from haccp_proc hp  where 1=1 ";
-		if (StringUtils.hasText(cond1)) {
-		}
 		sql += " order by id ";
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
         dicParam.addValue("cond1", cond1);
@@ -1011,7 +940,6 @@ public class ComboService {
 
 	ComboDataFunction mssec = (String cond1, String cond2, String cond3) -> { //확인
 		String sql = "select mssec as value, mssecnm as text from tb_x0005 where 1=1";
-
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		dicParam.addValue("cond1", cond1);
 		dicParam.addValue("cond2", cond2);
@@ -1024,32 +952,15 @@ public class ComboService {
 		String sql = "select acccd as value, drcr as ioflag, accnm as text " +
 									 "from tb_ac001 " +
 									 "where 1=1 and useyn ='1'";
-
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
-
-		// cond1이 있을 때만 필터링
 		if (cond1 != null && !cond1.isEmpty()) {
 			sql += " and drcr = :cond1";
 			dicParam.addValue("cond1", cond1);
 		}
-
 		dicParam.addValue("cond2", cond2);
 		dicParam.addValue("cond3", cond3);
-
 		return this.sqlRunner.getRows(sql, dicParam);
 	};
-
-	/* 템플리트
-	
-	public ComboDataFunction template=(String cond1, String cond2, String cond3)-> {
-		String sql = "";
-		MapSqlParameterSource dicParam = new MapSqlParameterSource();
-        dicParam.addValue("cond1", cond1);
-        dicParam.addValue("cond2", cond2);
-        dicParam.addValue("cond3", cond3);
-        return this.sqlRunner.getRows(sql, dicParam);		
-	};
-	*/
 
 	ComboDataFunction workcd=(String cond1, String cond2, String cond3)-> {
 		String sql = """
@@ -1061,6 +972,4 @@ public class ComboService {
 		dicParam.addValue("spjangcd", tenantId);
 		return this.sqlRunner.getRows(sql, dicParam);
 	};
-
-	
 }

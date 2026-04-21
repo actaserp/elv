@@ -22,16 +22,29 @@
             <nav th:data-page="${currentPage}">
                 <!-- dep1 -->
                 <ul class="dep1">
-                    <li data-target="menu1">전체메뉴</li>
-
+                    <li data-target="menu1">근무관리</li>
+                    <li data-target="menu2">업무일지</li>
+                    <li data-target="menu3">보수관리</li>
+                    <li data-target="menu4">계정관리</li>
                 </ul>
                 <div class="dep2">
                     <ul data-menu="menu1">
                         <li><a th:href="@{/}" title="출퇴근등록" class="menu-link">출퇴근등록</a></li>
-                        <li><a th:href="@{/mobile/attendance_submit}" title="휴가등록" class="menu-link">휴가등록</a></li>
-                        <li><a th:href="@{/mobile/commute_current}" title="출퇴근현황" class="menu-link">출퇴근현황</a></li>
-                        <li><a th:href="@{/mobile/attendance_current}" title="휴가현황" class="menu-link">휴가현황</a></li>
-                        <li><a th:href="@{/mobile/attendance_statistics}" title="휴가통계" class="menu-link">휴가통계</a></li>
+                        <li><a th:href="@{/mobile/attendance/attendance_submit}" title="휴가등록" class="menu-link">휴가등록</a></li>
+                        <li><a th:href="@{/mobile/attendance/commute_current}" title="출퇴근현황" class="menu-link">출퇴근현황</a></li>
+                        <li><a th:href="@{/mobile/attendance/attendance_current}" title="휴가현황" class="menu-link">휴가현황</a></li>
+                        <li><a th:href="@{/mobile/attendance/attendance_statistics}" title="휴가통계" class="menu-link">휴가통계</a></li>
+                    </ul>
+                    <ul data-menu="menu2">
+                        <li><a th:href="@{/mobile/request/vehicle_manage}" title="차량관리" class="menu-link">차량관리</a></li>
+                        <li><a th:href="@{/mobile/request/daily_report}" title="업무일지" class="menu-link">업무일지등록</a></li>
+                    </ul>
+                    <ul data-menu="menu3">
+                        <li><a th:href="@{/mobile/request/maintenance_comp}" title="보수업체현황" class="menu-link">보수업체현황</a></li>
+                        <li><a th:href="@{/mobile/request/request_repair}" title="고장접수등록" class="menu-link">고장접수등록</a></li>
+                        <li><a th:href="@{/mobile/request/maintenance_repair}" title="고장처리등록" class="menu-link">고장처리등록</a></li>
+                    </ul>
+                    <ul data-menu="menu4">
                         <li><a th:href="@{/mobile/user_info}" title="사용자정보" class="menu-link">사용자정보</a></li>
                     </ul>
                 </div>

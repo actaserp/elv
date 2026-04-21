@@ -11,40 +11,80 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @RequestMapping("/mobile")
 public class MobileController {
 
-    @GetMapping("/attendance_submit")
-    public String ticketList(Model model) {
+    // ========== 근무관리 (attendance) ==========
+
+    @GetMapping("/attendance/attendance_submit")
+    public String attendanceSubmit(Model model) {
         model.addAttribute("currentPage", "attendance_submit");
-        return "mobile/attendance_submit"; // "mobile/ticket-list.html"로 매핑
+        return "mobile/attendance/attendance_submit";
     }
 
-    @GetMapping("/commute_current")
-    public String ticketRegister(Model model) {
+    @GetMapping("/attendance/commute_current")
+    public String commuteCurrent(Model model) {
         model.addAttribute("currentPage", "commute_current");
-        return "mobile/commute_current"; // "mobile/ticket-register.html"로 매핑
+        return "mobile/attendance/commute_current";
     }
-    @GetMapping("/attendance_current")
-    public String kakaoMap2(Model model) {
+
+    @GetMapping("/attendance/attendance_current")
+    public String attendanceCurrent(Model model) {
         model.addAttribute("currentPage", "attendance_current");
-        return "mobile/attendance_current";
+        return "mobile/attendance/attendance_current";
     }
-    @GetMapping("/attendance_statistics")
-    public String mlogin(Model model) {
+
+    @GetMapping("/attendance/attendance_statistics")
+    public String attendanceStatistics(Model model) {
         model.addAttribute("currentPage", "attendance_statistics");
-        return "/mobile/attendance_statistics";
+        return "mobile/attendance/attendance_statistics";
     }
+
+    @GetMapping("/attendance/attendance_modify")
+    public String attendanceModify(Model model) {
+        model.addAttribute("currentPage", "attendance_modify");
+        return "mobile/attendance/attendance_modify";
+    }
+
+    // ========== 업무일지/보수관리 (request) ==========
+
+    @GetMapping("/request/vehicle_manage")
+    public String vehicleManage(Model model) {
+        model.addAttribute("currentPage", "vehicle_manage");
+        return "mobile/request/vehicle_manage";
+    }
+
+    @GetMapping("/request/daily_report")
+    public String dailyReport(Model model) {
+        model.addAttribute("currentPage", "daily_report");
+        return "mobile/request/daily_report";
+    }
+
+    @GetMapping("/request/maintenance_comp")
+    public String maintenanceComp(Model model) {
+        model.addAttribute("currentPage", "maintenance_comp");
+        return "mobile/request/maintenance_comp";
+    }
+
+    @GetMapping("/request/request_repair")
+    public String requestRepair(Model model) {
+        model.addAttribute("currentPage", "request_repair");
+        return "mobile/request/request_repair";
+    }
+
+    @GetMapping("/request/maintenance_repair")
+    public String maintenanceRepair(Model model) {
+        model.addAttribute("currentPage", "maintenance_repair");
+        return "mobile/request/maintenance_repair";
+    }
+
+    // ========== 계정관리 ==========
+
     @GetMapping("/user_info")
     public String userInfo(Model model) {
         model.addAttribute("currentPage", "user_info");
-        return "/mobile/user_info";
-    }
-    @GetMapping("/attendance_modify")
-    public String modifyAttendance(Model model) {
-        model.addAttribute("currentPage", "attendance_modify");
-        return "/mobile/attendance_modify";
+        return "mobile/user_info";
     }
 
     @Getter
-    public class TempDto{
+    public class TempDto {
         private String username;
         private String email;
         private String tel;
@@ -52,7 +92,7 @@ public class MobileController {
         private String nickname;
         private Integer age;
 
-        public TempDto(String username, String email, String phone, String adr, String nick, Integer age){
+        public TempDto(String username, String email, String phone, String adr, String nick, Integer age) {
             this.username = username;
             this.email = email;
             this.tel = phone;
@@ -60,7 +100,5 @@ public class MobileController {
             this.nickname = nick;
             this.age = age;
         }
-
     }
-
 }
