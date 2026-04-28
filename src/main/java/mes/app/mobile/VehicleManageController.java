@@ -80,11 +80,7 @@ public class VehicleManageController {
         return result;
     }
 
-    /**
-     * 계기판 사진 OCR 분석 → km 수치 반환
-     * POST /api/vehicle_manage/ocrAnalyze
-     * param: imageFile (MultipartFile)
-     */
+    // 계기판 사진 OCR 분석 → km 수치 반환
     @PostMapping("/ocrAnalyze")
     public AjaxResult ocrAnalyze(
             @RequestParam("imageFile") MultipartFile imageFile,
@@ -101,5 +97,16 @@ public class VehicleManageController {
             result.message = "OCR 분석 중 오류가 발생했습니다.";
         }
         return result;
+    }
+
+    // 차량 운행 등록
+    @PostMapping("/submitAttendance")
+    public AjaxResult submitAttendance(
+            @RequestBody Map<String, Object> param,
+            Authentication auth) {
+
+        User user = (User) auth.getPrincipal();
+        String spjangcd = user.getSpjangcd();
+        return vehicleManageService.submitAttendance(param, spjangcd);
     }
 }

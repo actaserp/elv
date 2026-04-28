@@ -1,5 +1,6 @@
 package mes.app.mobile.Service;
 
+import mes.domain.model.AjaxResult;
 import mes.domain.services.SqlRunner;
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONObject;
@@ -42,6 +43,7 @@ public class VehicleManageService {
                 SELECT TOP 1
                           a.username,
                           a.first_name,
+                          a.last_name,
                           p.id,
                           an.restnum,
                           t.sttime,
@@ -298,5 +300,157 @@ public class VehicleManageService {
     private String getExtension(String filename) {
         if (filename == null || !filename.contains(".")) return "jpg";
         return filename.substring(filename.lastIndexOf(".") + 1);
+    }
+
+    // =====================================================
+    // 차량 운행 등록 (TB_E037_CONF INSERT)
+    // =====================================================
+    public AjaxResult submitAttendance(Map<String, Object> param, String spjangcd) {
+
+        AjaxResult result = new AjaxResult();
+
+        try {
+            // 1. custcd 조회
+            String custcd = getCustcdBySpjangcd(spjangcd);
+            if (custcd == null || custcd.isBlank()) {
+                result.success = false;
+                result.message = "거래처코드(custcd)를 찾을 수 없습니다.";
+                return result;
+            }
+
+            // 2. 파라미터 파싱
+            String userId    = (String) param.get("userId");
+            String startDate = ((String) param.get("startDate")).replace("-", ""); // yyyyMMdd
+            String confmon   = startDate.substring(0, 6);                          // yyyyMM
+            String vehicleCd = (String) param.get("vehicleCd");
+            String fuelKind  = (String) param.get("fuelKind");
+            String actcd     = (String) param.get("siteCd");
+            String unitAmt   = (String) param.get("unitAmt");
+
+            double totalKM = parseDouble(param.get("totalKM")); // 이동거리 → km
+            double liter   = parseDouble(param.get("liter"));   // 연비
+            double total   = parseDouble(param.get("total"));   // 합계금액 → samt
+            double uamt    = parseDouble(unitAmt);              // 단가 → uamt
+
+            // 사용 연료량: 이동거리 / 연비 (liter)
+            double usedLiter = (liter > 0) ? (totalKM / liter) : 0;
+
+            // 3. divicd 조회: TB_JA001에서 'p'+userId 로 join
+            String divicd = getDivicd(userId);
+
+            // 4. kcnum 채번: 동일 custcd+spjangcd+kcdate 기준 MAX(kcnum)+1
+            String kcnum = getNextKcnum(custcd, spjangcd, startDate);
+
+            // 5. kcseq 고정
+            String kcseq = "001";
+
+            // 6. INSERT
+            MapSqlParameterSource dicParam = new MapSqlParameterSource();
+            dicParam.addValue("custcd",   custcd);
+            dicParam.addValue("spjangcd", spjangcd);
+            dicParam.addValue("kcdate",   startDate);
+            dicParam.addValue("kcnum",    kcnum);
+            dicParam.addValue("confmon",  confmon);
+            dicParam.addValue("perid",    userId);
+            dicParam.addValue("kcseq",    kcseq);
+            dicParam.addValue("carcd",    vehicleCd);
+            dicParam.addValue("gubun",    fuelKind);
+            dicParam.addValue("km",       totalKM);
+            dicParam.addValue("liter",    usedLiter);
+            dicParam.addValue("uamt",     uamt);
+            dicParam.addValue("samt",     total);
+            dicParam.addValue("actcd",    actcd);
+            dicParam.addValue("divicd",   divicd);
+            dicParam.addValue("unit",     "KM");
+            dicParam.addValue("confyn",   "0");
+            dicParam.addValue("indate",   startDate);
+
+            String sql = """
+                    INSERT INTO TB_E037_CONF (
+                        custcd, spjangcd, kcdate, kcnum, confmon, perid, kcseq,
+                        carcd, gubun,
+                        km, liter, uamt, samt,
+                        actcd, divicd, unit, confyn, indate
+                    ) VALUES (
+                        :custcd, :spjangcd, :kcdate, :kcnum, :confmon, :perid, :kcseq,
+                        :carcd, :gubun,
+                        :km, :liter, :uamt, :samt,
+                        :actcd, :divicd, :unit, :confyn, :indate
+                    )
+                    """;
+
+            this.sqlRunner.execute(sql, dicParam);
+
+            result.success = true;
+            result.message = "운행기록이 등록되었습니다.";
+
+        } catch (Exception e) {
+            result.success = false;
+            result.message = "등록 중 오류가 발생했습니다: " + e.getMessage();
+        }
+
+        return result;
+    }
+
+    // kcnum 채번: 동일 custcd+spjangcd+kcdate 기준 MAX+1, 4자리 zero-padding
+    private String getNextKcnum(String custcd, String spjangcd, String kcdate) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("custcd",   custcd);
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("kcdate",   kcdate);
+
+        String sql = """
+                SELECT ISNULL(MAX(CAST(kcnum AS INT)), 0) + 1 AS nextnum
+                FROM TB_E037_CONF
+                WHERE custcd   = :custcd
+                  AND spjangcd = :spjangcd
+                  AND kcdate   = :kcdate
+                """;
+
+        Map<String, Object> row = this.sqlRunner.getRow(sql, param);
+        int next = (row != null && row.get("nextnum") != null)
+                ? ((Number) row.get("nextnum")).intValue() : 1;
+        return String.format("%04d", next);
+    }
+
+    // userId → divicd 조회: TB_JA001에서 'p'+userId로 JOIN
+    private String getDivicd(String userId) {
+        MapSqlParameterSource sqlParam = new MapSqlParameterSource();
+        sqlParam.addValue("perid", "p" + userId);
+
+        String sql = """
+                SELECT divicd
+                FROM TB_JA001
+                WHERE perid = :perid
+                """;
+
+        Map<String, Object> row = this.sqlRunner.getRow(sql, sqlParam);
+        if (row == null || row.isEmpty()) return null;
+        Object divicd = row.get("divicd");
+        return divicd == null ? null : String.valueOf(divicd).trim();
+    }
+
+    // spjangcd → custcd 조회
+    private String getCustcdBySpjangcd(String spjangcd) {
+        MapSqlParameterSource sqlParam = new MapSqlParameterSource();
+        sqlParam.addValue("spjangcd", spjangcd);
+
+        String sql = """
+                SELECT custcd
+                FROM tb_xa012
+                WHERE spjangcd = :spjangcd
+                """;
+
+        Map<String, Object> row = this.sqlRunner.getRow(sql, sqlParam);
+        if (row == null || row.isEmpty()) return null;
+        Object custcd = row.get("custcd");
+        return custcd == null ? null : String.valueOf(custcd).trim();
+    }
+
+    // Object → double 변환 헬퍼
+    private double parseDouble(Object val) {
+        if (val == null) return 0.0;
+        try { return Double.parseDouble(val.toString()); }
+        catch (NumberFormatException e) { return 0.0; }
     }
 }
