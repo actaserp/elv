@@ -37,6 +37,30 @@
     .site-item .site-name, .vehicle-item .vehicle-num { font-size: 16px; font-weight: 600; color: #111; }
     .site-item .site-address { font-size: 13px; color: #888; margin-top: 3px; }
     .site-item .site-code, .vehicle-item .vehicle-fuel { font-size: 12px; color: #aaa; margin-top: 2px; }
+
+    /* OCR 로딩 오버레이 */
+    #ocrLoading {
+        display: none;
+        position: fixed; top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0,0,0,0.6);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        color: white;
+        font-size: 16px;
+    }
+    #ocrLoading.active { display: flex; }
+    .ocr-spinner {
+        width: 48px; height: 48px;
+        border: 5px solid #fff;
+        border-top-color: #5ddfde;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 <head>
     <meta charset="UTF-8">
@@ -60,11 +84,17 @@
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
     <script th:src="@{/js/Mobile.js}"></script>
     <script src="https://kit.fontawesome.com/84dc79ac13.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 </head>
 
 <body>
 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+
+<!-- OCR 로딩 오버레이 -->
+<div id="ocrLoading">
+    <div class="ocr-spinner"></div>
+    <span>계기판 분석 중...</span>
+</div>
+
 <div class="mobile-wrapper page-ticket-list">
     <div class="mobile-layout-header">
         <header>
@@ -118,7 +148,6 @@
                             <dt>차량번호</dt>
                             <div style="flex: 1">
                                 <input type="hidden" id="vehicleCd">
-                                <!-- 내 차량 있으면 readonly, 없으면 클릭 시 차량 팝업 오픈 -->
                                 <div style="">
                                     <input type="text" id="vehicleNm" readonly placeholder="차량을 선택하세요"
                                            style="flex:1; cursor:pointer;"
@@ -139,7 +168,6 @@
                         </div>
                         <div style="flex: 1">
                             <dd>
-                                <!-- 유종 변경 시 bindFuelInfo() 호출 → 단가 자동 바인딩 -->
                                 <select style="width: 100%" id="fuelKind" hidden="hidden">
                                     <option value="">선택</option>
                                 </select>
@@ -153,7 +181,7 @@
                                     <div>주행시작(km)</div>
                                     <div style="display: flex; flex-direction: column; gap: 5px;">
                                         <input type="file" id="startImgFile" accept="image/*" capture="environment"
-                                               style="display:none;" onchange="previewImage(this, 'startImgPreview')">
+                                               style="display:none;" onchange="analyzeOcr(this, 'start', 'startImgPreview')">
                                         <button type="button" onclick="document.getElementById('startImgFile').click()"
                                                 class="btn-dark">📷 사진</button>
                                         <img id="startImgPreview" src="" alt="시작 이미지"
@@ -164,7 +192,7 @@
                                     <div>주행종료(km)</div>
                                     <div style="display: flex; flex-direction: column; gap: 5px;">
                                         <input type="file" id="endImgFile" accept="image/*" capture="environment"
-                                               style="display:none;" onchange="previewImage(this, 'endImgPreview')">
+                                               style="display:none;" onchange="analyzeOcr(this, 'end', 'endImgPreview')">
                                         <button type="button" onclick="document.getElementById('endImgFile').click()"
                                                 class="btn-dark">📷 사진</button>
                                         <img id="endImgPreview" src="" alt="종료 이미지"
@@ -179,14 +207,18 @@
                         <div>
                             <dt>출발(km)</dt>
                             <div style="display: flex; gap: 10px;">
-                                <input type="number" id="startKM" style="width: 100%;" readonly>
+                                <!-- onchange 추가: 직접 입력 시에도 운행거리/합계 자동 계산 -->
+                                <input type="number" id="startKM" style="width: 100%;" readonly
+                                       onchange="calcDistance()">
                             </div>
                         </div>
                         <span style="font-weight: bold; align-content: center;">~</span>
                         <div>
                             <dt>도착(km)</dt>
                             <div style="display: flex; gap: 10px;">
-                                <input type="number" id="endKM" style="width: 100%;" readonly>
+                                <!-- onchange 추가: 직접 입력 시에도 운행거리/합계 자동 계산 -->
+                                <input type="number" id="endKM" style="width: 100%;" readonly
+                                       onchange="calcDistance()">
                             </div>
                         </div>
                     </div>
@@ -204,7 +236,6 @@
                             </div>
                             <div>
                                 <div>단가</div>
-                                <!-- 유종 선택 시 TB_E037_1.uamt 값이 자동 바인딩 -->
                                 <div style="width: 100%"><input type="text" id="unitAmt" readonly></div>
                             </div>
                         </div>
@@ -239,7 +270,6 @@
             </div>
         </div>
     </div>
-    <!-- ================================== -->
 
     <!-- ========== 차량 선택 팝업 ========== -->
     <div id="vehiclePopup" class="mobile-layout-popup">
@@ -257,25 +287,20 @@
             </div>
         </div>
     </div>
-    <!-- =================================== -->
 
 </div>
 
 <script type="text/javascript">
 
-    // 내 차량 여부 플래그 (차량 팝업 클릭 막기용)
     var hasMyVehicle = false;
 
     $(document).ready(function (e) {
         searchMainData();
         AjaxUtil.fillSelectOptions($('#fuelKind'), 'fuel', 'choose', false, '', '');
 
-        // 현장 검색 이벤트
         document.getElementById('siteSearchInput').addEventListener('input', function () {
             loadSiteList(this.value);
         });
-
-        // 차량 검색 이벤트
         document.getElementById('vehicleSearchInput').addEventListener('input', function () {
             loadVehicleList(this.value);
         });
@@ -295,62 +320,45 @@
                 if (userNameEl) userNameEl.value = result.data.first_name ?? '';
                 bindDate();
 
-                // ── 내 차량 있는 경우 ──
                 if (result.data.carnum) {
                     hasMyVehicle = true;
-
-                    // 차량번호 바인드 & 클릭 비활성화
                     document.getElementById('vehicleCd').value = result.data.carcd ?? '';
                     document.getElementById('vehicleNm').value = result.data.carnum ?? '';
                     document.getElementById('vehicleNm').style.cursor = 'default';
                     document.getElementById('vehicleNm').onclick = null;
-
-                    // 연비(e047.samt) 바인드
                     document.getElementById('liter').value = result.data.samt ?? '';
-
-                    // 유종 바인드 → 단가 바인드
                     if (result.data.fuelcd) {
                         waitAndSetFuel(result.data.fuelcd, result.data.samt, 0);
                     }
-
-                // ── 내 차량 없는 경우 ──
                 } else {
                     hasMyVehicle = false;
-                    // vehicleNm 클릭 시 차량 팝업 활성화 (기본 onclick 유지)
                 }
             }
         });
     }
 
-    // 유종 옵션이 로드될 때까지 최대 20회(2초) 재시도 후 값 세팅
     function waitAndSetFuel(fuelcd, samt, attempt) {
         const select = document.getElementById('fuelKind');
         const found  = Array.from(select.options).some(opt => opt.value === fuelcd);
         if (found) {
             select.value = fuelcd;
-            bindFuelInfo(samt);   // 내 차량일 땐 samt를 직접 전달
+            bindFuelInfo(samt);
         } else if (attempt < 20) {
             setTimeout(function () { waitAndSetFuel(fuelcd, samt, attempt + 1); }, 100);
         }
     }
 
-    // ========== 유종 선택 시 단가·연비 바인딩 ==========
-    // samt : 내 차량일 때는 e047.samt 직접 전달, 차량 팝업 선택 시도 동일하게 전달
-    //        값이 없으면 TB_E037_1.kmliter 를 연비로 사용
     function bindFuelInfo(samt) {
         const fuelcd = document.getElementById('fuelKind').value;
-
         if (!fuelcd) {
             document.getElementById('unitAmt').value = '';
             document.getElementById('liter').value   = '';
             calcTotal();
             return;
         }
-
         AjaxUtil.getAsyncData('/api/vehicle_manage/getFuelInfo', { fuelcd: fuelcd }, function (result) {
             if (result != null && result.data != null) {
                 document.getElementById('unitAmt').value = result.data.uamt ?? '';
-                // 연비 우선순위: 전달받은 samt(e047) > TB_E037_1.kmliter
                 if (samt !== undefined && samt !== null && samt !== '') {
                     document.getElementById('liter').value = samt;
                 } else {
@@ -363,27 +371,85 @@
             calcTotal();
         });
     }
-    // ===================================================
 
-    // ========== 합계 자동 계산 ==========
     function calcTotal() {
         const totalKM = parseFloat(document.getElementById('totalKM').value) || 0;
         const liter   = parseFloat(document.getElementById('liter').value)   || 0;
         const unitAmt = parseFloat(document.getElementById('unitAmt').value) || 0;
-
         const total = totalKM * liter * unitAmt;
         document.getElementById('total').value = total > 0 ? total.toFixed(0) : '';
     }
 
-    // ========== 운행거리 계산 (OCR 이후 startKM/endKM 세팅 시 호출) ==========
     function calcDistance() {
         const startKM = parseFloat(document.getElementById('startKM').value) || 0;
         const endKM   = parseFloat(document.getElementById('endKM').value)   || 0;
         const totalKM = endKM - startKM;
-
         document.getElementById('totalKM').value = totalKM > 0 ? totalKM : '';
         calcTotal();
     }
+
+    // =====================================================
+    // OCR: 사진 선택 시 미리보기 + 서버 OCR 분석 → km 바인딩
+    // AjaxUtil.postFileAsyncData 사용 → context-path, CSRF 자동 처리
+    // =====================================================
+    function analyzeOcr(input, type, previewId) {
+        const file = input.files[0];
+        if (!file) return;
+
+        // 1. 미리보기 표시
+        const preview = document.getElementById(previewId);
+        const reader  = new FileReader();
+        reader.onload = function (e) {
+            preview.src           = e.target.result;
+            preview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+
+        // 2. OCR 로딩 오버레이 표시
+        document.getElementById('ocrLoading').classList.add('active');
+
+        // 3. FormData 구성 (_csrf는 postFileAsyncData 내부에서 자동 추가됨)
+        const formData = new FormData();
+        formData.append('imageFile', file);
+
+        // 4. AjaxUtil.postFileAsyncData 호출
+        AjaxUtil.postFileAsyncData(
+            '/api/vehicle_manage/ocrAnalyze',
+            formData,
+            function (result) {
+                document.getElementById('ocrLoading').classList.remove('active');
+
+                if (result && result.data && result.data.km != null) {
+                    const km = result.data.km;
+                    if (type === 'start') {
+                        document.getElementById('startKM').value = km;
+                    } else {
+                        document.getElementById('endKM').value = km;
+                    }
+                    calcDistance();
+                } else {
+                    Alert.alert('', 'km 수치를 인식하지 못했습니다. 직접 입력해 주세요.');
+                    if (type === 'start') {
+                        document.getElementById('startKM').removeAttribute('readonly');
+                        document.getElementById('startKM').focus();
+                    } else {
+                        document.getElementById('endKM').removeAttribute('readonly');
+                        document.getElementById('endKM').focus();
+                    }
+                }
+            },
+            function (req, status, error) {
+                document.getElementById('ocrLoading').classList.remove('active');
+                Alert.alert('', 'OCR 분석 중 오류가 발생했습니다. 직접 입력해 주세요.');
+                if (type === 'start') {
+                    document.getElementById('startKM').removeAttribute('readonly');
+                } else {
+                    document.getElementById('endKM').removeAttribute('readonly');
+                }
+            }
+        );
+    }
+    // =====================================================
 
     // ========== 현장 팝업 ==========
     function openSitePopup() {
@@ -392,12 +458,10 @@
         document.querySelector('#sitePopup .popup-overlay').style.display  = 'block';
         document.querySelector('#sitePopup .popup-wrapper').classList.add('active');
     }
-
     function closeSitePopup() {
         document.querySelector('#sitePopup .popup-overlay').style.display  = 'none';
         document.querySelector('#sitePopup .popup-wrapper').classList.remove('active');
     }
-
     function loadSiteList(keyword) {
         AjaxUtil.getAsyncData('/api/vehicle_manage/getSiteList', { keyword: keyword }, function (result) {
             const container = document.getElementById('siteList');
@@ -417,33 +481,26 @@
             container.innerHTML = html;
         });
     }
-
     function selectSite(actcd, actnm, address) {
         document.getElementById('siteCd').value = actcd;
         document.getElementById('siteNm').value = actnm;
         closeSitePopup();
     }
-
     document.getElementById('sitePopupClose').addEventListener('click', closeSitePopup);
     document.querySelector('#sitePopup .popup-overlay').addEventListener('click', closeSitePopup);
-    // ================================
 
     // ========== 차량 팝업 ==========
     function openVehiclePopup() {
-        // 내 차량이 있으면 팝업 열지 않음
         if (hasMyVehicle) return;
-
         document.getElementById('vehicleSearchInput').value = '';
         loadVehicleList('');
         document.querySelector('#vehiclePopup .popup-overlay').style.display  = 'block';
         document.querySelector('#vehiclePopup .popup-wrapper').classList.add('active');
     }
-
     function closeVehiclePopup() {
         document.querySelector('#vehiclePopup .popup-overlay').style.display  = 'none';
         document.querySelector('#vehiclePopup .popup-wrapper').classList.remove('active');
     }
-
     function loadVehicleList(keyword) {
         AjaxUtil.getAsyncData('/api/vehicle_manage/getVehicleList', { keyword: keyword }, function (result) {
             const container = document.getElementById('vehicleList');
@@ -464,27 +521,19 @@
             container.innerHTML = html;
         });
     }
-
     function selectVehicle(carcd, carnum, fuelcd, samt) {
-        // 차량 바인드
         document.getElementById('vehicleCd').value = carcd;
         document.getElementById('vehicleNm').value = carnum;
-
-        // 연비 바인드 (e047.samt)
         document.getElementById('liter').value = samt;
-
-        // 유종 바인드 → 단가 바인드
         if (fuelcd) {
             waitAndSetFuel(fuelcd, samt, 0);
         }
-
         closeVehiclePopup();
     }
-
     document.getElementById('vehiclePopupClose').addEventListener('click', closeVehiclePopup);
     document.querySelector('#vehiclePopup .popup-overlay').addEventListener('click', closeVehiclePopup);
-    // ================================
 
+    // ========== 등록 ==========
     function saveAttendance() {
         let url  = '/api/vehicle_manage/submitAttendance';
         let data = {
@@ -519,18 +568,6 @@
         AjaxUtil.postAsyncData(url, data, fnsuccess);
     }
 
-    function previewImage(input, previewId) {
-        const preview = document.getElementById(previewId);
-        const file    = input.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                preview.src           = e.target.result;
-                preview.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
-        }
-    }
 </script>
 </body>
 </html>

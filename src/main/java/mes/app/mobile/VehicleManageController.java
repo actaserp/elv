@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
@@ -52,10 +53,7 @@ public class VehicleManageController {
         return result;
     }
 
-    /**
-     * 유류 단가 정보 조회
-     * 유종(fuelcd) 선택 시 TB_E037_1에서 uamt(단가), kmliter(연비), unit(단위) 반환
-     */
+    // 유류 단가 정보 조회
     @GetMapping("/getFuelInfo")
     public AjaxResult getFuelInfo(
             @RequestParam(value = "fuelcd") String fuelcd,
@@ -70,10 +68,7 @@ public class VehicleManageController {
         return result;
     }
 
-    /**
-     * 차량 목록 조회 (TB_E047 전체)
-     * 차량번호(carnum) 키워드 검색 지원
-     */
+    // 차량 목록 조회
     @GetMapping("/getVehicleList")
     public AjaxResult getVehicleList(
             @RequestParam(value = "keyword", required = false) String keyword,
@@ -82,6 +77,29 @@ public class VehicleManageController {
         AjaxResult result = new AjaxResult();
         List<Map<String, Object>> items = vehicleManageService.getVehicleList(keyword);
         result.data = items;
+        return result;
+    }
+
+    /**
+     * 계기판 사진 OCR 분석 → km 수치 반환
+     * POST /api/vehicle_manage/ocrAnalyze
+     * param: imageFile (MultipartFile)
+     */
+    @PostMapping("/ocrAnalyze")
+    public AjaxResult ocrAnalyze(
+            @RequestParam("imageFile") MultipartFile imageFile,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            Map<String, Object> ocrResult = vehicleManageService.extractKmFromImage(imageFile);
+            result.data = ocrResult;
+            result.success = (Boolean) ocrResult.getOrDefault("success", false);
+        } catch (Exception e) {
+            log.error("[OCR] 분석 오류", e);
+            result.success = false;
+            result.message = "OCR 분석 중 오류가 발생했습니다.";
+        }
         return result;
     }
 }
