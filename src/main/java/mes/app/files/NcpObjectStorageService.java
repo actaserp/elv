@@ -19,6 +19,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import javax.annotation.PostConstruct;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -52,10 +53,6 @@ public class NcpObjectStorageService {
 
     /**
      * NCP 오브젝트 스토리지에 파일 업로드
-     * @param objectKey  저장 경로: {spjangcd}/{tableName}/{uuid}.{ext}
-     * @param inputStream 파일 스트림
-     * @param contentLength 파일 크기 (bytes)
-     * @param contentType  MIME 타입
      */
     public void upload(String objectKey, InputStream inputStream, long contentLength, String contentType) {
         PutObjectRequest request = PutObjectRequest.builder()
@@ -71,8 +68,6 @@ public class NcpObjectStorageService {
 
     /**
      * NCP 오브젝트 스토리지에서 파일 다운로드
-     * @param objectKey 조회할 오브젝트 키
-     * @return ResponseInputStream (S3Object)
      */
     public ResponseInputStream<GetObjectResponse> download(String objectKey) {
         GetObjectRequest request = GetObjectRequest.builder()
@@ -84,7 +79,6 @@ public class NcpObjectStorageService {
 
     /**
      * NCP 오브젝트 스토리지에서 파일 삭제
-     * @param objectKey 삭제할 오브젝트 키
      */
     public void delete(String objectKey) {
         DeleteObjectRequest request = DeleteObjectRequest.builder()
@@ -96,21 +90,21 @@ public class NcpObjectStorageService {
     }
 
     // TB_FILEINFO.CHECKSEQ: varchar(2) — 기능명 → 코드값 매핑
-    private static final Map<String, String> CHECKSEQ_MAP = Map.of(
-            "NOTICE",    "01",
-            "QNA",       "02",
-            "MARKETING", "03"
-    );
+    private static final Map<String, String> CHECKSEQ_MAP;
+    static {
+        CHECKSEQ_MAP = new HashMap<>();
+        CHECKSEQ_MAP.put("NOTICE",       "01");
+        CHECKSEQ_MAP.put("QNA",          "02");
+        CHECKSEQ_MAP.put("MARKETING",    "03");
+        CHECKSEQ_MAP.put("DAILY_REPORT", "04");  // 업무일지 파일
+    }
 
     public static String toCheckseq(String tableName) {
         return CHECKSEQ_MAP.getOrDefault(tableName != null ? tableName.toUpperCase() : "", "99");
     }
 
     /**
-     * 오브젝트 키 생성: {dbKey}/{featureCode}/{uuid}.{ext}
-     * @param dbKey      사업장 DB 키 (User.dbKey) — 테넌트 DB 단위로 버킷 폴더 구분
-     * @param featureCode 기능 식별자 (예: NOTICE, QNA) — TB_FILEINFO.CHECKSEQ 와 동일 값
-     * @param uuidFileName 저장 파일명 (uuid + 확장자)
+     * 오브젝트 키 생성: {projectName}/{dbKey}/{featureCode}/{uuid}.{ext}
      */
     public String buildObjectKey(String dbKey, String featureCode, String uuidFileName) {
         return this.projectName + "/" + dbKey + "/" + featureCode + "/" + uuidFileName;
