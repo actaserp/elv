@@ -1,0 +1,335 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<head>
+    <style>
+        .wj-header { text-align: center !important; }
+
+        /* ── 달력 테이블 공통 ── */
+        #statusTable {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 12px;
+            table-layout: fixed;
+        }
+        #statusTable th, #statusTable td {
+            border: 1px solid #ccc;
+            text-align: center;
+            vertical-align: middle;
+            padding: 3px 2px;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        /* 컬럼 너비 */
+        .col-no     { width: 34px; }
+        .col-dept   { width: 80px; }
+        .col-name   { width: 68px; }
+        .col-rank   { width: 54px; }
+        .col-day    { width: 24px; }
+        .col-summary{ width: 44px; }
+
+        /* 헤더 배경 */
+        #statusTable thead tr:first-child th { background: #dce6f1; font-weight: 700; }
+        #statusTable thead tr:last-child  th { background: #eaf0f8; }
+
+        /* 일/토 색상 */
+        .col-sun { color: #cc0000 !important; }
+        .col-sat { color: #2255cc !important; }
+
+        /* 값 색상 */
+        .val-x { color: #cc0000; font-weight: 700; }
+        .val-0 { color: #444;    font-weight: 400; }
+
+        /* 합계 행 */
+        .row-total td { background: #f0f0f0; font-weight: 700; }
+
+        /* 좌측 고정 컬럼 */
+        .fixed-col  { position: sticky; background: #fff; z-index: 2; }
+        .fixed-no   { left: 0px;   width: 34px; }
+        .fixed-dept { left: 34px;  width: 80px; }
+        .fixed-name { left: 114px; width: 68px; }
+        .fixed-rank { left: 182px; width: 54px; }
+
+        /* 스크롤 컨테이너 */
+        .table-scroll-wrap {
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: 600px;
+            border: 1px solid #ccc;
+            margin-top: 8px;
+        }
+
+        /* 헤더 sticky */
+        #statusTable thead th              { position: sticky; top: 0; z-index: 3; }
+        #statusTable thead th.fixed-col    { z-index: 5; }
+
+        /* 합계 행 sticky (하단) */
+        .row-total td              { position: sticky; bottom: 0; z-index: 2; }
+        .row-total td.fixed-col    { z-index: 4; background: #f0f0f0; }
+    </style>
+</head>
+
+<th:block layout:fragment="content">
+    <div class="layout-contents">
+
+        <!-- Page Title -->
+        <div class="page-title-wrap">
+            <div class="left">
+                <h2>업무일지 작성현황</h2>
+                <a title="북마크" class="bookmark toggle">내메뉴</a>
+            </div>
+            <ul class="page-navi">
+                <li><img src="/images/icon/ico-nav-home.svg" alt="홈아이콘"></li>
+                <li>업무일지관리</li>
+                <li>업무일지 작성현황</li>
+            </ul>
+        </div>
+
+        <section class="section">
+            <!-- 검색 영역 -->
+            <div class="section-top">
+                <div class="search-wrap">
+                    <dl>
+                        <dt><label>년월</label></dt>
+                        <dd>
+                            <div class="srch-box" style="display:flex; align-items:center; gap:4px;">
+                                <input type="number" id="searchYear"  class="form-control2"
+                                       style="width:64px;" min="2000" max="2099">
+                                <span>년</span>
+                                <input type="number" id="searchMonth" class="form-control2"
+                                       style="width:46px;" min="1" max="12">
+                                <span>월</span>
+                            </div>
+                        </dd>
+                    </dl>
+                    <dl>
+                        <dt><label>부서명</label></dt>
+                        <dd>
+                            <div class="srch-box">
+                                <input type="text" id="searchDept" class="form-control2"
+                                       style="width:110px;" placeholder="부서명">
+                            </div>
+                        </dd>
+                    </dl>
+                    <dl>
+                        <dt><label>재직구분</label></dt>
+                        <dd>
+                            <div class="srch-box">
+                                <select id="searchRetire" class="form-control2" style="width:90px;">
+                                    <option value="">전체</option>
+                                    <option value="N" selected>재직중</option>
+                                    <option value="Y">퇴직</option>
+                                </select>
+                            </div>
+                        </dd>
+                    </dl>
+                    <dl>
+                        <dt>&nbsp;</dt>
+                        <dd>
+                            <li>
+                                <a class="btn btn-delete" title="검색" id="btnSearch">
+                                    <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                                    검색
+                                </a>
+                            </li>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- 달력 테이블 -->
+            <div class="table-scroll-wrap">
+                <table id="statusTable">
+                    <thead id="tableHead"></thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <footer style="margin-top: 24px;">
+        <p>Copyrightⓒ 0000 corp. All rights reserved.</p>
+    </footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+    <!-- SheetJS (엑셀 다운로드) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script type="text/javascript">
+
+        const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+
+        document.readyState === 'complete' ? init() : window.onload = init;
+
+        function init() {
+            const today = new Date();
+            document.getElementById('searchYear').value  = today.getFullYear();
+            document.getElementById('searchMonth').value = today.getMonth() + 1;
+
+            $('#btnSearch').click(function () { searchMainData(); });
+            $('#btnExcel').click(function ()  { exportExcel();    });
+
+            $('#searchDept').on('keypress', function (e) {
+                if (e.keyCode === 13) searchMainData();
+            });
+
+            searchMainData();
+        }
+
+        // ── 조회 ───────────────────────────────────────────────
+        function searchMainData() {
+            const year   = document.getElementById('searchYear').value;
+            const month  = String(document.getElementById('searchMonth').value).padStart(2, '0');
+            const dept   = document.getElementById('searchDept').value.trim();
+            const retire = document.getElementById('searchRetire').value;
+
+            if (!year || !month) {
+                Alert.alert('', '년월을 입력해주세요.');
+                return;
+            }
+
+            const data = {
+                year     : year,
+                month    : month,
+                dept     : dept,
+                retire   : retire,
+                spjangcd : sessionStorage.getItem('spjangcd')
+            };
+
+            AjaxUtil.getAsyncData('/api/AS/daily_status/read', data, function (result) {
+                if (result != null) {
+                    renderTable(result.data, parseInt(year), parseInt(month));
+                } else {
+                    Alert.alert('', '조회 중 오류가 발생하였습니다.');
+                }
+            });
+        }
+
+        // ── 테이블 렌더링 ──────────────────────────────────────
+        function renderTable(rows, year, month) {
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const head = document.getElementById('tableHead');
+            const body = document.getElementById('tableBody');
+            head.innerHTML = '';
+            body.innerHTML = '';
+
+            // ── 헤더 1행: 날짜 숫자
+            let tr1Html = `
+                <tr>
+                    <th class="col-no   fixed-col fixed-no"   rowspan="2">No</th>
+                    <th class="col-dept fixed-col fixed-dept" rowspan="2">부서명</th>
+                    <th class="col-name fixed-col fixed-name" rowspan="2">사원명</th>
+                    <th class="col-rank fixed-col fixed-rank" rowspan="2">직위</th>
+            `;
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dow = new Date(year, month - 1, d).getDay();
+                const cls = dow === 0 ? 'col-sun' : (dow === 6 ? 'col-sat' : '');
+                tr1Html += `<th class="col-day ${cls}">${d}일</th>`;
+            }
+            tr1Html += `
+                    <th class="col-summary" rowspan="2">작성일</th>
+                    <th class="col-summary" rowspan="2">미작성</th>
+                </tr>`;
+            head.innerHTML += tr1Html;
+
+            // ── 헤더 2행: 요일
+            let tr2Html = '<tr>';
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dow = new Date(year, month - 1, d).getDay();
+                const cls = dow === 0 ? 'col-sun' : (dow === 6 ? 'col-sat' : '');
+                tr2Html += `<th class="col-day ${cls}">${DAY_NAMES[dow]}</th>`;
+            }
+            tr2Html += '</tr>';
+            head.innerHTML += tr2Html;
+
+            // ── 데이터 없음
+            if (!rows || rows.length === 0) {
+                body.innerHTML = `<tr><td colspan="${4 + daysInMonth + 2}"
+                    style="padding:20px; color:#999;">조회된 데이터가 없습니다.</td></tr>`;
+                return;
+            }
+
+            // ── perid → 작성일 Set 구성
+            const writtenMap  = {};   // { perid: Set<day> }
+            const personMap   = {};   // { perid: {pernm, clanm, divinm} }
+            const personOrder = [];
+
+            rows.forEach(function (r) {
+                if (!personMap[r.perid]) {
+                    personMap[r.perid]  = { perid: r.perid, pernm: r.pernm, clanm: r.clanm, divinm: r.divinm };
+                    writtenMap[r.perid] = new Set();
+                    personOrder.push(r.perid);
+                }
+                if (r.rptdate) {
+                    writtenMap[r.perid].add(parseInt(r.rptdate.substring(6, 8)));
+                }
+            });
+
+            // ── 날짜별 합계
+            const dayTotal = new Array(daysInMonth + 1).fill(0);
+            let totalWritten = 0, totalNotWritten = 0;
+
+            personOrder.forEach(function (perid, idx) {
+                const person  = personMap[perid];
+                const written = writtenMap[perid];
+
+                let workdays = 0, writtenCnt = 0;
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const dow = new Date(year, month - 1, d).getDay();
+                    if (dow !== 0 && dow !== 6) workdays++;
+                    if (written.has(d)) { writtenCnt++; dayTotal[d]++; }
+                }
+                const notWritten = Math.max(workdays - writtenCnt, 0);
+                totalWritten    += writtenCnt;
+                totalNotWritten += notWritten;
+
+                let rowHtml = `
+                    <tr>
+                        <td class="fixed-col fixed-no">${idx + 1}</td>
+                        <td class="fixed-col fixed-dept" title="${esc(person.divinm)}">${esc(person.divinm)}</td>
+                        <td class="fixed-col fixed-name" title="${esc(person.pernm)}">${esc(person.pernm)}</td>
+                        <td class="fixed-col fixed-rank">${esc(person.clanm)}</td>
+                `;
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const dow = new Date(year, month - 1, d).getDay();
+                    if (written.has(d)) {
+                        rowHtml += `<td class="val-x">X</td>`;
+                    } else if (dow === 0 || dow === 6) {
+                        rowHtml += `<td></td>`;
+                    } else {
+                        rowHtml += `<td class="val-0">0</td>`;
+                    }
+                }
+                rowHtml += `<td>${writtenCnt}</td><td>${notWritten}</td></tr>`;
+                body.innerHTML += rowHtml;
+            });
+
+            // ── 합계 행
+            let totalHtml = `<tr class="row-total">
+                <td class="fixed-col fixed-no col-no"
+                    colspan="4" style="text-align:center; left:0; width:236px;">합 계</td>`;
+            for (let d = 1; d <= daysInMonth; d++) {
+                totalHtml += `<td>${dayTotal[d] > 0 ? dayTotal[d] : ''}</td>`;
+            }
+            totalHtml += `<td>${totalWritten}</td><td>${totalNotWritten}</td></tr>`;
+            body.innerHTML += totalHtml;
+        }
+
+        // HTML 이스케이프
+        function esc(str) {
+            if (!str) return '';
+            return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        // ── 엑셀 다운로드 ──────────────────────────────────────
+        function exportExcel() {
+            const year  = document.getElementById('searchYear').value;
+            const month = String(document.getElementById('searchMonth').value).padStart(2, '0');
+            const wb    = XLSX.utils.book_new();
+            const ws    = XLSX.utils.table_to_sheet(document.getElementById('statusTable'));
+            XLSX.utils.book_append_sheet(wb, ws, '업무일지현황');
+            XLSX.writeFile(wb, `업무일지작성현황_${year}${month}.xlsx`);
+        }
+
+    </script>
+</th:block>
+</html>
