@@ -69,9 +69,9 @@ public class DailyStatusService {
             param.addValue("dept", "%" + dept.trim() + "%");
         }
 
-        // 재직구분 필터 (retireflag 컬럼명은 실 테이블 기준으로 조정)
+        // 재직구분 필터 (컬럼명은 실 테이블 기준으로 조정)
         if (retire != null && !retire.isBlank()) {
-            sql += " AND j.retireflag = :retire";
+            sql += " AND j.rtclafi = :retire";
             param.addValue("retire", retire);
         }
 

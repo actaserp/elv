@@ -42,7 +42,7 @@ public class DailyManageService {
                     e.frtime,
                     e.totime,
                     e.equpcd,
-                    e.equpnm,
+                    m.equpnm,
                     e.remark
                 FROM TB_E038 e
                 LEFT JOIN TB_JA001 j ON j.perid    = e.perid
@@ -50,6 +50,7 @@ public class DailyManageService {
                 LEFT JOIN TB_E021  b ON b.custcd   = e.custcd
                                     AND b.spjangcd  = e.spjangcd
                                     AND b.busicd    = e.wkcd
+                LEFT JOIN TB_E611 m ON e.equpcd   = m.equpcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.rptdate BETWEEN :startDate AND :endDate
                 """;
