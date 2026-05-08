@@ -16,8 +16,10 @@ public class DailyManageService {
 
     /**
      * 업무일지 조회 (TB_E038)
-     * - TB_JA001 : perid → pernm(사원명), clanm(직위명), divinm(부서명)
-     * - TB_E021  : wkcd  → businm(구분명)
+     * - TB_JA001.perid = 'p' + TB_E038.perid
+     * - TB_JC002 : 부서명
+     * - TB_PZ001 : 직급명
+     * - TB_E021  : wkcd → businm(구분명)
      */
     public List<Map<String, Object>> getList(
             String startDate,
@@ -34,8 +36,8 @@ public class DailyManageService {
                 SELECT
                     e.rptdate,
                     j.pernm,
-                    j.clanm,
-                    j.divinm,
+                    pz.RSPNM    AS clanm,
+                    jc.divinm,
                     e.rptnum,
                     b.businm,
                     e.actnm,
@@ -45,12 +47,14 @@ public class DailyManageService {
                     m.equpnm,
                     e.remark
                 FROM TB_E038 e
-                LEFT JOIN TB_JA001 j ON j.perid    = e.perid
-                                    AND j.spjangcd  = e.spjangcd
-                LEFT JOIN TB_E021  b ON b.custcd   = e.custcd
-                                    AND b.spjangcd  = e.spjangcd
-                                    AND b.busicd    = e.wkcd
-                LEFT JOIN TB_E611 m ON e.equpcd   = m.equpcd
+                LEFT JOIN TB_JA001 j  ON j.perid    = 'p' + e.perid
+                                     AND j.spjangcd  = e.spjangcd
+                LEFT JOIN TB_E611 m ON m.equpcd = e.equpcd
+                LEFT JOIN TB_JC002 jc ON j.divicd   = jc.divicd
+                LEFT JOIN TB_PZ001 pz ON j.rspcd    = pz.RSPCD
+                LEFT JOIN TB_E021  b  ON b.custcd   = e.custcd
+                                     AND b.spjangcd  = e.spjangcd
+                                     AND b.busicd    = e.wkcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.rptdate BETWEEN :startDate AND :endDate
                 """;

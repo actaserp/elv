@@ -67,7 +67,7 @@
                 <a title="북마크" class="bookmark toggle">내메뉴</a>
             </div>
             <ul class="page-navi">
-                <li><img src="/images/icon/ico-nav-home.svg" alt="홈아이콘"></li>
+                <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
                 <li>업무일지현황</li>
             </ul>
         </div>
@@ -225,8 +225,8 @@
             {binding: 'frtime',  header: '도착시간', width:  90, align: 'center'},
             {binding: 'totime',  header: '완료시간', width:  90, align: 'center'},
             {binding: 'equpnm',  header: '호기명',   width: 150, align: 'left'},
-            {binding: 'remark',  header: '세부내용', width: 250, align: 'left'},
-            {binding: '',        header: '',          width: '*', align: 'center'}
+            {binding: 'remark',  header: '세부내용', width: '*', align: 'left'},
+
         ];
 
         function initTab1() {

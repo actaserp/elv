@@ -28,10 +28,12 @@ public class DailyReportService {
                     j.custcd,
                     j.spjangcd,
                     j.perid,
-                    j.pernm   AS first_name,
-                    j.clanm   AS position,
-                    j.divinm  AS department
+                    j.pernm      AS first_name,
+                    pz.RSPNM     AS position,
+                    jc.divinm    AS department
                 FROM TB_JA001 j
+                LEFT JOIN TB_JC002 jc ON j.divicd = jc.divicd
+                LEFT JOIN TB_PZ001 pz ON j.rspcd  = pz.RSPCD
                 WHERE j.perid = :perid
                 """;
 
