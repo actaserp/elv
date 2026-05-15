@@ -625,9 +625,9 @@
 
 </th:block>
 <th:block layout:fragment="scripts">
-    <script th:src="@{/resource/windowContainer/js/html5sortable.js}"></script>
-    <script th:src="@{/js/nth-tabs.js}"></script>
-    <th:block th:replace="/common/columns_setting :: columns_setting"></th:block>
+    <script th:src="@{resource/windowContainer/js/html5sortable.js}"></script>
+    <script th:src="@{js/nth-tabs.js}"></script>
+    <th:block th:replace="common/columns_setting :: columns_setting"></th:block>
     <!-- <script>
          tinymce.init({
              language: "ko_KR",
@@ -644,7 +644,7 @@
          });
 
      </script>-->
-    <script th:inline="none">
+    <script type="text/javascript">
 
         let theGrid;
         let theGrid2;
@@ -704,25 +704,25 @@
 
         }
 
-        function getToday() {
+        function getToday(){
 
             const d = new Date();
 
             const yyyy = d.getFullYear();
 
             const mm =
-                String(d.getMonth() + 1)
-                    .padStart(2, '0');
+                String(d.getMonth()+1)
+                    .padStart(2,'0');
 
             const dd =
                 String(d.getDate())
-                    .padStart(2, '0');
+                    .padStart(2,'0');
 
             return `${yyyy}-${mm}-${dd}`;
 
         }
 
-        $(document).ready(function () {
+        $(document).ready(function() {
             // 현재 날짜 가져오기
             const today = new Date();
             const year = today.getFullYear();
@@ -789,12 +789,11 @@
         });
 
         // '.fetchCard' 클래스를 가진 모든 요소에 대해 클릭 이벤트 설정
-        $('.fetchCard').click(function () {
+        $('.fetchCard').click(function() {
             // 클릭된 카드의 data-search-type 속성 값 가져오기
             const searchTypeValue = $(this).data('search-type');
             fetchListData(searchTypeValue);  // 해당 값을 fetchListData 함수로 전달
         });
-
         function fetchListData(searchTypeValue) {
             let data2 = []; // 데이터를 담을 배열
             let emptyRowsCount = 8;
@@ -809,7 +808,7 @@
                     // 응답이 올바르게 도착했고, data 속성이 배열인지 확인
                     if (response && Array.isArray(response.data)) {
                         data2 = response.data;
-                        console.log("data2", data2)
+                        console.log("data2",data2)
                         // 날짜 형식 변환 및 ordflag 변환
                         data2.forEach(item => {
 
@@ -822,8 +821,8 @@
             });
 
             // 빈 객체를 emptyRowsCount만큼 추가
-            if (data2.length < emptyRowsCount) {
-                for (let i = 0; emptyRowsCount - data2.length; i++) {
+            if(data2.length < emptyRowsCount) {
+                for (let i = 0; emptyRowsCount - data2.length ; i++) {
                     data2.push({
                         ordflag: '',
                         reqdate: '',
@@ -840,10 +839,10 @@
                     showMarquee: true,
                     isReadOnly: true,
                     columns: [
-                        {binding: 'frdate', header: '일자(요일)', align: 'center', width: 100},
-                        {binding: 'first_name', header: '사원명', align: 'center', width: 80},
-                        {binding: 'worknm', header: '구분', align: 'center', width: 50},
-                        {binding: 'remark', header: '사유', align: 'left', width: 260},
+                        { binding: 'frdate', header: '일자(요일)', align: 'center', width: 100 },
+                        { binding: 'first_name', header: '사원명', align: 'center', width: 80 },
+                        { binding: 'worknm', header: '구분', align: 'center', width: 50 },
+                        { binding: 'remark', header: '사유', align: 'left', width: 260 },
                     ],
                     itemsSource: viewdata2 // 빈 객체가 추가된 배열 사용
                 });
@@ -863,7 +862,6 @@
                 theGrid.itemsSource = viewdata2; // 빈 객체가 추가된 배열 사용
             }
         }
-
         /* 캘린더 ==========================================================================================================================*/
 
         function initCalendar() {
@@ -875,11 +873,11 @@
                     headerToolbar: {
                         left: 'prev,next today',
                         center: 'title',
-                        right: 'dayGridMonth',
+                        right: 'dayGridMonth' ,
                     },
                     initialView: 'dayGridMonth',
                     height: 700,
-                    dayHeaderFormat: {weekday: 'short'},
+                    dayHeaderFormat: { weekday: 'short' },
                     views: {
                         dayGridMonth: {
                             dayCellContent: function (arg) {
@@ -887,7 +885,7 @@
                             }
                         }
                     },
-                    dateClick: function (info) {
+                    dateClick:function(info){
 
                         loadDailyGps(info.dateStr);   // ⭐ 추가
 
@@ -978,7 +976,6 @@
 
             }
         }
-
         // 공휴일 데이터를 가져오는 함수
         async function fetchHolidays() {
             const currentYear = new Date().getFullYear();
@@ -993,7 +990,6 @@
 
             return holidays;
         }
-
         // 연차정보 조회 메서드(캘린더 바인드)
         async function fetchOrderDates() {
             let data2 = []; // 데이터를 담을 배열
@@ -1001,7 +997,9 @@
             $.ajax({
                 url: withCtx('/api/dash_summary/readCalenderGrid2'),
                 type: 'GET',
-                data: {},
+                data: {
+
+                },
                 async: false,
                 success: function (response) {
                     // 응답이 올바르게 도착했고, data 속성이 배열인지 확인
@@ -1041,7 +1039,7 @@
                 // case "연차":
                 //     return { bg: "#031B4B", border: "#031B4B", text: "white" };
                 default:
-                    return {bg: "031B4B", border: "031B4B", text: "white"};
+                    return { bg: "031B4B", border: "031B4B", text: "white" };
             }
         }
 
@@ -1069,7 +1067,7 @@
                                 var locdate = items[i].getElementsByTagName("locdate")[0].textContent;
                                 var dateName = items[i].getElementsByTagName("dateName")[0].textContent;
 
-                                holidays.push({date: locdate, name: dateName});
+                                holidays.push({ date: locdate, name: dateName });
                             }
                             resolve(holidays);
                         } else {
@@ -1085,7 +1083,6 @@
 
         /*==============캘린더 끝=============================================================================================================*/
         var nthTabs = this;
-
         function fetchListData2() {
             let data2 = [];
 
@@ -1107,7 +1104,7 @@
                         }, 10);
 
                         if (window.selectedGridId) {
-                            GridUtil.selectRowById(_this.theGrid2, window.selectedGridId, {idField: 'id'});
+                            GridUtil.selectRowById(_this.theGrid2, window.selectedGridId, { idField: 'id' });
                             window.selectedGridId = null;
                         }
                     }
@@ -1136,17 +1133,17 @@
                     itemsSource: viewdata,
 
                     columns: [
-                        {binding: 'id', visible: false},
-                        {binding: 'rptdate', header: '작성일자', width: 125, align: 'center'},
-                        {binding: 'rptweek', header: '주차', width: 160, align: 'center'},
-                        {binding: 'fixflag_nm', header: '업무구분', width: 100, align: 'center'},
-                        {binding: 'fixpernm', header: '사원명', width: 120, align: 'center'},
-                        {binding: 'cltnm', header: '업체명', width: 150, align: 'center'},
-                        {binding: 'asmenu', header: '화면명', width: 200, align: 'left'},
-                        {binding: 'rptremark', header: '업무내용', width: '*', align: 'left'},
-                        {binding: 'recyn_nm', header: '진행상태', width: 100, align: 'center'},
-                        {binding: 'asdv_nm', header: '근무구분', width: 100, align: 'center'},
-                        {binding: 'inputdate', header: '입력일자', width: 150, align: 'center'},
+                        { binding: 'id', visible: false },
+                        { binding: 'rptdate', header: '작성일자', width: 125, align: 'center' },
+                        { binding: 'rptweek', header: '주차', width: 160, align: 'center' },
+                        { binding: 'fixflag_nm', header: '업무구분', width: 100, align: 'center' },
+                        { binding: 'fixpernm', header: '사원명', width: 120, align: 'center' },
+                        { binding: 'cltnm', header: '업체명', width: 150, align: 'center' },
+                        { binding: 'asmenu', header: '화면명', width: 200, align: 'left' },
+                        { binding: 'rptremark', header: '업무내용', width: '*', align: 'left' },
+                        { binding: 'recyn_nm', header: '진행상태', width: 100, align: 'center' },
+                        { binding: 'asdv_nm', header: '근무구분', width: 100, align: 'center' },
+                        { binding: 'inputdate', header: '입력일자', width: 150, align: 'center' },
                     ],
 
                     formatItem: (s, e) => {
@@ -1273,7 +1270,6 @@
             // Jung.js에서 정의한 downloadFiles 함수 호출
             downloadFiles(downloadList, downloadUrl);
         }
-
         //날짜 포맷
         function formatDateString(dateString) {
             if (!dateString || dateString.length !== 8) return dateString; // 유효성 검사
@@ -1286,7 +1282,7 @@
         /*모달창=====================================================*/
 
         // 엔터 키를 눌렀을 때 모달을 여는 이벤트 리스너 추가
-        document.getElementById('searchCltnm').addEventListener('keydown', function (event) {
+        document.getElementById('searchCltnm').addEventListener('keydown', function(event) {
             if (event.key === 'Enter') {
                 event.preventDefault();
                 console.log('Enter key pressed, showing CltnmModal...');
@@ -1383,9 +1379,9 @@
             $.ajax({
                 url: withCtx('/api/order_status/ModalRead'),
                 type: 'GET',
-                data: {searchTerm: searchTerm}, // searchTerm을 쿼리 파라미터로 추가
+                data: { searchTerm: searchTerm }, // searchTerm을 쿼리 파라미터로 추가
                 async: true,
-                success: function (response) {
+                success: function(response) {
                     if (response && Array.isArray(response.data)) {
                         response.data.forEach((item, index) => {
                             Modaldata.push({
@@ -1425,7 +1421,7 @@
                         columns: [
                             {binding: 'rownum', header: '순번', width: 50, align: 'center'},
                             {binding: 'cltcd', header: '코드', width: 140, minWidth: 80, align: 'center'},
-                            {binding: 'cltnm', header: '거래처명', width: 250},
+                            {binding: 'cltnm', header: '거래처명', width: 250 },
                             {binding: 'telnum', header: '전화', width: 250},
                             {binding: 'cltadres', header: '주소', width: '*'}
                         ],
@@ -1459,7 +1455,7 @@
                         lastClickTime = now;
                     });
                 },
-                error: function () {
+                error: function() {
                     console.error("Error fetching modal data.");
                 }
             });
@@ -1484,8 +1480,7 @@
                 dropdown.value = '전체'; // 드롭다운을 기본값('전체')으로 설정
             }
         }
-
-        function initDatas() {
+        function initDatas(){
             // 연차
             $('.checkCnt').html(0 + '<span class="small-unit" style="font-size: 0.5em; opacity: 0.5;"> 건</span>');
             // 반차
@@ -1495,11 +1490,13 @@
             $.ajax({
                 url: withCtx('/api/dash_summary/initDatas'),
                 type: 'GET',
-                data: {},
+                data: {
+
+                },
                 async: false,
                 success: function (data) {
                     data2 = data.data;
-                    data2.forEach(item => {
+                    data2.forEach(item =>{
                         switch (item.workcd) {
                             // 연차
                             case "08":
