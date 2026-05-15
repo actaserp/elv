@@ -88,25 +88,11 @@
                 <li>Dashboard</li>
             </ul>
         </div>
-        <!-- Select -->
-        <div class="search-wrap" id="searchWrap" style="display: none; padding-top:10px">
-            <ul>
-                <li>
-                    <select title="사업장코드" id="search_spjangcd" name="search_sjangcd"
-                            onchange="init()">
-                        <option value="" hidden selected disabled>선택</option>
-                        <option value="ZZ">성우에스피(주)</option>
-                        <option value="PP">성우피앤비(주)</option>
-                        <!-- 지역 옵션을 JavaScript에서 동적으로 채움 -->
-                    </select>
-                </li>
-            </ul>
-        </div>
         <div class="tab-wrap">
             <ul class="tab-links">
-                <li>
-                    <a href="#tab1" title="주문 캘린더" class="tab-button">현황</a>
-                </li>
+<!--                <li>-->
+<!--                    <a href="#tab1" title="주문 캘린더" class="tab-button">현황</a>-->
+<!--                </li>-->
                 <!--                <li>-->
                 <!--                    <a href="#tab2" title="업무일지" class="tab-button">업무일지</a>-->
                 <!--                </li>-->
@@ -815,7 +801,6 @@
                 url: withCtx('/api/dash_summary/readCalenderGrid'),
                 type: 'GET',
                 data: {
-                    'search_spjangcd': sessionStorage.getItem('spjangcd'),
                     'search_type': searchTypeValue
                 },
                 async: false,
@@ -1013,7 +998,7 @@
                 url: withCtx('/api/dash_summary/readCalenderGrid2'),
                 type: 'GET',
                 data: {
-                    'search_spjangcd': sessionStorage.getItem("spjangcd")
+
                 },
                 async: false,
                 success: function (response) {
@@ -1105,7 +1090,6 @@
                 url: withCtx('/api/dash_summary/read_report'),
                 type: 'GET',
                 data: {
-                    'search_spjangcd': sessionStorage.getItem('spjangcd'),
                     'startDate': $('#startDate').val(),
                     'endDate': $('#endDate').val(),
                     'searchPernm': $('#searchPernm').val()
@@ -1507,7 +1491,7 @@
                 url: withCtx('/api/dash_summary/initDatas'),
                 type: 'GET',
                 data: {
-                    'search_spjangcd': sessionStorage.getItem('spjangcd'),
+
                 },
                 async: false,
                 success: function (data) {
@@ -1757,7 +1741,6 @@
                     // aspernm: $('#aspernm2').val(),
                     // reqType : $('#reqType2').val(),
                     recyn: $('#searchstate').val(),
-                    spjangcd: getSpjangcdFromSession(),
                 },
                 async: false,
                 success: function (response) {
@@ -2123,8 +2106,6 @@
                 url: withCtx('/api/dash_summary/readDailyGps'),
                 type: 'GET',
                 data: {
-                    search_spjangcd:
-                        sessionStorage.getItem("spjangcd"),
                     date: date
                 },
                 success: function (res) {

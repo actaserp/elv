@@ -4,6 +4,7 @@ package mes.app.dashboard;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import mes.app.common.TenantContext;
 import mes.app.dashboard.service.DashSummaryService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
@@ -111,12 +112,12 @@ public class DashSummaryController {
             @RequestParam(value="startDate", required=false) String start_date,
             @RequestParam(value="endDate", required=false) String end_date,
             @RequestParam(value="searchPernm", required=false) String searchPernm,
-            @RequestParam(value="search_spjangcd") String spjangcd,
-            HttpServletRequest request) {
+            HttpServletRequest request, Authentication auth) {
 
+        User user = (User)auth.getPrincipal();
         if (start_date != null) start_date = start_date.replaceAll("-", "");
         if (end_date != null) end_date = end_date.replaceAll("-", "");
-
+        String spjangcd = TenantContext.get(); // spjangcd
         List<Map<String, Object>> items = this.dashSummaryService.getList(start_date, end_date, searchPernm, spjangcd);
 
         AjaxResult result = new AjaxResult();
@@ -185,12 +186,12 @@ public class DashSummaryController {
 
     // 근태현황 조회 메서드
     @GetMapping("/readCalenderGrid")
-    public AjaxResult getList(@RequestParam(value = "search_spjangcd", required = false) String searchSpjangcd,
-                              @RequestParam(value = "search_type", required = false) String searchType,
+    public AjaxResult getList(@RequestParam(value = "search_type", required = false) String searchType,
                               Authentication auth) {
         User user = (User) auth.getPrincipal();
         String username = user.getUsername();  // 유저 사업자번호(id)
         // Map<String, Object> userInfo = dashSummaryService.getUserInfo(username);
+        String searchSpjangcd = TenantContext.get(); // spjangcd
         List<Map<String, Object>> items = this.dashSummaryService.getOrderList(
                 searchSpjangcd, searchType);
         for (Map<String, Object> item : items) {
@@ -234,10 +235,13 @@ public class DashSummaryController {
 //    }
 //
     @GetMapping("/initDatas")
-    public AjaxResult initDatas(@RequestParam(value = "search_spjangcd", required = false) String searchSpjangcd,
+    public AjaxResult initDatas(
                                 Authentication auth){
         User user = (User) auth.getPrincipal();
         String username = user.getUsername();
+        String searchSpjangcd = TenantContext.get(); // spjangcd
+        String dbkey = TenantContext.getDbKey(); // dbkey
+
         List<Map<String, Object>> items = this.dashSummaryService.initDatas(searchSpjangcd);
         AjaxResult result = new AjaxResult();
         result.data = items;
@@ -246,11 +250,12 @@ public class DashSummaryController {
 
     // 연차정보 조회 메서드(캘린더 바인드)
     @GetMapping("/readCalenderGrid2")
-    public AjaxResult getList2(@RequestParam(value = "search_spjangcd", required = false) String searchSpjangcd
-            , Authentication auth) {
+    public AjaxResult getList2(
+            Authentication auth) {
         User user = (User) auth.getPrincipal();
         String username = user.getUsername();  // 유저 사업자번호(id)
 //        Map<String, Object> userInfo = dashSummaryService.getUserInfo(username);
+        String searchSpjangcd = TenantContext.get(); // spjangcd
         List<Map<String, Object>> items = this.dashSummaryService.getOrderList2(searchSpjangcd);
         for (Map<String, Object> item : items) {
 
@@ -432,7 +437,6 @@ public class DashSummaryController {
             @RequestParam(value="searchtodate") String searchtodate,
             @RequestParam(value="searchCompCd", required=false) String searchCompCd,
             @RequestParam(value="reqType", required=false) String reqType,
-            @RequestParam(value="spjangcd", required=false) String spjangcd,
             @RequestParam(value="aspernm", required=false) String aspernm,
             @RequestParam(value="searchCompnm", required=false) String searchCompnm,
             @RequestParam(value="recyn", required=false) String recyn,
@@ -441,6 +445,7 @@ public class DashSummaryController {
 
         User user = (User) auth.getPrincipal();
         Integer perId = user.getPersonid();
+        String spjangcd = TenantContext.get(); // spjangcd
 
         List<Map<String, Object>> searchDatas = dashSummaryService.searchDatas4(
                 searchfrdate
@@ -516,12 +521,12 @@ public class DashSummaryController {
     //일일근태 지도 gps 좌표 조회
     @GetMapping("/readDailyGps")
     public AjaxResult readDailyGps(
-            @RequestParam String search_spjangcd,
             @RequestParam(value = "date", required = false) String date,
             Authentication auth){
         User user = (User)auth.getPrincipal();
         List<Map<String, Object>> items = null;
         String username = user.getUsername();
+        String search_spjangcd = TenantContext.get(); // spjangcd
         boolean isMaster = Boolean.TRUE.equals(user.getSuperUser())
                 || (user.getUserProfile() != null
                     && user.getUserProfile().getUserGroup() != null
