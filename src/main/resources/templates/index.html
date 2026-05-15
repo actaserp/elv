@@ -1724,13 +1724,17 @@
         return 'alarm';
     }
 
-    function sseConnect() {
+    function sseConnect(retryCount = 0) {
+
+        const MAX_RETRY = 10;
 
         const spjangcd = sessionStorage.getItem("spjangcd");
         const url = withCtx('/sse/subscribe') + '?spjangcd=' + encodeURIComponent(spjangcd);
 
         const eventSource = new EventSource(url);
 
+        // ✅ Heartbeat - 연결 유지 확인용 (아무 동작 없음)
+        eventSource.addEventListener("HEARTBEAT", function () {});
 
         // ✅ 기존 SYSTEM 이벤트 (레거시)
         eventSource.addEventListener("SYSTEM", function (e) {
@@ -1741,39 +1745,38 @@
 
         // ✅ 신규 알림
         eventSource.addEventListener("NOTIFICATION", function (e) {
-
             if (!e.data) return;
-
             const noti = JSON.parse(e.data);
-
-            alarmList.unshift(noti);      // 🔥 데이터만 쌓기
-            increaseAlarmCount();         // 🔔 숫자만 증가
+            alarmList.unshift(noti);
+            increaseAlarmCount();
             showToast(noti);
         });
 
         // ✅ 신규 코멘트
         eventSource.addEventListener("COMMENT", function (e) {
             if (!e.data) return;
-
             const comment = JSON.parse(e.data);
-
-            // 🔥 알림 리스트에 포함
             alarmList.unshift(comment);
             increaseAlarmCount();
-
-            // 🔥 동일 토스트 사용
             showToast(comment);
         });
 
-        // ✅ 연결 확인
+        // ✅ 연결 확인 - 성공 시 재시도 횟수 초기화
         eventSource.addEventListener("CONNECTED", function () {
             console.log("SSE 연결 완료");
+            retryCount = 0;
         });
 
         eventSource.onerror = function (err) {
-            console.log("SSE 오류 발생, 재연결 시도 중...", err);
             eventSource.close();
-            setTimeout(sseConnect, 3000);
+            if (retryCount < MAX_RETRY) {
+                // 지수 백오프: 3s → 4.5s → 6.75s ... 최대 30s
+                const delay = Math.min(3000 * Math.pow(1.5, retryCount), 30000);
+                console.log(`SSE 재연결 시도 (${retryCount + 1}/${MAX_RETRY}) - ${Math.round(delay / 1000)}초 후`);
+                setTimeout(() => sseConnect(retryCount + 1), delay);
+            } else {
+                console.warn("SSE 최대 재시도 횟수 초과. 연결 중단.");
+            }
         };
     }
 

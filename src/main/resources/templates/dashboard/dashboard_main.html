@@ -812,7 +812,7 @@
             let data2 = []; // 데이터를 담을 배열
             let emptyRowsCount = 8;
             $.ajax({
-                url: '/api/dash_summary/readCalenderGrid',
+                url: withCtx('/api/dash_summary/readCalenderGrid'),
                 type: 'GET',
                 data: {
                     'search_spjangcd': sessionStorage.getItem('spjangcd'),
@@ -1010,7 +1010,7 @@
             let data2 = []; // 데이터를 담을 배열
             var orderDates = [];
             $.ajax({
-                url: '/api/dash_summary/readCalenderGrid2',
+                url: withCtx('/api/dash_summary/readCalenderGrid2'),
                 type: 'GET',
                 data: {
                     'search_spjangcd': sessionStorage.getItem("spjangcd")
@@ -1102,7 +1102,7 @@
             let data2 = [];
 
             $.ajax({
-                url: '/api/dash_summary/read_report',
+                url: withCtx('/api/dash_summary/read_report'),
                 type: 'GET',
                 data: {
                     'search_spjangcd': sessionStorage.getItem('spjangcd'),
@@ -1393,7 +1393,7 @@
             const searchTerm = $('#searchCltnm').val();
 
             $.ajax({
-                url: '/api/order_status/ModalRead',
+                url: withCtx('/api/order_status/ModalRead'),
                 type: 'GET',
                 data: { searchTerm: searchTerm }, // searchTerm을 쿼리 파라미터로 추가
                 async: true,
@@ -1577,7 +1577,7 @@
             console.log(" 서버로 전송할 데이터:", JSON.stringify(requestData));
 
             $.ajax({
-                url: '/api/order_status/confirm',
+                url: withCtx('/api/order_status/confirm'),
                 type: 'POST',
                 contentType: 'application/json', // ✅ JSON 헤더 추가
                 data: JSON.stringify(requestData), // ✅ JSON 형식 변환
@@ -1635,7 +1635,7 @@
             console.log(" 서버로 전송할 데이터:", JSON.stringify(requestData));
 
             $.ajax({
-                url: '/api/order_status/CancelOrder',
+                url: withCtx('/api/order_status/CancelOrder'),
                 type: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify(requestData),
@@ -2120,7 +2120,7 @@
         // 일일근태 좌표값 표시
         function loadDailyGps(date) {
             $.ajax({
-                url: '/api/dash_summary/readDailyGps',
+                url: withCtx('/api/dash_summary/readDailyGps'),
                 type: 'GET',
                 data: {
                     search_spjangcd:

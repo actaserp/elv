@@ -69,6 +69,18 @@ public class MobileController {
         return "mobile/request/request_repair";
     }
 
+    @GetMapping("/request/request_status")
+    public String requestStatus(Model model) {
+        model.addAttribute("currentPage", "request_status");
+        return "mobile/request/request_status";
+    }
+
+    @GetMapping("/request/maintenance_status")
+    public String maintenanceStatus(Model model) {
+        model.addAttribute("currentPage", "maintenance_status");
+        return "mobile/request/maintenance_status";
+    }
+
     @GetMapping("/request/maintenance_repair")
     public String maintenanceRepair(Model model) {
         model.addAttribute("currentPage", "maintenance_repair");

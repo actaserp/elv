@@ -266,6 +266,12 @@
 			<artifactId>s3</artifactId>
 			<version>2.20.0</version>
 		</dependency>
+
+		<!-- WebSocket (KT 전화 실시간 연동) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-websocket</artifactId>
+		</dependency>
 	</dependencies>
 
 	<build>

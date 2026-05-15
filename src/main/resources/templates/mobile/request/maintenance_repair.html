@@ -55,18 +55,10 @@
     .empty-msg { text-align: center; padding: 60px 20px; color: #bbb; font-size: 14px; }
 
     /* ── 플로팅 버튼 ── */
-    .fab-btn {
-        position: fixed;
-        bottom: 24px; right: 20px;
-        width: 56px; height: 56px;
-        border-radius: 50%;
-        background: #333; color: #fff;
-        border: none; font-size: 28px;
-        line-height: 56px; text-align: center;
-        cursor: pointer;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        z-index: 100;
-    }
+    .fab-btn { display: none; }
+
+    /* ── 등록 폼 직접 노출 ── */
+    .reg-wrap { padding: 16px 16px 100px; }
 
     /* ── 바텀시트 팝업 공통 ── */
     .popup-overlay {
@@ -99,11 +91,15 @@
         font-weight: 700;
         font-size: 16px;
         flex-shrink: 0;
+        white-space: nowrap;
     }
     .popup-close {
+        width: 0;
         background: none; border: none;
         font-size: 24px; cursor: pointer;
         color: #666; line-height: 1;
+        flex-shrink: 0;
+        margin-left: 12px;
     }
     .popup-body { overflow-y: auto; flex: 1; padding: 16px 20px 30px; }
 
@@ -191,7 +187,7 @@
     <div class="mobile-layout-header">
         <header>
             <div class="left"><a href="#" title="전체메뉴" class="logo"></a></div>
-            <div class="left" style="margin-left:35px; font-size:25px;"><h2>고장처리결과</h2></div>
+            <div class="left" style="margin-left:35px; font-size:25px;"><h2>고장처리등록</h2></div>
             <div class="right">
                 <a href="#" title="전체메뉴" class="btn-menu">
                     <img th:src="@{/assets_mobile/images/icon/btn-menu.svg}" alt="전체메뉴 아이콘">
@@ -202,135 +198,74 @@
 
     <div th:insert="~{mobile/mobile_menu :: mobile_menu}"></div>
 
-    <!-- 컨텐츠 -->
+    <!-- 등록 폼 (바로 노출) -->
     <div class="mobile-layout-contents" style="display:block;">
         <div class="layout-contents">
+            <div class="reg-wrap">
+                <input type="hidden" id="regActcd">
+                <input type="hidden" id="regEqupcd">
 
-            <!-- 검색 영역 -->
-            <div class="search-wrap">
-                <div class="srch-tit aco-hd">
-                    <p>기본검색</p>
-                    <a href="#" title="열기/닫기" class="btn-aco">
-                        <img th:src="@{/assets_mobile/images/icon/ico-down.svg}" alt="열기/닫기">
-                    </a>
+                <div class="form-row">
+                    <label>완료일자</label>
+                    <input type="date" id="regCompdate">
                 </div>
-                <div class="srch-cont aco-cont">
-                    <dl>
-                        <dt>완료기간</dt>
-                        <dd>
-                            <div style="display:flex; align-items:center; gap:6px;">
-                                <input type="date" id="compFromDate" style="flex:1;">
-                                <span>~</span>
-                                <input type="date" id="compToDate" style="flex:1;">
-                            </div>
-                        </dd>
-                    </dl>
-                    <dl>
-                        <dt>현장명</dt>
-                        <dd><input type="text" id="searchActnm" placeholder="현장명 검색"></dd>
-                    </dl>
-                    <div class="srch-btn">
-                        <button class="btn-dark" onclick="handleSearch()">조회</button>
+                <div class="form-row">
+                    <label>현장명</label>
+                    <input type="text" id="regActnm" placeholder="현장 선택" readonly onclick="openActPopup()">
+                </div>
+                <div class="form-row">
+                    <label>호기명</label>
+                    <input type="text" id="regEqupnm" placeholder="호기 선택 (현장 먼저)" readonly onclick="openEqupPopup()">
+                </div>
+                <div class="form-row">
+                    <label>접수일자 / 접수시간</label>
+                    <div class="row-2col">
+                        <input type="date" id="regRecedate">
+                        <input type="time" id="regRecetime">
                     </div>
                 </div>
-            </div>
-
-            <!-- 결과 건수 -->
-            <div class="result-count" id="resultCount"></div>
-
-            <!-- 카드 리스트 -->
-            <div class="card-list" id="cardList">
-                <div class="empty-msg">조회 버튼을 눌러 처리결과 목록을 조회하세요.</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 플로팅 버튼 -->
-    <button class="fab-btn" onclick="openRegisterPopup()" title="신규등록">＋</button>
-</div>
-
-<!-- ======================== 상세 팝업 ======================== -->
-<div class="popup-overlay" id="detailPopup">
-    <div class="popup-sheet">
-        <div class="popup-header">
-            <span id="detailTitle">고장처리 상세</span>
-            <button class="popup-close" onclick="closePopup('detailPopup')">×</button>
-        </div>
-        <div class="popup-body" id="detailBody"></div>
-    </div>
-</div>
-
-<!-- ======================== 신규등록 팝업 ======================== -->
-<div class="popup-overlay" id="registerPopup">
-    <div class="popup-sheet">
-        <div class="popup-header">
-            <span>고장처리결과 등록</span>
-            <button class="popup-close" onclick="closePopup('registerPopup')">×</button>
-        </div>
-        <div class="popup-body">
-            <input type="hidden" id="regActcd">
-            <input type="hidden" id="regEqupcd">
-
-            <div class="form-row">
-                <label>완료일자</label>
-                <input type="date" id="regCompdate">
-            </div>
-            <div class="form-row">
-                <label>현장명</label>
-                <input type="text" id="regActnm" placeholder="현장 선택" readonly onclick="openActPopup()">
-            </div>
-            <div class="form-row">
-                <label>호기명</label>
-                <input type="text" id="regEqupnm" placeholder="호기 선택 (현장 먼저)" readonly onclick="openEqupPopup()">
-            </div>
-            <div class="form-row">
-                <label>접수일자 / 접수시간</label>
-                <div class="row-2col">
-                    <input type="date" id="regRecedate">
-                    <input type="time" id="regRecetime">
+                <div class="form-row">
+                    <label>도착일자 / 도착시간</label>
+                    <div class="row-2col">
+                        <input type="date" id="regArrivdate">
+                        <input type="time" id="regArrivtime">
+                    </div>
                 </div>
-            </div>
-            <div class="form-row">
-                <label>도착일자 / 도착시간</label>
-                <div class="row-2col">
-                    <input type="date" id="regArrivdate">
-                    <input type="time" id="regArrivtime">
+                <div class="form-row">
+                    <label>완료시간</label>
+                    <input type="time" id="regComptime">
                 </div>
+                <div class="form-row">
+                    <label>고장내용</label>
+                    <input type="text" id="regContremark" placeholder="고장내용 입력">
+                </div>
+                <div class="form-row">
+                    <label>고장상세내용</label>
+                    <textarea id="regRemoremark" placeholder="고장상세내용 입력"></textarea>
+                </div>
+                <div class="form-row">
+                    <label>처리내용</label>
+                    <textarea id="regResuremark" placeholder="처리내용 입력"></textarea>
+                </div>
+                <div class="form-row">
+                    <label>처리결과</label>
+                    <input type="text" id="regResultcd" placeholder="처리결과 입력">
+                </div>
+                <div class="form-row">
+                    <label>고객요망사항</label>
+                    <input type="text" id="regCustomer" placeholder="고객요망사항 입력">
+                </div>
+                <div class="form-row">
+                    <label>비고</label>
+                    <input type="text" id="regRemark" placeholder="비고 입력">
+                </div>
+                <button class="form-save-btn" onclick="saveComp()">등록</button>
             </div>
-            <div class="form-row">
-                <label>완료시간</label>
-                <input type="time" id="regComptime">
-            </div>
-            <div class="form-row">
-                <label>고장내용</label>
-                <input type="text" id="regContremark" placeholder="고장내용 입력">
-            </div>
-            <div class="form-row">
-                <label>고장상세내용</label>
-                <textarea id="regRemoremark" placeholder="고장상세내용 입력"></textarea>
-            </div>
-            <div class="form-row">
-                <label>처리내용</label>
-                <textarea id="regResuremark" placeholder="처리내용 입력"></textarea>
-            </div>
-            <div class="form-row">
-                <label>처리결과</label>
-                <input type="text" id="regResultcd" placeholder="처리결과 입력">
-            </div>
-            <div class="form-row">
-                <label>고객요망사항</label>
-                <input type="text" id="regCustomer" placeholder="고객요망사항 입력">
-            </div>
-            <div class="form-row">
-                <label>비고</label>
-                <input type="text" id="regRemark" placeholder="비고 입력">
-            </div>
-            <button class="form-save-btn" onclick="saveComp()">등록</button>
         </div>
     </div>
 </div>
 
-<!-- ======================== 현장 선택 팝업 ======================== -->
+<!-- 현장 선택 팝업 -->
 <div class="popup-overlay" id="actPopup">
     <div class="popup-sheet">
         <div class="popup-header">
@@ -343,7 +278,7 @@
     </div>
 </div>
 
-<!-- ======================== 호기 선택 팝업 ======================== -->
+<!-- 호기 선택 팝업 -->
 <div class="popup-overlay" id="equpPopup">
     <div class="popup-sheet">
         <div class="popup-header">
@@ -359,106 +294,8 @@
     var _actListCache = [];
     var _spjangcd     = sessionStorage.getItem('spjangcd') || '';
 
-    /* ── 초기화 ─────────────────────────────────────────────── */
+    /* ── 초기화 ── */
     $(document).ready(function () {
-        const today = new Date();
-        const yyyy  = today.getFullYear();
-        const mm    = String(today.getMonth() + 1).padStart(2, '0');
-        const dd    = String(today.getDate()).padStart(2, '0');
-        document.getElementById('compFromDate').value = `${yyyy}-${mm}-01`;
-        document.getElementById('compToDate').value   = `${yyyy}-${mm}-${dd}`;
-
-        $('#searchActnm').on('keypress', function (e) {
-            if (e.keyCode === 13) handleSearch();
-        });
-    });
-
-    /* ── 목록 조회 ───────────────────────────────────────────── */
-    function handleSearch() {
-        searchCompList();
-        document.querySelectorAll('.btn-aco').forEach(function (btn) { btn.click(); });
-    }
-
-    function searchCompList() {
-        const fromDate = document.getElementById('compFromDate').value.replaceAll('-', '');
-        const toDate   = document.getElementById('compToDate').value.replaceAll('-', '');
-        const actnm    = document.getElementById('searchActnm').value.trim();
-
-        AjaxUtil.getAsyncData('/api/maintenance_repair/read_comp', {
-            fromDate : fromDate,
-            toDate   : toDate,
-            actnm    : actnm,
-            spjangcd : _spjangcd
-        }, function (result) {
-            if (result != null && result.data != null) {
-                renderCardList(result.data);
-            } else {
-                document.getElementById('cardList').innerHTML =
-                    '<div class="empty-msg">조회 중 오류가 발생하였습니다.</div>';
-            }
-        });
-    }
-
-    function renderCardList(list) {
-        const container = document.getElementById('cardList');
-        const countEl   = document.getElementById('resultCount');
-        if (!list || list.length === 0) {
-            countEl.textContent = '';
-            container.innerHTML = '<div class="empty-msg">조회된 데이터가 없습니다.</div>';
-            return;
-        }
-        countEl.textContent = `총 ${list.length}건`;
-        let html = '';
-        list.forEach(function (item) {
-            html += `
-            <div class="comp-card" onclick='openDetailPopup(${JSON.stringify(item)})'>
-                <div class="card-header">
-                    <span class="card-actnm">${esc(item.actnm || '')}</span>
-                    <span class="card-badge-green">${esc(item.compdate || '')} / ${esc(item.compnum || '')}</span>
-                </div>
-                ${item.equpnm     ? `<div class="card-row"><span class="card-label">호기명</span><span class="card-value">${esc(item.equpnm)}</span></div>` : ''}
-                ${item.contremark ? `<div class="card-row"><span class="card-label">고장내용</span><span class="card-value">${esc(item.contremark)}</span></div>` : ''}
-                ${item.pernm      ? `<div class="card-row"><span class="card-label">처리자</span><span class="card-value">${esc(item.pernm)}</span></div>` : ''}
-            </div>`;
-        });
-        container.innerHTML = html;
-    }
-
-    /* ── 상세 팝업 ───────────────────────────────────────────── */
-    function openDetailPopup(item) {
-        document.getElementById('detailTitle').textContent = (item.actnm || '고장처리') + ' 상세';
-        let html = `<div class="detail-section-title">처리 정보</div>`;
-        html += buildDetailRows([
-            { label: '완료일자',   value: item.compdate  },
-            { label: '완료번호',   value: item.compnum   },
-            { label: '완료시간',   value: item.comptime  },
-            { label: '접수일자',   value: item.recedate  },
-            { label: '접수시간',   value: item.recetime  },
-            { label: '도착일자',   value: item.arrivdate },
-            { label: '도착시간',   value: item.arrivtime },
-        ]);
-        html += `<div class="detail-section-title">현장 정보</div>`;
-        html += buildDetailRows([
-            { label: '현장명', value: item.actnm  },
-            { label: '호기명', value: item.equpnm },
-            { label: '처리자', value: item.pernm  },
-            { label: '부서명', value: item.divinm },
-        ]);
-        html += `<div class="detail-section-title">고장/처리 내용</div>`;
-        html += buildDetailRows([
-            { label: '고장내용',     value: item.contremark },
-            { label: '고장상세내용', value: item.remoremark },
-            { label: '처리내용',     value: item.resuremark },
-            { label: '처리결과',     value: item.resultcd   },
-            { label: '고객요망',     value: item.customer   },
-            { label: '비고',         value: item.remark     },
-        ]);
-        document.getElementById('detailBody').innerHTML = html;
-        openPopup('detailPopup');
-    }
-
-    /* ── 신규등록 팝업 ───────────────────────────────────────── */
-    function openRegisterPopup() {
         const today = new Date().toISOString().split('T')[0];
         const now   = new Date().toTimeString().slice(0, 5);
         document.getElementById('regCompdate').value   = today;
@@ -467,20 +304,9 @@
         document.getElementById('regArrivdate').value  = today;
         document.getElementById('regArrivtime').value  = now;
         document.getElementById('regComptime').value   = now;
-        document.getElementById('regActcd').value      = '';
-        document.getElementById('regActnm').value      = '';
-        document.getElementById('regEqupcd').value     = '';
-        document.getElementById('regEqupnm').value     = '';
-        document.getElementById('regContremark').value = '';
-        document.getElementById('regRemoremark').value = '';
-        document.getElementById('regResuremark').value = '';
-        document.getElementById('regResultcd').value   = '';
-        document.getElementById('regCustomer').value   = '';
-        document.getElementById('regRemark').value     = '';
-        openPopup('registerPopup');
-    }
+    });
 
-    /* ── 현장 선택 팝업 ──────────────────────────────────────── */
+    /* ── 현장 선택 팝업 ── */
     function openActPopup() {
         document.getElementById('actSearchInput').value = '';
         if (_actListCache.length > 0) {
@@ -511,21 +337,20 @@
     }
 
     function filterActList(keyword) {
-        const filtered = _actListCache.filter(function (item) {
+        renderActList(_actListCache.filter(function (item) {
             return (item.actnm || '').includes(keyword);
-        });
-        renderActList(filtered);
+        }));
     }
 
     function setActData(item) {
-        document.getElementById('regActcd').value  = item.actcd  || '';
-        document.getElementById('regActnm').value  = item.actnm  || '';
+        document.getElementById('regActcd').value  = item.actcd || '';
+        document.getElementById('regActnm').value  = item.actnm || '';
         document.getElementById('regEqupcd').value = '';
         document.getElementById('regEqupnm').value = '';
         closePopup('actPopup');
     }
 
-    /* ── 호기 선택 팝업 ──────────────────────────────────────── */
+    /* ── 호기 선택 팝업 ── */
     function openEqupPopup() {
         const actcd = document.getElementById('regActcd').value;
         if (!actcd) { Alert.alert('', '현장을 먼저 선택해주세요.'); return; }
@@ -554,7 +379,7 @@
         closePopup('equpPopup');
     }
 
-    /* ── 고장처리결과 등록 ───────────────────────────────────── */
+    /* ── 등록 ── */
     function saveComp() {
         const compdate = document.getElementById('regCompdate').value;
         const actcd    = document.getElementById('regActcd').value;
@@ -584,8 +409,25 @@
         AjaxUtil.postAsyncData('/api/maintenance_repair/save_comp', data, function (result) {
             if (result && result.success) {
                 Alert.alert('', result.message, function () {
-                    closePopup('registerPopup');
-                    searchCompList();
+                    // 등록 성공 후 폼 초기화
+                    const today = new Date().toISOString().split('T')[0];
+                    const now   = new Date().toTimeString().slice(0, 5);
+                    document.getElementById('regCompdate').value   = today;
+                    document.getElementById('regActcd').value      = '';
+                    document.getElementById('regActnm').value      = '';
+                    document.getElementById('regEqupcd').value     = '';
+                    document.getElementById('regEqupnm').value     = '';
+                    document.getElementById('regRecedate').value   = today;
+                    document.getElementById('regRecetime').value   = now;
+                    document.getElementById('regArrivdate').value  = today;
+                    document.getElementById('regArrivtime').value  = now;
+                    document.getElementById('regComptime').value   = now;
+                    document.getElementById('regContremark').value = '';
+                    document.getElementById('regRemoremark').value = '';
+                    document.getElementById('regResuremark').value = '';
+                    document.getElementById('regResultcd').value   = '';
+                    document.getElementById('regCustomer').value   = '';
+                    document.getElementById('regRemark').value     = '';
                 });
             } else {
                 Alert.alert('', (result && result.message) || '등록 중 오류가 발생하였습니다.');
@@ -593,25 +435,15 @@
         });
     }
 
-    /* ── 팝업 공통 ───────────────────────────────────────────── */
+    /* ── 팝업 공통 ── */
     function openPopup(id)  { document.getElementById(id).classList.add('active');    }
     function closePopup(id) { document.getElementById(id).classList.remove('active'); }
 
-    ['detailPopup', 'registerPopup', 'actPopup', 'equpPopup'].forEach(function (id) {
+    ['actPopup', 'equpPopup'].forEach(function (id) {
         document.getElementById(id).addEventListener('click', function (e) {
             if (e.target === this) closePopup(id);
         });
     });
-
-    function buildDetailRows(rows) {
-        return rows.map(function (r) {
-            if (!r.value) return '';
-            return `<div class="detail-row">
-                <span class="detail-label">${r.label}</span>
-                <span class="detail-value">${esc(String(r.value))}</span>
-            </div>`;
-        }).join('');
-    }
 
     function esc(str) {
         if (!str) return '';

@@ -125,11 +125,9 @@
       margin-bottom: 8px;
     }
     .btn-teal {
-      padding: 5px 14px; background: #17b5c2; color: #fff;
-      border: none; border-radius: 4px; font-size: 13px; cursor: pointer;
-      font-weight: 600;
+      padding: 5px 14px; background: #0a68b4; color: #fff;
     }
-    .btn-teal:hover { background: #129aa6; }
+    .btn-teal:hover { background: #0D2960; }
 
     /* ── 중앙 폼 테이블 ── */
     .form-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -272,6 +270,9 @@
 
     /* ── 빈 행 ── */
     .empty-row td { color: #ccc; height: 26px; }
+    <!-- KT 전화 연동 WebSocket 라이브러리 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
   </style>
 </head>
 
@@ -321,14 +322,47 @@
         <button class="btn-call" title="전화">📞</button>
       </div>
 
-      <!-- API ID / PW -->
+      <!-- KT API 로그인 -->
       <div class="api-info" style="margin-left: auto;">
-        <span>콜 API ID</span>
-        <input type="text" id="apiId" value="032225827" readonly>
+        <span id="ktStatusDot" style="width:10px;height:10px;border-radius:50%;background:#ccc;display:inline-block;"></span>
+        <span id="ktStatusTxt" style="font-size:12px;color:#888;">미연결</span>
+        <span>ID</span>
+        <input type="text" id="apiId" value="032225827" style="width:90px;">
         <span>PW</span>
-        <input type="password" id="apiPw" value="········" readonly>
-        <button class="btn-icon" style="height:24px; width:24px; border-radius:3px;">→</button>
+        <input type="password" id="apiPw" placeholder="비밀번호" style="width:80px;">
+        <button onclick="ktLogin()" style="height:24px;padding:0 8px;background:#1e3f70;color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:12px;">연결</button>
+        <button onclick="ktLogout()" style="height:24px;padding:0 8px;background:#888;color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:12px;">해제</button>
       </div>
+
+      <!-- 전화 수신 알림 팝업 (평소엔 숨김) -->
+      <div id="callToast" style="
+        display:none; position:fixed; top:70px; right:20px; z-index:9999;
+        background:#1e3f70; color:#fff; border-radius:8px;
+        padding:14px 20px; min-width:260px;
+        box-shadow:0 4px 20px rgba(0,0,0,0.35); font-size:13px;
+        animation: slideIn 0.3s ease;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:24px;">📞</span>
+          <div>
+            <div style="font-weight:700;font-size:14px;">전화 수신</div>
+            <div id="toastCaller" style="font-size:16px;font-weight:700;color:#7ec8e3;margin:2px 0;"></div>
+            <div id="toastStatus" style="font-size:12px;color:#aac8d8;"></div>
+          </div>
+          <button onclick="closeCallToast()" style="margin-left:auto;background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">×</button>
+        </div>
+        <button onclick="applyCallToMemo()" style="
+          width:100%;margin-top:10px;padding:6px;
+          background:#17b5c2;color:#fff;border:none;
+          border-radius:4px;cursor:pointer;font-size:12px;">
+          → 통화메모에 자동입력
+        </button>
+      </div>
+      <style>
+        @keyframes slideIn { from { transform: translateX(30px); opacity:0; } to { transform: translateX(0); opacity:1; } }
+        <!-- KT 전화 연동 WebSocket 라이브러리 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+  </style>
     </div>
 
     <!-- ══ 메인 3컬럼 ══ -->
@@ -588,6 +622,146 @@
     var _smsTotalPage = 1;
 
     /* ══════════════════════════════════════
+       KT 전화 연동 - WebSocket
+    ══════════════════════════════════════ */
+    var _ktStompClient  = null;
+    var _ktUserId       = '';
+    var _lastCallData   = null; // 수신된 마지막 전화 정보
+
+    function ktLogin() {
+      const userId   = document.getElementById('apiId').value.trim();
+      const password = document.getElementById('apiPw').value.trim();
+      if (!userId || !password) { Alert.alert('', 'KT API ID와 비밀번호를 입력해주세요.'); return; }
+
+      // 1) Spring에 KT 로그인 요청
+      AjaxUtil.postAsyncData('/api/kt-call/login', { userId, password }, function(result) {
+        if (result && result.success) {
+          _ktUserId = userId;
+          setKtStatus(true);
+          // 2) WebSocket 연결
+          connectKtWebSocket();
+          Alert.alert('', 'KT 통화매니저 연결되었습니다.');
+        } else {
+          Alert.alert('', (result && result.message) || 'KT 로그인 실패');
+        }
+      });
+    }
+
+    function ktLogout() {
+      if (!_ktUserId) return;
+      AjaxUtil.postAsyncData('/api/kt-call/logout', { userId: _ktUserId }, function() {});
+      if (_ktStompClient) { _ktStompClient.disconnect(); _ktStompClient = null; }
+      _ktUserId = '';
+      setKtStatus(false);
+      Alert.alert('', 'KT 통화매니저 연결이 해제되었습니다.');
+    }
+
+    function connectKtWebSocket() {
+      // SockJS + STOMP
+      const socket = new SockJS('/ws/kt-call');
+      _ktStompClient = Stomp.over(socket);
+      _ktStompClient.debug = null; // 콘솔 로그 숨김
+
+      _ktStompClient.connect({}, function(frame) {
+        // /topic/kt-call 구독 → 새 수신전화 수신
+        _ktStompClient.subscribe('/topic/kt-call', function(message) {
+          const data = JSON.parse(message.body);
+          onIncomingCall(data);
+        });
+      }, function(error) {
+        console.warn('[KtCall] WebSocket 연결 오류:', error);
+        setKtStatus(false);
+        // 5초 후 재연결 시도
+        setTimeout(function() {
+          if (_ktUserId) connectKtWebSocket();
+        }, 5000);
+      });
+    }
+
+    /**
+     * 전화 수신 이벤트 처리
+     * data: { caller, callee, callDate, callTime, status, dbId }
+     */
+    function onIncomingCall(data) {
+      _lastCallData = data;
+
+      // 토스트 팝업 표시
+      document.getElementById('toastCaller').textContent  = formatPhoneNum(data.caller || '');
+      document.getElementById('toastStatus').textContent  =
+        (data.callDate || '') + ' ' + (data.callTime || '') + '  [' + (data.status || '') + ']';
+      document.getElementById('callToast').style.display  = 'block';
+
+      // 전화벨 소리 (선택)
+      playRingSound();
+
+      // 요약바 카운트 갱신
+      const cnt = parseInt(document.getElementById('cntRecv').textContent || '0');
+      document.getElementById('cntRecv').textContent = cnt + 1;
+
+      // 10초 후 자동 닫기
+      setTimeout(closeCallToast, 10000);
+    }
+
+    function applyCallToMemo() {
+      if (!_lastCallData) return;
+      const today = new Date();
+      const hh    = String(today.getHours()).padStart(2,'0');
+      const mi    = String(today.getMinutes()).padStart(2,'0');
+
+      document.getElementById('memoRecedate').value  = _lastCallData.callDate || new Date().toISOString().split('T')[0];
+      document.getElementById('memoRecetime').value  = _lastCallData.callTime || (hh + ':' + mi);
+      document.getElementById('memoCustel').value    = _lastCallData.caller   || '';
+      document.getElementById('memoCusnm').value     = '';
+      document.getElementById('memoContent').value   = '수신전화: ' + formatPhoneNum(_lastCallData.caller || '');
+
+      closeCallToast();
+      // 메모 패널로 스크롤
+      document.getElementById('memoRecedate').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('memoCusnm').focus();
+    }
+
+    function closeCallToast() {
+      document.getElementById('callToast').style.display = 'none';
+    }
+
+    function setKtStatus(connected) {
+      const dot = document.getElementById('ktStatusDot');
+      const txt = document.getElementById('ktStatusTxt');
+      if (connected) {
+        dot.style.background = '#22b04b';
+        txt.textContent = '연결됨';
+        txt.style.color = '#22b04b';
+      } else {
+        dot.style.background = '#ccc';
+        txt.textContent = '미연결';
+        txt.style.color = '#888';
+      }
+    }
+
+    function formatPhoneNum(num) {
+      if (!num) return '';
+      const n = num.replace(/\D/g, '');
+      if (n.length === 11) return n.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+      if (n.length === 10) return n.replace(/(\d{3})(\d{3,4})(\d{4})/, '$1-$2-$3');
+      return num;
+    }
+
+    function playRingSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 480;
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.8);
+      } catch(e) {}
+    }
+
+    /* ══════════════════════════════════════
        초기화
     ══════════════════════════════════════ */
     document.readyState === 'complete' ? init() : window.onload = init;
@@ -613,12 +787,12 @@
       document.getElementById('memoSrchDate').value  = todayStr;
       document.getElementById('memoRecedate').value  = todayStr;
 
-      // 요약 카운트 조회
-      loadSummary();
-      // 좌측 목록 자동 조회
-      searchList();
-      // SMS 내역 조회
-      loadSmsHistory();
+      // // 요약 카운트 조회
+      // loadSummary();
+      // // 좌측 목록 자동 조회
+      // searchList();
+      // // SMS 내역 조회
+      // loadSmsHistory();
     }
 
     function nowTimeStr() {
