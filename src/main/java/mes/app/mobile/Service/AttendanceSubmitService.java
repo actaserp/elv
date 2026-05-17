@@ -46,7 +46,7 @@ public class AttendanceSubmitService {
     }
 
     // 결재구분별 결재라인 및 정보 조회(결재자 직원코드)
-    public List<Map<String, Object>> getAppInfoList(int personid) {
+    public List<Map<String, Object>> getAppInfoList(Integer personid) {
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
         dicParam.addValue("personid", personid);

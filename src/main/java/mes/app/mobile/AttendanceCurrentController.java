@@ -1,9 +1,12 @@
 package mes.app.mobile;
 
+import lombok.extern.slf4j.Slf4j;
 import mes.app.mobile.Service.AttendanceCurrentService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
+import mes.domain.services.SqlRunner;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,12 +16,37 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/attendance_current")
 public class AttendanceCurrentController {
 
     @Autowired
     AttendanceCurrentService attendanceCurrentService;
+
+    @Autowired
+    SqlRunner sqlRunner;
+
+    /**
+     * 사업체 DB에서 username으로 personid를 조회하는 공통 메서드
+     * Main DB의 user.getPersonid()는 null일 수 있으므로 사업체 DB에서 직접 조회
+     */
+    private Integer resolvePersonId(String username) {
+        String sql = """
+                SELECT p.id AS personid
+                FROM auth_user a
+                JOIN person p ON p.id = a.personid
+                WHERE a.username = :username
+                """;
+        MapSqlParameterSource params = new MapSqlParameterSource();
+        params.addValue("username", username);
+
+        Map<String, Object> result = sqlRunner.getRow(sql, params);
+        if (result == null) {
+            return null;
+        }
+        return ((Number) result.get("personid")).intValue();
+    }
 
     // 개인별 휴가 현황 조회
     @GetMapping("/read")
@@ -30,7 +58,13 @@ public class AttendanceCurrentController {
 
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
-        int personId = user.getPersonid();
+
+        // 사업체 DB에서 personid 조회
+        Integer personId = resolvePersonId(user.getUsername());
+        if (personId == null) {
+            result.message = "사업체 DB에서 유저 정보를 찾을 수 없습니다.";
+            return result;
+        }
 
         // 개인별 연차정보 조회
         Map<String, Object> annInfo = attendanceCurrentService.getAnnInfo(personId);
@@ -76,13 +110,11 @@ public class AttendanceCurrentController {
 
         AjaxResult result = new AjaxResult();
 
-        // [기존] tbPb204Repository.findById(vacId) 대체
         Map<String, Object> existing = attendanceCurrentService.selectTbPb204ById(vacId);
         String formattedStartDate = startDate.replaceAll("-", "");
         String formattedEndDate   = endDate.replaceAll("-", "");
 
         if (existing != null && !existing.isEmpty()) {
-            // [기존] tbPb204Repository.save(savedtbPb204) 대체
             attendanceCurrentService.updateTbPb204(
                     vacId,
                     formattedStartDate,
@@ -97,7 +129,7 @@ public class AttendanceCurrentController {
             result.message = "휴가수정이 완료되었습니다.";
             result.data = vacId;
         } else {
-            System.out.println("해당 ID로 데이터를 찾을 수 없습니다.");
+            log.warn("해당 ID로 데이터를 찾을 수 없습니다. vacId={}", vacId);
             result.message = "해당 데이터를 찾을 수 없습니다.";
         }
         return result;
@@ -114,25 +146,41 @@ public class AttendanceCurrentController {
         User user = (User) auth.getPrincipal();
         String spjangcd = user.getSpjangcd();
 
-        // [기존] tbPb204Repository.findById(vacId) 대체
         Map<String, Object> existing = attendanceCurrentService.selectTbPb204ById(vacId);
 
         if (existing != null && !existing.isEmpty()) {
             String appnum = (String) existing.get("appnum");
 
-            // [기존] tbE080Repository.deleteById(tbE080Pk) 대체
             Map<String, Object> tb080 = attendanceCurrentService.getAppInfo(appnum);
             if (tb080 != null && !tb080.isEmpty()) {
                 attendanceCurrentService.deleteTbE080(appnum, spjangcd);
             }
 
-            // [기존] tbPb204Repository.delete(savedtbPb204) 대체
             attendanceCurrentService.deleteTbPb204(vacId);
             result.message = "휴가삭제가 완료되었습니다.";
         } else {
-            System.out.println("해당 ID로 데이터를 찾을 수 없습니다.");
+            log.warn("해당 ID로 데이터를 찾을 수 없습니다. vacId={}", vacId);
             result.message = "해당 데이터를 찾을 수 없습니다.";
         }
+        return result;
+    }
+
+    // 연도 목록 조회
+    @GetMapping("/years")
+    public AjaxResult getAvailableYears(Authentication auth) {
+        AjaxResult result = new AjaxResult();
+        User user = (User) auth.getPrincipal();
+
+        // 사업체 DB에서 personid 조회
+        Integer personId = resolvePersonId(user.getUsername());
+        if (personId == null) {
+            result.message = "사업체 DB에서 유저 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        String personidStr = String.valueOf(personId);
+
+        List<String> years = attendanceCurrentService.getDistinctYears(personidStr);
+        result.data = years;
         return result;
     }
 
@@ -148,18 +196,5 @@ public class AttendanceCurrentController {
             dateTimeParts.put("time", null);
         }
         return dateTimeParts;
-    }
-
-    // 연도 목록 조회
-    @GetMapping("/years")
-    public AjaxResult getAvailableYears(Authentication auth) {
-        AjaxResult result = new AjaxResult();
-        User user = (User) auth.getPrincipal();
-        String personidStr = String.valueOf(user.getPersonid());
-
-        // [기존] tbPb204Repository.findDistinctYearsByPersonId(personidStr) 대체
-        List<String> years = attendanceCurrentService.getDistinctYears(personidStr);
-        result.data = years;
-        return result;
     }
 }

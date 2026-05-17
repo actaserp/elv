@@ -4,7 +4,9 @@ import lombok.extern.slf4j.Slf4j;
 import mes.app.mobile.Service.AttendanceSubmitService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
+import mes.domain.services.SqlRunner;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +28,9 @@ public class AttendanceSubmitController {
 
     @Autowired
     AttendanceSubmitService attendanceSubmitService;
+
+    @Autowired
+    SqlRunner sqlRunner;
 
     // 사용자 정보 조회(부서 이름 출근여부)
     @GetMapping("/read_userInfo")
@@ -59,7 +64,7 @@ public class AttendanceSubmitController {
             HttpServletRequest request,
             Authentication auth) {
 
-        System.out.println("request Data : " + userId);
+        log.debug("request Data : {}", userId);
         AjaxResult result = new AjaxResult();
 
         User user = (User) auth.getPrincipal();
@@ -67,12 +72,28 @@ public class AttendanceSubmitController {
         String reqdate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String formattedStartDate = startDate.replaceAll("-", "");
         String formattedEndDate = endDate.replaceAll("-", "");
-        // DDL 기준 appperid, repoperid, inperid 모두 varchar(10) → String으로 변환
-        String personidStr = String.valueOf(user.getPersonid());
 
         try {
-            // ① tb_pb204 INSERT → 생성된 ID 반환
-            // [기존] TB_PB204Repository.save(tbPb204) 1차 호출 대체
+            // ① 사업체 DB에서 personid 직접 조회 (Main DB의 personid 사용 금지)
+            String personSql = """
+                    SELECT p.id AS personid
+                    FROM auth_user a
+                    JOIN person p ON p.id = a.personid
+                    WHERE a.username = :username
+                    """;
+            MapSqlParameterSource personParams = new MapSqlParameterSource();
+            personParams.addValue("username", user.getUsername());
+
+            Map<String, Object> personInfo = sqlRunner.getRow(personSql, personParams);
+            if (personInfo == null) {
+                result.message = "사업체 DB에서 유저 정보를 찾을 수 없습니다.";
+                return result;
+            }
+
+            int personId = ((Number) personInfo.get("personid")).intValue();
+            String personidStr = String.valueOf(personId);
+
+            // ② tb_pb204 INSERT → 생성된 ID 반환
             long savedId = attendanceSubmitService.insertTbPb204(
                     spjangcd, reqdate, personidStr,
                     formattedStartDate, startTime, formattedEndDate, endTime,
@@ -80,14 +101,13 @@ public class AttendanceSubmitController {
                     reqdate, personidStr, user.getUsername(), isAnnual
             );
 
-            // ② appnum 생성 후 tb_pb204 UPDATE
-            // [기존] TB_PB204Repository.save(tbPb204) 2차 호출 대체
+            // ③ appnum 생성 후 tb_pb204 UPDATE
             String savedIdStr = String.format("%08d", savedId);
             String appnum = reqdate + savedIdStr + spjangcd;
             attendanceSubmitService.updateTbPb204Appnum(savedId, appnum);
 
-            // ③ 결재라인 조회
-            List<Map<String, Object>> appInfo = attendanceSubmitService.getAppInfoList(user.getPersonid());
+            // ④ 결재라인 조회 (사업체 DB의 personid 사용)
+            List<Map<String, Object>> appInfo = attendanceSubmitService.getAppInfoList(personId);
 
             // 결재라인이 없을 경우 빈값으로 기본 1건 추가
             if (appInfo == null || appInfo.isEmpty()) {
@@ -98,27 +118,25 @@ public class AttendanceSubmitController {
                 appInfo.add(emptyAppInfo);
             }
 
-            // ④ 결재라인 tb_e080 INSERT (루프)
-            // [기존] E080Repository.save(e080Info) 루프 대체
+            // ⑤ 결재라인 tb_e080 INSERT (루프)
             int index = 0;
             for (Map<String, Object> appInfoDetail : appInfo) {
-                String seq      = String.format("%03d", index + 1);
-                String flag     = (index == 0) ? "1" : "0";
-                String appgubun = (index == 0) ? "001" : null;
-                // DDL 기준 repoperid varchar(10) → String
+                String seq       = String.format("%03d", index + 1);
+                String flag      = (index == 0) ? "1" : "0";
+                String appgubun  = (index == 0) ? "001" : null;
                 String repoperid = (index == 0) ? personidStr : null;
 
                 attendanceSubmitService.insertTbE080(
                         spjangcd,
                         appnum,
-                        (String) appInfoDetail.get("kcperid"),  // tb_e080.perid
+                        (String) appInfoDetail.get("kcperid"),
                         seq,
                         "휴가신청서",
                         flag,
                         repoperid,
                         appgubun,
                         "301",
-                        personidStr,                            // tb_e080.inperid
+                        personidStr,
                         reqdate,
                         (String) appInfoDetail.get("gubun")
                 );
@@ -129,7 +147,7 @@ public class AttendanceSubmitController {
             result.data = savedId;
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("휴가등록 오류: {}", e.getMessage(), e);
             result.message = "오류가 발생하였습니다.";
         }
 

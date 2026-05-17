@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -19,33 +20,36 @@ public class AttendanceCurrentService {
     NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     // 사용자 연차정보 조회
-    public Map<String, Object> getAnnInfo(int personId) {
+    public Map<String, Object> getAnnInfo(Integer personId) {
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
         dicParam.addValue("personid", personId);
 
         String sql = """
-                SELECT t.ewolnum,
+                SELECT TOP 1
+                    t.ewolnum,
                     t.holinum,
                     t.daynum,
                     t.restnum,
                     p.rtdate
                 FROM tb_pb209 t
                 LEFT JOIN person p ON p.id = t.perid
-                WHERE perid = :personid
-        		""";
+                WHERE t.perid = :personid
+                ORDER BY t.todate DESC
+                """;
 
         Map<String, Object> item = this.sqlRunner.getRow(sql, dicParam);
         return item;
     }
 
     // 사용자 휴가정보 조회
-    public List<Map<String, Object>> getVacInfo(String workcd, String searchYear, int personId) {
+    public List<Map<String, Object>> getVacInfo(String workcd, String searchYear, Integer personId) {
+
+        // tb_pb204.perid 컬럼이 varchar이므로 String으로 변환
+        String personIdStr = String.valueOf(personId);
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
-        dicParam.addValue("personid", personId);
-        dicParam.addValue("workcd", workcd);
-        dicParam.addValue("searchYear", searchYear);
+        dicParam.addValue("personid", personIdStr);
 
         String sql = """
                 SELECT t.reqdate,
@@ -62,9 +66,10 @@ public class AttendanceCurrentService {
                     t.appgubun,
                     t.fixflag
                 FROM tb_pb204 t
-                LEFT JOIN tb_pb210 i ON t.workcd = i.workcd 
+                LEFT JOIN tb_pb210 i ON t.workcd = i.workcd
                 WHERE t.perid = :personid
-        		""";
+                """;
+
         if (workcd != null && !workcd.isEmpty()) {
             dicParam.addValue("workcd", workcd);
             sql += " AND t.workcd = :workcd";
@@ -76,7 +81,9 @@ public class AttendanceCurrentService {
         sql += " ORDER BY t.reqdate DESC";
 
         List<Map<String, Object>> items = this.sqlRunner.getRows(sql, dicParam);
-        return items;
+
+        // null 방어 처리
+        return items != null ? items : Collections.emptyList();
     }
 
     // 휴가결재데이터 조회(appnum)
@@ -89,7 +96,7 @@ public class AttendanceCurrentService {
                 SELECT *
                 FROM tb_e080
                 WHERE appnum = :appnum
-        		""";
+                """;
 
         Map<String, Object> item = this.sqlRunner.getRow(sql, dicParam);
         return item;
