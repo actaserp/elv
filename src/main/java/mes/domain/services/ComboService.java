@@ -964,7 +964,7 @@ public class ComboService {
 
 	ComboDataFunction workcd=(String cond1, String cond2, String cond3)-> {
 		String sql = """
-				select "workcd" as Value , "worknm" as text from tb_pb210 where spjangcd = :spjangcd
+				select "workcd" as value , "worknm" as text from tb_pb210 where spjangcd = :spjangcd
 				""";
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		String tenantId = TenantContext.get();
