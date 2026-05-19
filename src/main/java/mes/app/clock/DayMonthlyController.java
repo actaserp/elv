@@ -1,5 +1,6 @@
 package mes.app.clock;
 
+import lombok.extern.slf4j.Slf4j;
 import mes.app.clock.service.DayMonthlyService;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +11,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.transaction.Transactional;
 import java.util.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/clock/DayMonthly")
 public class DayMonthlyController {
@@ -29,6 +31,8 @@ public class DayMonthlyController {
             HttpServletRequest request,
             Authentication auth) {
 
+        long start = System.currentTimeMillis();
+
         AjaxResult result = new AjaxResult();
 
         if (serchday != null && serchday.contains("-")) {
@@ -37,6 +41,10 @@ public class DayMonthlyController {
 
         List<Map<String, Object>> items = this.dayMonthlyService.getDayList(work_division, serchday, spjangcd, depart);
         result.data = items;
+
+        long end = System.currentTimeMillis();
+        log.info("getDayList Controller 총 실행시간: {}ms", (end - start));
+
         return result;
     }
 
