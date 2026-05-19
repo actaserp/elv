@@ -45,7 +45,7 @@ public class DayMonthlyService {
         paramMap.addValue("spjangcd", spjangcd);
 
         String sql = """
-                SELECT
+                SELECT 
                         ROW_NUMBER() OVER (ORDER BY p.Name) AS row_num,
                         t.workym,
                         t.workday,
