@@ -1,5 +1,6 @@
 package mes.app.clock.service;
 
+import lombok.extern.slf4j.Slf4j;
 import mes.domain.services.SqlRunner;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -13,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class DayMonthlyService {
 
@@ -121,7 +123,13 @@ public class DayMonthlyService {
                     )
                 """;
 
-        return this.sqlRunner.getRows(sql, paramMap);
+        long start = System.currentTimeMillis();
+        List<Map<String, Object>> result = this.sqlRunner.getRows(sql, paramMap);
+        long end = System.currentTimeMillis();
+        log.info("getDayList 쿼리 실행시간: {}ms / spjangcd={}, workym={}, workday={}",
+                (end - start), spjangcd, workym, workday);
+
+        return result;
     }
 
     // =========================================================
