@@ -259,6 +259,45 @@ public class UserController {
 
 		this.sqlRunner.execute(sql, dicParam);
 
+		// ── 1.5단계: 신규 등록 + person_code 있고 + personid 없을 때만 사업체DB auth_user INSERT ──
+		if (id == null && person_code != null && !person_code.isEmpty()
+				&& (personid == null || personid.isEmpty())) {
+			try {
+				// person_code = "p001" 형태 → "p" 제거 → "001" 이 사업체 DB username
+				String tenantUsername = person_code.startsWith("p")
+						? person_code.substring(1)
+						: person_code;
+
+				String tenantAuthSql = """
+            INSERT INTO auth_user
+            (password, last_login, is_superuser, username, first_name, last_name,
+             email, is_staff, is_active, date_joined, spjangcd, tel, db_key, personid)
+            VALUES
+            (:password, NULL, :is_superuser, :username, :first_name, :last_name,
+             :email, :is_staff, :is_active, GETDATE(), :spjangcd, :tel, :db_key, :personid)
+        """;
+				MapSqlParameterSource tenantAuthParam = new MapSqlParameterSource();
+				tenantAuthParam.addValue("password",     user.getPassword());
+				tenantAuthParam.addValue("is_superuser", false);
+				tenantAuthParam.addValue("username",     tenantUsername);
+				tenantAuthParam.addValue("first_name",   Name);
+				tenantAuthParam.addValue("last_name",    "");
+				tenantAuthParam.addValue("email",        email != null ? email : "");
+				tenantAuthParam.addValue("is_staff",     false);
+				tenantAuthParam.addValue("is_active",    is_active);
+				tenantAuthParam.addValue("spjangcd",     user.getSpjangcd());
+				tenantAuthParam.addValue("tel",          tel);
+				tenantAuthParam.addValue("db_key",       dbKey);
+				tenantAuthParam.addValue("personid",     user.getPersonid());
+
+				this.tenantSqlRunner.execute(tenantAuthSql, tenantAuthParam);
+			} catch (Exception e) {
+				result.success = false;
+				result.message = "사업체DB auth_user 등록에 실패했습니다: " + e.getMessage();
+				return result;
+			}
+		}
+
 		// ── 2단계: person_code 있을 때 MS DB에 person INSERT ──────
 		// personid가 비어있고 person_code가 있을 때만 신규 생성
 		if ((personid == null || personid.equals(""))
