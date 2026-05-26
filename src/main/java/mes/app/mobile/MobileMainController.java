@@ -3,6 +3,7 @@ package mes.app.mobile;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import mes.app.common.TenantUserService;
 import mes.app.mobile.Service.MobileMainService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
@@ -28,17 +29,17 @@ public class MobileMainController {
     @Autowired
     MobileMainService mobileMainService;
 
+    @Autowired
+    TenantUserService tenantUserService;
+
     private static final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
 
-    // =========================================================
-    // 사용자 정보 조회
-    // =========================================================
     @GetMapping("/read_userInfo")
     public AjaxResult getUserInfo(HttpServletRequest request, Authentication auth) {
         AjaxResult result = new AjaxResult();
         User user       = (User) auth.getPrincipal();
         String username = user.getUsername();
-        String spjangcd = user.getSpjangcd();
+        String spjangcd = tenantUserService.getSpjangcd(username); // ← 수정
 
         Map<String, Object> userInfo     = mobileMainService.getUserInfo(username);
         Map<String, Object> timeInfo     = mobileMainService.getInOfficeTime(username, spjangcd);
@@ -66,9 +67,6 @@ public class MobileMainController {
         return result;
     }
 
-    // =========================================================
-    // 출근 (일반 출근 + 추가근무 출근 통합)
-    // =========================================================
     @PostMapping("/submitCommute")
     public AjaxResult submitCommute(
             @RequestParam(value = "weekNum")                      Integer weekNum,
@@ -87,7 +85,7 @@ public class MobileMainController {
         AjaxResult result = new AjaxResult();
         User user       = (User) auth.getPrincipal();
         String username = user.getUsername();
-        String spjangcd = user.getSpjangcd();
+        String spjangcd = tenantUserService.getSpjangcd(username); // ← 수정
 
         Map<String, Object> personInfo = mobileMainService.getPersonId(username);
         String perId    = personInfo.get("personid").toString();
@@ -96,21 +94,17 @@ public class MobileMainController {
         LocalTime currentTime       = LocalDateTime.now().toLocalTime();
         String    formattedCurrTime = currentTime.format(timeFormatter);
 
-        // idx 계산
         int nextIdx = !isOvertime ? 1 : mobileMainService.findMaxIdx(spjangcd, perId, workym, workday) + 1;
 
-        // 지각 판정 및 workcd 처리
         int    jitime      = 0;
         String finalWorkcd = workcd;
 
         if (!isOvertime) {
-            // 일반 출근
             Map<String, Object> existing = mobileMainService.findRecord(spjangcd, perId, workym, workday, 1);
             String sttime     = (String) mobileMainService.getWorkTime(workType).get("sttime");
             LocalTime lateTime = LocalTime.parse(sttime, timeFormatter).plusMinutes(1);
 
             if (existing != null) {
-                // 기존 데이터(연차/반차 등) 유지, 출근시간만 갱신
                 jitime     = 0;
                 finalWorkcd = (String) existing.get("workcd");
             } else {
@@ -118,12 +112,10 @@ public class MobileMainController {
                 finalWorkcd = "outOfficeIn".equals(office) ? workcd : null;
             }
         } else {
-            // 추가근무 출근 - 지각 없음
             jitime     = 0;
             finalWorkcd = "outOfficeIn".equals(office) ? workcd : null;
         }
 
-        // GPS 처리
         String inFlag         = office.startsWith("inOffice") ? "0" : "1";
         String finalAddress   = "1".equals(inFlag) ? gpsInfo   : null;
         String finalLatitude  = "1".equals(inFlag) ? latitude  : null;
@@ -145,9 +137,6 @@ public class MobileMainController {
         return result;
     }
 
-    // =========================================================
-    // 퇴근 (일반 퇴근 + 추가근무 퇴근 통합)
-    // =========================================================
     @PostMapping("/modifyCommute")
     public AjaxResult modifyCommute(
             @RequestParam(value = "office")                       String office,
@@ -164,7 +153,7 @@ public class MobileMainController {
         AjaxResult result = new AjaxResult();
         User user       = (User) auth.getPrincipal();
         String username = user.getUsername();
-        String spjangcd = user.getSpjangcd();
+        String spjangcd = tenantUserService.getSpjangcd(username); // ← 수정
 
         Map<String, Object> personInfo = mobileMainService.getPersonId(username);
         String perId    = personInfo.get("personid").toString();
@@ -173,7 +162,6 @@ public class MobileMainController {
         LocalTime currentTime       = LocalDateTime.now().toLocalTime();
         String    formattedCurrTime = currentTime.format(timeFormatter);
 
-        // 오늘 전체 레코드 조회 → endtime 없는 것 중 가장 큰 idx 선택
         List<Map<String, Object>> todayRecords =
                 mobileMainService.findTodayAllRecords(spjangcd, perId, workym, workday);
 
@@ -195,14 +183,10 @@ public class MobileMainController {
         String  entityStarttime = entity.get("starttime") != null ? entity.get("starttime").toString() : null;
         int     entityJitime    = entity.get("jitime")    != null ? ((Number) entity.get("jitime")).intValue() : 0;
 
-        log.info("퇴근 처리 idx={}, 추가근무여부={}", targetIdx, isOvertimeOut);
-
-        // 근무설정 조회
         Map<String, Object> workTimeInfo = mobileMainService.getWorkTime(workType);
         String    endtimeStr    = (String) workTimeInfo.get("endtime");
         LocalTime endtimeParsed = LocalTime.parse(endtimeStr, timeFormatter);
 
-        // 사내/외부 퇴근 처리
         String inFlag;
         String finalWorkcd;
         String finalAddress   = null;
@@ -220,7 +204,6 @@ public class MobileMainController {
             if (longitude != null) finalLongitude = longitude;
         }
 
-        // 조퇴 판단
         int jotFlag = 0;
         if (!isOvertimeOut) {
             boolean isBanchaOrYeoncha = "04".equals(finalWorkcd) || "08".equals(finalWorkcd);
@@ -229,10 +212,8 @@ public class MobileMainController {
             }
         }
 
-        // 정상근무여부
         String workyn = (entityJitime == 1 || jotFlag == 1) ? "0" : "1";
 
-        // 근무시간 계산
         String sttime    = (String) workTimeInfo.get("sttime");
         String ovsttime  = (String) workTimeInfo.get("ovsttime");
         String ovedtime  = (String) workTimeInfo.get("ovedtime");
@@ -274,12 +255,10 @@ public class MobileMainController {
             holitime  = BigDecimal.ZERO;
         }
 
-        // 유연근무 여부 확인
         String today = workym + workday;
         Map<String, Object> flexibleWork = mobileMainService.findFlexibleWork(perId, today, "13");
         boolean isFlexibleWork = (flexibleWork != null) && !isOvertimeOut;
 
-        // 휴일 여부에 따른 근무시간 최종 결정
         BigDecimal finalWorktime, finalNomaltime, finalOvertime, finalNighttime, finalHolitime;
 
         if ("0".equals(entityHoliyn)) {
@@ -290,7 +269,6 @@ public class MobileMainController {
                 finalOvertime  = BigDecimal.ZERO;
                 finalNighttime = BigDecimal.ZERO;
                 finalHolitime  = BigDecimal.ZERO;
-                log.info("유연근무자 근무시간: {}", flexTime);
             } else {
                 finalWorktime  = totalTime;
                 finalNomaltime = normalTime;
@@ -305,8 +283,6 @@ public class MobileMainController {
             finalNighttime = BigDecimal.ZERO;
             finalHolitime  = totalTime;
         }
-
-        log.info("퇴근 처리 완료 - idx={}, 총근무시간={}, 추가근무시간={}", targetIdx, finalWorktime, finalOvertime);
 
         try {
             mobileMainService.saveEndtime(
@@ -323,9 +299,6 @@ public class MobileMainController {
         return result;
     }
 
-    // =========================================================
-    // 좌표 → 주소 변환
-    // =========================================================
     @PostMapping("/switchAddress")
     public AjaxResult switchAddress(@RequestParam("lat") String lat,
                                     @RequestParam("lon") String lon) {
@@ -358,9 +331,6 @@ public class MobileMainController {
         return result;
     }
 
-    // =========================================================
-    // 근무시간 계산 유틸 메서드
-    // =========================================================
     private BigDecimal calculateFlexibleWorkTime(LocalTime start, LocalTime end,
                                                  LocalTime restStart, LocalTime restEnd) {
         long totalMinutes;

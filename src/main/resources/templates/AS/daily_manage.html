@@ -413,7 +413,7 @@
                     <td class="fixed-col fixed-rank">${esc(person.clanm)}</td>`;
                 for (let d = 1; d <= daysInMonth; d++) {
                     const dow = new Date(year, month - 1, d).getDay();
-                    if (written.has(d))              row += `<td class="val-x">X</td>`;
+                    if (written.has(d))              row += `<td class="val-x">√</td>`;
                     else if (dow === 0 || dow === 6) row += `<td></td>`;
                     else                             row += `<td class="val-0">0</td>`;
                 }

@@ -188,6 +188,7 @@ public class UserController {
 			user.setSuperUser(false);
 			user.setLast_name("");
 			user.setIs_staff(false);
+			user.setDbKey(dbKey);
 
 			dicParam.addValue("loginUser", loginUser.getId());
 			sql = """
@@ -271,10 +272,10 @@ public class UserController {
 				String tenantAuthSql = """
             INSERT INTO auth_user
             (password, last_login, is_superuser, username, first_name, last_name,
-             email, is_staff, is_active, date_joined, spjangcd, tel, db_key, personid)
+             email, is_staff, is_active, date_joined, spjangcd, tel, personid)
             VALUES
             (:password, NULL, :is_superuser, :username, :first_name, :last_name,
-             :email, :is_staff, :is_active, GETDATE(), :spjangcd, :tel, :db_key, :personid)
+             :email, :is_staff, :is_active, GETDATE(), :spjangcd, :tel, :personid)
         """;
 				MapSqlParameterSource tenantAuthParam = new MapSqlParameterSource();
 				tenantAuthParam.addValue("password",     user.getPassword());
@@ -287,7 +288,6 @@ public class UserController {
 				tenantAuthParam.addValue("is_active",    is_active);
 				tenantAuthParam.addValue("spjangcd",     user.getSpjangcd());
 				tenantAuthParam.addValue("tel",          tel);
-				tenantAuthParam.addValue("db_key",       dbKey);
 				tenantAuthParam.addValue("personid",     user.getPersonid());
 
 				this.tenantSqlRunner.execute(tenantAuthSql, tenantAuthParam);
@@ -327,7 +327,7 @@ public class UserController {
 					MapSqlParameterSource personParam = new MapSqlParameterSource();
 					personParam.addValue("Name", Name);
 					personParam.addValue("Code", person_code);
-					personParam.addValue("Depart_id", Depart_id);
+					personParam.addValue("Depart_id", Depart_id != null && !Depart_id.isEmpty() ? Integer.valueOf(Depart_id) : null);
 					personParam.addValue("Factory_id", Factory_id);
 					personParam.addValue("spjangcd", spjangcd);
 					personParam.addValue("creater_id", loginUser.getId());

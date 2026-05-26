@@ -1,6 +1,7 @@
 package mes.app.mobile;
 
 import lombok.extern.slf4j.Slf4j;
+import mes.app.common.TenantUserService;
 import mes.app.mobile.Service.RequestRepairService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
@@ -10,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
-import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -21,6 +21,9 @@ public class RequestRepairController {
 
     @Autowired
     RequestRepairService requestRepairService;
+
+    @Autowired
+    TenantUserService tenantUserService;
 
     // ── 사용자 정보 조회 ───────────────────────────────────────
     @GetMapping("/read_userInfo")
@@ -37,11 +40,12 @@ public class RequestRepairController {
             @RequestParam(value = "fromDate", required = false) String fromDate,
             @RequestParam(value = "toDate",   required = false) String toDate,
             @RequestParam(value = "actnm",    required = false) String actnm,
-            @RequestParam(value = "spjangcd", required = false) String spjangcd,
             HttpServletRequest request,
             Authentication auth) {
 
         AjaxResult result = new AjaxResult();
+        User user = (User) auth.getPrincipal();
+        String spjangcd = tenantUserService.getSpjangcd(user.getUsername()); // ← 수정
         result.data = requestRepairService.getRepairList(fromDate, toDate, actnm, spjangcd);
         return result;
     }
@@ -49,11 +53,12 @@ public class RequestRepairController {
     // ── 현장 목록 조회 (TB_E601) ─────────────────────────────
     @GetMapping("/read_act")
     public AjaxResult getActList(
-            @RequestParam(value = "spjangcd", required = false) String spjangcd,
             HttpServletRequest request,
             Authentication auth) {
 
         AjaxResult result = new AjaxResult();
+        User user = (User) auth.getPrincipal();
+        String spjangcd = tenantUserService.getSpjangcd(user.getUsername()); // ← 수정
         result.data = requestRepairService.getActList(spjangcd);
         return result;
     }
@@ -61,12 +66,13 @@ public class RequestRepairController {
     // ── 호기 목록 조회 (TB_E611) ─────────────────────────────
     @GetMapping("/read_equp")
     public AjaxResult getEqupList(
-            @RequestParam(value = "actcd",    required = false) String actcd,
-            @RequestParam(value = "spjangcd", required = false) String spjangcd,
+            @RequestParam(value = "actcd", required = false) String actcd,
             HttpServletRequest request,
             Authentication auth) {
 
         AjaxResult result = new AjaxResult();
+        User user = (User) auth.getPrincipal();
+        String spjangcd = tenantUserService.getSpjangcd(user.getUsername()); // ← 수정
         result.data = requestRepairService.getEqupList(actcd, spjangcd);
         return result;
     }
@@ -74,7 +80,6 @@ public class RequestRepairController {
     // ── 고장접수 등록 (TB_E401 INSERT) ───────────────────────
     @PostMapping("/save")
     public AjaxResult saveRepair(
-            @RequestParam(value = "spjangcd",  required = false) String spjangcd,
             @RequestParam(value = "recedate",  required = false) String recedate,
             @RequestParam(value = "recetime",  required = false) String recetime,
             @RequestParam(value = "hitchdate", required = false) String hitchdate,
@@ -92,14 +97,23 @@ public class RequestRepairController {
 
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
-        String perid = user.getUsername();
+        String username = user.getUsername();
+
+        // 사업체DB에서 spjangcd, custcd 조회 ← 수정
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(username);
+        if (userInfo == null) {
+            result.success = false;
+            result.message = "사업체 DB에서 사용자 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        String spjangcd = (String) userInfo.get("spjangcd");
 
         try {
             requestRepairService.saveRepair(
                     spjangcd, recedate, recetime,
                     hitchdate, hitchhour,
                     actcd, actnm, equpcd, equpnm,
-                    contents, remark, reperid, bigo, perid
+                    contents, remark, reperid, bigo, username
             );
             result.success = true;
             result.message = "고장접수가 등록되었습니다.";

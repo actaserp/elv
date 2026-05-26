@@ -26,11 +26,9 @@ public class KtCallController {
      */
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(
-            @RequestBody Map<String, String> body,
+            @RequestParam String userId,
+            @RequestParam String password,
             Authentication auth) {
-
-        String userId   = body.get("userId");
-        String password = body.get("password");
 
         if (userId == null || userId.isBlank() ||
             password == null || password.isBlank()) {
@@ -42,15 +40,10 @@ public class KtCallController {
         return ResponseEntity.ok(result);
     }
 
-    /**
-     * KT API 로그아웃
-     * POST /api/kt-call/logout
-     */
     @PostMapping("/logout")
     public ResponseEntity<Map<String, Object>> logout(
-            @RequestBody Map<String, String> body) {
+            @RequestParam String userId) {
 
-        String userId = body.get("userId");
         ktCallService.logout(userId);
         return ResponseEntity.ok(Map.of("success", true, "message", "로그아웃 되었습니다."));
     }

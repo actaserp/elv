@@ -262,12 +262,12 @@
                                             <td>
                                                 <select style="width: 100%;" id="spjangcd" name="spjangcd"></select>
                                             </td>
-                                            <th style="display:none;">
-                                                <label for="lang_code">언어</label>
-                                            </th>
-                                            <td style="display:none;">
-                                                <select style="width: 100%;" id="lang_code" name="lang_code"></select>
-                                            </td>
+<!--                                            <th style="display:none;">-->
+<!--                                                <label for="lang_code">언어</label>-->
+<!--                                            </th>-->
+<!--                                            <td style="display:none;">-->
+<!--                                                <select style="width: 100%;" id="lang_code" name="lang_code"></select>-->
+<!--                                            </td>-->
                                             <!--                                        <th><label for="spjangcd">사업장</label></th>-->
                                             <!--                                        <td>-->
                                             <!--                                            <select style="width: 100%;" id="spjangcd" name="spjangcd"></select>-->
@@ -474,7 +474,7 @@
             {binding: 'email', header: '이메일', width: 200, align: 'center'},
             {binding: 'group_name', header: '사용자그룹', width: 120, align: 'center'},
             {binding: 'dept_name', header: '부서', width: 150, align: 'center'},
-            {binding: 'lang_code', header: '언어', width: 100, align: 'center'},
+            {binding: 'lang_code', header: '언어', width: 100, align: 'center', visible: false},
             {
                 binding: 'is_active',
                 header: '활성화',
@@ -693,7 +693,7 @@
 
                 setSelectValue('UserGroup_id', data.group_name || '사용자');
                 setSelectValueByValue('Depart_id', data.divicd);
-                setSelectValue('lang_code', data.lang_code);
+                // setSelectValue('lang_code', data.lang_code);
 
                 if (data.spjangcd) {
                     setSelectValueByValue('spjangcd', data.spjangcd);
@@ -760,7 +760,7 @@
                 tel: item.tel,
                 factory_name: item.factory_name,
                 dept_name: item.dept_name,
-                lang_code: item.lang_code,
+                // lang_code: item.lang_code,
                 is_active: item.is_active,
                 date_joined: item.date_joined,
             }));
@@ -1176,7 +1176,7 @@
         $(document).ready(function (e) {
             setButtonState();
             AjaxUtil.fillSelectOptions($('#cboUserGroup'), 'user_group', 'all', false);
-            AjaxUtil.fillSelectOptions($('#lang_code'), 'system_code', '', false, 'lang_code');
+            // AjaxUtil.fillSelectOptions($('#lang_code'), 'system_code', '', false, 'lang_code');
             AjaxUtil.fillSelectOptions($('#UserGroup_id'), 'user_group', '', false);
             //AjaxUtil.fillSelectOptions($('#Factory_id'), 'factory', '', false);
             AjaxUtil.fillSelectOptions($('#Depart_id'), 'depart', 'choose', false);
