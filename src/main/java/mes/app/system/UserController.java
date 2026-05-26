@@ -152,30 +152,6 @@ public class UserController {
 
 		// ── 신규 저장 ──────────────────────────────────────────
 		if (id == null) {
-			String limitSql = """
-            select bp.user_limit, count(up."User_id") as current_count
-            from tb_xa012 xa
-            inner join bill_plans bp on bp.id = xa.bill_plans_id
-            left join user_profile up on up.spjangcd = xa.spjangcd and up."User_id" in (
-                select id from auth_user where spjangcd = :spjangcd and is_active = true
-            )
-            where xa.db_key = :dbKey
-            group by bp.user_limit
-        """;
-			MapSqlParameterSource limitParam = new MapSqlParameterSource();
-			limitParam.addValue("dbKey", dbKey);
-			Map<String, Object> limitMap = this.sqlRunner.getRow(limitSql, limitParam);
-
-//			if (limitMap != null) {
-//				int userLimit = ((Number) limitMap.get("user_limit")).intValue();
-//				int currentCount = ((Number) limitMap.get("current_count")).intValue();
-//
-//				if (currentCount >= userLimit) {
-//					result.success = false;
-//					result.message = "사용자 수 제한(" + userLimit + "명)에 도달했습니다. 플랜을 업그레이드해주세요.";
-//					return result;
-//				}
-//			}
 
 			if (!username_chk) {
 				result.success = false;
@@ -184,17 +160,17 @@ public class UserController {
 			}
 
 			user = new User();
-			user.setPassword(Pbkdf2Sha256.encode("1"));
+			user.setPassword(Pbkdf2Sha256.encode(login_id.length() >= 4 ? login_id.substring(login_id.length() - 4) : login_id));
 			user.setSuperUser(false);
-			user.setLast_name("");
+			user.setLast_name(Name);
 			user.setIs_staff(false);
 			user.setDbKey(dbKey);
 
 			dicParam.addValue("loginUser", loginUser.getId());
 			sql = """
 					INSERT INTO user_profile
-					("_created", "_creater_id", "User_id", "lang_code", "Name", "Factory_id", "UserGroup_id", "spjangcd") 
-					VALUES (now(), :loginUser, :User_id, :lang_code, :name, :Factory_id, :UserGroup_id, :spjangcd)
+					("_created", "_creater_id", "User_id", "lang_code", "Name", "Factory_id", "UserGroup_id", "Depart_id", "spjangcd") 
+					VALUES (now(), :loginUser, :User_id, :lang_code, :name, :Factory_id, :UserGroup_id, :Depart_id, :spjangcd)
 			""";
 
 			// ── 기존 수정 ──────────────────────────────────────────
@@ -218,8 +194,8 @@ public class UserController {
 			if (count == 0) {
 				sql = """
 						INSERT INTO user_profile 
-						("_created", "_creater_id", "User_id", "lang_code", "Name", "Factory_id", "UserGroup_id", "spjangcd") 
-						VALUES (now(), :loginUser, :User_id, :lang_code, :name, :Factory_id, :UserGroup_id, :spjangcd)
+						("_created", "_creater_id", "User_id", "lang_code", "Name", "Factory_id", "UserGroup_id", "Depart_id", "spjangcd") 
+						VALUES (now(), :loginUser, :User_id, :lang_code, :name, :Factory_id, :UserGroup_id, :Depart_id, :spjangcd)
 					""";
 				dicParam.addValue("loginUser", loginUser.getId());
 			} else {
@@ -228,7 +204,8 @@ public class UserController {
 						"lang_code" = :lang_code,
 						"Name" = :name,
 						"Factory_id" = :Factory_id,
-						"UserGroup_id" = :UserGroup_id
+						"UserGroup_id" = :UserGroup_id,
+						"Depart_id" = :Depart_id
 						WHERE "User_id" = :User_id
 						AND "spjangcd" = :spjangcd
 				""";
@@ -242,6 +219,7 @@ public class UserController {
 		user.setFirst_name(Name);
 		user.setEmail(email);
 		user.setTel(tel);
+		user.setLast_name(Name);
 		if (personid != null && !personid.equals("")) {
 			user.setPersonid(Integer.valueOf(personid));
 		}
@@ -256,7 +234,7 @@ public class UserController {
 		dicParam.addValue("Depart_id", Depart_id);
 		dicParam.addValue("lang_code", lang_code);
 		dicParam.addValue("User_id", user.getId());
-		dicParam.addValue("spjangcd", TenantContext.get());
+		dicParam.addValue("spjangcd", dbKey);
 
 		this.sqlRunner.execute(sql, dicParam);
 
@@ -298,38 +276,37 @@ public class UserController {
 			}
 		}
 
-		// ── 2단계: person_code 있을 때 MS DB에 person INSERT ──────
-		// personid가 비어있고 person_code가 있을 때만 신규 생성
-		if ((personid == null || personid.equals(""))
-					&& (person_code != null && !person_code.equals(""))) {
+		// ── 2단계: personid 없을 때 MS DB에 person INSERT ──────
+		// personid가 비어으면동작(기존등록 사용자가 아닌 신규등록)
+		if (personid == null || personid.equals("")) {
 			try {
 				// person Code 중복 체크
 				String personChkSql = "SELECT id FROM person WHERE Code = :Code AND spjangcd = :spjangcd";
 				MapSqlParameterSource personChkParam = new MapSqlParameterSource();
 				personChkParam.addValue("Code", person_code);
-				personChkParam.addValue("spjangcd", spjangcd);
-				Map<String, Object> existPerson = this.tenantSqlRunner.getRow(personChkSql, personChkParam);  // ← MS DB용 sqlRunner
+				personChkParam.addValue("spjangcd", selectedSpjangcd != null && !selectedSpjangcd.isEmpty() ? selectedSpjangcd : spjangcd);
+				List<Map<String, Object>> existPersonList = this.tenantSqlRunner.getRows(personChkSql, personChkParam);
 
-				if (existPerson != null) {
+				if (!existPersonList.isEmpty()) {
 					// 이미 존재하면 해당 id를 personid로 사용
-					Integer existPersonId = ((Number) existPerson.get("id")).intValue();
+					Integer existPersonId = ((Number) existPersonList.get(0).get("id")).intValue();
 					user.setPersonid(existPersonId);
 					this.userRepository.save(user);
 				} else {
 					// person INSERT
 					String personInsertSql = """
                     INSERT INTO person
-                    ([Name], [Code], [Depart_id], [Factory_id], spjangcd, _created, _creater_id)
+                    ([Name], [Code], [Depart_id], [Factory_id], spjangcd, rtflag, _created, _creater_id)
                     OUTPUT INSERTED.id
-                    VALUES (:Name, :Code, :Depart_id, :Factory_id, :spjangcd, SYSDATETIMEOFFSET(), :creater_id)
+                    VALUES (:Name, :Code, :Depart_id, :Factory_id, :spjangcd, '0', SYSDATETIMEOFFSET(), :creater_id)
                 """;
 
 					MapSqlParameterSource personParam = new MapSqlParameterSource();
 					personParam.addValue("Name", Name);
 					personParam.addValue("Code", person_code);
-					personParam.addValue("Depart_id", Depart_id != null && !Depart_id.isEmpty() ? Integer.valueOf(Depart_id) : null);
+					personParam.addValue("Depart_id", 28);
 					personParam.addValue("Factory_id", Factory_id);
-					personParam.addValue("spjangcd", spjangcd);
+					personParam.addValue("spjangcd", selectedSpjangcd != null && !selectedSpjangcd.isEmpty() ? selectedSpjangcd : spjangcd);
 					personParam.addValue("creater_id", loginUser.getId());
 
 					// ── 3단계: INSERT 후 생성된 id → auth_user.personid 저장 ──

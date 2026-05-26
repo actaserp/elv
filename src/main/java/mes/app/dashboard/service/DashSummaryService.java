@@ -797,9 +797,11 @@ public class DashSummaryService {
                 t.endtime
             FROM TB_PB201 t
             LEFT JOIN person p
-                ON p.id=t.perid
+                ON TRY_CAST(t.perid AS INT) IS NOT NULL
+                AND p.id = TRY_CAST(t.perid AS INT)
             LEFT JOIN auth_user au
-                ON au.personid = t.perid
+                ON TRY_CAST(t.perid AS INT) IS NOT NULL
+                AND au.personid = TRY_CAST(t.perid AS INT)
             WHERE t.spjangcd = :spjangcd
             AND t.workym = :workym
             AND t.workday = :workday

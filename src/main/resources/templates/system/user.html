@@ -259,7 +259,7 @@
                                                 <label for="spjangcd">사업장</label>
                                             </th>
 
-                                            <td>
+                                            <td colspan="2">
                                                 <select style="width: 100%;" id="spjangcd" name="spjangcd"></select>
                                             </td>
 <!--                                            <th style="display:none;">-->
@@ -798,12 +798,16 @@
             data.spjangcd = $('#spjangcd').val();
 
             if (!data.login_id) {
-                Alert.alert('', '사번을 입력해 주세요');
+                Alert.alert('', '아이디를 입력해 주세요');
                 return;
             } else if (!data.Name) {
                 Alert.alert('', '이름을 입력해 주세요');
                 return;
-            }/*else if(!data.UserGroup_id){
+            } else if (!data.person_code) {
+                Alert.alert('', '사용자의 사번을 선택해주세요');
+                return;
+            }
+            /*else if(!data.UserGroup_id){
                 Alert.alert('','사용자그룹을 선택해 주세요');
                 return;
             }*/

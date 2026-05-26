@@ -31,7 +31,7 @@ public class MobileMainService {
                 SELECT TOP 1
                     a.first_name,
                     a.last_name,
-                    a.divinm,
+                    jc.divinm,
                     t.starttime,
                     d.[Name],
                     s.[Value] as jik_id,

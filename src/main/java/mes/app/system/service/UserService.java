@@ -221,7 +221,7 @@ public class UserService {
 
 	// 테넌트 DB의 tb_xa012에서 사업장 목록 조회
 	public List<Map<String, Object>> getSpjangcdList() {
-		String sql = "SELECT spjangcd, spjangnm FROM tb_xa012 ORDER BY spjangcd";
+		String sql = "SELECT spjangcd, spjangnm FROM tb_xa012 ORDER BY spjangcd DESC";
 		return this.tenantSqlRunner.getRows(sql, new MapSqlParameterSource());
 	}
 
