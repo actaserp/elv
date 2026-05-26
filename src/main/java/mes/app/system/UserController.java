@@ -309,12 +309,32 @@ public class UserController {
 					personParam.addValue("spjangcd", selectedSpjangcd != null && !selectedSpjangcd.isEmpty() ? selectedSpjangcd : spjangcd);
 					personParam.addValue("creater_id", loginUser.getId());
 
-					// ── 3단계: INSERT 후 생성된 id → auth_user.personid 저장 ──
+					// ── 3단계: INSERT 후 생성된 id → 본사DB + 사업체DB auth_user.personid 저장 ──
 					Map<String, Object> insertedRow = this.tenantSqlRunner.getRow(personInsertSql, personParam);
 					if (insertedRow != null) {
 						Integer newPersonId = ((Number) insertedRow.get("id")).intValue();
+
+						// 본사DB auth_user.personid UPDATE
 						user.setPersonid(newPersonId);
 						this.userRepository.save(user);
+
+						// 사업체DB auth_user.personid UPDATE
+						if (person_code != null && !person_code.isEmpty()) {
+							String tenantUsername = person_code.startsWith("p")
+									? person_code.substring(1)
+									: person_code;
+							String updateTenantAuthSql = """
+									UPDATE auth_user
+									SET personid = :personid
+									WHERE username = :username
+									AND spjangcd = :spjangcd
+							""";
+							MapSqlParameterSource updateTenantParam = new MapSqlParameterSource();
+							updateTenantParam.addValue("personid",  newPersonId);
+							updateTenantParam.addValue("username",  tenantUsername);
+							updateTenantParam.addValue("spjangcd",  selectedSpjangcd != null && !selectedSpjangcd.isEmpty() ? selectedSpjangcd : spjangcd);
+							this.tenantSqlRunner.execute(updateTenantAuthSql, updateTenantParam);
+						}
 					}
 				}
 
