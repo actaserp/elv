@@ -34,7 +34,7 @@ public class AttendanceSubmitService {
                           an.restnum,
                           t.sttime
                       FROM auth_user a
-                      LEFT JOIN tb_pb209 an ON an.perid = a.personid
+                      LEFT JOIN tb_pb209 an ON TRY_CAST(an.perid AS INT) IS NOT NULL AND TRY_CAST(an.perid AS INT) = a.personid
                       LEFT JOIN person p ON p.id = a.personid
                       LEFT JOIN tb_pbcont t ON t.flag = RIGHT('0' + CAST(p.PersonGroup_id AS VARCHAR), 2)
                       WHERE a.username = :username
@@ -163,7 +163,7 @@ public class AttendanceSubmitService {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
         param.addValue("appnum", appnum);
-        param.addValue("kcperid", kcperid);   // tb_e080.perid 컬럼에 INSERT
+        param.addValue("kcperid", kcperid);
         param.addValue("seq", seq);
         param.addValue("title", title);
         param.addValue("flag", flag);
@@ -176,10 +176,10 @@ public class AttendanceSubmitService {
 
         String sql = """
                 INSERT INTO tb_e080
-                    (spjangcd, appnum, perid, seq, title, flag, repoperid, appgubun,
+                    (spjangcd, appnum, perid, appperid, seq, title, flag, repoperid, appgubun,
                      papercd, inperid, indate, gubun)
                 VALUES
-                    (:spjangcd, :appnum, :kcperid, :seq, :title, :flag, :repoperid, :appgubun,
+                    (:spjangcd, :appnum, :kcperid, :kcperid, :seq, :title, :flag, :repoperid, :appgubun,
                      :papercd, :inperid, :indate, :gubun)
                 """;
 

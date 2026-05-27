@@ -41,20 +41,31 @@ public class ClockYearlyService {
                        WHERE [CodeType] = 'jik_type'
                    ) s ON s.[Code] = p.jik_id
                    LEFT JOIN (
-                       SELECT perid, SUM(daynum) AS daynum
+                       SELECT
+                           TRY_CAST(perid AS INT) AS perid,
+                           SUM(daynum) AS daynum
                        FROM tb_pb204
-                       where fixflag = '1'
-                       GROUP BY perid
-                   ) tb204 ON p.id = tb204.perid
+                       WHERE fixflag = '1'
+                         AND TRY_CAST(perid AS INT) IS NOT NULL
+                       GROUP BY TRY_CAST(perid AS INT)
+                   ) tb204
+                   ON p.id = tb204.perid
+                
                    LEFT JOIN (
                        SELECT t.*
                        FROM tb_pb209 t
                        INNER JOIN (
-                           SELECT perid, MAX(reqdate) AS max_reqdate
+                           SELECT
+                               TRY_CAST(perid AS INT) AS perid,
+                               MAX(reqdate) AS max_reqdate
                            FROM tb_pb209
-                           GROUP BY perid
-                       ) latest ON t.perid = latest.perid AND t.reqdate = latest.max_reqdate
-                   ) tb209 ON p.id = tb209.perid
+                           WHERE TRY_CAST(perid AS INT) IS NOT NULL
+                           GROUP BY TRY_CAST(perid AS INT)
+                       ) latest
+                           ON TRY_CAST(t.perid AS INT) = latest.perid
+                          AND t.reqdate = latest.max_reqdate
+                   ) tb209
+                   ON p.id = TRY_CAST(tb209.perid AS INT)
                    LEFT JOIN auth_user au ON au.personid = p.id
                    left join tb_xusers u on u.userid =au.username and au.last_name =u.pernm
                    LEFT JOIN tb_ja001 j  ON j.perid = CONCAT('p', u.perid)

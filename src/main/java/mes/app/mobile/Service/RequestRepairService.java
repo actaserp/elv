@@ -31,7 +31,7 @@ public class RequestRepairService {
                     an.restnum,
                     t.sttime
                 FROM auth_user a
-                LEFT JOIN tb_pb209 an ON an.perid = a.personid
+                LEFT JOIN tb_pb209 an ON TRY_CAST(an.perid AS INT) IS NOT NULL AND TRY_CAST(an.perid AS INT) = a.personid
                 LEFT JOIN person p ON p.id = a.personid
                 LEFT JOIN tb_pbcont t ON t.flag = RIGHT('0' + CAST(p.PersonGroup_id AS VARCHAR), 2)
                 WHERE a.username = :username

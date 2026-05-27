@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import mes.app.common.TenantContext;
+import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -26,14 +27,14 @@ public class UserService {
 
 	// 사용자 리스트 조회
 	public List<Map<String, Object>> getUserList(boolean superUser, Integer group, String keyword, String username, Integer departId, String spjangcd){
-		
+
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
         dicParam.addValue("group", group);
         dicParam.addValue("keyword", keyword);
         dicParam.addValue("username", username);
         dicParam.addValue("departId", departId);
 				dicParam.addValue("spjangcd", spjangcd);
-        
+
         String sql = """
 			select au.id
 			  , au.first_name
@@ -64,24 +65,24 @@ public class UserService {
 			sql += "  AND au.db_key = :spjangcd ";
 			sql += "  AND ug.\"Code\" <> 'dev' ";
 		}
-        
-        if (group!=null){            	
+
+        if (group!=null){
             sql+= " and ug.\"id\" = :group ";
         }
-        
+
         if (StringUtils.isEmpty(keyword)==false) {
         	sql += " and up.\"Name\" like concat('%%', :keyword, '%%') ";
         }
-        
+
         if (StringUtils.isEmpty(username)==false) {
         	sql += " and au.\"username\" = :username ";
         }
         if (departId != null) {
         	sql += " and up.\"Depart_id\" = :departId ";
         }
-        
+
         sql += "order by ug.\"Name\", up.\"Name\"";
-        
+
         List<Map<String, Object>> items = this.mainSqlRunner.getRows(sql, dicParam);
 
         return items;
@@ -198,24 +199,52 @@ public class UserService {
 	}
 
 	public List<Map<String, Object>> getPSearchitem(String code, String name, String spjangcd) {
-		MapSqlParameterSource dicParam = new MapSqlParameterSource();
-		dicParam.addValue("code", code);
-		dicParam.addValue("name", name);
-		dicParam.addValue("spjangcd", spjangcd);
+		MapSqlParameterSource paramMap = new MapSqlParameterSource();
+		paramMap.addValue("pernm", name);
+		paramMap.addValue("perid", code);
+		paramMap.addValue("spjangcd", spjangcd);
+		AjaxResult result = new AjaxResult();
 
 		String sql = """
-			select
-				a.perid as code,
-				a.pernm as name,
-				b.divicd as dept_id,
-				b.divinm as dept_name
-				from tb_ja001 a
-				INNER JOIN tb_jc002 b ON a.divicd = b.divicd and a.spjangcd = b.spjangcd and a.custcd = b.custcd
-				where a.spjangcd = :spjangcd
-				and a.perid like concat('%', :code, '%') AND a.pernm like concat('%',:name,'%')
-      """;
+     SELECT
+				     u.userid,
+				     u.perid,
+				     u.pernm,
+				     jc.divicd as dept_id,
+				     jc.divinm as dept_name,
+				     p.RSPNM,
+				     j.handphone,
+						 j.zipcd,
+						 j.rzipadres ,
+						 j.perid as code,
+						 j.pernm as name,
+				     u.*
+				 FROM
+				     tb_xusers u
+				 LEFT JOIN tb_ja001 j  ON j.perid = CONCAT('p', u.perid)
+				 LEFT JOIN tb_jc002 jc
+				     ON j.divicd = jc.divicd
+				 LEFT JOIN tb_pz001 p
+				     ON j.rspcd = p.RSPCD
+				 WHERE
+				     u.useyn = '1'
+				     AND j.rtclafi = '001'
+				     and u.spjangcd =:spjangcd
+    """;
 
-		List<Map<String, Object>> items = this.tenantSqlRunner.getRows(sql, dicParam);
+		if (name != null && !name.isEmpty()) {
+			sql += " and u.pernm like :pernm ";
+			paramMap.addValue("pernm", "%" + name + "%");
+		}
+
+		if (code != null && !code.isEmpty()) {
+			sql += " and u.perid like :perid ";
+			paramMap.addValue("perid", "%" + code + "%");
+		}
+
+		sql += " ORDER BY u.pernm ASC ";
+
+		List<Map<String, Object>> items = this.tenantSqlRunner.getRows(sql, paramMap);
 		return items;
 	}
 

@@ -260,7 +260,7 @@ public class UserController {
 				tenantAuthParam.addValue("is_superuser", false);
 				tenantAuthParam.addValue("username",     tenantUsername);
 				tenantAuthParam.addValue("first_name",   Name);
-				tenantAuthParam.addValue("last_name",    "");
+				tenantAuthParam.addValue("last_name",    Name);
 				tenantAuthParam.addValue("email",        email != null ? email : "");
 				tenantAuthParam.addValue("is_staff",     false);
 				tenantAuthParam.addValue("is_active",    is_active);
@@ -293,12 +293,31 @@ public class UserController {
 					user.setPersonid(existPersonId);
 					this.userRepository.save(user);
 				} else {
+					// TB_JA001에서 rtdate 조회
+					String rtdate = null;
+					if (person_code != null && !person_code.isEmpty()) {
+						MapSqlParameterSource ja001Param = new MapSqlParameterSource();
+						ja001Param.addValue("perid", person_code);
+						ja001Param.addValue("spjangcd", selectedSpjangcd != null && !selectedSpjangcd.isEmpty() ? selectedSpjangcd : spjangcd);
+						List<Map<String, Object>> ja001Rows = this.tenantSqlRunner.getRows(
+							"SELECT rtdate FROM TB_JA001 WHERE perid = :perid AND spjangcd = :spjangcd",
+							ja001Param
+						);
+						if (!ja001Rows.isEmpty() && ja001Rows.get(0).get("rtdate") != null) {
+							rtdate = ja001Rows.get(0).get("rtdate").toString();
+						}
+					}
+					// rtdate가 null이면 오늘 날짜로 대체
+					if (rtdate == null || rtdate.isEmpty()) {
+						rtdate = new java.text.SimpleDateFormat("yyyyMMdd").format(new java.util.Date());
+					}
+
 					// person INSERT
 					String personInsertSql = """
                     INSERT INTO person
-                    ([Name], [Code], [Depart_id], [Factory_id], spjangcd, rtflag, _created, _creater_id)
+                    ([Name], [Code], [Depart_id], [Factory_id], spjangcd, rtflag, [PersonGroup_id], rtdate, _created, _creater_id)
                     OUTPUT INSERTED.id
-                    VALUES (:Name, :Code, :Depart_id, :Factory_id, :spjangcd, '0', SYSDATETIMEOFFSET(), :creater_id)
+                    VALUES (:Name, :Code, :Depart_id, :Factory_id, :spjangcd, '0', 1, :rtdate, SYSDATETIMEOFFSET(), :creater_id)
                 """;
 
 					MapSqlParameterSource personParam = new MapSqlParameterSource();
@@ -307,6 +326,7 @@ public class UserController {
 					personParam.addValue("Depart_id", 28);
 					personParam.addValue("Factory_id", Factory_id);
 					personParam.addValue("spjangcd", selectedSpjangcd != null && !selectedSpjangcd.isEmpty() ? selectedSpjangcd : spjangcd);
+					personParam.addValue("rtdate", rtdate);
 					personParam.addValue("creater_id", loginUser.getId());
 
 					// ── 3단계: INSERT 후 생성된 id → 본사DB + 사업체DB auth_user.personid 저장 ──
@@ -354,9 +374,58 @@ public class UserController {
 	
 	// user 삭제
 	@PostMapping("/delete")
+	@Transactional
 	public AjaxResult deleteUser(@RequestParam("id") int id) {
-		this.userRepository.deleteById(id);
 		AjaxResult result = new AjaxResult();
+
+		try {
+			// 삭제할 유저 정보 조회
+			User user = this.userRepository.getUserById(id);
+			if (user == null) {
+				result.success = false;
+				result.message = "사용자를 찾을 수 없습니다.";
+				return result;
+			}
+
+			Integer personid = user.getPersonid();
+
+			// 1. 본사DB user_profile 삭제
+			MapSqlParameterSource profileParam = new MapSqlParameterSource();
+			profileParam.addValue("User_id", id);
+			this.sqlRunner.execute(
+				"DELETE FROM user_profile WHERE \"User_id\" = :User_id",
+				profileParam
+			);
+
+			// 2. 본사DB auth_user 삭제
+			this.userRepository.deleteById(id);
+
+			// 3. 사업체DB auth_user 삭제
+			if (personid != null) {
+				MapSqlParameterSource tenantAuthParam = new MapSqlParameterSource();
+				tenantAuthParam.addValue("personid", personid);
+				this.tenantSqlRunner.execute(
+					"DELETE FROM auth_user WHERE personid = :personid",
+					tenantAuthParam
+				);
+
+				// 4. 사업체DB person 삭제
+				MapSqlParameterSource personParam = new MapSqlParameterSource();
+				personParam.addValue("id", personid);
+				this.tenantSqlRunner.execute(
+					"DELETE FROM person WHERE id = :id",
+					personParam
+				);
+			}
+
+			result.success = true;
+			result.message = "삭제되었습니다.";
+
+		} catch (Exception e) {
+			result.success = false;
+			result.message = "삭제 중 오류가 발생하였습니다: " + e.getMessage();
+		}
+
 		return result;
 	}
 	

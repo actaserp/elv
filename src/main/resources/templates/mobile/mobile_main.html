@@ -498,7 +498,7 @@
         longitude: longitude
       };
 
-      AjaxUtil.postAsyncData(withCtx('/api/mobile_main/modifyCommute'), data, function (result) {
+      AjaxUtil.postAsyncData('/api/mobile_main/modifyCommute', data, function (result) {
         if (result.success) {
           // ✅ 퇴근 성공 시 로컬스토리지 초기화
           localStorage.removeItem('commuteUser');
@@ -506,7 +506,7 @@
           localStorage.removeItem('commuteDate');
 
           Alert.alert('', result.message, function () {
-            window.location.href = 'mobile/commute_current';
+            window.location.href = 'mobile/attendance/commute_current';
           });
         } else {
           Alert.alert('', result.message || '퇴근 등록에 실패하였습니다.');

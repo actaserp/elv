@@ -47,7 +47,7 @@ public class AttendanceStatisticsService {
                 SELECT
                     a.username,
                     a.first_name,
-                    a.divinm,
+                    jc.divinm,
                     p.[Name],
                     p.jik_id,
                     s.[Value] as jiknm,
@@ -59,7 +59,9 @@ public class AttendanceStatisticsService {
                 LEFT JOIN sys_code s ON p.jik_id = s.[Code] AND s.[CodeType] = 'jik_type'
                 LEFT JOIN depart d ON p.[Depart_id] = d.id
                 LEFT JOIN auth_user au ON au.personid = p.id
-                 left join tb_xusers u on u.userid =au.username and au.last_name =u.pernm
+                left join tb_xusers u ON
+                    u.perid   = a.username
+                    AND a.last_name = u.pernm
                  LEFT JOIN tb_ja001 j  ON j.perid = CONCAT('p', u.perid)
                  LEFT JOIN tb_jc002 jc ON j.divicd = jc.divicd
                  LEFT JOIN tb_pz001 pz  ON j.rspcd = pz.RSPCD

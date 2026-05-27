@@ -468,7 +468,7 @@
         let columns = [
             {binding: 'id', header: 'id', width: 100, align: 'center', visible: false},
             {binding: 'login_id', header: 'ID', width: 120, align: 'center'},
-            {binding: 'personcode', header: '사번', width: 100, align: 'center'},
+            {binding: 'personcode', header: '사번', width: 100, align: 'center', visible: false},
             {binding: 'first_name', header: '이름', width: 140, align: 'center'},
             {binding: 'tel', header: '전화번호', width: 180, align: 'center'},
             {binding: 'email', header: '이메일', width: 200, align: 'center'},
@@ -1114,6 +1114,7 @@
                     { binding: 'code', header: '사번', width: 100, align: 'center' },
                     { binding: 'name', header: '이름', width: 150, align: 'center' },
                     { binding: 'dept_name', header: '부서', width: 150, align: 'center' },
+                    { binding: 'handphone', header: '전화번호', width: 150, align: 'center' },
                     { binding: 'dept_id', header: '부서id', width: 150, align: 'center', visible:false},
                     { binding: '', header: '', width: '*', align: 'center' },
                 ],
@@ -1144,6 +1145,8 @@
 
             $content.find('#btnAccountSave').click(() => {
                 if (selectedItem) {
+                    $('#tel').val(selectedItem.handphone);
+                    $('#person_code').val(selectedItem.code);
                     $('#personid').val(selectedItem.id);
                     $('#Depart_id').val(selectedItem.dept_id);
                     $('#personname').val(selectedItem.name);
@@ -1160,6 +1163,7 @@
                 }
                 const selectedItem = items[0];
                 console.log('person info : ', selectedItem);
+                $('#tel').val(selectedItem.handphone);
                 $('#person_code').val(selectedItem.code);
                 $('#personid').val(selectedItem.id);
                 $('#Depart_id').val(selectedItem.dept_id);

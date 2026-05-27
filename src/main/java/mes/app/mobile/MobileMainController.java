@@ -256,7 +256,7 @@ public class MobileMainController {
         }
 
         String today = workym + workday;
-        Map<String, Object> flexibleWork = mobileMainService.findFlexibleWork(perId, today, "13");
+        Map<String, Object> flexibleWork = mobileMainService.findFlexibleWork(spjangcd, perId, today, "13");
         boolean isFlexibleWork = (flexibleWork != null) && !isOvertimeOut;
 
         BigDecimal finalWorktime, finalNomaltime, finalOvertime, finalNighttime, finalHolitime;

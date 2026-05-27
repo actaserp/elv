@@ -23,7 +23,7 @@ public class AttendanceCurrentService {
     public Map<String, Object> getAnnInfo(Integer personId) {
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
-        dicParam.addValue("personid", personId);
+        dicParam.addValue("personid", String.valueOf(personId));
 
         String sql = """
                 SELECT TOP 1
@@ -33,7 +33,7 @@ public class AttendanceCurrentService {
                     t.restnum,
                     p.rtdate
                 FROM tb_pb209 t
-                LEFT JOIN person p ON p.id = t.perid
+                LEFT JOIN person p ON TRY_CAST(t.perid AS INT) IS NOT NULL AND p.id = TRY_CAST(t.perid AS INT)
                 WHERE t.perid = :personid
                 ORDER BY t.todate DESC
                 """;

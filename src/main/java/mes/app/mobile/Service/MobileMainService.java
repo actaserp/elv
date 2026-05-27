@@ -53,7 +53,7 @@ public class MobileMainService {
                     WHERE CodeType = 'jik_type'
                 ) s ON s.Code = p.jik_id
                 LEFT JOIN tb_xusers u
-                    ON  u.userid   = a.username
+                    ON  u.perid   = a.username
                     AND a.last_name = u.pernm
                 LEFT JOIN tb_ja001 j  ON j.perid  = CONCAT('p', u.perid)
                 LEFT JOIN tb_jc002 jc ON j.divicd = jc.divicd
@@ -204,13 +204,13 @@ public class MobileMainService {
     // =========================================================
     // 유연근무 신청 여부 조회
     // =========================================================
-    public Map<String, Object> findFlexibleWork(String perId, String today, String workcd) {
+    public Map<String, Object> findFlexibleWork(String spjangcd, String perId, String today, String workcd) {
         String sql = """
                 SELECT TOP 1 id
                 FROM tb_pb204
-                WHERE perid = ? AND frdate <= ? AND todate >= ? AND workcd = ? AND fixflag = '1'
+                WHERE spjangcd = ? AND perid = ? AND frdate <= ? AND todate >= ? AND workcd = ? AND fixflag = '1'
                 """;
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, perId, today, today, workcd);
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, spjangcd, perId, today, today, workcd);
         return rows.isEmpty() ? null : rows.get(0);
     }
 
