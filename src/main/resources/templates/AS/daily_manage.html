@@ -91,12 +91,32 @@
                         <div class="section-top">
                             <div class="search-wrap">
                                 <dl>
-                                    <dt><label>조회기간</label></dt>
+                                    <dt><label>년도</label></dt>
                                     <dd>
-                                        <div class="srch-box" style="display:flex; align-items:center; gap:5px;">
-                                            <input type="date" id="startDate" class="form-control2" style="width:140px;">
-                                            <span>~</span>
-                                            <input type="date" id="endDate"   class="form-control2" style="width:140px;">
+                                        <div class="srch-box">
+                                            <input type="number" id="manageYear" class="form-control2"
+                                                   style="width:74px;" min="2000" max="2099">
+                                        </div>
+                                    </dd>
+                                </dl>
+                                <dl>
+                                    <dt><label>월</label></dt>
+                                    <dd>
+                                        <div class="srch-box">
+                                            <select id="manageMonth" class="form-control2" style="width:74px;">
+                                                <option value="01">1월</option>
+                                                <option value="02">2월</option>
+                                                <option value="03">3월</option>
+                                                <option value="04">4월</option>
+                                                <option value="05">5월</option>
+                                                <option value="06">6월</option>
+                                                <option value="07">7월</option>
+                                                <option value="08">8월</option>
+                                                <option value="09">9월</option>
+                                                <option value="10">10월</option>
+                                                <option value="11">11월</option>
+                                                <option value="12">12월</option>
+                                            </select>
                                         </div>
                                     </dd>
                                 </dl>
@@ -119,6 +139,17 @@
                                         </li>
                                     </dd>
                                 </dl>
+                                <dl>
+                                    <dt><span class="eq"></span></dt>
+                                    <dd>
+                                        <li>
+                                            <button type="button" class="btn-delete btn-danger" id="btnDel"
+                                                    title="삭제" style="height:36px; width:115px;" disabled>
+                                                <i class="fas fa-trash"></i> 삭제
+                                            </button>
+                                        </li>
+                                    </dd>
+                                </dl>
                             </div>
                         </div>
                         <div class="container-fluid">
@@ -133,15 +164,32 @@
                         <div class="section-top">
                             <div class="search-wrap">
                                 <dl>
-                                    <dt><label>년월</label></dt>
+                                    <dt><label>년도</label></dt>
                                     <dd>
-                                        <div class="srch-box" style="display:flex; align-items:center; gap:4px;">
-                                            <input type="number" id="searchYear"  class="form-control2"
-                                                   style="width:64px;" min="2000" max="2099">
-                                            <span>년</span>
-                                            <input type="number" id="searchMonth" class="form-control2"
-                                                   style="width:46px;" min="1" max="12">
-                                            <span>월</span>
+                                        <div class="srch-box">
+                                            <input type="number" id="searchYear" class="form-control2"
+                                                   style="width:74px;" min="2000" max="2099">
+                                        </div>
+                                    </dd>
+                                </dl>
+                                <dl>
+                                    <dt><label>월</label></dt>
+                                    <dd>
+                                        <div class="srch-box">
+                                            <select id="searchMonth" class="form-control2" style="width:74px;">
+                                                <option value="01">1월</option>
+                                                <option value="02">2월</option>
+                                                <option value="03">3월</option>
+                                                <option value="04">4월</option>
+                                                <option value="05">5월</option>
+                                                <option value="06">6월</option>
+                                                <option value="07">7월</option>
+                                                <option value="08">8월</option>
+                                                <option value="09">9월</option>
+                                                <option value="10">10월</option>
+                                                <option value="11">11월</option>
+                                                <option value="12">12월</option>
+                                            </select>
                                         </div>
                                     </dd>
                                 </dl>
@@ -205,6 +253,8 @@
 
         const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
+        var selectedRow = null;
+
         document.readyState === 'complete' ? init() : window.onload = init;
 
         function init() {
@@ -218,27 +268,23 @@
         var theGrid, viewdata;
 
         const columns = [
-            {binding: 'rptdate', header: '작성일자', width: 110, align: 'center'},
-            {binding: 'pernm',   header: '사원명',   width: 100, align: 'center'},
-            {binding: 'clanm',   header: '직위',     width: 100, align: 'center'},
-            {binding: 'divinm',  header: '부서',     width: 130, align: 'center'},
-            {binding: 'rptnum',  header: '순번',     width:  60, align: 'center'},
-            {binding: 'businm',  header: '구분',     width: 100, align: 'center'},
-            {binding: 'actnm',   header: '행선지',   width: 150, align: 'left'},
-            {binding: 'frtime',  header: '도착시간', width:  90, align: 'center'},
-            {binding: 'totime',  header: '완료시간', width:  90, align: 'center'},
-            {binding: 'equpnm',  header: '호기명',   width: 150, align: 'left'},
-            {binding: 'remark',  header: '세부내용', width: '*', align: 'left'},
-
+            {binding: 'rptdate',  header: '작성일자', width: 110, align: 'center'},
+            {binding: 'pernm',    header: '사원명',   width: 100, align: 'center'},
+            {binding: 'clanm',    header: '직위',     width: 100, align: 'center'},
+            {binding: 'divinm',   header: '부서',     width: 130, align: 'center'},
+            {binding: 'rptnum',   header: '순번',     width:  60, align: 'center'},
+            {binding: 'businm',   header: '구분',     width: 100, align: 'center'},
+            {binding: 'actnm',    header: '행선지',   width: 150, align: 'left'},
+            {binding: 'frtime',   header: '도착시간', width:  90, align: 'center'},
+            {binding: 'totime',   header: '완료시간', width:  90, align: 'center'},
+            {binding: 'equpnm',   header: '호기명',   width: 150, align: 'left'},
+            {binding: 'remark',   header: '세부내용', width: '*', align: 'left'},
         ];
 
         function initTab1() {
             const today = new Date();
-            const yyyy  = today.getFullYear();
-            const mm    = String(today.getMonth() + 1).padStart(2, '0');
-            const dd    = String(today.getDate()).padStart(2, '0');
-            document.getElementById('startDate').value = `${yyyy}-${mm}-01`;
-            document.getElementById('endDate').value   = `${yyyy}-${mm}-${dd}`;
+            document.getElementById('manageYear').value  = today.getFullYear();
+            document.getElementById('manageMonth').value = String(today.getMonth() + 1).padStart(2, '0');
 
             viewdata = new wijmo.collections.CollectionView([]);
             theGrid  = new wijmo.grid.FlexGrid('#theGrid', {
@@ -250,29 +296,42 @@
             });
             theGrid.rowHeaders.columns.splice(0, 1);
 
+            // 행 클릭 시 선택 데이터 저장 + 삭제 버튼 활성화
+            theGrid.selectionChanged.addHandler(function (s, e) {
+                const row = s.selectedRows[0];
+                if (row && row.dataItem) {
+                    selectedRow = row.dataItem;
+                    document.getElementById('btnDel').disabled = false;
+                } else {
+                    selectedRow = null;
+                    document.getElementById('btnDel').disabled = true;
+                }
+            });
+
             $('#btnSearch1').click(function () { searchManageData(); });
             $('#txtPernm').on('keypress', function (e) {
                 if (e.keyCode === 13) searchManageData();
             });
+            $('#btnDel').click(function () { deleteReport(); });
 
             searchManageData();
         }
 
         function searchManageData() {
-            const startDate = document.getElementById('startDate').value.replaceAll('-', '');
-            const endDate   = document.getElementById('endDate').value.replaceAll('-', '');
-            const pernm     = document.getElementById('txtPernm').value.trim();
+            const year  = document.getElementById('manageYear').value;
+            const month = document.getElementById('manageMonth').value;
+            const pernm = document.getElementById('txtPernm').value.trim();
 
-            if (!startDate || !endDate) {
-                Alert.alert('', '조회기간을 입력해주세요.');
+            if (!year || !month) {
+                Alert.alert('', '년도와 월을 입력해주세요.');
                 return;
             }
 
             AjaxUtil.getAsyncData('/api/AS/daily_manage/read', {
-                startDate : startDate,
-                endDate   : endDate,
-                pernm     : pernm,
-                spjangcd  : sessionStorage.getItem('spjangcd')
+                year     : year,
+                month    : month,
+                pernm    : pernm,
+                spjangcd : sessionStorage.getItem('spjangcd')
             }, function (result) {
                 if (result != null) {
                     gridBinding(result.data);
@@ -283,6 +342,9 @@
         }
 
         function gridBinding(data) {
+            selectedRow = null;
+            document.getElementById('btnDel').disabled = true;
+
             theGrid.columns.clear();
             theGrid.autoGenerateColumns = false;
             columns.forEach(function (colDef) {
@@ -293,20 +355,47 @@
             theGrid.refresh();
         }
 
+        // ── 삭제 ──────────────────────────────────────────────
+        function deleteReport() {
+            if (!selectedRow) {
+                Alert.alert('', '삭제할 항목을 선택해주세요.');
+                return;
+            }
+
+            Alert.confirm('', '선택한 업무일지를 삭제하시겠습니까?', function () {
+                AjaxUtil.postAsyncData('/api/AS/daily_manage/delete', {
+                    custcd   : selectedRow.custcd,
+                    spjangcd : selectedRow.spjangcd,
+                    rptdate  : selectedRow.rptdate,
+                    perid    : selectedRow.perid,
+                    rptnum   : selectedRow.rptnum
+                }, function (result) {
+                    if (result && result.success) {
+                        Alert.alert('', result.message, function () {
+                            selectedRow = null;
+                            document.getElementById('btnDel').disabled = true;
+                            searchManageData();
+                        });
+                    } else {
+                        Alert.alert('', result.message || '삭제 중 오류가 발생하였습니다.');
+                    }
+                });
+            });
+        }
+
         /* ═══════════════════════════════════════════
            TAB 2 — 작성현황 (달력 테이블)
         ═══════════════════════════════════════════ */
         function initTab2() {
             const today = new Date();
             document.getElementById('searchYear').value  = today.getFullYear();
-            document.getElementById('searchMonth').value = today.getMonth() + 1;
+            document.getElementById('searchMonth').value = String(today.getMonth() + 1).padStart(2, '0');
 
             $('#btnSearch2').click(function () { searchStatusData(); });
             $('#searchDept').on('keypress', function (e) {
                 if (e.keyCode === 13) searchStatusData();
             });
 
-            // 탭2 클릭 시 자동 조회
             $('a[href="#tab2"]').on('click', function () {
                 searchStatusData();
             });
@@ -314,12 +403,12 @@
 
         function searchStatusData() {
             const year   = document.getElementById('searchYear').value;
-            const month  = String(document.getElementById('searchMonth').value).padStart(2, '0');
+            const month  = document.getElementById('searchMonth').value;
             const dept   = document.getElementById('searchDept').value.trim();
             const retire = document.getElementById('searchRetire').value;
 
             if (!year || !month) {
-                Alert.alert('', '년월을 입력해주세요.');
+                Alert.alert('', '년도와 월을 입력해주세요.');
                 return;
             }
 
@@ -345,7 +434,6 @@
             head.innerHTML = '';
             body.innerHTML = '';
 
-            // 헤더 1행 (날짜)
             let tr1 = `<tr>
                 <th class="col-no   fixed-col fixed-no"   rowspan="2">No</th>
                 <th class="col-dept fixed-col fixed-dept" rowspan="2">부서명</th>
@@ -360,7 +448,6 @@
                     <th class="col-summary" rowspan="2">미작성</th></tr>`;
             head.innerHTML += tr1;
 
-            // 헤더 2행 (요일)
             let tr2 = '<tr>';
             for (let d = 1; d <= daysInMonth; d++) {
                 const dow = new Date(year, month - 1, d).getDay();
@@ -370,14 +457,12 @@
             tr2 += '</tr>';
             head.innerHTML += tr2;
 
-            // 데이터 없음
             if (!rows || rows.length === 0) {
                 body.innerHTML = `<tr><td colspan="${4 + daysInMonth + 2}"
                     style="padding:20px; color:#999;">조회된 데이터가 없습니다.</td></tr>`;
                 return;
             }
 
-            // perid → 작성일 Set
             const writtenMap  = {};
             const personMap   = {};
             const personOrder = [];
@@ -424,7 +509,6 @@
                 body.innerHTML += row;
             });
 
-            // 합계 행
             let totalRow = `<tr class="row-total">
                 <td class="fixed-col fixed-no col-no" colspan="4"
                     style="text-align:center; left:0; width:236px;">합 계</td>`;
