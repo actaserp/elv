@@ -31,7 +31,25 @@ public class VehicleManageController {
     public AjaxResult getUserInfo(HttpServletRequest request, Authentication auth) {
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
-        result.data = vehicleManageService.getUserInfo(user.getUsername());
+
+        Map<String, Object> tenantInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (tenantInfo == null) {
+            result.message = "사업체 DB에서 유저 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        int personId = ((Number) tenantInfo.get("personid")).intValue();
+
+        Map<String, Object> userInfo = vehicleManageService.getUserInfo(personId);
+        if (userInfo == null) {
+            result.message = "사원 정보를 찾을 수 없습니다.";
+            return result;
+        }
+
+        // tenantInfo + userInfo 합치고 login_id 추가해서 반환
+        userInfo.putAll(tenantInfo);
+        userInfo.put("login_id", user.getUsername());
+
+        result.data = userInfo;
         return result;
     }
 
@@ -42,7 +60,7 @@ public class VehicleManageController {
 
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
-        String spjangcd = tenantUserService.getSpjangcd(user.getUsername()); // ← 수정
+        String spjangcd = tenantUserService.getSpjangcd(user.getUsername());
         result.data = vehicleManageService.getSiteList(spjangcd, keyword);
         return result;
     }
@@ -54,7 +72,7 @@ public class VehicleManageController {
 
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
-        String spjangcd = tenantUserService.getSpjangcd(user.getUsername()); // ← 수정
+        String spjangcd = tenantUserService.getSpjangcd(user.getUsername());
         result.data = vehicleManageService.getFuelInfo(spjangcd, fuelcd);
         return result;
     }
@@ -93,7 +111,7 @@ public class VehicleManageController {
             Authentication auth) {
 
         User user = (User) auth.getPrincipal();
-        String spjangcd = tenantUserService.getSpjangcd(user.getUsername()); // ← 수정
+        String spjangcd = tenantUserService.getSpjangcd(user.getUsername());
         return vehicleManageService.submitAttendance(param, spjangcd);
     }
 }

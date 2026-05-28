@@ -50,8 +50,11 @@
             margin-top: 8px;
         }
 
-        #statusTable thead th              { position: sticky; top: 0; z-index: 3; }
-        #statusTable thead th.fixed-col    { z-index: 5; }
+        #statusTable thead tr:first-child th           { position: sticky; top: 0;    z-index: 3; }
+        #statusTable thead tr:first-child th.fixed-col { z-index: 5; }
+
+        #statusTable thead tr:last-child th            { position: sticky; top: 48px; z-index: 3; }
+        #statusTable thead tr:last-child th.fixed-col  { z-index: 5; }
 
         .row-total td              { position: sticky; bottom: 0; z-index: 2; }
         .row-total td.fixed-col    { z-index: 4; background: #f0f0f0; }

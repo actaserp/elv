@@ -35,7 +35,27 @@ public class AttendanceSubmitController {
     public AjaxResult getUserInfo(HttpServletRequest request, Authentication auth) {
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
-        result.data = attendanceSubmitService.getUserInfo(user.getUsername());
+
+        // 본사 auth_user.personid = 사업체 person.id 이므로 getUserInfo로 personid 확보
+        Map<String, Object> tenantInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (tenantInfo == null) {
+            result.message = "사업체 DB에서 유저 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        int personId = ((Number) tenantInfo.get("personid")).intValue();
+
+        // 사원 기본정보 조회 (person + tb_pbcont)
+        Map<String, Object> userInfo = attendanceSubmitService.getUserInfo(personId);
+        if (userInfo == null) {
+            result.message = "사원 정보를 찾을 수 없습니다.";
+            return result;
+        }
+
+        // tenantInfo + userInfo 합치고 login_id 추가해서 반환
+        userInfo.putAll(tenantInfo);
+        userInfo.put("username", user.getUsername());
+
+        result.data = userInfo;
         return result;
     }
 
@@ -58,17 +78,17 @@ public class AttendanceSubmitController {
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
 
-        // 사업체DB에서 spjangcd, personid 조회 ← 수정
+        // 사업체DB에서 spjangcd, personid 조회
         Map<String, Object> tenantInfo = tenantUserService.getUserInfo(user.getUsername());
         if (tenantInfo == null) {
             result.message = "사업체 DB에서 유저 정보를 찾을 수 없습니다.";
             return result;
         }
-        String spjangcd  = (String) tenantInfo.get("spjangcd");
-        int    personId  = ((Number) tenantInfo.get("personid")).intValue();
+        String spjangcd    = (String) tenantInfo.get("spjangcd");
+        int    personId    = ((Number) tenantInfo.get("personid")).intValue();
         String personidStr = String.valueOf(personId);
 
-        String reqdate          = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String reqdate            = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String formattedStartDate = startDate.replaceAll("-", "");
         String formattedEndDate   = endDate.replaceAll("-", "");
 

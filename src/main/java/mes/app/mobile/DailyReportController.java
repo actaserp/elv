@@ -1,6 +1,7 @@
 package mes.app.mobile;
 
 import lombok.extern.slf4j.Slf4j;
+import mes.app.common.TenantUserService;
 import mes.app.files.NcpObjectStorageService;
 import mes.app.mobile.Service.DailyReportService;
 import mes.domain.entity.User;
@@ -30,15 +31,40 @@ public class DailyReportController {
     DailyReportService dailyReportService;
 
     @Autowired
+    TenantUserService tenantUserService;
+
+    @Autowired
     NcpObjectStorageService storageService;
+
+    // ── 공통: tenantInfo + userInfo 합쳐서 반환 ───────────────
+    private Map<String, Object> getTenantUserInfo(String username) {
+        return tenantUserService.getUserInfo(username);
+    }
 
     // ── 사용자 정보 조회 ───────────────────────────────────────
     @GetMapping("/read_userInfo")
     public AjaxResult getUserInfo(HttpServletRequest request, Authentication auth) {
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
-        Map<String, Object> resultData = dailyReportService.getUserInfo(user.getUsername());
-        result.data = resultData;
+
+        Map<String, Object> tenantInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (tenantInfo == null) {
+            result.message = "사업체 DB에서 유저 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        int personId = ((Number) tenantInfo.get("personid")).intValue();
+
+        Map<String, Object> userInfo = dailyReportService.getUserInfo(personId);
+        if (userInfo == null) {
+            result.message = "사원 정보를 찾을 수 없습니다.";
+            return result;
+        }
+
+        // tenantInfo + userInfo 합치고 login_id 추가해서 반환
+        userInfo.putAll(tenantInfo);
+        userInfo.put("username", user.getUsername());
+
+        result.data = userInfo;
         return result;
     }
 
@@ -48,18 +74,17 @@ public class DailyReportController {
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
 
-        Map<String, Object> userInfo = dailyReportService.getUserInfo(user.getUsername());
-        if (userInfo == null || userInfo.isEmpty()) {
+        Map<String, Object> tenantInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (tenantInfo == null) {
             result.success = false;
             result.message = "사용자 정보를 찾을 수 없습니다.";
             return result;
         }
 
-        String custcd   = String.valueOf(userInfo.get("custcd")).trim();
-        String spjangcd = String.valueOf(userInfo.get("spjangcd")).trim();
+        String custcd   = (String) tenantInfo.get("custcd");
+        String spjangcd = (String) tenantInfo.get("spjangcd");
 
-        List<Map<String, Object>> list = dailyReportService.getGubunList(custcd, spjangcd);
-        result.data = list;
+        result.data = dailyReportService.getGubunList(custcd, spjangcd);
         return result;
     }
 
@@ -69,18 +94,17 @@ public class DailyReportController {
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
 
-        Map<String, Object> userInfo = dailyReportService.getUserInfo(user.getUsername());
-        if (userInfo == null || userInfo.isEmpty()) {
+        Map<String, Object> tenantInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (tenantInfo == null) {
             result.success = false;
             result.message = "사용자 정보를 찾을 수 없습니다.";
             return result;
         }
 
-        String custcd   = String.valueOf(userInfo.get("custcd")).trim();
-        String spjangcd = String.valueOf(userInfo.get("spjangcd")).trim();
+        String custcd   = (String) tenantInfo.get("custcd");
+        String spjangcd = (String) tenantInfo.get("spjangcd");
 
-        List<Map<String, Object>> list = dailyReportService.getDestList(custcd, spjangcd);
-        result.data = list;
+        result.data = dailyReportService.getDestList(custcd, spjangcd);
         return result;
     }
 
@@ -94,18 +118,17 @@ public class DailyReportController {
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
 
-        Map<String, Object> userInfo = dailyReportService.getUserInfo(user.getUsername());
-        if (userInfo == null || userInfo.isEmpty()) {
+        Map<String, Object> tenantInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (tenantInfo == null) {
             result.success = false;
             result.message = "사용자 정보를 찾을 수 없습니다.";
             return result;
         }
 
-        String custcd   = String.valueOf(userInfo.get("custcd")).trim();
-        String spjangcd = String.valueOf(userInfo.get("spjangcd")).trim();
+        String custcd   = (String) tenantInfo.get("custcd");
+        String spjangcd = (String) tenantInfo.get("spjangcd");
 
-        List<Map<String, Object>> list = dailyReportService.getEqupList(custcd, spjangcd, actcd);
-        result.data = list;
+        result.data = dailyReportService.getEqupList(custcd, spjangcd, actcd);
         return result;
     }
 
@@ -121,7 +144,7 @@ public class DailyReportController {
 
         try {
             long fileSize = file.getSize();
-            if (fileSize > 20971520L) { // 20MB
+            if (fileSize > 20971520L) {
                 result.success = false;
                 result.message = "파일 크기가 20MB를 초과합니다.";
                 return result;
@@ -141,12 +164,10 @@ public class DailyReportController {
                 return result;
             }
 
-            // UUID 파일명 생성
             String uuidFileName = UUID.randomUUID().toString() + "." + ext;
             String objectKey    = storageService.buildObjectKey(dbKey, "DAILY_REPORT", uuidFileName);
             String filePrefix   = storageService.getFilePrefix(dbKey, "DAILY_REPORT");
 
-            // NCP 오브젝트 스토리지 업로드
             java.io.File tempFile = java.io.File.createTempFile("daily_", "." + ext);
             try {
                 file.transferTo(tempFile);
@@ -158,14 +179,13 @@ public class DailyReportController {
                 tempFile.delete();
             }
 
-            // 클라이언트에 uuid 파일명 + 저장경로 반환 → 등록 시 함께 전송
             result.success = true;
             result.message = "파일 업로드 성공";
             result.data = Map.of(
-                    "filesvnm",    uuidFileName,
-                    "filepath",    filePrefix,
-                    "fileornm",    originalName,
-                    "fileext",     ext
+                    "filesvnm", uuidFileName,
+                    "filepath", filePrefix,
+                    "fileornm", originalName,
+                    "fileext",  ext
             );
 
         } catch (Exception e) {
@@ -177,10 +197,10 @@ public class DailyReportController {
         return result;
     }
 
-    // ── 업무일지 등록 (TB_E037 HEAD MERGE + TB_E038 상세 INSERT) ──
+    // ── 업무일지 등록 ──────────────────────────────────────────
     @PostMapping("/save")
     public AjaxResult saveDailyReport(
-            @RequestParam(value = "writeDate")                 String writeDate,
+            @RequestParam(value = "writeDate")                  String writeDate,
             @RequestParam(value = "wkcd",     required = false) String wkcd,
             @RequestParam(value = "actcd",    required = false) String actcd,
             @RequestParam(value = "actnm",    required = false) String actnm,
@@ -197,18 +217,25 @@ public class DailyReportController {
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
 
-        Map<String, Object> userInfo = dailyReportService.getUserInfo(user.getUsername());
-        if (userInfo == null || userInfo.isEmpty()) {
+        Map<String, Object> tenantInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (tenantInfo == null) {
             result.success = false;
             result.message = "사용자 정보를 찾을 수 없습니다.";
             return result;
         }
 
-        String custcd   = String.valueOf(userInfo.get("custcd")).trim();
-        String spjangcd = String.valueOf(userInfo.get("spjangcd")).trim();
-        String perid    = String.valueOf(userInfo.get("perid")).trim();
+        int    personId = ((Number) tenantInfo.get("personid")).intValue();
+        String custcd   = (String) tenantInfo.get("custcd");
+        String spjangcd = (String) tenantInfo.get("spjangcd");
 
-        // yyyy-MM-dd → yyyyMMdd
+        // perid는 TB_JA001 기준 (p+사번 형식) — DailyReportService에서 조회
+        Map<String, Object> userInfo = dailyReportService.getUserInfo(personId);
+        if (userInfo == null) {
+            result.success = false;
+            result.message = "사원 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        String perid  = String.valueOf(userInfo.get("perid")).trim();
         String rptdate = writeDate.replaceAll("-", "");
 
         try {

@@ -42,7 +42,7 @@ public class CarManageService {
                     f.fuelnm,
                     c.samt
                 FROM TB_E037_CONF c
-                LEFT JOIN TB_JA001  j ON j.perid   = c.perid
+                LEFT JOIN TB_JA001  j ON j.perid   = 'p'+c.perid
                 LEFT JOIN TB_E047   e ON e.carcd    = c.carcd
                 LEFT JOIN TB_E037_1 f ON f.fuelcd   = c.gubun
                                      AND f.spjangcd = c.spjangcd

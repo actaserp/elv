@@ -20,26 +20,22 @@ public class AttendanceSubmitService {
     @Autowired
     NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
-    // 사용자 정보 조회
-    public Map<String, Object> getUserInfo(String username) {
+    // 사용자 정보 조회 (personid 기준 - username 변경에 무관)
+    // TB_PB209(연차현황) JOIN 제거 - read_userInfo 진입 시점에는 불필요
+    public Map<String, Object> getUserInfo(int personId) {
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
-        dicParam.addValue("username", username);
+        dicParam.addValue("personId", personId);
 
         String sql = """
                 SELECT TOP 1
-                          a.username,
-                          a.first_name,
                           p.id,
-                          an.restnum,
+                          p.name AS first_name,
                           t.sttime
-                      FROM auth_user a
-                      LEFT JOIN tb_pb209 an ON TRY_CAST(an.perid AS INT) IS NOT NULL AND TRY_CAST(an.perid AS INT) = a.personid
-                      LEFT JOIN person p ON p.id = a.personid
+                      FROM person p
                       LEFT JOIN tb_pbcont t ON t.flag = RIGHT('0' + CAST(p.PersonGroup_id AS VARCHAR), 2)
-                      WHERE a.username = :username
-                      ORDER BY an.todate DESC
-        		""";
+                      WHERE p.id = :personId
+                """;
 
         Map<String, Object> item = this.sqlRunner.getRow(sql, dicParam);
         return item;

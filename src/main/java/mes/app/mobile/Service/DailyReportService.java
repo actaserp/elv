@@ -18,10 +18,10 @@ public class DailyReportService {
     @Autowired
     NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
-    // ── 사용자 정보 조회 (TB_JA001) ───────────────────────────
-    public Map<String, Object> getUserInfo(String username) {
+    // ── 사용자 정보 조회 (personid 기준 - username 변경에 무관)
+    public Map<String, Object> getUserInfo(int personId) {
         MapSqlParameterSource param = new MapSqlParameterSource();
-        param.addValue("perid", "p" + username);
+        param.addValue("personId", personId);
 
         String sql = """
                 SELECT
@@ -31,10 +31,11 @@ public class DailyReportService {
                     j.pernm      AS first_name,
                     pz.RSPNM     AS position,
                     jc.divinm    AS department
-                FROM TB_JA001 j
+                FROM person p
+                JOIN TB_JA001 j ON j.perid = p.Code
                 LEFT JOIN TB_JC002 jc ON j.divicd = jc.divicd
                 LEFT JOIN TB_PZ001 pz ON j.rspcd  = pz.RSPCD
-                WHERE j.perid = :perid
+                WHERE p.id = :personId
                 """;
 
         return this.sqlRunner.getRow(sql, param);

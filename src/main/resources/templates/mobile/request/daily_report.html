@@ -32,6 +32,13 @@
         box-sizing: border-box;
     }
 
+    /* select는 padding 렌더링이 브라우저마다 달라 height로 통일 */
+    .contents-wrap select {
+        padding: 0 10px;
+        height: 38px;
+        line-height: 38px;
+    }
+
     .contents-wrap input[readonly],
     .contents-wrap textarea[readonly] {
         background-color: #f5f5f5;
@@ -311,7 +318,8 @@
                                 <input type="text" id="userIdView" placeholder="사용자ID" readonly>
                             </div>
                             <div>
-                                <input type="text" id="userName" placeholder="사용자명" readonly>
+                                <!-- mobile_menu.html에 id="userName" 중복 존재 → userNameView로 변경 -->
+                                <input type="text" id="userNameView" placeholder="사용자명" readonly>
                             </div>
                             <div>
                                 <input type="date" id="writeDate">
@@ -441,11 +449,11 @@
         let fnsuccess = function (result) {
             if (result != null && result.data) {
                 const d = result.data;
-                document.getElementById('userId').value     = d.username   ?? '';
-                document.getElementById('userIdView').value = d.username   ?? '';
-                document.getElementById('userName').value   = d.first_name ?? '';
-                document.getElementById('position').value   = d.position   ?? '';
-                document.getElementById('department').value = d.department ?? '';
+                document.getElementById('userId').value       = d.username   ?? '';
+                document.getElementById('userIdView').value   = d.username   ?? '';
+                document.getElementById('userNameView').value = d.first_name ?? '';
+                document.getElementById('position').value     = d.position   ?? '';
+                document.getElementById('department').value   = d.department ?? '';
             }
         };
         AjaxUtil.getAsyncData(url, {}, fnsuccess);
@@ -557,7 +565,6 @@
         statusEl.className   = 'file-status uploading';
         preview.classList.add('show');
 
-        // 이전 파일 정보 초기화
         document.getElementById('filesvnm').value = '';
         document.getElementById('filepath').value  = '';
 
@@ -600,7 +607,7 @@
     // ── 업무일지 등록 ──────────────────────────────────────────
     function saveDailyReport() {
         const userId     = document.getElementById('userId').value;
-        const userName   = document.getElementById('userName').value;
+        const userName   = document.getElementById('userNameView').value;
         const writeDate  = document.getElementById('writeDate').value;
         const position   = document.getElementById('position').value;
         const department = document.getElementById('department').value;
@@ -615,7 +622,6 @@
         const filesvnm   = document.getElementById('filesvnm').value;
         const filepath   = document.getElementById('filepath').value;
 
-        // 파일 업로드 중인 경우 차단
         const statusEl = document.getElementById('fileStatus');
         if (statusEl.classList.contains('uploading')) {
             Alert.alert('', '파일 업로드가 완료될 때까지 기다려주세요.');

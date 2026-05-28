@@ -33,32 +33,26 @@ public class VehicleManageService {
     @Value("${ncp.ocr.secret-key}")
     private String ocrSecretKey;
 
-    // 사용자 정보 조회
-    public Map<String, Object> getUserInfo(String username) {
+    // 사용자 정보 조회 (personid 기준 - TB_PB209 JOIN 제거)
+    public Map<String, Object> getUserInfo(int personId) {
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
-        dicParam.addValue("username", username);
+        dicParam.addValue("personId", personId);
 
         String sql = """
                 SELECT TOP 1
-                          a.username,
-                          a.first_name,
-                          a.last_name,
                           p.id,
-                          an.restnum,
+                          p.name      AS first_name,
                           t.sttime,
                           e.carcd,
                           e.carnum,
-                          e.gubun AS fuelcd,
+                          e.gubun     AS fuelcd,
                           e.samt
-                      FROM auth_user a
-                      LEFT JOIN tb_pb209 an ON TRY_CAST(an.perid AS INT) IS NOT NULL AND TRY_CAST(an.perid AS INT) = a.personid
-                      LEFT JOIN person p ON p.id = a.personid
+                      FROM person p
                       LEFT JOIN tb_pbcont t ON t.flag = RIGHT('0' + CAST(p.PersonGroup_id AS VARCHAR), 2)
-                      LEFT JOIN TB_E047 e ON e.perid = a.username
-                      WHERE a.username = :username
-                      ORDER BY an.todate DESC
-        		""";
+                      LEFT JOIN TB_E047 e ON e.perid = CAST(p.id AS VARCHAR)
+                      WHERE p.id = :personId
+                """;
 
         Map<String, Object> item = this.sqlRunner.getRow(sql, dicParam);
         return item;
@@ -87,10 +81,7 @@ public class VehicleManageService {
         return items;
     }
 
-    /**
-     * 유류 단가 정보 조회 (TB_E037_1)
-     * fuelcd 선택 시 해당 유류의 uamt(단가), kmliter(연비), unit(단위) 반환
-     */
+    // 유류 단가 정보 조회 (TB_E037_1)
     public Map<String, Object> getFuelInfo(String spjangcd, String fuelcd) {
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
@@ -114,17 +105,16 @@ public class VehicleManageService {
         return item;
     }
 
-    /**
-     * 차량 목록 조회 (TB_E047)
-     * 전체 차량 조회, 차량번호(carnum) 키워드 검색 지원
-     */
+    // 차량 목록 조회 (TB_E047)
     public List<Map<String, Object>> getVehicleList(String keyword) {
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
 
         String sql = """
-                SELECT carcd, carnum, gubun AS fuelcd, samt
-                FROM TB_E047
+                SELECT e.carcd, e.carnum, e.gubun AS fuelcd, e.samt, f.fuelnm, e.gareacd
+                FROM TB_E047 e
+                LEFT JOIN TB_E037_1 f ON f.fuelcd = e.gubun
+                AND f.gareacd = e.gareacd
                 WHERE 1=1
                 """;
 
@@ -142,23 +132,16 @@ public class VehicleManageService {
     // =====================================================
     // OCR: 계기판 사진 → km 숫자 추출
     // =====================================================
-
-    /**
-     * MultipartFile(계기판 사진)을 받아 NCP CLOVA OCR로 km 수치를 추출
-     */
     public Map<String, Object> extractKmFromImage(MultipartFile imageFile) {
         Map<String, Object> result = new HashMap<>();
         File tempFile = null;
         try {
-            // 1. MultipartFile → 임시 파일로 저장
             String ext = getExtension(imageFile.getOriginalFilename());
             tempFile = File.createTempFile("ocr_", "." + ext);
             imageFile.transferTo(tempFile);
 
-            // 2. NCP CLOVA OCR API 호출 (factcheck 프로젝트 방식 그대로)
             StringBuffer response = callClovaOcr(tempFile, ext);
 
-            // 3. 응답 JSON에서 텍스트 전체 추출
             JSONObject json = new JSONObject(response.toString());
             JSONArray images = json.getJSONArray("images");
             StringBuilder allText = new StringBuilder();
@@ -172,7 +155,6 @@ public class VehicleManageService {
                 }
             }
 
-            // 4. km 숫자 파싱 (계기판: 4~6자리 숫자 중 가장 큰 값)
             Long km = parseKmFromText(allText.toString());
 
             result.put("success", true);
@@ -190,9 +172,6 @@ public class VehicleManageService {
         return result;
     }
 
-    /**
-     * NCP CLOVA OCR API 호출 (factcheck 프로젝트의 NaverClovaORCAPI 방식)
-     */
     private StringBuffer callClovaOcr(File file, String ext) throws Exception {
         URL url = new URL(ocrInvokeUrl);
         HttpURLConnection con = (HttpURLConnection) url.openConnection();
@@ -207,7 +186,6 @@ public class VehicleManageService {
         con.setRequestProperty("X-OCR-SECRET", ocrSecretKey);
         con.setRequestProperty("Accept-Charset", "UTF-8");
 
-        // OCR 요청 JSON 구성
         JSONObject json = new JSONObject();
         json.put("version", "V2");
         json.put("requestId", UUID.randomUUID().toString());
@@ -244,9 +222,6 @@ public class VehicleManageService {
         return response;
     }
 
-    /**
-     * multipart/form-data 전송
-     */
     private void writeMultiPart(OutputStream out, String jsonMessage, File file, String boundary) throws IOException {
         StringBuilder sb = new StringBuilder();
         sb.append("--").append(boundary).append("\r\n");
@@ -278,9 +253,6 @@ public class VehicleManageService {
         out.flush();
     }
 
-    /**
-     * OCR 텍스트에서 계기판 km 수치 추출 (4~6자리 숫자 중 최댓값)
-     */
     private Long parseKmFromText(String text) {
         String cleaned = text.replaceAll("[^0-9\\s]", " ");
         Pattern pattern = Pattern.compile("\\b(\\d{4,6})\\b");
@@ -310,7 +282,6 @@ public class VehicleManageService {
         AjaxResult result = new AjaxResult();
 
         try {
-            // 1. custcd 조회
             String custcd = getCustcdBySpjangcd(spjangcd);
             if (custcd == null || custcd.isBlank()) {
                 result.success = false;
@@ -318,33 +289,24 @@ public class VehicleManageService {
                 return result;
             }
 
-            // 2. 파라미터 파싱
             String userId    = (String) param.get("userId");
-            String startDate = ((String) param.get("startDate")).replace("-", ""); // yyyyMMdd
-            String confmon   = startDate.substring(0, 6);                          // yyyyMM
+            String startDate = ((String) param.get("startDate")).replace("-", "");
+            String confmon   = startDate.substring(0, 6);
             String vehicleCd = (String) param.get("vehicleCd");
             String fuelKind  = (String) param.get("fuelKind");
             String actcd     = (String) param.get("siteCd");
             String unitAmt   = (String) param.get("unitAmt");
 
-            double totalKM = parseDouble(param.get("totalKM")); // 이동거리 → km
-            double liter   = parseDouble(param.get("liter"));   // 연비
-            double total   = parseDouble(param.get("total"));   // 합계금액 → samt
-            double uamt    = parseDouble(unitAmt);              // 단가 → uamt
-
-            // 사용 연료량: 이동거리 / 연비 (liter)
+            double totalKM   = parseDouble(param.get("totalKM"));
+            double liter     = parseDouble(param.get("liter"));
+            double total     = parseDouble(param.get("total"));
+            double uamt      = parseDouble(unitAmt);
             double usedLiter = (liter > 0) ? (totalKM / liter) : 0;
 
-            // 3. divicd 조회: TB_JA001에서 'p'+userId 로 join
             String divicd = getDivicd(userId);
+            String kcnum  = getNextKcnum(custcd, spjangcd, startDate);
+            String kcseq  = "001";
 
-            // 4. kcnum 채번: 동일 custcd+spjangcd+kcdate 기준 MAX(kcnum)+1
-            String kcnum = getNextKcnum(custcd, spjangcd, startDate);
-
-            // 5. kcseq 고정
-            String kcseq = "001";
-
-            // 6. INSERT
             MapSqlParameterSource dicParam = new MapSqlParameterSource();
             dicParam.addValue("custcd",   custcd);
             dicParam.addValue("spjangcd", spjangcd);
@@ -392,7 +354,6 @@ public class VehicleManageService {
         return result;
     }
 
-    // kcnum 채번: 동일 custcd+spjangcd+kcdate 기준 MAX+1, 4자리 zero-padding
     private String getNextKcnum(String custcd, String spjangcd, String kcdate) {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("custcd",   custcd);
@@ -413,7 +374,6 @@ public class VehicleManageService {
         return String.format("%04d", next);
     }
 
-    // userId → divicd 조회: TB_JA001에서 'p'+userId로 JOIN
     private String getDivicd(String userId) {
         MapSqlParameterSource sqlParam = new MapSqlParameterSource();
         sqlParam.addValue("perid", "p" + userId);
@@ -430,7 +390,6 @@ public class VehicleManageService {
         return divicd == null ? null : String.valueOf(divicd).trim();
     }
 
-    // spjangcd → custcd 조회
     private String getCustcdBySpjangcd(String spjangcd) {
         MapSqlParameterSource sqlParam = new MapSqlParameterSource();
         sqlParam.addValue("spjangcd", spjangcd);
@@ -447,7 +406,6 @@ public class VehicleManageService {
         return custcd == null ? null : String.valueOf(custcd).trim();
     }
 
-    // Object → double 변환 헬퍼
     private double parseDouble(Object val) {
         if (val == null) return 0.0;
         try { return Double.parseDouble(val.toString()); }

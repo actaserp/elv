@@ -518,7 +518,7 @@
                 html += `
                     <div class="vehicle-item" onclick="selectVehicle('${item.carcd}', '${(item.carnum || '').replace(/'/g, "\\'")}', '${fuelcd}', '${samt}')">
                         <div class="vehicle-num">${item.carnum || '-'}</div>
-                        <div class="vehicle-fuel">유종코드: ${fuelcd}</div>
+                        <div class="vehicle-fuel">유종: ${item.fuelnm}</div>
                     </div>`;
             });
             container.innerHTML = html;
