@@ -1,0 +1,373 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<head>
+  <style>
+    .wj-header { text-align: center !important; }
+
+    /* ── 좌우 분할 ── */
+    .company-split-wrap {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .company-left  { flex: 0 0 38%; min-width: 0; }
+    .company-right { flex: 1; min-width: 0; border-left: 2px solid #4472c4; padding-left: 14px; }
+
+    /* ── 섹션 구분 타이틀 ── */
+    .sub-section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #4472c4;
+      margin: 12px 0 4px;
+      padding-bottom: 4px;
+      border-bottom: 2px solid #dce6f1;
+    }
+
+    /* ── 호기 그리드 ── */
+    #equpGrid { height: 180px; margin-top: 4px; }
+
+    /* ── 빈 상태 안내 ── */
+    .empty-detail {
+      padding: 60px 0;
+      text-align: center;
+      color: #bbb;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+
+    <!-- Page Title -->
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>보수업체 현황</h2>
+        <a title="북마크" class="bookmark toggle">내메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+        <li>고장관리</li>
+        <li>보수업체 현황</li>
+      </ul>
+    </div>
+
+    <div class="company-split-wrap">
+
+      <!-- ════════════════════════
+           LEFT : 현장 목록
+      ════════════════════════ -->
+      <section class="section company-left">
+        <div class="section-top">
+          <div class="search-wrap">
+            <dl>
+              <dt><label>현장명</label></dt>
+              <dd>
+                <div class="srch-box">
+                  <input type="text" id="srchKeyword" class="form-control2"
+                         placeholder="현장명" style="width:140px;">
+                </div>
+              </dd>
+            </dl>
+            <dl>
+              <dt><span class="eq"></span></dt>
+              <dd>
+                <li>
+                  <a class="btn btn-delete" title="검색" id="btnSearch">
+                    <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                    검색
+                  </a>
+                </li>
+              </dd>
+            </dl>
+          </div>
+        </div>
+        <div class="container-fluid">
+          <div id="siteGrid" style="height:620px;"></div>
+        </div>
+      </section>
+
+      <!-- ════════════════════════
+           RIGHT : 현장 상세
+      ════════════════════════ -->
+      <section class="section company-right">
+        <div class="section-top">
+
+          <!-- 빈 상태 -->
+          <div class="empty-detail" id="emptyDetail">
+            왼쪽 목록에서 현장을 선택하세요.
+          </div>
+
+          <!-- 상세 내용 (선택 후 표시) -->
+          <div id="detailWrap" style="display:none;">
+
+            <!-- ── 기본 정보 ── -->
+            <p class="sub-section-title">기본 정보</p>
+            <div class="table-wrap">
+              <table class="write-table" style="width:100%; border-collapse:collapse; table-layout:fixed;">
+                <colgroup>
+                  <col style="width:110px;"><col>
+                  <col style="width:110px;"><col>
+                  <col style="width:110px;"><col>
+                </colgroup>
+                <tbody>
+                <tr>
+                  <th><label>현장코드</label></th>
+                  <td id="dActcd"></td>
+                  <th><label>현장명</label></th>
+                  <td id="dActnm"></td>
+                  <th><label>현장구분</label></th>
+                  <td id="dActgubun"></td>
+                </tr>
+                <tr>
+                  <th><label>건물용도</label></th>
+                  <td id="dBildyd"></td>
+                  <th><label>건물층수</label></th>
+                  <td id="dBildlv"></td>
+                  <th><label>건물주</label></th>
+                  <td id="dBildju"></td>
+                </tr>
+                <tr>
+                  <th><label>건축허가일</label></th>
+                  <td id="dBilddate" colspan="5"></td>
+                </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- ── 담당자 정보 ── -->
+            <p class="sub-section-title">담당자 정보</p>
+            <div class="table-wrap">
+              <table class="write-table" style="width:100%; border-collapse:collapse; table-layout:fixed;">
+                <colgroup>
+                  <col style="width:110px;"><col>
+                  <col style="width:110px;"><col>
+                  <col style="width:110px;"><col>
+                </colgroup>
+                <tbody>
+                <tr>
+                  <th><label>담당자</label></th>
+                  <td id="dActpernm"></td>
+                  <th><label>부서</label></th>
+                  <td id="dDivinm"></td>
+                  <th><label>메일</label></th>
+                  <td id="dActmail"></td>
+                </tr>
+                <tr>
+                  <th><label>전화번호</label></th>
+                  <td id="dTel"></td>
+                  <th><label>핸드폰</label></th>
+                  <td id="dHp"></td>
+                  <th><label>팩스</label></th>
+                  <td id="dFax"></td>
+                </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- ── 소재지 / 계약 정보 ── -->
+            <p class="sub-section-title">소재지 / 계약 정보</p>
+            <div class="table-wrap">
+              <table class="write-table" style="width:100%; border-collapse:collapse; table-layout:fixed;">
+                <colgroup>
+                  <col style="width:110px;"><col>
+                  <col style="width:110px;"><col>
+                  <col style="width:110px;"><col>
+                </colgroup>
+                <tbody>
+                <tr>
+                  <th><label>우편번호</label></th>
+                  <td id="dZipcode"></td>
+                  <th><label>소재지</label></th>
+                  <td id="dAddress"></td>
+                  <th><label>상세주소</label></th>
+                  <td id="dAddress2"></td>
+                </tr>
+                <tr>
+                  <th><label>계약시작일</label></th>
+                  <td id="dStdate"></td>
+                  <th><label>계약만료일</label></th>
+                  <td id="dEnddate"></td>
+                  <th><label>구분</label></th>
+                  <td id="dGubun"></td>
+                </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- ── 호기 목록 ── -->
+            <p class="sub-section-title" id="equpTitle">호기 목록</p>
+            <div id="equpGrid"></div>
+
+          </div>
+        </div>
+      </section>
+
+    </div><!-- //company-split-wrap -->
+
+  </div><!--//layout-contents-->
+
+  <footer style="margin-top:24px;">
+    <p>Copyrightⓒ 0000 corp. All rights reserved.</p>
+  </footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <script type="text/javascript">
+
+    var _spjangcd = sessionStorage.getItem('spjangcd') || '';
+    var siteGrid, siteData;
+    var equpGrid, equpData;
+
+    /* ════════════════════════════════════
+       초기화
+    ════════════════════════════════════ */
+    document.readyState === 'complete' ? init() : window.onload = init;
+
+    function init() {
+
+      // ── 좌측 현장 그리드 ──
+      siteData = new wijmo.collections.CollectionView([]);
+      siteGrid = new wijmo.grid.FlexGrid('#siteGrid', {
+        autoGenerateColumns: false,
+        showMarquee: true,
+        isReadOnly: true,
+        columns: [
+          {binding: 'actnm',    header: '현장명',   width: '*',  align: 'left'},
+          {binding: 'actgubun', header: '현장구분', width: 80,  align: 'center'},
+          {binding: 'actpernm', header: '담당자',   width: 80,  align: 'center'},
+          {binding: 'tel',      header: '전화번호', width: 120, align: 'center'},
+        ],
+        itemsSource: siteData
+      });
+      siteGrid.rowHeaders.columns.splice(0, 1);
+
+      // ── 우측 호기 그리드 ──
+      equpData = new wijmo.collections.CollectionView([]);
+      equpGrid = new wijmo.grid.FlexGrid('#equpGrid', {
+        autoGenerateColumns: false,
+        showMarquee: true,
+        isReadOnly: true,
+        columns: [
+          {binding: 'equpcd', header: '호기코드', width: 120, align: 'center'},
+          {binding: 'equpnm', header: '호기명',   width: '*',  align: 'left'},
+        ],
+        itemsSource: equpData
+      });
+      equpGrid.rowHeaders.columns.splice(0, 1);
+
+      // ── 행 클릭 → 상세 바인딩 ──
+      siteGrid.selectionChanged.addHandler(function (s, e) {
+        var row = s.selectedRows[0];
+        if (row && row.dataItem) {
+          bindDetail(row.dataItem);
+        }
+      });
+
+      // ── 버튼 이벤트 ──
+      $('#btnSearch').click(function () { searchSiteList(); });
+      $('#srchKeyword').on('keypress', function (e) {
+        if (e.keyCode === 13) searchSiteList();
+      });
+
+      // 초기 조회
+      searchSiteList();
+    }
+
+    /* ════════════════════════════════════
+       현장 목록 조회
+    ════════════════════════════════════ */
+    function searchSiteList() {
+      var keyword = document.getElementById('srchKeyword').value.trim();
+      clearDetail();
+
+      AjaxUtil.getAsyncData('/api/AS/web_company/list', {
+        spjangcd : _spjangcd,
+        keyword  : keyword
+      }, function (result) {
+        var data = (result && result.data) ? result.data : [];
+        siteData = new wijmo.collections.CollectionView(data);
+        siteGrid.itemsSource = siteData;
+        siteGrid.refresh();
+      });
+    }
+
+    /* ════════════════════════════════════
+       현장 선택 → 우측 상세 바인딩
+    ════════════════════════════════════ */
+    function bindDetail(item) {
+      document.getElementById('emptyDetail').style.display = 'none';
+      document.getElementById('detailWrap').style.display  = 'block';
+
+      // 기본 정보
+      setText('dActcd',    item.actcd);
+      setText('dActnm',    item.actnm);
+      setText('dActgubun', item.actgubun);
+      setText('dBildyd',   item.bildyd);
+      setText('dBildlv',   item.bildlv);
+      setText('dBildju',   item.bildju);
+      setText('dBilddate', item.bilddate);
+
+      // 담당자 정보
+      setText('dActpernm', item.actpernm);
+      setText('dDivinm',   item.divinm);
+      setText('dActmail',  item.actmail);
+      setText('dTel',      item.tel);
+      setText('dHp',       item.hp);
+      setText('dFax',      item.fax);
+
+      // 소재지 / 계약 정보
+      setText('dZipcode',  item.zipcode);
+      setText('dAddress',  item.address);
+      setText('dAddress2', item.address2);
+      setText('dStdate',   item.stdate);
+      setText('dEnddate',  item.enddate);
+      setText('dGubun',    item.gubun);
+
+      // 호기 목록 조회
+      loadEqupList(item.actcd);
+    }
+
+    /* ════════════════════════════════════
+       호기 목록 조회
+    ════════════════════════════════════ */
+    function loadEqupList(actcd) {
+      equpData = new wijmo.collections.CollectionView([]);
+      equpGrid.itemsSource = equpData;
+      equpGrid.refresh();
+      document.getElementById('equpTitle').textContent = '호기 목록';
+
+      AjaxUtil.getAsyncData('/api/AS/web_company/equp_list', {
+        spjangcd : _spjangcd,
+        actcd    : actcd
+      }, function (result) {
+        var data = (result && result.data) ? result.data : [];
+        document.getElementById('equpTitle').textContent = '호기 목록 (' + data.length + '건)';
+        equpData = new wijmo.collections.CollectionView(data);
+        equpGrid.itemsSource = equpData;
+        equpGrid.refresh();
+      });
+    }
+
+    /* ════════════════════════════════════
+       상세 초기화
+    ════════════════════════════════════ */
+    function clearDetail() {
+      document.getElementById('emptyDetail').style.display = 'block';
+      document.getElementById('detailWrap').style.display  = 'none';
+      if (equpGrid) {
+        equpGrid.itemsSource = new wijmo.collections.CollectionView([]);
+        equpGrid.refresh();
+      }
+    }
+
+    /* ════════════════════════════════════
+       유틸
+    ════════════════════════════════════ */
+    function setText(id, value) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = value || '';
+    }
+
+  </script>
+</th:block>
+</html>

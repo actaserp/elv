@@ -52,12 +52,32 @@
 
         #statusTable thead tr:first-child th           { position: sticky; top: 0;    z-index: 3; }
         #statusTable thead tr:first-child th.fixed-col { z-index: 5; }
-
         #statusTable thead tr:last-child th            { position: sticky; top: 48px; z-index: 3; }
         #statusTable thead tr:last-child th.fixed-col  { z-index: 5; }
 
         .row-total td              { position: sticky; bottom: 0; z-index: 2; }
         .row-total td.fixed-col    { z-index: 4; background: #f0f0f0; }
+
+        /* ── 좌우 분할 레이아웃 ── */
+        .grid-split-wrap {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .grid-split-wrap .grid-left {
+            flex: 0 0 420px;
+        }
+        .grid-split-wrap .grid-right {
+            flex: 1;
+            border-left: 2px solid #4472c4;
+            padding-left: 12px;
+        }
+        .detail-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: #4472c4;
+            padding: 0 0 6px 0;
+        }
     </style>
 </head>
 
@@ -85,7 +105,7 @@
                 <div class="tab-contents">
 
                     <!-- ════════════════════════════════
-                         TAB 1 : 업무일지 현황 (FlexGrid)
+                         TAB 1 : 업무일지 현황
                     ════════════════════════════════ -->
                     <section class="tab-item" id="tab1">
                         <div class="section-top">
@@ -144,7 +164,7 @@
                                     <dd>
                                         <li>
                                             <button type="button" class="btn-delete btn-danger" id="btnDel"
-                                                    title="삭제" style="height:36px; width:115px;" disabled>
+                                                    title="삭제" style="height:36px; width:115px;">
                                                 <i class="fas fa-trash"></i> 삭제
                                             </button>
                                         </li>
@@ -152,8 +172,16 @@
                                 </dl>
                             </div>
                         </div>
-                        <div class="container-fluid">
-                            <div id="theGrid" style="height: 600px;"></div>
+
+                        <!-- 좌우 분할 그리드 -->
+                        <div class="container-fluid grid-split-wrap" style="flex-direction: unset;">
+                            <div class="grid-left">
+                                <div id="headGrid" style="height:560px;"></div>
+                            </div>
+                            <div class="grid-right">
+                                <div class="detail-label" id="detailLabel">상세 내용 (왼쪽 행을 클릭하세요)</div>
+                                <div id="detailGrid" style="height:536px;"></div>
+                            </div>
                         </div>
                     </section>
 
@@ -228,7 +256,6 @@
                             </div>
                         </div>
 
-                        <!-- 달력 테이블 -->
                         <div class="table-scroll-wrap">
                             <table id="statusTable">
                                 <thead id="tableHead"></thead>
@@ -237,8 +264,8 @@
                         </div>
                     </section>
 
-                </div><!--//tab-contents end-->
-            </div><!--//tab-wrap end-->
+                </div>
+            </div>
         </section>
     </div>
 
@@ -253,7 +280,7 @@
 
         const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
-        var selectedRow = null;
+        var selectedDetail = null;
 
         document.readyState === 'complete' ? init() : window.onload = init;
 
@@ -263,22 +290,26 @@
         }
 
         /* ═══════════════════════════════════════════
-           TAB 1 — 업무일지 현황 (Wijmo FlexGrid)
+           TAB 1 — 업무일지 현황
         ═══════════════════════════════════════════ */
-        var theGrid, viewdata;
+        var headGrid, headData, detailGrid, detailData;
 
-        const columns = [
-            {binding: 'rptdate',  header: '작성일자', width: 110, align: 'center'},
-            {binding: 'pernm',    header: '사원명',   width: 100, align: 'center'},
-            {binding: 'clanm',    header: '직위',     width: 100, align: 'center'},
-            {binding: 'divinm',   header: '부서',     width: 130, align: 'center'},
-            {binding: 'rptnum',   header: '순번',     width:  60, align: 'center'},
-            {binding: 'businm',   header: '구분',     width: 100, align: 'center'},
-            {binding: 'actnm',    header: '행선지',   width: 150, align: 'left'},
-            {binding: 'frtime',   header: '도착시간', width:  90, align: 'center'},
-            {binding: 'totime',   header: '완료시간', width:  90, align: 'center'},
-            {binding: 'equpnm',   header: '호기명',   width: 150, align: 'left'},
-            {binding: 'remark',   header: '세부내용', width: '*', align: 'left'},
+        const headColumns = [
+            {binding: 'rptdate', header: '작성일자', width: 110, align: 'center'},
+            {binding: 'pernm',   header: '사원명',   width: 100, align: 'center'},
+            {binding: 'clanm',   header: '직위',     width: 100, align: 'center'},
+            {binding: 'divinm',  header: '부서',     width: '*', align: 'center'},
+            {binding: 'rptcnt',  header: '작성건수', width:  80, align: 'center'},
+        ];
+
+        const detailColumns = [
+            {binding: 'rptnum',  header: '순번',     width:  60, align: 'center'},
+            {binding: 'businm',  header: '구분',     width: 100, align: 'center'},
+            {binding: 'actnm',   header: '행선지',   width: 150, align: 'left'},
+            {binding: 'frtime',  header: '도착시간', width:  90, align: 'center'},
+            {binding: 'totime',  header: '완료시간', width:  90, align: 'center'},
+            {binding: 'equpnm',  header: '호기명',   width: 150, align: 'left'},
+            {binding: 'remark',  header: '세부내용', width: '*', align: 'left'},
         ];
 
         function initTab1() {
@@ -286,26 +317,37 @@
             document.getElementById('manageYear').value  = today.getFullYear();
             document.getElementById('manageMonth').value = String(today.getMonth() + 1).padStart(2, '0');
 
-            viewdata = new wijmo.collections.CollectionView([]);
-            theGrid  = new wijmo.grid.FlexGrid('#theGrid', {
+            headData = new wijmo.collections.CollectionView([]);
+            headGrid = new wijmo.grid.FlexGrid('#headGrid', {
                 autoGenerateColumns: false,
                 showMarquee: true,
-                columns: columns,
+                columns: headColumns,
                 isReadOnly: true,
-                itemsSource: viewdata
+                itemsSource: headData
             });
-            theGrid.rowHeaders.columns.splice(0, 1);
+            headGrid.rowHeaders.columns.splice(0, 1);
 
-            // 행 클릭 시 선택 데이터 저장 + 삭제 버튼 활성화
-            theGrid.selectionChanged.addHandler(function (s, e) {
+            headGrid.selectionChanged.addHandler(function (s, e) {
                 const row = s.selectedRows[0];
                 if (row && row.dataItem) {
-                    selectedRow = row.dataItem;
-                    document.getElementById('btnDel').disabled = false;
-                } else {
-                    selectedRow = null;
-                    document.getElementById('btnDel').disabled = true;
+                    const d = row.dataItem;
+                    loadDetailData(d.custcd, d.spjangcd, d.rptdate, d.perid, d.pernm);
                 }
+            });
+
+            detailData = new wijmo.collections.CollectionView([]);
+            detailGrid = new wijmo.grid.FlexGrid('#detailGrid', {
+                autoGenerateColumns: false,
+                showMarquee: true,
+                columns: detailColumns,
+                isReadOnly: true,
+                itemsSource: detailData
+            });
+            detailGrid.rowHeaders.columns.splice(0, 1);
+
+            detailGrid.selectionChanged.addHandler(function (s, e) {
+                const row = s.selectedRows[0];
+                selectedDetail = (row && row.dataItem) ? row.dataItem : null;
             });
 
             $('#btnSearch1').click(function () { searchManageData(); });
@@ -327,53 +369,81 @@
                 return;
             }
 
-            AjaxUtil.getAsyncData('/api/AS/daily_manage/read', {
+            detailData = new wijmo.collections.CollectionView([]);
+            detailGrid.itemsSource = detailData;
+            document.getElementById('detailLabel').textContent = '상세 내용 (왼쪽 행을 클릭하세요)';
+            selectedDetail = null;
+
+            AjaxUtil.getAsyncData('/api/AS/daily_manage/read/head', {
                 year     : year,
                 month    : month,
                 pernm    : pernm,
                 spjangcd : sessionStorage.getItem('spjangcd')
             }, function (result) {
                 if (result != null) {
-                    gridBinding(result.data);
+                    headData = new wijmo.collections.CollectionView(result.data || []);
+                    headGrid.columns.clear();
+                    headColumns.forEach(function (c) {
+                        headGrid.columns.push(new wijmo.grid.Column(c));
+                    });
+                    headGrid.itemsSource = headData;
+                    headGrid.refresh();
                 } else {
                     Alert.alert('', '조회 중 오류가 발생하였습니다.');
                 }
             });
         }
 
-        function gridBinding(data) {
-            selectedRow = null;
-            document.getElementById('btnDel').disabled = true;
+        function loadDetailData(custcd, spjangcd, rptdate, perid, pernm) {
+            selectedDetail = null;
+            document.getElementById('detailLabel').textContent
+                = pernm + ' / ' + rptdate + ' 상세 내용';
 
-            theGrid.columns.clear();
-            theGrid.autoGenerateColumns = false;
-            columns.forEach(function (colDef) {
-                theGrid.columns.push(new wijmo.grid.Column(colDef));
+            AjaxUtil.getAsyncData('/api/AS/daily_manage/read/detail', {
+                custcd   : custcd,
+                spjangcd : spjangcd,
+                rptdate  : rptdate,
+                perid    : perid
+            }, function (result) {
+                if (result != null) {
+                    detailData = new wijmo.collections.CollectionView(result.data || []);
+                    detailGrid.columns.clear();
+                    detailColumns.forEach(function (c) {
+                        detailGrid.columns.push(new wijmo.grid.Column(c));
+                    });
+                    detailGrid.itemsSource = detailData;
+                    detailGrid.refresh();
+                    detailGrid.select(-1, -1); // 자동 첫 행 선택 해제
+                } else {
+                    Alert.alert('', '상세 조회 중 오류가 발생하였습니다.');
+                }
             });
-            viewdata = new wijmo.collections.CollectionView(data || []);
-            theGrid.itemsSource = viewdata;
-            theGrid.refresh();
         }
 
-        // ── 삭제 ──────────────────────────────────────────────
         function deleteReport() {
-            if (!selectedRow) {
-                Alert.alert('', '삭제할 항목을 선택해주세요.');
+            if (!selectedDetail) {
+                Alert.alert('', '삭제할 상세 항목을 선택해주세요.');
                 return;
             }
 
+            const delCustcd   = selectedDetail.custcd;
+            const delSpjangcd = selectedDetail.spjangcd;
+            const delRptdate  = selectedDetail.rptdate;
+            const delPerid    = selectedDetail.perid;
+            const delPernm    = document.getElementById('detailLabel').textContent.split(' / ')[0];
+
             Alert.confirm('', '선택한 업무일지를 삭제하시겠습니까?', function () {
                 AjaxUtil.postAsyncData('/api/AS/daily_manage/delete', {
-                    custcd   : selectedRow.custcd,
-                    spjangcd : selectedRow.spjangcd,
-                    rptdate  : selectedRow.rptdate,
-                    perid    : selectedRow.perid,
-                    rptnum   : selectedRow.rptnum
+                    custcd   : delCustcd,
+                    spjangcd : delSpjangcd,
+                    rptdate  : delRptdate,
+                    perid    : delPerid,
+                    rptnum   : selectedDetail.rptnum
                 }, function (result) {
                     if (result && result.success) {
                         Alert.alert('', result.message, function () {
-                            selectedRow = null;
-                            document.getElementById('btnDel').disabled = true;
+                            selectedDetail = null;
+                            loadDetailData(delCustcd, delSpjangcd, delRptdate, delPerid, delPernm);
                             searchManageData();
                         });
                     } else {
@@ -395,7 +465,6 @@
             $('#searchDept').on('keypress', function (e) {
                 if (e.keyCode === 13) searchStatusData();
             });
-
             $('a[href="#tab2"]').on('click', function () {
                 searchStatusData();
             });

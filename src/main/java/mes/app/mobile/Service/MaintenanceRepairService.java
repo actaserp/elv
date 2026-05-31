@@ -41,6 +41,42 @@ public class MaintenanceRepairService {
         return this.sqlRunner.getRow(sql, param);
     }
 
+    // ── 고장접수 목록 조회 (TB_E401) ─────────────────────────
+    public List<Map<String, Object>> getRepairList(
+            String fromDate, String toDate, String actnm, String spjangcd) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("fromDate", fromDate);
+        param.addValue("toDate",   toDate);
+
+        String sql = """
+                SELECT
+                    e.recedate,
+                    e.recenum,
+                    e.recetime,
+                    e.actcd,
+                    e.actnm,
+                    e.equpcd,
+                    e.equpnm,
+                    e.contcd,
+                    e.contents,
+                    e.remark,
+                    e.resultck
+                FROM TB_E401 e
+                WHERE e.spjangcd = :spjangcd
+                  AND e.recedate BETWEEN :fromDate AND :toDate
+                """;
+
+        if (actnm != null && !actnm.isBlank()) {
+            sql += " AND e.actnm LIKE :actnm";
+            param.addValue("actnm", "%" + actnm.trim() + "%");
+        }
+
+        sql += " ORDER BY e.recedate DESC, e.recenum DESC";
+        return this.sqlRunner.getRows(sql, param);
+    }
+
     // ── 고장처리결과 목록 조회 (TB_E411) ─────────────────────
     public List<Map<String, Object>> getCompList(
             String fromDate, String toDate, String actnm, String spjangcd) {
@@ -133,6 +169,7 @@ public class MaintenanceRepairService {
             String compdate,
             String comptime,
             String recedate,
+            String recenum,
             String recetime,
             String arrivdate,
             String arrivtime,
@@ -156,6 +193,7 @@ public class MaintenanceRepairService {
         param.addValue("compnum",    compnum);
         param.addValue("comptime",   comptime);
         param.addValue("recedate",   recedate);
+        param.addValue("recenum",    recenum);
         param.addValue("recetime",   recetime);
         param.addValue("arrivdate",  arrivdate);
         param.addValue("arrivtime",  arrivtime);
@@ -176,14 +214,14 @@ public class MaintenanceRepairService {
         String sql = """
                 INSERT INTO TB_E411
                     (spjangcd, compdate, compnum, comptime,
-                     recedate, recetime, arrivdate, arrivtime,
+                     recedate, recenum, recetime, arrivdate, arrivtime,
                      actcd, actnm, equpcd, equpnm,
                      contremark, remoremark, resuremark, resultcd,
                      customer, remark,
                      perid, inperid, indate)
                 VALUES
                     (:spjangcd, :compdate, :compnum, :comptime,
-                     :recedate, :recetime, :arrivdate, :arrivtime,
+                     :recedate, :recenum, :recetime, :arrivdate, :arrivtime,
                      :actcd, :actnm, :equpcd, :equpnm,
                      :contremark, :remoremark, :resuremark, :resultcd,
                      :customer, :remark,

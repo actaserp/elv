@@ -2,8 +2,8 @@ package mes.app.AS.service;
 
 import mes.domain.services.SqlRunner;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -13,77 +13,38 @@ import java.util.Map;
 public class WebRequestService {
 
     @Autowired
-    @Qualifier("mainSqlRunner")
-    SqlRunner sqlRunner;
+    SqlRunner sqlRunner; // 사업체DB (@Primary = tenantSqlRunner)
 
     @Autowired
-    SqlRunner tenantSqlRunner; // 사업체DB (RoutingDataSource, @Primary)
+    NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
-    // ── 사용자 정보 조회 (custcd + spjangcd) ─────────────────
-    private Map<String, Object> getUserInfo(String username) {
-
-        // 1. 본사DB에서 personid 조회
-        MapSqlParameterSource mainParam = new MapSqlParameterSource();
-        mainParam.addValue("username", username);
-
-        String mainSql = """
-                SELECT personid
-                FROM auth_user
-                WHERE username = :username
-                """;
-
-        List<Map<String, Object>> mainRows = sqlRunner.getRows(mainSql, mainParam);
-        if (mainRows.isEmpty()) return null;
-
-        Object personid = mainRows.get(0).get("personid");
-        if (personid == null) return null;
-
-        // 2. 사업체DB에서 person.id → TB_JA001 조인으로 custcd, spjangcd 조회
-        MapSqlParameterSource tenantParam = new MapSqlParameterSource();
-        tenantParam.addValue("personid", personid);
-
-        String tenantSql = """
-                SELECT TOP 1 j.custcd, j.spjangcd
-                FROM person p
-                JOIN TB_JA001 j ON j.perid = p.Code
-                WHERE p.id = :personid
-                """;
-
-        List<Map<String, Object>> tenantRows = tenantSqlRunner.getRows(tenantSql, tenantParam);
-        return tenantRows.isEmpty() ? null : tenantRows.get(0);
-    }
-
-    // ── 요약 카운트 ───────────────────────────────────────────
-    public Map<String, Object> getSummary(String username) {
-        Map<String, Object> userInfo = getUserInfo(username);
-        if (userInfo == null) return null;
+    // ── 카운트 (금일수신/고장접수/콜백/당일처리) ─────────────
+    public Map<String, Object> getCount(String spjangcd) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
-        param.addValue("spjangcd", userInfo.get("spjangcd"));
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("today", java.time.LocalDate.now().toString().replace("-", ""));
 
         String sql = """
                 SELECT
-                    COUNT(*)                                             AS cntRecv,
-                    SUM(CASE WHEN divicd IS NOT NULL THEN 1 ELSE 0 END) AS cntRece,
-                    0                                                    AS cntCallback,
-                    SUM(CASE WHEN resultck = '1'    THEN 1 ELSE 0 END)  AS cntToday
+                    COUNT(*)                                                 AS callcount,
+                    SUM(CASE WHEN resultck IS NULL THEN 1 ELSE 0 END)       AS rececnt,
+                    0                                                        AS callback,
+                    SUM(CASE WHEN resultck = '1'   THEN 1 ELSE 0 END)       AS compcnt
                 FROM TB_E401
                 WHERE spjangcd = :spjangcd
-                  AND recedate = CONVERT(VARCHAR(8), GETDATE(), 112)
+                  AND recedate = :today
                 """;
 
-        return tenantSqlRunner.getRow(sql, param);
+        return sqlRunner.getRow(sql, param);
     }
 
-    // ── 고장접수 목록 조회 (TB_E401) ─────────────────────────
-    public List<Map<String, Object>> getRepairList(
-            String username, String fromDate, String toDate, String actnm) {
-
-        Map<String, Object> userInfo = getUserInfo(username);
-        if (userInfo == null) return List.of();
+    // ── 고장접수현황 카드 리스트 (TB_E401) ───────────────────
+    public List<Map<String, Object>> getList(
+            String spjangcd, String fromDate, String toDate, String actnm) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
-        param.addValue("spjangcd", userInfo.get("spjangcd"));
+        param.addValue("spjangcd", spjangcd);
         param.addValue("fromDate", fromDate);
         param.addValue("toDate",   toDate);
 
@@ -98,17 +59,21 @@ public class WebRequestService {
                     e.actnm,
                     e.equpcd,
                     e.equpnm,
-                    e.contents,
-                    e.remark,
                     e.reperid,
+                    j2.pernm     AS repernm,
                     e.perid,
                     j.pernm,
-                    e.divicd,
-                    jc.divinm
+                    e.contcd,
+                    c.contnm,
+                    e.contents,
+                    e.remark,
+                    e.resultck   AS status
                 FROM TB_E401 e
                 LEFT JOIN TB_JA001 j  ON j.perid    = 'p' + e.perid
                                      AND j.spjangcd  = e.spjangcd
-                LEFT JOIN TB_JC002 jc ON j.divicd   = jc.divicd
+                LEFT JOIN TB_JA001 j2 ON j2.perid   = 'p' + e.reperid
+                                     AND j2.spjangcd = e.spjangcd
+                LEFT JOIN TB_E010  c  ON c.contcd   = e.contcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.recedate BETWEEN :fromDate AND :toDate
                 """;
@@ -120,72 +85,22 @@ public class WebRequestService {
 
         sql += " ORDER BY e.recedate DESC, e.recenum DESC";
 
-        return tenantSqlRunner.getRows(sql, param);
-    }
-
-    // ── 현장 목록 조회 (TB_E601) ─────────────────────────────
-    public List<Map<String, Object>> getActList(String username) {
-        Map<String, Object> userInfo = getUserInfo(username);
-        if (userInfo == null) return List.of();
-
-        MapSqlParameterSource param = new MapSqlParameterSource();
-        param.addValue("spjangcd", userInfo.get("spjangcd"));
-
-        String sql = """
-                SELECT actcd, actnm
-                FROM TB_E601
-                WHERE spjangcd = :spjangcd
-                ORDER BY actnm ASC
-                """;
-
-        return tenantSqlRunner.getRows(sql, param);
-    }
-
-    // ── 호기 목록 조회 (TB_E611) ─────────────────────────────
-    public List<Map<String, Object>> getEqupList(String username, String actcd) {
-        Map<String, Object> userInfo = getUserInfo(username);
-        if (userInfo == null) return List.of();
-
-        MapSqlParameterSource param = new MapSqlParameterSource();
-        param.addValue("spjangcd", userInfo.get("spjangcd"));
-        param.addValue("actcd",    actcd);
-
-        String sql = """
-                SELECT equpcd, equpnm
-                FROM TB_E611 WITH(NOLOCK)
-                WHERE spjangcd = :spjangcd
-                  AND actcd    = :actcd
-                ORDER BY equpcd ASC
-                """;
-
-        return tenantSqlRunner.getRows(sql, param);
+        return sqlRunner.getRows(sql, param);
     }
 
     // ── 고장접수 저장 (TB_E401 INSERT / UPDATE) ───────────────
-    public void saveRepair(
-            String username,
-            String recedate,
-            String recenum,
-            String recetime,
-            String hitchdate,
-            String hitchhour,
-            String actcd,
-            String actnm,
-            String equpcd,
-            String equpnm,
-            String contents,
-            String remark,
-            String reperid,
-            String perid) {
+    public void save(String spjangcd, String custcd,
+                     String recedate, String recenum, String recetime,
+                     String hitchdate, String hitchhour,
+                     String actcd, String actnm,
+                     String equpcd, String equpnm,
+                     String reperid, String perid,
+                     String contcd, String contents, String remark) {
 
-        Map<String, Object> userInfo = getUserInfo(username);
-        if (userInfo == null) throw new RuntimeException("사용자 정보를 찾을 수 없습니다.");
-
-        String custcd   = (String) userInfo.get("custcd");
-        String spjangcd = (String) userInfo.get("spjangcd");
+        String today = java.time.LocalDate.now().toString().replace("-", "");
 
         if (recenum == null || recenum.isBlank()) {
-            // 신규 INSERT
+            // 신규 INSERT - recenum 채번
             recenum = getNextRecenum(spjangcd, recedate);
 
             MapSqlParameterSource param = new MapSqlParameterSource();
@@ -200,29 +115,32 @@ public class WebRequestService {
             param.addValue("actnm",     actnm);
             param.addValue("equpcd",    equpcd);
             param.addValue("equpnm",    equpnm);
-            param.addValue("contents",  contents);
-            param.addValue("remark",    remark);
             param.addValue("reperid",   reperid);
             param.addValue("perid",     perid);
+            param.addValue("contcd",    contcd);
+            param.addValue("contents",  contents);
+            param.addValue("remark",    remark);
             param.addValue("inperid",   perid);
-            param.addValue("indate",    recedate);
+            param.addValue("indate",    today);
 
             String sql = """
                     INSERT INTO TB_E401
                         (custcd, spjangcd, recedate, recenum, recetime,
                          hitchdate, hitchhour,
                          actcd, actnm, equpcd, equpnm,
-                         contents, remark, reperid,
-                         perid, inperid, indate)
+                         reperid, perid,
+                         contcd, contents, remark,
+                         inperid, indate)
                     VALUES
                         (:custcd, :spjangcd, :recedate, :recenum, :recetime,
                          :hitchdate, :hitchhour,
                          :actcd, :actnm, :equpcd, :equpnm,
-                         :contents, :remark, :reperid,
-                         :perid, :inperid, :indate)
+                         :reperid, :perid,
+                         :contcd, :contents, :remark,
+                         :inperid, :indate)
                     """;
 
-            tenantSqlRunner.execute(sql, param);
+            namedParameterJdbcTemplate.update(sql, param);
 
         } else {
             // 수정 UPDATE
@@ -237,53 +155,264 @@ public class WebRequestService {
             param.addValue("actnm",     actnm);
             param.addValue("equpcd",    equpcd);
             param.addValue("equpnm",    equpnm);
+            param.addValue("reperid",   reperid);
+            param.addValue("perid",     perid);
+            param.addValue("contcd",    contcd);
             param.addValue("contents",  contents);
             param.addValue("remark",    remark);
-            param.addValue("reperid",   reperid);
 
             String sql = """
                     UPDATE TB_E401 SET
-                        recetime    = :recetime,
-                        hitchdate   = :hitchdate,
-                        hitchhour   = :hitchhour,
-                        actcd       = :actcd,
-                        actnm       = :actnm,
-                        equpcd      = :equpcd,
-                        equpnm      = :equpnm,
-                        contents    = :contents,
-                        remark      = :remark,
-                        reperid     = :reperid,
-                        update_time = GETDATE()
+                        recetime  = :recetime,
+                        hitchdate = :hitchdate,
+                        hitchhour = :hitchhour,
+                        actcd     = :actcd,
+                        actnm     = :actnm,
+                        equpcd    = :equpcd,
+                        equpnm    = :equpnm,
+                        reperid   = :reperid,
+                        perid     = :perid,
+                        contcd    = :contcd,
+                        contents  = :contents,
+                        remark    = :remark
                     WHERE spjangcd = :spjangcd
                       AND recedate = :recedate
                       AND recenum  = :recenum
                     """;
 
-            tenantSqlRunner.execute(sql, param);
+            namedParameterJdbcTemplate.update(sql, param);
         }
     }
 
     // ── 고장접수 삭제 (TB_E401 DELETE) ───────────────────────
-    public void deleteRepair(String username, String recedate, String recenum) {
-        Map<String, Object> userInfo = getUserInfo(username);
-        if (userInfo == null) throw new RuntimeException("사용자 정보를 찾을 수 없습니다.");
+    public void delete(String spjangcd, String recedate, String recenum) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
-        param.addValue("spjangcd", userInfo.get("spjangcd"));
+        param.addValue("spjangcd", spjangcd);
         param.addValue("recedate", recedate);
         param.addValue("recenum",  recenum);
 
-        String sql = """
+        namedParameterJdbcTemplate.update("""
                 DELETE FROM TB_E401
                 WHERE spjangcd = :spjangcd
                   AND recedate = :recedate
                   AND recenum  = :recenum
-                """;
-
-        tenantSqlRunner.execute(sql, param);
+                """, param);
     }
 
-    // ── recenum 채번 (001 ~ 999) ──────────────────────────────
+    // ── 문자전송내역 조회 (TB_E402 - 임시, 추후 테이블명 확인) ─
+    public List<Map<String, Object>> getSmsHistory(
+            String spjangcd, String recedate, String recenum) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("recedate", recedate);
+        param.addValue("recenum",  recenum);
+
+        String sql = """
+                SELECT
+                    s.result,
+                    s.recedate,
+                    s.recetime,
+                    s.pernm,
+                    s.sms_tel,
+                    s.flag,
+                    s.sms_text
+                FROM TB_E402 s
+                WHERE s.spjangcd = :spjangcd
+                  AND s.recedate = :recedate
+                  AND s.recenum  = :recenum
+                ORDER BY s.recedate DESC, s.recetime DESC
+                """;
+
+        return sqlRunner.getRows(sql, param);
+    }
+
+    // ── 통화메모 목록 조회 (TB_E403 - 임시, 추후 테이블명 확인) ─
+    public List<Map<String, Object>> getMemoList(
+            String spjangcd, String srchDate, String callnm) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("srchDate", srchDate);
+        param.addValue("callnm",   callnm != null ? callnm : "%");
+
+        String sql = """
+                SELECT
+                    seq,
+                    calldate,
+                    calltime,
+                    callnm,
+                    callnum,
+                    callmemo,
+                    callbackflag,
+                    callbacktime,
+                    callbackmemo,
+                    callendmemo
+                FROM TB_E403
+                WHERE spjangcd = :spjangcd
+                  AND calldate = :srchDate
+                  AND callnm   LIKE :callnm
+                ORDER BY calldate DESC, calltime DESC
+                """;
+
+        return sqlRunner.getRows(sql, param);
+    }
+
+    // ── 통화메모 저장 (TB_E403 - 임시, 추후 테이블명 확인) ───
+    public void saveMemo(String spjangcd, String seq,
+                         String calldate, String calltime,
+                         String callnm, String callnum,
+                         String callbackflag, String callbacktime, String callbackmemo,
+                         String callmemo, String callendmemo) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd",     spjangcd);
+        param.addValue("seq",          seq);
+        param.addValue("calldate",     calldate);
+        param.addValue("calltime",     calltime);
+        param.addValue("callnm",       callnm);
+        param.addValue("callnum",      callnum);
+        param.addValue("callbackflag", callbackflag);
+        param.addValue("callbacktime", callbacktime);
+        param.addValue("callbackmemo", callbackmemo);
+        param.addValue("callmemo",     callmemo);
+        param.addValue("callendmemo",  callendmemo);
+
+        if (seq == null || seq.isBlank()) {
+            namedParameterJdbcTemplate.update("""
+                    INSERT INTO TB_E403
+                        (spjangcd, calldate, calltime, callnm, callnum,
+                         callbackflag, callbacktime, callbackmemo,
+                         callmemo, callendmemo)
+                    VALUES
+                        (:spjangcd, :calldate, :calltime, :callnm, :callnum,
+                         :callbackflag, :callbacktime, :callbackmemo,
+                         :callmemo, :callendmemo)
+                    """, param);
+        } else {
+            namedParameterJdbcTemplate.update("""
+                    UPDATE TB_E403 SET
+                        calldate     = :calldate,
+                        calltime     = :calltime,
+                        callnm       = :callnm,
+                        callnum      = :callnum,
+                        callbackflag = :callbackflag,
+                        callbacktime = :callbacktime,
+                        callbackmemo = :callbackmemo,
+                        callmemo     = :callmemo,
+                        callendmemo  = :callendmemo
+                    WHERE spjangcd = :spjangcd
+                      AND seq      = :seq
+                    """, param);
+        }
+    }
+
+    // ── 통화메모 삭제 (TB_E403 - 임시, 추후 테이블명 확인) ───
+    public void deleteMemo(String spjangcd, String seq) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("seq",      seq);
+
+        namedParameterJdbcTemplate.update("""
+                DELETE FROM TB_E403
+                WHERE spjangcd = :spjangcd
+                  AND seq      = :seq
+                """, param);
+    }
+
+    // ── 팝업: 현장 검색 (TB_E601) ────────────────────────────
+    public List<Map<String, Object>> popupActnm(String spjangcd, String actnm) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("actnm", (actnm != null && !actnm.isBlank()) ? "%" + actnm + "%" : "%");
+
+        String sql = """
+                SELECT actcd, actnm
+                FROM TB_E601
+                WHERE spjangcd = :spjangcd
+                  AND actnm    LIKE :actnm
+                ORDER BY actnm ASC
+                """;
+
+        return sqlRunner.getRows(sql, param);
+    }
+
+    // ── 팝업: 호기 검색 (TB_E611) ────────────────────────────
+    public List<Map<String, Object>> popupEqupnm(String spjangcd, String actcd) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("actcd",    actcd);
+
+        String sql = """
+                SELECT equpcd, equpnm
+                FROM TB_E611 WITH(NOLOCK)
+                WHERE spjangcd = :spjangcd
+                  AND actcd    = :actcd
+                ORDER BY equpcd ASC
+                """;
+
+        return sqlRunner.getRows(sql, param);
+    }
+
+    // ── 팝업: 사원 검색 (TB_JA001 - 접수자/통보자 공통) ──────
+    public List<Map<String, Object>> popupPernm(String spjangcd, String pernm) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("pernm", (pernm != null && !pernm.isBlank() && !pernm.equals("%"))
+                ? "%" + pernm + "%" : "%");
+
+        String sql = """
+                SELECT perid, pernm, handphone
+                FROM TB_JA001
+                WHERE spjangcd = :spjangcd
+                  AND pernm    LIKE :pernm
+                ORDER BY pernm ASC
+                """;
+
+        return sqlRunner.getRows(sql, param);
+    }
+
+    // ── 팝업: 고장내용 검색 (TB_E010) ────────────────────────
+    public List<Map<String, Object>> popupContnm(String contnm) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("contnm", (contnm != null && !contnm.isBlank() && !contnm.equals("%"))
+                ? "%" + contnm + "%" : "%");
+
+        String sql = """
+                SELECT contcd, contnm
+                FROM TB_E010
+                WHERE contnm LIKE :contnm
+                ORDER BY contcd ASC
+                """;
+
+        return sqlRunner.getRows(sql, param);
+    }
+
+    // ── PushID 조회 (TB_JA001) ────────────────────────────────
+    public String getPushId(String spjangcd, String pernm) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("pernm",    pernm);
+
+        String sql = """
+                SELECT TOP 1 pushid
+                FROM TB_JA001
+                WHERE spjangcd = :spjangcd
+                  AND pernm    = :pernm
+                """;
+
+        Map<String, Object> row = sqlRunner.getRow(sql, param);
+        return (row != null) ? (String) row.get("pushid") : null;
+    }
+
+    // ── recenum 채번 ──────────────────────────────────────────
     private String getNextRecenum(String spjangcd, String recedate) {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
@@ -296,8 +425,8 @@ public class WebRequestService {
                   AND recedate = :recedate
                 """;
 
-        Map<String, Object> row = tenantSqlRunner.getRow(sql, param);
-        int next = row != null ? ((Number) row.values().iterator().next()).intValue() : 1;
+        Integer next = namedParameterJdbcTemplate.queryForObject(sql, param, Integer.class);
+        if (next == null) next = 1;
         return String.format("%03d", next);
     }
 }

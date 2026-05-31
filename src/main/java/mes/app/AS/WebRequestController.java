@@ -2,10 +2,8 @@ package mes.app.AS;
 
 import lombok.extern.slf4j.Slf4j;
 import mes.app.AS.service.WebRequestService;
-import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,98 +12,86 @@ import javax.servlet.http.HttpServletRequest;
 @Slf4j
 @RestController
 @Transactional
-@RequestMapping("/api/web_request")
+@RequestMapping("/api/AS/web_request")
 public class WebRequestController {
 
     @Autowired
     WebRequestService webRequestService;
 
-    // ── 요약 카운트 ───────────────────────────────────────────
-    @GetMapping("/summary")
-    public AjaxResult getSummary(HttpServletRequest request, Authentication auth) {
+    // ── 카운트 (금일수신/고장접수/콜백예약/당일처리) ──────────
+    @GetMapping("/count")
+    public AjaxResult getCount(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            HttpServletRequest request) {
         AjaxResult result = new AjaxResult();
-        User user = (User) auth.getPrincipal();
-        result.data = webRequestService.getSummary(user.getUsername());
+        result.data = webRequestService.getCount(spjangcd);
         return result;
     }
 
-    // ── 고장접수 목록 조회 ────────────────────────────────────
-    @GetMapping("/read")
-    public AjaxResult getRepairList(
+    // ── 고장접수현황 카드 리스트 ──────────────────────────────
+    @GetMapping("/list")
+    public AjaxResult getList(
             @RequestParam(value = "fromDate", required = false) String fromDate,
             @RequestParam(value = "toDate",   required = false) String toDate,
             @RequestParam(value = "actnm",    required = false) String actnm,
-            HttpServletRequest request, Authentication auth) {
+            @RequestParam(value = "spjangcd") String spjangcd,
+            HttpServletRequest request) {
         AjaxResult result = new AjaxResult();
-        User user = (User) auth.getPrincipal();
-        result.data = webRequestService.getRepairList(user.getUsername(), fromDate, toDate, actnm);
+        result.data = webRequestService.getList(spjangcd, fromDate, toDate, actnm);
         return result;
     }
 
-    // ── 현장 목록 조회 ────────────────────────────────────────
-    @GetMapping("/read_act")
-    public AjaxResult getActList(HttpServletRequest request, Authentication auth) {
-        AjaxResult result = new AjaxResult();
-        User user = (User) auth.getPrincipal();
-        result.data = webRequestService.getActList(user.getUsername());
-        return result;
-    }
-
-    // ── 호기 목록 조회 ────────────────────────────────────────
-    @GetMapping("/read_equp")
-    public AjaxResult getEqupList(
-            @RequestParam(value = "actcd", required = false) String actcd,
-            HttpServletRequest request, Authentication auth) {
-        AjaxResult result = new AjaxResult();
-        User user = (User) auth.getPrincipal();
-        result.data = webRequestService.getEqupList(user.getUsername(), actcd);
-        return result;
-    }
-
-    // ── 고장접수 저장 (신규/수정) ─────────────────────────────
+    // ── 고장접수 저장 ─────────────────────────────────────────
     @PostMapping("/save")
-    public AjaxResult saveRepair(
-            @RequestParam(value = "recedate",  required = false) String recedate,
-            @RequestParam(value = "recenum",   required = false) String recenum,
-            @RequestParam(value = "recetime",  required = false) String recetime,
-            @RequestParam(value = "hitchdate", required = false) String hitchdate,
-            @RequestParam(value = "hitchhour", required = false) String hitchhour,
-            @RequestParam(value = "actcd",     required = false) String actcd,
-            @RequestParam(value = "actnm",     required = false) String actnm,
-            @RequestParam(value = "equpcd",    required = false) String equpcd,
-            @RequestParam(value = "equpnm",    required = false) String equpnm,
-            @RequestParam(value = "contents",  required = false) String contents,
-            @RequestParam(value = "remark",    required = false) String remark,
-            @RequestParam(value = "reperid",   required = false) String reperid,
-            HttpServletRequest request, Authentication auth) {
+    public AjaxResult save(
+            @RequestParam(value = "spjangcd")              String spjangcd,
+            @RequestParam(value = "custcd",   required = false) String custcd,
+            @RequestParam(value = "recedate", required = false) String recedate,
+            @RequestParam(value = "recenum",  required = false) String recenum,
+            @RequestParam(value = "recetime", required = false) String recetime,
+            @RequestParam(value = "hitchdate",required = false) String hitchdate,
+            @RequestParam(value = "hitchhour",required = false) String hitchhour,
+            @RequestParam(value = "actcd",    required = false) String actcd,
+            @RequestParam(value = "actnm",    required = false) String actnm,
+            @RequestParam(value = "equpcd",   required = false) String equpcd,
+            @RequestParam(value = "equpnm",   required = false) String equpnm,
+            @RequestParam(value = "reperid",  required = false) String reperid,
+            @RequestParam(value = "perid",    required = false) String perid,
+            @RequestParam(value = "contcd",   required = false) String contcd,
+            @RequestParam(value = "contents", required = false) String contents,
+            @RequestParam(value = "remark",   required = false) String remark,
+            HttpServletRequest request) {
+
         AjaxResult result = new AjaxResult();
-        User user = (User) auth.getPrincipal();
-        String username = user.getUsername();
         try {
-            webRequestService.saveRepair(username, recedate, recenum, recetime,
-                    hitchdate, hitchhour, actcd, actnm, equpcd, equpnm,
-                    contents, remark, reperid, username);
+            webRequestService.save(spjangcd, custcd,
+                    recedate, recenum, recetime,
+                    hitchdate, hitchhour,
+                    actcd, actnm, equpcd, equpnm,
+                    reperid, perid,
+                    contcd, contents, remark);
             result.success = true;
             result.message = (recenum == null || recenum.isBlank())
                     ? "고장접수가 등록되었습니다." : "고장접수가 수정되었습니다.";
         } catch (Exception e) {
             log.error("고장접수 저장 오류", e);
             result.success = false;
-            result.message = "고장접수 저장 중 오류가 발생하였습니다.";
+            result.message = "저장 중 오류가 발생하였습니다.";
         }
         return result;
     }
 
     // ── 고장접수 삭제 ─────────────────────────────────────────
     @PostMapping("/delete")
-    public AjaxResult deleteRepair(
-            @RequestParam(value = "recedate", required = false) String recedate,
-            @RequestParam(value = "recenum",  required = false) String recenum,
-            HttpServletRequest request, Authentication auth) {
+    public AjaxResult delete(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "recedate") String recedate,
+            @RequestParam(value = "recenum")  String recenum,
+            HttpServletRequest request) {
+
         AjaxResult result = new AjaxResult();
-        User user = (User) auth.getPrincipal();
         try {
-            webRequestService.deleteRepair(user.getUsername(), recedate, recenum);
+            webRequestService.delete(spjangcd, recedate, recenum);
             result.success = true;
             result.message = "삭제되었습니다.";
         } catch (Exception e) {
@@ -113,6 +99,136 @@ public class WebRequestController {
             result.success = false;
             result.message = "삭제 중 오류가 발생하였습니다.";
         }
+        return result;
+    }
+
+    // ── 문자전송내역 조회 ─────────────────────────────────────
+    @GetMapping("/sms_history")
+    public AjaxResult getSmsHistory(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "recedate", required = false) String recedate,
+            @RequestParam(value = "recenum",  required = false) String recenum,
+            HttpServletRequest request) {
+        AjaxResult result = new AjaxResult();
+        result.data = webRequestService.getSmsHistory(spjangcd, recedate, recenum);
+        return result;
+    }
+
+    // ── 통화메모 목록 조회 ────────────────────────────────────
+    @GetMapping("/memo_list")
+    public AjaxResult getMemoList(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "srchDate", required = false) String srchDate,
+            @RequestParam(value = "callnm",   required = false) String callnm,
+            HttpServletRequest request) {
+        AjaxResult result = new AjaxResult();
+        result.data = webRequestService.getMemoList(spjangcd, srchDate, callnm);
+        return result;
+    }
+
+    // ── 통화메모 저장 ─────────────────────────────────────────
+    @PostMapping("/save_memo")
+    public AjaxResult saveMemo(
+            @RequestParam(value = "spjangcd")                   String spjangcd,
+            @RequestParam(value = "seq",          required = false) String seq,
+            @RequestParam(value = "calldate",     required = false) String calldate,
+            @RequestParam(value = "calltime",     required = false) String calltime,
+            @RequestParam(value = "callnm",       required = false) String callnm,
+            @RequestParam(value = "callnum",      required = false) String callnum,
+            @RequestParam(value = "callbackflag", required = false) String callbackflag,
+            @RequestParam(value = "callbacktime", required = false) String callbacktime,
+            @RequestParam(value = "callbackmemo", required = false) String callbackmemo,
+            @RequestParam(value = "callmemo",     required = false) String callmemo,
+            @RequestParam(value = "callendmemo",  required = false) String callendmemo,
+            HttpServletRequest request) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            webRequestService.saveMemo(spjangcd, seq,
+                    calldate, calltime, callnm, callnum,
+                    callbackflag, callbacktime, callbackmemo,
+                    callmemo, callendmemo);
+            result.success = true;
+            result.message = "저장되었습니다.";
+        } catch (Exception e) {
+            log.error("통화메모 저장 오류", e);
+            result.success = false;
+            result.message = "저장 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
+
+    // ── 통화메모 삭제 ─────────────────────────────────────────
+    @PostMapping("/delete_memo")
+    public AjaxResult deleteMemo(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "seq")      String seq,
+            HttpServletRequest request) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            webRequestService.deleteMemo(spjangcd, seq);
+            result.success = true;
+            result.message = "삭제되었습니다.";
+        } catch (Exception e) {
+            log.error("통화메모 삭제 오류", e);
+            result.success = false;
+            result.message = "삭제 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
+
+    // ── 팝업: 현장 검색 ───────────────────────────────────────
+    @GetMapping("/popup/actnm")
+    public AjaxResult popupActnm(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "actnm",    required = false) String actnm,
+            HttpServletRequest request) {
+        AjaxResult result = new AjaxResult();
+        result.data = webRequestService.popupActnm(spjangcd, actnm);
+        return result;
+    }
+
+    // ── 팝업: 호기 검색 ───────────────────────────────────────
+    @GetMapping("/popup/equpnm")
+    public AjaxResult popupEqupnm(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "actcd",    required = false) String actcd,
+            HttpServletRequest request) {
+        AjaxResult result = new AjaxResult();
+        result.data = webRequestService.popupEqupnm(spjangcd, actcd);
+        return result;
+    }
+
+    // ── 팝업: 사원 검색 (접수자/통보자 공통) ─────────────────
+    @GetMapping("/popup/pernm")
+    public AjaxResult popupPernm(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "pernm",    required = false) String pernm,
+            HttpServletRequest request) {
+        AjaxResult result = new AjaxResult();
+        result.data = webRequestService.popupPernm(spjangcd, pernm);
+        return result;
+    }
+
+    // ── 팝업: 고장내용 검색 (TB_E010) ────────────────────────
+    @GetMapping("/popup/contnm")
+    public AjaxResult popupContnm(
+            @RequestParam(value = "contnm", required = false) String contnm,
+            HttpServletRequest request) {
+        AjaxResult result = new AjaxResult();
+        result.data = webRequestService.popupContnm(contnm);
+        return result;
+    }
+
+    // ── PushID 조회 ───────────────────────────────────────────
+    @PostMapping("/pushid")
+    public AjaxResult getPushId(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "pernm",    required = false) String pernm,
+            HttpServletRequest request) {
+        AjaxResult result = new AjaxResult();
+        result.data = webRequestService.getPushId(spjangcd, pernm);
         return result;
     }
 }

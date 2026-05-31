@@ -10,8 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
-import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @RestController
@@ -31,6 +29,21 @@ public class MaintenanceRepairController {
         return result;
     }
 
+    // ── 고장접수 목록 조회 (TB_E401) ─────────────────────────
+    // 팝업에서 고장접수건 선택 시 사용
+    @GetMapping("/read_repair_list")
+    public AjaxResult getRepairList(
+            @RequestParam(value = "fromDate", required = false) String fromDate,
+            @RequestParam(value = "toDate",   required = false) String toDate,
+            @RequestParam(value = "actnm",    required = false) String actnm,
+            @RequestParam(value = "spjangcd", required = false) String spjangcd,
+            HttpServletRequest request, Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        result.data = maintenanceRepairService.getRepairList(fromDate, toDate, actnm, spjangcd);
+        return result;
+    }
+
     // ── 고장처리결과 목록 조회 (TB_E411) ─────────────────────
     @GetMapping("/read_comp")
     public AjaxResult getCompList(
@@ -38,8 +51,7 @@ public class MaintenanceRepairController {
             @RequestParam(value = "toDate",   required = false) String toDate,
             @RequestParam(value = "actnm",    required = false) String actnm,
             @RequestParam(value = "spjangcd", required = false) String spjangcd,
-            HttpServletRequest request,
-            Authentication auth) {
+            HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
         result.data = maintenanceRepairService.getCompList(fromDate, toDate, actnm, spjangcd);
@@ -51,8 +63,7 @@ public class MaintenanceRepairController {
     public AjaxResult getSiteList(
             @RequestParam(value = "spjangcd", required = false) String spjangcd,
             @RequestParam(value = "keyword",  required = false) String keyword,
-            HttpServletRequest request,
-            Authentication auth) {
+            HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
         result.data = maintenanceRepairService.getSiteList(spjangcd, keyword);
@@ -64,8 +75,7 @@ public class MaintenanceRepairController {
     public AjaxResult getEqupList(
             @RequestParam(value = "actcd",    required = false) String actcd,
             @RequestParam(value = "spjangcd", required = false) String spjangcd,
-            HttpServletRequest request,
-            Authentication auth) {
+            HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
         result.data = maintenanceRepairService.getEqupList(spjangcd, actcd);
@@ -79,6 +89,7 @@ public class MaintenanceRepairController {
             @RequestParam(value = "compdate",   required = false) String compdate,
             @RequestParam(value = "comptime",   required = false) String comptime,
             @RequestParam(value = "recedate",   required = false) String recedate,
+            @RequestParam(value = "recenum",    required = false) String recenum,
             @RequestParam(value = "recetime",   required = false) String recetime,
             @RequestParam(value = "arrivdate",  required = false) String arrivdate,
             @RequestParam(value = "arrivtime",  required = false) String arrivtime,
@@ -92,8 +103,7 @@ public class MaintenanceRepairController {
             @RequestParam(value = "resultcd",   required = false) String resultcd,
             @RequestParam(value = "customer",   required = false) String customer,
             @RequestParam(value = "remark",     required = false) String remark,
-            HttpServletRequest request,
-            Authentication auth) {
+            HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
@@ -102,7 +112,7 @@ public class MaintenanceRepairController {
         try {
             maintenanceRepairService.saveComp(
                     spjangcd, compdate, comptime,
-                    recedate, recetime,
+                    recedate, recenum, recetime,
                     arrivdate, arrivtime,
                     actcd, actnm, equpcd, equpnm,
                     contremark, remoremark, resuremark,

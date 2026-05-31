@@ -1,10 +1,709 @@
-<!DOCTYPE html>
-<html lang="en">
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
 <head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
+    <style>
+        .wj-header { text-align: center !important; }
 
-</body>
+        /* ── 좌우 분할 ── */
+        .handle-split-wrap {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .handle-left  { flex: 0 0 42%; min-width: 0; }
+        .handle-right { flex: 1; min-width: 0; border-left: 2px solid #4472c4; padding-left: 14px; }
+
+        /* ── 선택된 접수 정보 배너 ── */
+        .selected-banner {
+            display: none;
+            background: #eef3ff;
+            border: 1.5px solid #4472c4;
+            border-radius: 6px;
+            padding: 8px 14px;
+            margin-bottom: 10px;
+            font-size: 13px;
+            color: #333;
+        }
+        .selected-banner .banner-title {
+            font-weight: 700;
+            font-size: 14px;
+            color: #2c4f9e;
+            margin-bottom: 4px;
+        }
+        .selected-banner .banner-row { display: flex; gap: 16px; flex-wrap: wrap; }
+        .selected-banner .banner-item { color: #555; }
+        .selected-banner .banner-label { color: #999; margin-right: 4px; }
+
+        /* ── 폼 테이블 ── */
+        .write-table td input[type="text"],
+        .write-table td input[type="date"],
+        .write-table td input[type="time"],
+        .write-table td textarea {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .write-table td textarea { resize: vertical; min-height: 54px; }
+        .write-table td input[readonly] { background: #f5f5f5; cursor: pointer; }
+
+        /* ── 팝업 그리드 높이 ── */
+        #popActGrid, #popEqupGrid, #popPernmGrid { height: 320px; }
+
+        textarea{
+            height: 51px;
+        }
+    </style>
+</head>
+
+<th:block layout:fragment="content">
+    <div class="layout-contents">
+
+        <!-- Page Title -->
+        <div class="page-title-wrap">
+            <div class="left">
+                <h2>고장처리등록</h2>
+                <a title="북마크" class="bookmark toggle">내메뉴</a>
+            </div>
+            <ul class="page-navi">
+                <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+                <li>고장관리</li>
+                <li>고장처리등록</li>
+            </ul>
+        </div>
+
+        <div class="handle-split-wrap">
+
+            <!-- ════════════════════════
+                 LEFT : 고장접수 목록
+            ════════════════════════ -->
+            <section class="section handle-left">
+                <div class="section-top">
+                    <div class="search-wrap">
+                        <dl>
+                            <dt><label>기간</label></dt>
+                            <dd>
+                                <div class="srch-box" style="display:flex; align-items:center; gap:4px;">
+                                    <input type="date" id="fromDate" class="form-control2" style="width:130px;">
+                                    <span>~</span>
+                                    <input type="date" id="toDate"   class="form-control2" style="width:130px;">
+                                </div>
+                            </dd>
+                        </dl>
+                        <dl>
+                            <dt><label>현장명</label></dt>
+                            <dd>
+                                <div class="srch-box">
+                                    <input type="text" id="srchActnm" class="form-control2"
+                                           placeholder="현장명" style="width:110px;">
+                                </div>
+                            </dd>
+                        </dl>
+                        <dl>
+                            <dt><span class="eq"></span></dt>
+                            <dd>
+                                <li>
+                                    <a class="btn btn-delete" title="검색" id="btnSearch">
+                                        <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                                        검색
+                                    </a>
+                                </li>
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+                <div class="container-fluid">
+                    <div id="requestGrid" style="height:600px;"></div>
+                </div>
+            </section>
+
+            <!-- ════════════════════════
+                 RIGHT : 고장처리 등록 폼
+            ════════════════════════ -->
+            <section class="section handle-right">
+                <div class="section-top">
+                    <div class="button-wrap">
+                        <ul>
+                            <li>
+                                <button type="button" class="btn-excell btn-default" id="btnNew"
+                                        style="height:36px; width:100px;">
+                                    <i class="fas fa-plus"></i> 신규
+                                </button>
+                            </li>
+                            <li>
+                                <button type="button" class="btn-edit btn-default" id="btnSave"
+                                        style="height:36px; width:100px;">
+                                    <i class="fas fa-save"></i> 저장
+                                </button>
+                            </li>
+                            <li>
+                                <button type="button" class="btn-delete btn-danger" id="btnDel"
+                                        style="height:36px; width:100px;">
+                                    <i class="fas fa-trash"></i> 삭제
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- 선택된 고장접수 배너 -->
+                    <div class="selected-banner" id="selectedBanner">
+                        <div class="banner-title" id="bannerActnm"></div>
+                        <div class="banner-row">
+                            <span class="banner-item"><span class="banner-label">접수일자</span><span id="bannerRecedate"></span></span>
+                            <span class="banner-item"><span class="banner-label">호기</span><span id="bannerEqupnm"></span></span>
+                            <span class="banner-item"><span class="banner-label">고장내용</span><span id="bannerContents"></span></span>
+                        </div>
+                    </div>
+
+                    <!-- hidden 필드 -->
+                    <input type="hidden" id="hidCompdate">
+                    <input type="hidden" id="hidCompnum">
+                    <input type="hidden" id="hidRecedate">
+                    <input type="hidden" id="hidRecenum">
+                    <input type="hidden" id="hidActcd">
+                    <input type="hidden" id="hidEqupcd">
+                    <input type="hidden" id="hidPerid">
+
+                    <div class="table-wrap" style="overflow-x:auto; margin-top:6px;">
+                        <table class="write-table" style="width:100%; border-collapse:collapse; table-layout:fixed;">
+                            <caption style="text-align:left; margin-bottom:6px;">고장처리등록</caption>
+                            <tbody>
+
+                            <tr>
+                                <th style="width:100px;"><label>완료일자</label></th>
+                                <td><input type="date" id="regCompdate"></td>
+                                <th style="width:100px;"><label>완료시간</label></th>
+                                <td><input type="time" id="regComptime"></td>
+                            </tr>
+
+                            <tr>
+                                <th><label>도착일자</label></th>
+                                <td><input type="date" id="regArrivdate"></td>
+                                <th><label>도착시간</label></th>
+                                <td><input type="time" id="regArrivtime"></td>
+                            </tr>
+
+                            <tr>
+                                <th><label>접수일자</label></th>
+                                <td><input type="date" id="regRecedate2"></td>
+                                <th><label>접수시간</label></th>
+                                <td><input type="time" id="regRecetime"></td>
+                            </tr>
+
+                            <tr>
+                                <th><label>현장명</label></th>
+                                <td colspan="3">
+                                    <input type="text" id="regActnm" placeholder="현장 선택 (팝업)"
+                                           readonly onclick="openActPopup()">
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <th><label>호기명</label></th>
+                                <td colspan="3">
+                                    <input type="text" id="regEqupnm" placeholder="호기 선택 (현장 먼저)"
+                                           readonly onclick="openEqupPopup()">
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <th><label>고장부위</label></th>
+                                <td colspan="3">
+                                    <input type="text" id="regContremark" placeholder="고장부위 입력">
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <th><label>고장부위상세</label></th>
+                                <td colspan="3">
+                                    <textarea id="regRemoremark" placeholder="고장부위 상세 입력"></textarea>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <th><label>고장요인</label></th>
+                                <td colspan="3">
+                                    <textarea id="regResuremark" placeholder="고장요인 입력"></textarea>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <th><label>고장원인</label></th>
+                                <td colspan="3">
+                                    <input type="text" id="regResultcd" placeholder="고장원인 입력">
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <th><label>처리내용</label></th>
+                                <td colspan="3">
+                                    <input type="text" id="regCustomer" placeholder="처리내용 입력">
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <th><label>처리결과</label></th>
+                                <td colspan="3">
+                                    <input type="text" id="regRemark" placeholder="처리결과 입력">
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <th><label>처리자</label></th>
+                                <td colspan="3">
+                                    <input type="text" id="regPernm" placeholder="처리자 선택 (팝업)"
+                                           readonly onclick="openPernmPopup()">
+                                </td>
+                            </tr>
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div><!-- //handle-split-wrap -->
+
+    </div><!--//layout-contents-->
+
+    <footer style="margin-top:24px;">
+        <p>Copyrightⓒ 0000 corp. All rights reserved.</p>
+    </footer>
+</th:block>
+
+<!-- ════════════════════════════════════════
+     팝업 템플릿
+════════════════════════════════════════ -->
+<th:block layout:fragment="scripts">
+
+    <!-- 현장 팝업 템플릿 -->
+    <script type="text/template" id="actPopupTemplate">
+        <div style="padding:10px;">
+            <div style="display:flex; gap:6px; margin-bottom:8px;">
+                <input type="text" id="popActKeyword" class="form-control2"
+                       placeholder="현장명 검색" style="flex:1;">
+                <button type="button" class="btn btn-delete" id="popActSearch">검색</button>
+            </div>
+            <div id="popActGrid"></div>
+        </div>
+    </script>
+
+    <!-- 호기 팝업 템플릿 -->
+    <script type="text/template" id="equpPopupTemplate">
+        <div style="padding:10px;">
+            <div id="popEqupGrid"></div>
+        </div>
+    </script>
+
+    <!-- 처리자 팝업 템플릿 -->
+    <script type="text/template" id="pernmPopupTemplate">
+        <div style="padding:10px;">
+            <div style="display:flex; gap:6px; margin-bottom:8px;">
+                <input type="text" id="popPernmKeyword" class="form-control2"
+                       placeholder="사원명 검색" style="flex:1;">
+                <button type="button" class="btn btn-delete" id="popPernmSearch">검색</button>
+            </div>
+            <div id="popPernmGrid"></div>
+        </div>
+    </script>
+
+    <script type="text/javascript">
+
+        var _spjangcd    = sessionStorage.getItem('spjangcd') || '';
+        var requestGrid, requestData;
+        var _selectedRow = null; // 현재 선택된 고장접수 행
+
+        /* ════════════════════════════════════
+           초기화
+        ════════════════════════════════════ */
+        document.readyState === 'complete' ? init() : window.onload = init;
+
+        function init() {
+            // 기간 기본값: 당월 1일 ~ 오늘
+            var today    = new Date().toISOString().split('T')[0];
+            var firstDay = today.substring(0, 7) + '-01';
+            document.getElementById('fromDate').value = firstDay;
+            document.getElementById('toDate').value   = today;
+
+            // 폼 기본값
+            setFormDefaults();
+
+            // 좌측 그리드 초기화
+            requestData = new wijmo.collections.CollectionView([]);
+            requestGrid = new wijmo.grid.FlexGrid('#requestGrid', {
+                autoGenerateColumns: false,
+                showMarquee: true,
+                isReadOnly: true,
+                columns: [
+                    {binding: 'recedate', header: '접수일자', width: 100, align: 'center'},
+                    {binding: 'actnm',    header: '현장명',   width: 130, align: 'left'},
+                    {binding: 'equpnm',   header: '호기명',   width: 120, align: 'left'},
+                    {binding: 'contents', header: '고장내용', width: '*',  align: 'left'},
+                    {binding: 'resultck', header: '처리',     width:  60, align: 'center',
+                        cellTemplate: function(ctx) {
+                            return ctx.value ? '<span style="color:#1a7a3a;">✔</span>' : '<span style="color:#cc4400;">-</span>';
+                        }
+                    }
+                ],
+                itemsSource: requestData
+            });
+            requestGrid.rowHeaders.columns.splice(0, 1);
+
+            // 행 클릭 → 오른쪽 폼 바인딩
+            requestGrid.selectionChanged.addHandler(function (s, e) {
+                var row = s.selectedRows[0];
+                if (row && row.dataItem) {
+                    _selectedRow = row.dataItem;
+                    bindRequestToForm(_selectedRow);
+                }
+            });
+
+            // 버튼 이벤트
+            $('#btnSearch').click(function () { searchRequestList(); });
+            $('#srchActnm').on('keypress', function (e) {
+                if (e.keyCode === 13) searchRequestList();
+            });
+            $('#btnNew').click(function () { resetForm(); });
+            $('#btnSave').click(function () {
+                Alert.confirm('', '저장하시겠습니까?', function () { saveComp(); });
+            });
+            $('#btnDel').click(function () {
+                Alert.confirm('', '삭제하시겠습니까?', function () { deleteComp(); });
+            });
+
+            // 초기 조회
+            searchRequestList();
+        }
+
+        /* ════════════════════════════════════
+           좌측 그리드 조회
+        ════════════════════════════════════ */
+        function searchRequestList() {
+            var fromDate = document.getElementById('fromDate').value.replaceAll('-', '');
+            var toDate   = document.getElementById('toDate').value.replaceAll('-', '');
+            var actnm    = document.getElementById('srchActnm').value.trim();
+
+            AjaxUtil.getAsyncData('/api/AS/web_handle/list', {
+                fromDate : fromDate,
+                toDate   : toDate,
+                actnm    : actnm,
+                spjangcd : _spjangcd
+            }, function (result) {
+                var data = (result && result.data) ? result.data : [];
+                requestData = new wijmo.collections.CollectionView(data);
+                requestGrid.itemsSource = requestData;
+                requestGrid.refresh();
+            });
+        }
+
+        /* ════════════════════════════════════
+           고장접수 선택 → 폼 바인딩
+        ════════════════════════════════════ */
+        function bindRequestToForm(item) {
+            // 배너 표시
+            document.getElementById('bannerActnm').textContent    = item.actnm    || '-';
+            document.getElementById('bannerRecedate').textContent = fmtDate(item.recedate)
+                + (item.recetime ? ' ' + fmtTime(item.recetime) : '');
+            document.getElementById('bannerEqupnm').textContent   = item.equpnm   || '-';
+            document.getElementById('bannerContents').textContent = item.contents || '';
+            document.getElementById('selectedBanner').style.display = 'block';
+
+            // 고장접수 연결 정보
+            document.getElementById('hidRecedate').value = item.recedate || '';
+            document.getElementById('hidRecenum').value  = item.recenum  || '';
+
+            // 현장/호기
+            document.getElementById('hidActcd').value  = item.actcd  || '';
+            document.getElementById('regActnm').value  = item.actnm  || '';
+            document.getElementById('hidEqupcd').value = item.equpcd || '';
+            document.getElementById('regEqupnm').value = item.equpnm || '';
+
+            // 접수일자/시간 자동 세팅
+            document.getElementById('regRecedate2').value = item.recedate ? fmtDateInput(item.recedate) : '';
+            document.getElementById('regRecetime').value  = item.recetime ? fmtTime(item.recetime)      : '';
+
+            // 처리 관련 필드 초기화 (신규 입력용)
+            document.getElementById('hidCompdate').value  = '';
+            document.getElementById('hidCompnum').value   = '';
+            document.getElementById('regContremark').value = '';
+            document.getElementById('regRemoremark').value = '';
+            document.getElementById('regResuremark').value = '';
+            document.getElementById('regResultcd').value   = '';
+            document.getElementById('regCustomer').value   = '';
+            document.getElementById('regRemark').value     = '';
+            document.getElementById('hidPerid').value      = '';
+            document.getElementById('regPernm').value      = '';
+        }
+
+        /* ════════════════════════════════════
+           저장
+        ════════════════════════════════════ */
+        function saveComp() {
+            var compdate = document.getElementById('regCompdate').value;
+            var actcd    = document.getElementById('hidActcd').value;
+
+            if (!compdate) { Alert.alert('', '완료일자를 입력해주세요.'); return; }
+            if (!actcd)    { Alert.alert('', '고장접수를 선택하거나 현장을 선택해주세요.'); return; }
+
+            var data = {
+                spjangcd   : _spjangcd,
+                compdate   : compdate.replaceAll('-', ''),
+                comptime   : document.getElementById('regComptime').value.replaceAll(':', ''),
+                recedate   : document.getElementById('regRecedate2').value.replaceAll('-', ''),
+                recenum    : document.getElementById('hidRecenum').value,
+                recetime   : document.getElementById('regRecetime').value.replaceAll(':', ''),
+                arrivdate  : document.getElementById('regArrivdate').value.replaceAll('-', ''),
+                arrivtime  : document.getElementById('regArrivtime').value.replaceAll(':', ''),
+                actcd      : actcd,
+                actnm      : document.getElementById('regActnm').value,
+                equpcd     : document.getElementById('hidEqupcd').value,
+                equpnm     : document.getElementById('regEqupnm').value,
+                contremark : document.getElementById('regContremark').value,
+                remoremark : document.getElementById('regRemoremark').value,
+                resuremark : document.getElementById('regResuremark').value,
+                resultcd   : document.getElementById('regResultcd').value,
+                customer   : document.getElementById('regCustomer').value,
+                remark     : document.getElementById('regRemark').value,
+                perid      : document.getElementById('hidPerid').value
+            };
+
+            AjaxUtil.postAsyncData('/api/AS/web_handle/save', data, function (result) {
+                if (result && result.success) {
+                    Alert.alert('', result.message, function () {
+                        searchRequestList();
+                        resetForm();
+                    });
+                } else {
+                    Alert.alert('', (result && result.message) || '저장 중 오류가 발생하였습니다.');
+                }
+            });
+        }
+
+        /* ════════════════════════════════════
+           삭제
+        ════════════════════════════════════ */
+        function deleteComp() {
+            var compdate = document.getElementById('hidCompdate').value;
+            var compnum  = document.getElementById('hidCompnum').value;
+
+            if (!compdate || !compnum) {
+                Alert.alert('', '삭제할 처리결과를 선택해주세요.');
+                return;
+            }
+
+            AjaxUtil.postAsyncData('/api/AS/web_handle/delete', {
+                spjangcd : _spjangcd,
+                compdate : compdate,
+                compnum  : compnum
+            }, function (result) {
+                if (result && result.success) {
+                    Alert.alert('', result.message, function () {
+                        searchRequestList();
+                        resetForm();
+                    });
+                } else {
+                    Alert.alert('', (result && result.message) || '삭제 중 오류가 발생하였습니다.');
+                }
+            });
+        }
+
+        /* ════════════════════════════════════
+           폼 초기화
+        ════════════════════════════════════ */
+        function resetForm() {
+            setFormDefaults();
+            document.getElementById('hidCompdate').value  = '';
+            document.getElementById('hidCompnum').value   = '';
+            document.getElementById('hidRecedate').value  = '';
+            document.getElementById('hidRecenum').value   = '';
+            document.getElementById('hidActcd').value     = '';
+            document.getElementById('hidEqupcd').value    = '';
+            document.getElementById('hidPerid').value     = '';
+            document.getElementById('regActnm').value     = '';
+            document.getElementById('regEqupnm').value    = '';
+            document.getElementById('regContremark').value = '';
+            document.getElementById('regRemoremark').value = '';
+            document.getElementById('regResuremark').value = '';
+            document.getElementById('regResultcd').value   = '';
+            document.getElementById('regCustomer').value   = '';
+            document.getElementById('regRemark').value     = '';
+            document.getElementById('regPernm').value      = '';
+            document.getElementById('selectedBanner').style.display = 'none';
+        }
+
+        function setFormDefaults() {
+            var today = new Date().toISOString().split('T')[0];
+            var now   = new Date().toTimeString().slice(0, 5);
+            document.getElementById('regCompdate').value  = today;
+            document.getElementById('regComptime').value  = now;
+            document.getElementById('regArrivdate').value = today;
+            document.getElementById('regArrivtime').value = now;
+            document.getElementById('regRecedate2').value = today;
+            document.getElementById('regRecetime').value  = now;
+        }
+
+        /* ════════════════════════════════════
+           팝업 — 현장
+        ════════════════════════════════════ */
+        function openActPopup() {
+            var content = tmpl('actPopupTemplate', {});
+            var $c      = $(content);
+            var popContainer = new PopupDraggable('현장 선택');
+            popContainer.open({ width: 520, height: 440, $content: $c });
+
+            var popActGrid, popActData;
+            popActData = new wijmo.collections.CollectionView([]);
+            popActGrid = new wijmo.grid.FlexGrid('#popActGrid', {
+                autoGenerateColumns: false,
+                showMarquee: true,
+                isReadOnly: true,
+                columns: [
+                    {binding: 'actcd', header: '현장코드', width: 100, align: 'center'},
+                    {binding: 'actnm', header: '현장명',   width: '*',  align: 'left'}
+                ],
+                itemsSource: popActData
+            });
+            popActGrid.rowHeaders.columns.splice(0, 1);
+
+            function fetchAct() {
+                AjaxUtil.getAsyncData('/api/AS/web_handle/popup/actnm', {
+                    spjangcd : _spjangcd,
+                    actnm    : $c.find('#popActKeyword').val()
+                }, function (res) {
+                    popActData = new wijmo.collections.CollectionView(res.data || []);
+                    popActGrid.itemsSource = popActData;
+                    popActGrid.refresh();
+                });
+            }
+
+            $c.find('#popActSearch').click(function () { fetchAct(); });
+            $c.find('#popActKeyword').on('keypress', function (e) {
+                if (e.keyCode === 13) fetchAct();
+            });
+
+            popActGrid.hostElement.addEventListener('dblclick', function () {
+                var item = popActGrid.selectedItems[0];
+                if (!item) return;
+                document.getElementById('hidActcd').value  = item.actcd || '';
+                document.getElementById('regActnm').value  = item.actnm || '';
+                document.getElementById('hidEqupcd').value = '';
+                document.getElementById('regEqupnm').value = '';
+                popContainer.close();
+            });
+
+            fetchAct();
+        }
+
+        /* ════════════════════════════════════
+           팝업 — 호기
+        ════════════════════════════════════ */
+        function openEqupPopup() {
+            var actcd = document.getElementById('hidActcd').value;
+            if (!actcd) { Alert.alert('', '현장을 먼저 선택해주세요.'); return; }
+
+            var content = tmpl('equpPopupTemplate', {});
+            var $c      = $(content);
+            var popContainer = new PopupDraggable('호기 선택');
+            popContainer.open({ width: 460, height: 400, $content: $c });
+
+            var popEqupGrid, popEqupData;
+            popEqupData = new wijmo.collections.CollectionView([]);
+            popEqupGrid = new wijmo.grid.FlexGrid('#popEqupGrid', {
+                autoGenerateColumns: false,
+                showMarquee: true,
+                isReadOnly: true,
+                columns: [
+                    {binding: 'equpcd', header: '호기코드', width: 100, align: 'center'},
+                    {binding: 'equpnm', header: '호기명',   width: '*',  align: 'left'}
+                ],
+                itemsSource: popEqupData
+            });
+            popEqupGrid.rowHeaders.columns.splice(0, 1);
+
+            AjaxUtil.getAsyncData('/api/AS/web_handle/popup/equpnm', {
+                spjangcd : _spjangcd,
+                actcd    : actcd
+            }, function (res) {
+                popEqupData = new wijmo.collections.CollectionView(res.data || []);
+                popEqupGrid.itemsSource = popEqupData;
+                popEqupGrid.refresh();
+            });
+
+            popEqupGrid.hostElement.addEventListener('dblclick', function () {
+                var item = popEqupGrid.selectedItems[0];
+                if (!item) return;
+                document.getElementById('hidEqupcd').value = item.equpcd || '';
+                document.getElementById('regEqupnm').value = item.equpnm || '';
+                popContainer.close();
+            });
+        }
+
+        /* ════════════════════════════════════
+           팝업 — 처리자
+        ════════════════════════════════════ */
+        function openPernmPopup() {
+            var content = tmpl('pernmPopupTemplate', {});
+            var $c      = $(content);
+            var popContainer = new PopupDraggable('처리자 선택');
+            popContainer.open({ width: 480, height: 440, $content: $c });
+
+            var popPernmGrid, popPernmData;
+            popPernmData = new wijmo.collections.CollectionView([]);
+            popPernmGrid = new wijmo.grid.FlexGrid('#popPernmGrid', {
+                autoGenerateColumns: false,
+                showMarquee: true,
+                isReadOnly: true,
+                columns: [
+                    {binding: 'perid',  header: '사번',   width: 100, align: 'center'},
+                    {binding: 'pernm',  header: '사원명', width: 120, align: 'center'},
+                    {binding: 'divinm', header: '부서',   width: '*',  align: 'left'}
+                ],
+                itemsSource: popPernmData
+            });
+            popPernmGrid.rowHeaders.columns.splice(0, 1);
+
+            function fetchPernm() {
+                AjaxUtil.getAsyncData('/api/AS/web_handle/popup/pernm', {
+                    spjangcd : _spjangcd,
+                    pernm    : $c.find('#popPernmKeyword').val()
+                }, function (res) {
+                    popPernmData = new wijmo.collections.CollectionView(res.data || []);
+                    popPernmGrid.itemsSource = popPernmData;
+                    popPernmGrid.refresh();
+                });
+            }
+
+            $c.find('#popPernmSearch').click(function () { fetchPernm(); });
+            $c.find('#popPernmKeyword').on('keypress', function (e) {
+                if (e.keyCode === 13) fetchPernm();
+            });
+
+            popPernmGrid.hostElement.addEventListener('dblclick', function () {
+                var item = popPernmGrid.selectedItems[0];
+                if (!item) return;
+                document.getElementById('hidPerid').value = item.perid || '';
+                document.getElementById('regPernm').value = item.pernm || '';
+                popContainer.close();
+            });
+
+            fetchPernm();
+        }
+
+        /* ════════════════════════════════════
+           날짜/시간 유틸
+        ════════════════════════════════════ */
+        function fmtDateInput(d) {
+            if (!d) return '';
+            var s = String(d);
+            return s.substring(0,4) + '-' + s.substring(4,6) + '-' + s.substring(6,8);
+        }
+        function fmtDate(d) {
+            if (!d) return '';
+            var s = String(d);
+            return s.substring(0,4) + '.' + s.substring(4,6) + '.' + s.substring(6,8);
+        }
+        function fmtTime(t) {
+            if (!t) return '';
+            var s = String(t).replace(':','').padStart(4,'0');
+            return s.substring(0,2) + ':' + s.substring(2,4);
+        }
+
+    </script>
+</th:block>
 </html>

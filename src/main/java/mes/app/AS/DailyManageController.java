@@ -9,8 +9,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
-import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @RestController
@@ -20,9 +18,9 @@ public class DailyManageController {
     @Autowired
     DailyManageService dailyManageService;
 
-    // ── 업무일지 목록 조회 (year + month 기준) ─────────────────
-    @GetMapping("/read")
-    public AjaxResult read(
+    // ── 헤드 목록 조회 (TB_E037 기준) ────────────────────────
+    @GetMapping("/read/head")
+    public AjaxResult readHead(
             @RequestParam(value = "year")                       String year,
             @RequestParam(value = "month")                      String month,
             @RequestParam(value = "pernm",    required = false) String pernm,
@@ -30,7 +28,21 @@ public class DailyManageController {
             HttpServletRequest request) {
 
         AjaxResult result = new AjaxResult();
-        result.data = dailyManageService.getList(year, month, pernm, spjangcd);
+        result.data = dailyManageService.getHeadList(year, month, pernm, spjangcd);
+        return result;
+    }
+
+    // ── 상세 목록 조회 (TB_E038 기준) ────────────────────────
+    @GetMapping("/read/detail")
+    public AjaxResult readDetail(
+            @RequestParam(value = "custcd")   String custcd,
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "rptdate")  String rptdate,
+            @RequestParam(value = "perid")    String perid,
+            HttpServletRequest request) {
+
+        AjaxResult result = new AjaxResult();
+        result.data = dailyManageService.getDetailList(custcd, spjangcd, rptdate, perid);
         return result;
     }
 

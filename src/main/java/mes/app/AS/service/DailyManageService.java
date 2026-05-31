@@ -22,15 +22,14 @@ public class DailyManageService {
     @Autowired
     NcpObjectStorageService storageService;
 
-    // ── 업무일지 목록 조회 (TB_E038) ──────────────────────────
-    // year + month 기준으로 해당 월 전체 조회
-    public List<Map<String, Object>> getList(
+    // ── 헤드 목록 조회 (TB_E037 기준) ────────────────────────
+    // 날짜 + 사원 단위로 묶어서 작성건수 포함 반환
+    public List<Map<String, Object>> getHeadList(
             String year,
             String month,
             String pernm,
             String spjangcd) {
 
-        // yyyyMM01 ~ yyyyMM말일 계산
         String startDate = year + month + "01";
         String endDate   = year + month
                 + String.format("%02d",
@@ -46,34 +45,25 @@ public class DailyManageService {
 
         String sql = """
                 SELECT
-                    e.custcd,
-                    e.spjangcd,
-                    e.rptdate,
-                    e.perid,
-                    e.rptnum,
+                    h.custcd,
+                    h.spjangcd,
+                    h.rptdate,
+                    h.perid,
                     j.pernm,
-                    pz.RSPNM    AS clanm,
+                    pz.RSPNM     AS clanm,
                     jc.divinm,
-                    b.businm,
-                    e.actnm,
-                    e.frtime,
-                    e.totime,
-                    e.equpcd,
-                    m.equpnm,
-                    e.remark,
-                    e.filesvnm,
-                    e.filepath
-                FROM TB_E038 e
-                LEFT JOIN TB_JA001 j  ON j.perid    = 'p' + e.perid
-                                     AND j.spjangcd  = e.spjangcd
-                LEFT JOIN TB_E611  m  ON m.equpcd   = e.equpcd
+                    COUNT(e.rptnum) AS rptcnt
+                FROM TB_E037 h
+                LEFT JOIN TB_E038  e  ON e.custcd   = h.custcd
+                                     AND e.spjangcd  = h.spjangcd
+                                     AND e.rptdate   = h.rptdate
+                                     AND e.perid     = h.perid
+                LEFT JOIN TB_JA001 j  ON j.perid    = 'p' + h.perid
+                                     AND j.spjangcd  = h.spjangcd
                 LEFT JOIN TB_JC002 jc ON j.divicd   = jc.divicd
                 LEFT JOIN TB_PZ001 pz ON j.rspcd    = pz.RSPCD
-                LEFT JOIN TB_E021  b  ON b.custcd   = e.custcd
-                                     AND b.spjangcd  = e.spjangcd
-                                     AND b.busicd    = e.wkcd
-                WHERE e.spjangcd = :spjangcd
-                  AND e.rptdate BETWEEN :startDate AND :endDate
+                WHERE h.spjangcd = :spjangcd
+                  AND h.rptdate BETWEEN :startDate AND :endDate
                 """;
 
         if (pernm != null && !pernm.isBlank()) {
@@ -81,7 +71,56 @@ public class DailyManageService {
             param.addValue("pernm", "%" + pernm.trim() + "%");
         }
 
-        sql += " ORDER BY e.rptdate DESC, j.pernm ASC, e.rptnum ASC";
+        sql += """
+                GROUP BY
+                    h.custcd, h.spjangcd, h.rptdate, h.perid,
+                    j.pernm, pz.RSPNM, jc.divinm
+                ORDER BY h.rptdate DESC, j.pernm ASC
+                """;
+
+        return sqlRunner.getRows(sql, param);
+    }
+
+    // ── 상세 목록 조회 (TB_E038 기준) ────────────────────────
+    // 헤드 행 클릭 시 rptdate + perid 기준으로 상세 조회
+    public List<Map<String, Object>> getDetailList(
+            String custcd,
+            String spjangcd,
+            String rptdate,
+            String perid) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("custcd",   custcd);
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("rptdate",  rptdate);
+        param.addValue("perid",    perid);
+
+        String sql = """
+                SELECT
+                    e.custcd,
+                    e.spjangcd,
+                    e.rptdate,
+                    e.perid,
+                    e.rptnum,
+                    b.businm,
+                    e.actnm,
+                    e.frtime,
+                    e.totime,
+                    m.equpnm,
+                    e.remark,
+                    e.filesvnm,
+                    e.filepath
+                FROM TB_E038 e
+                LEFT JOIN TB_E611 m ON m.equpcd   = e.equpcd
+                LEFT JOIN TB_E021 b ON b.custcd   = e.custcd
+                                   AND b.spjangcd  = e.spjangcd
+                                   AND b.busicd    = e.wkcd
+                WHERE e.custcd   = :custcd
+                  AND e.spjangcd = :spjangcd
+                  AND e.rptdate  = :rptdate
+                  AND e.perid    = :perid
+                ORDER BY e.rptnum ASC
+                """;
 
         return sqlRunner.getRows(sql, param);
     }
@@ -89,7 +128,7 @@ public class DailyManageService {
     // ── 업무일지 삭제 ─────────────────────────────────────────
     // 1. TB_E038 해당 건 filesvnm 조회 → NCP 파일 삭제
     // 2. TB_E038 DELETE
-    // 3. TB_E037 HEAD: 해당 날짜에 잔여 TB_E038 없으면 DELETE
+    // 3. TB_E037 HEAD: 잔여 TB_E038 없으면 DELETE
     public void deleteDailyReport(String custcd, String spjangcd,
                                   String rptdate, String perid, String rptnum,
                                   String dbKey) {

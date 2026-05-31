@@ -155,6 +155,54 @@
         font-size: 14px; box-sizing: border-box;
         outline: none; flex-shrink: 0;
     }
+
+    /* ── 고장접수 선택 버튼 ── */
+    .repair-select-btn {
+        width: 100%; padding: 12px; margin-bottom: 16px;
+        background: #4472c4; color: #fff;
+        border: none; border-radius: 8px;
+        font-size: 15px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .repair-select-btn:active { background: #3461b3; }
+
+    /* ── 선택된 고장접수 표시 ── */
+    .selected-repair-card {
+        background: #f0f4ff;
+        border: 1.5px solid #4472c4;
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-bottom: 16px;
+        font-size: 13px;
+    }
+    .selected-repair-card .repair-card-title {
+        font-size: 14px; font-weight: 700; color: #333; margin-bottom: 6px;
+    }
+    .selected-repair-card .repair-card-row {
+        display: flex; gap: 8px; color: #555; margin-top: 3px;
+    }
+    .selected-repair-card .repair-card-label { color: #999; min-width: 60px; }
+
+    /* ── 고장접수 팝업 리스트 아이템 ── */
+    .repair-list-item {
+        padding: 14px 20px; border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
+    }
+    .repair-list-item:active { background: #f5f5f5; }
+    .repair-list-item .item-top {
+        display: flex; justify-content: space-between;
+        align-items: center; margin-bottom: 4px;
+    }
+    .repair-list-item .item-date { font-size: 12px; color: #999; }
+    .repair-list-item .item-status {
+        font-size: 11px; padding: 1px 7px; border-radius: 10px;
+        background: #fff3e0; color: #e65100;
+    }
+    .repair-list-item .item-status.done {
+        background: #e8f5e9; color: #2e7d32;
+    }
+    .repair-list-item .item-actnm { font-size: 14px; font-weight: 600; color: #222; margin-bottom: 2px; }
+    .repair-list-item .item-contents { font-size: 13px; color: #666; }
 </style>
 <head>
     <meta charset="UTF-8">
@@ -202,11 +250,43 @@
     <div class="mobile-layout-contents" style="display:block;">
         <div class="layout-contents">
             <div class="reg-wrap">
+
+                <!-- hidden: 고장접수 연결 정보 -->
+                <input type="hidden" id="regRecedate">
+                <input type="hidden" id="regRecenum">
+
+                <!-- ── 고장접수 선택 버튼 ── -->
+                <button class="repair-select-btn" type="button" onclick="openRepairPopup()">
+                    📋 고장접수 선택
+                </button>
+
+                <!-- ── 선택된 고장접수 표시 영역 (선택 전 숨김) ── -->
+                <div class="selected-repair-card" id="selectedRepairCard" style="display:none;">
+                    <div class="repair-card-title" id="selectedActnm"></div>
+                    <div class="repair-card-row">
+                        <span class="repair-card-label">접수일자</span>
+                        <span id="selectedRecedate"></span>
+                    </div>
+                    <div class="repair-card-row">
+                        <span class="repair-card-label">고장내용</span>
+                        <span id="selectedContents"></span>
+                    </div>
+                    <div class="repair-card-row">
+                        <span class="repair-card-label">호기명</span>
+                        <span id="selectedEqupnm"></span>
+                    </div>
+                </div>
+
+                <!-- 기존 폼 필드들 -->
                 <input type="hidden" id="regActcd">
                 <input type="hidden" id="regEqupcd">
 
                 <div class="form-row">
-                    <label>완료일자</label>
+                    <label>1.도착일자</label>
+                    <input type="date" id="regArrivdate">
+                </div>
+                <div class="form-row">
+                    <label>2.완료일자</label>
                     <input type="date" id="regCompdate">
                 </div>
                 <div class="form-row">
@@ -220,47 +300,84 @@
                 <div class="form-row">
                     <label>접수일자 / 접수시간</label>
                     <div class="row-2col">
-                        <input type="date" id="regRecedate">
+                        <input type="date" id="regRecedate2">
                         <input type="time" id="regRecetime">
                     </div>
                 </div>
                 <div class="form-row">
-                    <label>도착일자 / 도착시간</label>
-                    <div class="row-2col">
-                        <input type="date" id="regArrivdate">
-                        <input type="time" id="regArrivtime">
-                    </div>
+                    <label>도착시간</label>
+                    <input type="time" id="regArrivtime">
                 </div>
                 <div class="form-row">
                     <label>완료시간</label>
                     <input type="time" id="regComptime">
                 </div>
                 <div class="form-row">
-                    <label>고장내용</label>
+                    <label>3.고장부위 버튼을 클릭하세요</label>
                     <input type="text" id="regContremark" placeholder="고장내용 입력">
                 </div>
                 <div class="form-row">
-                    <label>고장상세내용</label>
+                    <label>4.고장부위상세 버튼을 클릭하세요</label>
                     <textarea id="regRemoremark" placeholder="고장상세내용 입력"></textarea>
                 </div>
                 <div class="form-row">
-                    <label>처리내용</label>
+                    <label>5.고장요인 버튼을 클릭하세요</label>
                     <textarea id="regResuremark" placeholder="처리내용 입력"></textarea>
                 </div>
                 <div class="form-row">
-                    <label>처리결과</label>
+                    <label>6.고장원인 버튼을 클릭하세요</label>
                     <input type="text" id="regResultcd" placeholder="처리결과 입력">
                 </div>
                 <div class="form-row">
-                    <label>고객요망사항</label>
+                    <label>7.처리내용 버튼을 클릭하세요</label>
                     <input type="text" id="regCustomer" placeholder="고객요망사항 입력">
                 </div>
                 <div class="form-row">
-                    <label>비고</label>
+                    <label>8.처리결과 버튼을 클릭하세요</label>
                     <input type="text" id="regRemark" placeholder="비고 입력">
                 </div>
+                <div class="form-row">
+                    <label>9.고장원인상세내용을 입력하세요</label>
+                    <textarea id="regRepairDetail" placeholder="고장원인상세내용 입력"></textarea>
+                </div>
+                <div class="form-row">
+                    <label>10.처리상세를 입력하세요</label>
+                    <textarea id="regProcessDetail" placeholder="처리상세 입력"></textarea>
+                </div>
+                <div class="form-row">
+                    <label>11.사후관리를 입력하세요</label>
+                    <input type="text" id="regAftercare" placeholder="사후관리 입력">
+                </div>
+                <div class="form-row">
+                    <label>처리자</label>
+                    <input type="text" id="regProcessorNm" placeholder="처리자 선택" readonly onclick="openProcessorPopup()">
+                    <input type="hidden" id="regProcessorId">
+                </div>
+
                 <button class="form-save-btn" onclick="saveComp()">등록</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── 고장접수 선택 팝업 ── -->
+<div class="popup-overlay" id="repairPopup">
+    <div class="popup-sheet">
+        <div class="popup-header">
+            <span>고장접수 선택</span>
+            <button class="popup-close" onclick="closePopup('repairPopup')">×</button>
+        </div>
+        <!-- 검색 조건 -->
+        <div style="padding:12px 16px; border-bottom:1px solid #eee; display:flex; gap:8px; align-items:center; flex-shrink:0;">
+            <input type="date" id="repairFromDate" style="flex:1; padding:6px 8px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
+            <span style="color:#999; font-size:12px;">~</span>
+            <input type="date" id="repairToDate" style="flex:1; padding:6px 8px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
+            <button type="button" onclick="searchRepairList()" style="padding:6px 12px; background:#4472c4; color:#fff; border:none; border-radius:6px; font-size:13px; cursor:pointer;">조회</button>
+        </div>
+        <input type="text" class="popup-search-input" id="repairActnmSearch"
+               placeholder="현장명 검색" oninput="filterRepairList(this.value)">
+        <div class="popup-list" id="repairList">
+            <div style="padding:40px 20px; text-align:center; color:#bbb; font-size:13px;">조회 버튼을 눌러주세요.</div>
         </div>
     </div>
 </div>
@@ -291,20 +408,120 @@
 
 <script type="text/javascript">
 
-    var _actListCache = [];
-    var _spjangcd     = sessionStorage.getItem('spjangcd') || '';
+    var _actListCache  = [];
+    var _repairListCache = [];
+    var _spjangcd      = sessionStorage.getItem('spjangcd') || '';
 
     /* ── 초기화 ── */
     $(document).ready(function () {
         const today = new Date().toISOString().split('T')[0];
         const now   = new Date().toTimeString().slice(0, 5);
         document.getElementById('regCompdate').value   = today;
-        document.getElementById('regRecedate').value   = today;
+        document.getElementById('regRecedate2').value  = today;
         document.getElementById('regRecetime').value   = now;
         document.getElementById('regArrivdate').value  = today;
         document.getElementById('regArrivtime').value  = now;
         document.getElementById('regComptime').value   = now;
+
+        // 고장접수 팝업 날짜 기본값 (당월 1일 ~ 오늘)
+        const firstDay = today.substring(0,7) + '-01';
+        document.getElementById('repairFromDate').value = firstDay;
+        document.getElementById('repairToDate').value   = today;
     });
+
+    /* ── 고장접수 선택 팝업 ── */
+    function openRepairPopup() {
+        document.getElementById('repairActnmSearch').value = '';
+        _repairListCache = [];
+        renderRepairList([]);
+        openPopup('repairPopup');
+    }
+
+    function searchRepairList() {
+        const fromDate = document.getElementById('repairFromDate').value.replaceAll('-', '');
+        const toDate   = document.getElementById('repairToDate').value.replaceAll('-', '');
+        const actnm    = document.getElementById('repairActnmSearch').value.trim();
+
+        AjaxUtil.getAsyncData('/api/maintenance_repair/read_repair_list', {
+            fromDate : fromDate,
+            toDate   : toDate,
+            actnm    : actnm,
+            spjangcd : _spjangcd
+        }, function (result) {
+            if (result && result.data) {
+                _repairListCache = result.data;
+                renderRepairList(_repairListCache);
+            } else {
+                renderRepairList([]);
+            }
+        });
+    }
+
+    function renderRepairList(list) {
+        const container = document.getElementById('repairList');
+        container.innerHTML = '';
+
+        if (!list || list.length === 0) {
+            container.innerHTML = '<div style="padding:40px 20px; text-align:center; color:#bbb; font-size:13px;">조회된 고장접수가 없습니다.</div>';
+            return;
+        }
+
+        list.forEach(function (item) {
+            const div = document.createElement('div');
+            div.className = 'repair-list-item';
+
+            const statusText  = item.resultck ? '처리완료' : '미처리';
+            const statusClass = item.resultck ? 'done' : '';
+            const dateStr     = formatDate(item.recedate) + (item.recetime ? ' ' + formatTime(item.recetime) : '');
+
+            div.innerHTML = `
+                <div class="item-top">
+                    <span class="item-date">${esc(dateStr)}</span>
+                    <span class="item-status ${statusClass}">${statusText}</span>
+                </div>
+                <div class="item-actnm">${esc(item.actnm || '-')}</div>
+                <div class="item-contents">${esc(item.equpnm || '')} ${item.contents ? '· ' + esc(item.contents) : ''}</div>
+            `;
+
+            div.addEventListener('click', function () {
+                setRepairData(item);
+                closePopup('repairPopup');
+            });
+
+            container.appendChild(div);
+        });
+    }
+
+    function filterRepairList(keyword) {
+        const filtered = _repairListCache.filter(function (item) {
+            return (item.actnm || '').includes(keyword);
+        });
+        renderRepairList(filtered);
+    }
+
+    /* ── 고장접수 선택 후 폼 바인딩 ── */
+    function setRepairData(item) {
+        // hidden 값 저장
+        document.getElementById('regRecedate').value  = item.recedate || '';
+        document.getElementById('regRecenum').value   = item.recenum  || '';
+
+        // 현장/호기 바인딩
+        document.getElementById('regActcd').value  = item.actcd  || '';
+        document.getElementById('regActnm').value  = item.actnm  || '';
+        document.getElementById('regEqupcd').value = item.equpcd || '';
+        document.getElementById('regEqupnm').value = item.equpnm || '';
+
+        // 접수일자/시간 바인딩
+        document.getElementById('regRecedate2').value = item.recedate ? formatDateInput(item.recedate) : '';
+        document.getElementById('regRecetime').value  = item.recetime ? formatTime(item.recetime) : '';
+
+        // 선택된 고장접수 카드 표시
+        document.getElementById('selectedActnm').textContent    = item.actnm    || '-';
+        document.getElementById('selectedRecedate').textContent = formatDate(item.recedate) + (item.recetime ? ' ' + formatTime(item.recetime) : '');
+        document.getElementById('selectedContents').textContent = item.contents || '';
+        document.getElementById('selectedEqupnm').textContent   = item.equpnm  || '';
+        document.getElementById('selectedRepairCard').style.display = 'block';
+    }
 
     /* ── 현장 선택 팝업 ── */
     function openActPopup() {
@@ -379,6 +596,11 @@
         closePopup('equpPopup');
     }
 
+    /* ── 처리자 선택 팝업 (추후 구현) ── */
+    function openProcessorPopup() {
+        Alert.alert('', '처리자 선택 기능은 추후 구현 예정입니다.');
+    }
+
     /* ── 등록 ── */
     function saveComp() {
         const compdate = document.getElementById('regCompdate').value;
@@ -390,7 +612,8 @@
             spjangcd   : _spjangcd,
             compdate   : compdate.replaceAll('-', ''),
             comptime   : document.getElementById('regComptime').value.replaceAll(':', ''),
-            recedate   : document.getElementById('regRecedate').value.replaceAll('-', ''),
+            recedate   : document.getElementById('regRecedate2').value.replaceAll('-', ''),
+            recenum    : document.getElementById('regRecenum').value,
             recetime   : document.getElementById('regRecetime').value.replaceAll(':', ''),
             arrivdate  : document.getElementById('regArrivdate').value.replaceAll('-', ''),
             arrivtime  : document.getElementById('regArrivtime').value.replaceAll(':', ''),
@@ -409,25 +632,7 @@
         AjaxUtil.postAsyncData('/api/maintenance_repair/save_comp', data, function (result) {
             if (result && result.success) {
                 Alert.alert('', result.message, function () {
-                    // 등록 성공 후 폼 초기화
-                    const today = new Date().toISOString().split('T')[0];
-                    const now   = new Date().toTimeString().slice(0, 5);
-                    document.getElementById('regCompdate').value   = today;
-                    document.getElementById('regActcd').value      = '';
-                    document.getElementById('regActnm').value      = '';
-                    document.getElementById('regEqupcd').value     = '';
-                    document.getElementById('regEqupnm').value     = '';
-                    document.getElementById('regRecedate').value   = today;
-                    document.getElementById('regRecetime').value   = now;
-                    document.getElementById('regArrivdate').value  = today;
-                    document.getElementById('regArrivtime').value  = now;
-                    document.getElementById('regComptime').value   = now;
-                    document.getElementById('regContremark').value = '';
-                    document.getElementById('regRemoremark').value = '';
-                    document.getElementById('regResuremark').value = '';
-                    document.getElementById('regResultcd').value   = '';
-                    document.getElementById('regCustomer').value   = '';
-                    document.getElementById('regRemark').value     = '';
+                    resetForm();
                 });
             } else {
                 Alert.alert('', (result && result.message) || '등록 중 오류가 발생하였습니다.');
@@ -435,15 +640,63 @@
         });
     }
 
+    /* ── 폼 초기화 ── */
+    function resetForm() {
+        const today = new Date().toISOString().split('T')[0];
+        const now   = new Date().toTimeString().slice(0, 5);
+
+        document.getElementById('regRecedate').value   = '';
+        document.getElementById('regRecenum').value    = '';
+        document.getElementById('regCompdate').value   = today;
+        document.getElementById('regActcd').value      = '';
+        document.getElementById('regActnm').value      = '';
+        document.getElementById('regEqupcd').value     = '';
+        document.getElementById('regEqupnm').value     = '';
+        document.getElementById('regRecedate2').value  = today;
+        document.getElementById('regRecetime').value   = now;
+        document.getElementById('regArrivdate').value  = today;
+        document.getElementById('regArrivtime').value  = now;
+        document.getElementById('regComptime').value   = now;
+        document.getElementById('regContremark').value = '';
+        document.getElementById('regRemoremark').value = '';
+        document.getElementById('regResuremark').value = '';
+        document.getElementById('regResultcd').value   = '';
+        document.getElementById('regCustomer').value   = '';
+        document.getElementById('regRemark').value     = '';
+        document.getElementById('selectedRepairCard').style.display = 'none';
+    }
+
     /* ── 팝업 공통 ── */
     function openPopup(id)  { document.getElementById(id).classList.add('active');    }
     function closePopup(id) { document.getElementById(id).classList.remove('active'); }
 
-    ['actPopup', 'equpPopup'].forEach(function (id) {
+    ['actPopup', 'equpPopup', 'repairPopup'].forEach(function (id) {
         document.getElementById(id).addEventListener('click', function (e) {
             if (e.target === this) closePopup(id);
         });
     });
+
+    /* ── 날짜/시간 유틸 ── */
+    // yyyyMMdd → yyyy-MM-dd
+    function formatDateInput(d) {
+        if (!d) return '';
+        const s = String(d);
+        return `${s.substring(0,4)}-${s.substring(4,6)}-${s.substring(6,8)}`;
+    }
+
+    // yyyyMMdd → MM/dd
+    function formatDate(d) {
+        if (!d) return '';
+        const s = String(d);
+        return `${s.substring(4,6)}/${s.substring(6,8)}`;
+    }
+
+    // HHmm → HH:mm
+    function formatTime(t) {
+        if (!t) return '';
+        const s = String(t).replace(':','').padStart(4,'0');
+        return `${s.substring(0,2)}:${s.substring(2,4)}`;
+    }
 
     function esc(str) {
         if (!str) return '';
