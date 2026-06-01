@@ -37,16 +37,17 @@ public class RequestRepairController {
     // ── 고장접수 목록 조회 (TB_E401) ─────────────────────────
     @GetMapping("/read")
     public AjaxResult getRepairList(
-            @RequestParam(value = "fromDate", required = false) String fromDate,
-            @RequestParam(value = "toDate",   required = false) String toDate,
-            @RequestParam(value = "actnm",    required = false) String actnm,
+            @RequestParam(value = "fromDate",  required = false) String fromDate,
+            @RequestParam(value = "toDate",    required = false) String toDate,
+            @RequestParam(value = "actnm",     required = false) String actnm,
+            @RequestParam(value = "resultck",  required = false) String resultck,
             HttpServletRequest request,
             Authentication auth) {
 
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
-        String spjangcd = tenantUserService.getSpjangcd(user.getUsername()); // ← 수정
-        result.data = requestRepairService.getRepairList(fromDate, toDate, actnm, spjangcd);
+        String spjangcd = tenantUserService.getSpjangcd(user.getUsername());
+        result.data = requestRepairService.getRepairList(fromDate, toDate, actnm, resultck, spjangcd);
         return result;
     }
 
@@ -77,6 +78,19 @@ public class RequestRepairController {
         return result;
     }
 
+    // ── 고장내용 목록 조회 (TB_E010) ────────────────────────
+    @GetMapping("/read_contnm")
+    public AjaxResult getContnmList(
+            HttpServletRequest request,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        User user = (User) auth.getPrincipal();
+        String spjangcd = tenantUserService.getSpjangcd(user.getUsername());
+        result.data = requestRepairService.getContnmList(spjangcd);
+        return result;
+    }
+
     // ── 고장접수 등록 (TB_E401 INSERT) ───────────────────────
     @PostMapping("/save")
     public AjaxResult saveRepair(
@@ -89,6 +103,7 @@ public class RequestRepairController {
             @RequestParam(value = "equpcd",    required = false) String equpcd,
             @RequestParam(value = "equpnm",    required = false) String equpnm,
             @RequestParam(value = "contents",  required = false) String contents,
+            @RequestParam(value = "contcd",    required = false) String contcd,
             @RequestParam(value = "remark",    required = false) String remark,
             @RequestParam(value = "reperid",   required = false) String reperid,
             @RequestParam(value = "bigo",      required = false) String bigo,
@@ -107,13 +122,14 @@ public class RequestRepairController {
             return result;
         }
         String spjangcd = (String) userInfo.get("spjangcd");
+        String custcd   = (String) userInfo.get("custcd");
 
         try {
             requestRepairService.saveRepair(
-                    spjangcd, recedate, recetime,
+                    custcd, spjangcd, recedate, recetime,
                     hitchdate, hitchhour,
                     actcd, actnm, equpcd, equpnm,
-                    contents, remark, reperid, bigo, username
+                    contcd, contents, remark, reperid, bigo, username
             );
             result.success = true;
             result.message = "고장접수가 등록되었습니다.";

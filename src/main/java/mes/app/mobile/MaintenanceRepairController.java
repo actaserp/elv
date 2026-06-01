@@ -1,6 +1,7 @@
 package mes.app.mobile;
 
 import lombok.extern.slf4j.Slf4j;
+import mes.app.common.TenantUserService;
 import mes.app.mobile.Service.MaintenanceRepairService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
@@ -10,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -19,6 +21,9 @@ public class MaintenanceRepairController {
 
     @Autowired
     MaintenanceRepairService maintenanceRepairService;
+
+    @Autowired
+    TenantUserService tenantUserService;
 
     // ── 사용자 정보 조회 ───────────────────────────────────────
     @GetMapping("/read_userInfo")
@@ -30,7 +35,6 @@ public class MaintenanceRepairController {
     }
 
     // ── 고장접수 목록 조회 (TB_E401) ─────────────────────────
-    // 팝업에서 고장접수건 선택 시 사용
     @GetMapping("/read_repair_list")
     public AjaxResult getRepairList(
             @RequestParam(value = "fromDate", required = false) String fromDate,
@@ -47,14 +51,15 @@ public class MaintenanceRepairController {
     // ── 고장처리결과 목록 조회 (TB_E411) ─────────────────────
     @GetMapping("/read_comp")
     public AjaxResult getCompList(
-            @RequestParam(value = "fromDate", required = false) String fromDate,
-            @RequestParam(value = "toDate",   required = false) String toDate,
-            @RequestParam(value = "actnm",    required = false) String actnm,
-            @RequestParam(value = "spjangcd", required = false) String spjangcd,
+            @RequestParam(value = "fromDate",  required = false) String fromDate,
+            @RequestParam(value = "toDate",    required = false) String toDate,
+            @RequestParam(value = "actnm",     required = false) String actnm,
+            @RequestParam(value = "resultck",  required = false) String resultck,
+            @RequestParam(value = "spjangcd",  required = false) String spjangcd,
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
-        result.data = maintenanceRepairService.getCompList(fromDate, toDate, actnm, spjangcd);
+        result.data = maintenanceRepairService.getCompList(fromDate, toDate, actnm, resultck, spjangcd);
         return result;
     }
 
@@ -85,7 +90,6 @@ public class MaintenanceRepairController {
     // ── 고장처리결과 등록 (TB_E411 INSERT) ───────────────────
     @PostMapping("/save_comp")
     public AjaxResult saveComp(
-            @RequestParam(value = "spjangcd",   required = false) String spjangcd,
             @RequestParam(value = "compdate",   required = false) String compdate,
             @RequestParam(value = "comptime",   required = false) String comptime,
             @RequestParam(value = "recedate",   required = false) String recedate,
@@ -100,23 +104,32 @@ public class MaintenanceRepairController {
             @RequestParam(value = "contremark", required = false) String contremark,
             @RequestParam(value = "remoremark", required = false) String remoremark,
             @RequestParam(value = "resuremark", required = false) String resuremark,
-            @RequestParam(value = "resultcd",   required = false) String resultcd,
-            @RequestParam(value = "customer",   required = false) String customer,
-            @RequestParam(value = "remark",     required = false) String remark,
+            // @RequestParam(value = "resultcd",   required = false) String resultcd,   // 고장원인 — 매핑 확인 후 추가
+            // @RequestParam(value = "customer",   required = false) String customer,    // 처리내용 — 매핑 확인 후 추가
+            // @RequestParam(value = "remark",     required = false) String remark,      // 처리결과 — 매핑 확인 후 추가
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
-        String perid = user.getUsername();
+        String username = user.getUsername();
+
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(username);
+        if (userInfo == null) {
+            result.success = false;
+            result.message = "사업체 DB에서 사용자 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        String custcd   = (String) userInfo.get("custcd");
+        String spjangcd = (String) userInfo.get("spjangcd");
 
         try {
             maintenanceRepairService.saveComp(
-                    spjangcd, compdate, comptime,
+                    custcd, spjangcd, compdate, comptime,
                     recedate, recenum, recetime,
                     arrivdate, arrivtime,
                     actcd, actnm, equpcd, equpnm,
                     contremark, remoremark, resuremark,
-                    resultcd, customer, remark, perid
+                    username
             );
             result.success = true;
             result.message = "고장처리결과가 등록되었습니다.";

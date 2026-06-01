@@ -34,13 +34,16 @@ public class MaintenanceCompController {
     // ── 현장 목록 조회 (TB_E601) ──────────────────────────────
     @GetMapping("/read_site")
     public AjaxResult getSiteList(
-            @RequestParam(value = "spjangcd", required = false) String spjangcd,
-            @RequestParam(value = "keyword",  required = false) String keyword,
+            @RequestParam(value = "spjangcd",  required = false) String spjangcd,
+            @RequestParam(value = "keyword",   required = false) String keyword,
+            @RequestParam(value = "equpcd",    required = false) String equpcd,
+            @RequestParam(value = "tel",       required = false) String tel,
+            @RequestParam(value = "actgubun",  required = false) String actgubun,
             HttpServletRequest request,
             Authentication auth) {
 
         AjaxResult result = new AjaxResult();
-        result.data = maintenanceCompService.getSiteList(spjangcd, keyword);
+        result.data = maintenanceCompService.getSiteList(spjangcd, keyword, equpcd, tel, actgubun);
         return result;
     }
 
