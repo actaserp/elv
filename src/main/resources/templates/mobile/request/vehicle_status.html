@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ko">
+<style>
+  .btn-clear { display: none !important; }
+  .btn-close { display: none !important; }
+  .card-list { padding: 8px 12px 80px; }
+  .site-card { background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.10); margin-bottom:10px; padding:14px 16px; cursor:pointer; }
+  .site-card:active { box-shadow:0 2px 8px rgba(0,0,0,0.18); }
+  .card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .card-actnm { font-size:15px; font-weight:700; color:#222; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .card-row { display:flex; font-size:13px; color:#555; margin-top:3px; gap:4px; }
+  .card-label { color:#999; min-width:65px; flex-shrink:0; }
+  .card-value { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .result-count { padding:4px 14px; font-size:12px; color:#888; }
+  .empty-msg { text-align:center; padding:60px 20px; color:#bbb; font-size:14px; }
+  .popup-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:9000; justify-content:center; align-items:flex-end; }
+  .popup-overlay.active { display:flex; }
+  .popup-sheet { background:#fff; width:100%; max-height:80vh; border-radius:16px 16px 0 0; overflow:hidden; display:flex; flex-direction:column; }
+  .popup-header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid #eee; font-weight:700; font-size:16px; flex-shrink:0; }
+  .popup-close { width: 0%; background:none; border:none; font-size:24px; cursor:pointer; color:#666; line-height:1; }
+  .popup-body { overflow-y:auto; flex:1; padding:16px 20px 30px; }
+  .popup-footer { padding:12px 20px; border-top:1px solid #eee; display:flex; gap:8px; flex-shrink:0; }
+  .btn-delete { flex:1; padding:12px; background:#ff4444; color:#fff; border:none; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; }
+  .btn-edit   { flex:1; padding:12px; background:#4472c4; color:#fff; border:none; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; }
+  .edit-row { display:flex; flex-direction:column; margin-bottom:14px; }
+  .edit-label { font-size:13px; color:#999; margin-bottom:4px; }
+  .edit-input { padding:9px 10px; border:1px solid #ddd; border-radius:6px; font-size:14px; width:100%; box-sizing:border-box; }
+  .detail-section-title { font-size:13px; font-weight:700; color:#444; margin:14px 0 6px; padding-bottom:4px; border-bottom:2px solid #dce6f1; }
+  .detail-row { display:flex; padding:9px 0; border-bottom:1px solid #f0f0f0; font-size:14px; gap:12px; }
+  .detail-row:last-child { border-bottom:none; }
+  .detail-label { color:#999; min-width:80px; flex-shrink:0; font-size:13px; }
+  .detail-value { color:#222; flex:1; word-break:break-all; }
+</style>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ACTAS MES</title>
+  <meta name="ctx" th:content="@{/}">
+  <link rel="icon" type="image/png" th:href="@{/images/logo/actas_log_a.png}">
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/smoothness/jquery-ui.css">
+  <link rel="stylesheet" th:href="@{/resource/ax5ui/ax5ui.all.css}">
+  <link rel="stylesheet" th:href="@{/assets_mobile/css/import.css}">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+  <script th:src="@{/assets_mobile/js/ui.js}"></script>
+  <script th:inline="javascript">var sandanData = /*[[${session.sandanList}]]*/ [];</script>
+  <script type="text/javascript" th:src="@{/resource/ax5ui/ax5ui.all.min.js}"></script>
+  <script type="text/javascript" th:src="@{/js/ax5commUtil.js}"></script>
+  <script th:src="@{/js/common.js}"></script>
+  <script th:src="@{/js/Mobile.js}"></script>
+</head>
+<body>
+<input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+<div class="mobile-wrapper page-ticket-list">
+  <div class="mobile-layout-header">
+    <header>
+      <div class="left"><a href="#" title="전체메뉴" class="logo"></a></div>
+      <div class="left" style="margin-left:35px; font-size:25px;"><h2>차량관리 현황</h2></div>
+      <div class="right">
+        <a href="#" title="전체메뉴" class="btn-menu">
+          <img th:src="@{/assets_mobile/images/icon/btn-menu.svg}" alt="전체메뉴 아이콘">
+        </a>
+      </div>
+    </header>
+  </div>
+  <div th:insert="~{mobile/mobile_menu :: mobile_menu}"></div>
+  <div class="mobile-layout-contents" style="display:block;">
+    <div class="layout-contents">
+      <div class="search-wrap">
+        <div class="srch-tit aco-hd">
+          <p>기본검색</p>
+          <a href="#" title="열기/닫기" class="btn-aco">
+            <img th:src="@{/assets_mobile/images/icon/ico-down.svg}" alt="열기/닫기">
+          </a>
+        </div>
+        <div class="srch-cont aco-cont">
+          <dl>
+            <dt>조회기간</dt>
+            <dd style="display:flex; gap:6px; align-items:center;">
+              <input type="date" id="searchFromDate" style="flex:1;">
+              <span>~</span>
+              <input type="date" id="searchToDate" style="flex:1;">
+            </dd>
+          </dl>
+          <dl>
+            <dt>차량번호</dt>
+            <dd><input type="text" id="searchCarnum" placeholder="차량번호를 입력하세요"></dd>
+          </dl>
+          <div class="srch-btn">
+            <button class="btn-dark" onclick="handleSearch()">조회</button>
+          </div>
+        </div>
+      </div>
+      <div class="result-count" id="resultCount"></div>
+      <div class="card-list" id="cardList">
+        <div class="empty-msg">조회 버튼을 눌러 목록을 조회하세요.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 상세 팝업 -->
+<div class="popup-overlay" id="detailPopup">
+  <div class="popup-sheet">
+    <div class="popup-header">
+      <span id="popupTitle">차량운행 상세</span>
+      <button class="popup-close" onclick="closePopup('detailPopup')">×</button>
+    </div>
+    <div class="popup-body" id="popupBody"></div>
+    <div class="popup-footer">
+      <button class="btn-edit"   onclick="openEditPopup()">수정</button>
+      <button class="btn-delete" onclick="deleteRecord()">삭제</button>
+    </div>
+  </div>
+</div>
+
+<!-- 수정 팝업 -->
+<div class="popup-overlay" id="editPopup">
+  <div class="popup-sheet">
+    <div class="popup-header">
+      <span>차량운행 수정</span>
+      <button class="popup-close" onclick="closePopup('editPopup')">×</button>
+    </div>
+    <div class="popup-body">
+      <div class="edit-row">
+        <label class="edit-label">운행일자</label>
+        <input type="date" id="editKcdate" class="edit-input">
+      </div>
+      <div class="edit-row">
+        <label class="edit-label">차량번호</label>
+        <input type="text" id="editCarnum" class="edit-input" placeholder="차량번호">
+      </div>
+      <div class="edit-row">
+        <label class="edit-label">현장명</label>
+        <input type="text" id="editActnm" class="edit-input" placeholder="현장명">
+        <input type="hidden" id="editActcd">
+      </div>
+      <div class="edit-row">
+        <label class="edit-label">연료종류</label>
+        <input type="text" id="editFuelnm" class="edit-input" placeholder="연료종류">
+        <input type="hidden" id="editGubun">
+      </div>
+      <div class="edit-row">
+        <label class="edit-label">주행거리 (km)</label>
+        <input type="number" id="editKm" class="edit-input" placeholder="주행거리">
+      </div>
+      <div class="edit-row">
+        <label class="edit-label">사용량 (L)</label>
+        <input type="number" id="editLiter" class="edit-input" placeholder="사용량">
+      </div>
+      <div class="edit-row">
+        <label class="edit-label">단가 (원)</label>
+        <input type="number" id="editUamt" class="edit-input" placeholder="단가">
+      </div>
+      <div class="edit-row">
+        <label class="edit-label">금액 (원)</label>
+        <input type="number" id="editSamt" class="edit-input" placeholder="금액">
+      </div>
+    </div>
+    <div class="popup-footer">
+      <button class="btn-edit" onclick="saveEdit()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+  var _spjangcd = sessionStorage.getItem('spjangcd') || '';
+  var _selectedItem = null;
+
+  $(document).ready(function () {
+    const today = new Date();
+    const yyyy  = today.getFullYear();
+    const mm    = String(today.getMonth() + 1).padStart(2, '0');
+    const dd    = String(today.getDate()).padStart(2, '0');
+    document.getElementById('searchFromDate').value = `${yyyy}-${mm}-01`;
+    document.getElementById('searchToDate').value   = `${yyyy}-${mm}-${dd}`;
+  });
+
+  function handleSearch() {
+    searchList();
+    document.querySelectorAll('.btn-aco').forEach(function (btn) { btn.click(); });
+  }
+
+  function searchList() {
+    const fromDate = document.getElementById('searchFromDate').value.replace(/-/g, '');
+    const toDate   = document.getElementById('searchToDate').value.replace(/-/g, '');
+    const carnum   = document.getElementById('searchCarnum').value.trim();
+    AjaxUtil.getAsyncData('/api/vehicle_manage/read_status', {
+      fromDate : fromDate,
+      toDate   : toDate,
+      carnum   : carnum,
+      spjangcd : _spjangcd
+    }, function (result) {
+      if (result != null && result.data != null) {
+        renderCardList(result.data);
+      } else {
+        document.getElementById('cardList').innerHTML = '<div class="empty-msg">조회 중 오류가 발생하였습니다.</div>';
+      }
+    });
+  }
+
+  function renderCardList(list) {
+    const container = document.getElementById('cardList');
+    const countEl   = document.getElementById('resultCount');
+    if (!list || list.length === 0) {
+      countEl.textContent = '';
+      container.innerHTML = '<div class="empty-msg">조회된 데이터가 없습니다.</div>';
+      return;
+    }
+    countEl.textContent = `총 ${list.length}건`;
+    let html = '';
+    list.forEach(function (item) {
+      html += `
+        <div class="site-card" onclick='openDetailPopup(${JSON.stringify(item)})'>
+          <div class="card-header">
+            <span class="card-actnm">${esc(item.carnum || '')}</span>
+            <span style="font-size:12px; color:#888;">${esc(item.kcdate || '')}</span>
+          </div>
+          ${item.pernm ? `<div class="card-row"><span class="card-label">운전자</span><span class="card-value">${esc(item.pernm)}</span></div>` : ''}
+          ${item.actnm ? `<div class="card-row"><span class="card-label">현장명</span><span class="card-value">${esc(item.actnm)}</span></div>` : ''}
+          ${item.km != null ? `<div class="card-row"><span class="card-label">주행거리</span><span class="card-value">${item.km} km</span></div>` : ''}
+          ${item.samt != null ? `<div class="card-row"><span class="card-label">금액</span><span class="card-value">${Number(item.samt).toLocaleString()} 원</span></div>` : ''}
+        </div>`;
+    });
+    container.innerHTML = html;
+  }
+
+  function openDetailPopup(item) {
+    _selectedItem = item;
+    document.getElementById('popupTitle').textContent = item.carnum || '차량운행 상세';
+    let html = `<div class="detail-section-title">운행 정보</div>`;
+    html += buildDetailRows([
+      { label: '운행일자',   value: item.kcdate  },
+      { label: '차량번호',   value: item.carnum  },
+      { label: '운전자',     value: item.pernm   },
+      { label: '부서',       value: item.divinm  },
+      { label: '현장명',     value: item.actnm   },
+      { label: '연료종류',   value: item.fuelnm  },
+      { label: '주행거리',   value: item.km != null ? item.km + ' km' : null },
+      { label: '사용량',     value: item.liter != null ? item.liter + ' L' : null },
+      { label: '단가',       value: item.uamt != null ? Number(item.uamt).toLocaleString() + ' 원' : null },
+      { label: '금액',       value: item.samt != null ? Number(item.samt).toLocaleString() + ' 원' : null },
+    ]);
+    document.getElementById('popupBody').innerHTML = html;
+    openPopup('detailPopup');
+  }
+
+  function deleteRecord() {
+    if (!_selectedItem) return;
+    Alert.confirm('', '해당 운행기록을 삭제하시겠습니까?', function () {
+      AjaxUtil.postAsyncData('/api/vehicle_manage/delete_status', {
+        kcdate   : _selectedItem.kcdate,
+        kcnum    : _selectedItem.kcnum,
+        spjangcd : _spjangcd
+      }, function (result) {
+        if (result && result.success) {
+          Alert.alert('', '삭제되었습니다.', function () {
+            closePopup('detailPopup');
+            searchList();
+          });
+        } else {
+          Alert.alert('', result.message || '삭제 중 오류가 발생하였습니다.');
+        }
+      });
+    });
+  }
+
+  function openEditPopup() {
+    if (!_selectedItem) return;
+    const item = _selectedItem;
+    document.getElementById('editKcdate').value = item.kcdate ? item.kcdate.substring(0,4)+'-'+item.kcdate.substring(4,6)+'-'+item.kcdate.substring(6,8) : '';
+    document.getElementById('editCarnum').value = item.carnum  || '';
+    document.getElementById('editActnm').value  = item.actnm   || '';
+    document.getElementById('editActcd').value  = item.actcd   || '';
+    document.getElementById('editFuelnm').value = item.fuelnm  || '';
+    document.getElementById('editGubun').value  = item.gubun   || '';
+    document.getElementById('editKm').value     = item.km      || '';
+    document.getElementById('editLiter').value  = item.liter   || '';
+    document.getElementById('editUamt').value   = item.uamt    || '';
+    document.getElementById('editSamt').value   = item.samt    || '';
+    openPopup('editPopup');
+  }
+
+  function saveEdit() {
+    if (!_selectedItem) return;
+    const kcdate = document.getElementById('editKcdate').value.replace(/-/g, '');
+    AjaxUtil.postAsyncData('/api/vehicle_manage/update_status', {
+      kcdate   : _selectedItem.kcdate,
+      kcnum    : _selectedItem.kcnum,
+      spjangcd : _spjangcd,
+      newKcdate: kcdate,
+      actcd    : document.getElementById('editActcd').value,
+      actnm    : document.getElementById('editActnm').value,
+      gubun    : document.getElementById('editGubun').value,
+      km       : document.getElementById('editKm').value,
+      liter    : document.getElementById('editLiter').value,
+      uamt     : document.getElementById('editUamt').value,
+      samt     : document.getElementById('editSamt').value,
+    }, function (result) {
+      if (result && result.success) {
+        Alert.alert('', '수정되었습니다.', function () {
+          closePopup('editPopup');
+          closePopup('detailPopup');
+          searchList();
+        });
+      } else {
+        Alert.alert('', result.message || '수정 중 오류가 발생하였습니다.');
+      }
+    });
+  }
+
+  function openPopup(id)  { document.getElementById(id).classList.add('active');    }
+  function closePopup(id) { document.getElementById(id).classList.remove('active'); }
+  document.getElementById('detailPopup').addEventListener('click', function (e) {
+    if (e.target === this) closePopup('detailPopup');
+  });
+  document.getElementById('editPopup').addEventListener('click', function (e) {
+    if (e.target === this) closePopup('editPopup');
+  });
+  function buildDetailRows(rows) {
+    return rows.map(function (r) {
+      if (r.value == null || r.value === '') return '';
+      return `<div class="detail-row"><span class="detail-label">${r.label}</span><span class="detail-value">${esc(String(r.value))}</span></div>`;
+    }).join('');
+  }
+  function esc(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>

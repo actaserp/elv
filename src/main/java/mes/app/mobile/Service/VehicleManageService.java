@@ -411,4 +411,99 @@ public class VehicleManageService {
         try { return Double.parseDouble(val.toString()); }
         catch (NumberFormatException e) { return 0.0; }
     }
+
+    // ── 차량운행 현황 조회 (TB_E037_CONF) ────────────────────
+    public List<Map<String, Object>> getStatusList(String spjangcd, String fromDate, String toDate, String carnum) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("fromDate", fromDate);
+        param.addValue("toDate",   toDate);
+
+        String sql = """
+                SELECT
+                    c.kcdate,
+                    c.kcnum,
+                    c.spjangcd,
+                    c.perid,
+                    j.pernm,
+                    jc.divinm,
+                    e.carnum,
+                    f.fuelnm,
+                    c.km,
+                    c.liter,
+                    c.uamt,
+                    c.samt,
+                    s.actnm
+                FROM TB_E037_CONF c
+                LEFT JOIN TB_JA001 j   ON j.perid    = c.perid
+                                      AND j.spjangcd  = c.spjangcd
+                LEFT JOIN TB_JC002 jc  ON jc.divicd  = j.divicd
+                                      AND jc.spjangcd = j.spjangcd
+                LEFT JOIN TB_E047 e    ON e.carcd     = c.carcd
+                LEFT JOIN TB_E037_1 f  ON f.fuelcd    = c.gubun
+                                      AND f.spjangcd  = c.spjangcd
+                LEFT JOIN TB_E601 s    ON s.actcd     = c.actcd
+                                      AND s.spjangcd  = c.spjangcd
+                WHERE c.spjangcd = :spjangcd
+                  AND c.kcdate  BETWEEN :fromDate AND :toDate
+                """;
+
+        if (carnum != null && !carnum.trim().isEmpty()) {
+            sql += " AND e.carnum LIKE :carnum";
+            param.addValue("carnum", "%" + carnum.trim() + "%");
+        }
+
+        sql += " ORDER BY c.kcdate DESC, c.kcnum DESC";
+        return this.sqlRunner.getRows(sql, param);
+    }
+
+    // ── 차량운행 수정 (TB_E037_CONF UPDATE) ──────────────────
+    public void updateStatus(String spjangcd, String kcdate, String kcnum,
+                             String newKcdate, String actcd, String actnm,
+                             String gubun, String km, String liter,
+                             String uamt, String samt) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("kcdate",   kcdate);
+        param.addValue("kcnum",    kcnum);
+        param.addValue("newKcdate", newKcdate != null && !newKcdate.isBlank() ? newKcdate : kcdate);
+        param.addValue("actcd",    actcd);
+        param.addValue("actnm",    actnm);
+        param.addValue("gubun",    gubun);
+        param.addValue("km",       km != null && !km.isBlank() ? Double.parseDouble(km) : null);
+        param.addValue("liter",    liter != null && !liter.isBlank() ? Double.parseDouble(liter) : null);
+        param.addValue("uamt",     uamt != null && !uamt.isBlank() ? Double.parseDouble(uamt) : null);
+        param.addValue("samt",     samt != null && !samt.isBlank() ? Double.parseDouble(samt) : null);
+
+        this.sqlRunner.execute("""
+                UPDATE TB_E037_CONF SET
+                    kcdate = :newKcdate,
+                    actcd  = :actcd,
+                    gubun  = :gubun,
+                    km     = :km,
+                    liter  = :liter,
+                    uamt   = :uamt,
+                    samt   = :samt
+                WHERE spjangcd = :spjangcd
+                  AND kcdate   = :kcdate
+                  AND kcnum    = :kcnum
+                """, param);
+    }
+
+    // ── 차량운행 삭제 (TB_E037_CONF DELETE) ──────────────────
+    public void deleteStatus(String spjangcd, String kcdate, String kcnum) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("kcdate",   kcdate);
+        param.addValue("kcnum",    kcnum);
+
+        String sql = """
+                DELETE FROM TB_E037_CONF
+                WHERE spjangcd = :spjangcd
+                  AND kcdate   = :kcdate
+                  AND kcnum    = :kcnum
+                """;
+
+        this.sqlRunner.execute(sql, param);
+    }
 }

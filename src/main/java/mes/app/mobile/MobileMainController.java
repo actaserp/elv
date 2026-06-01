@@ -39,28 +39,35 @@ public class MobileMainController {
         AjaxResult result = new AjaxResult();
         User user       = (User) auth.getPrincipal();
         String username = user.getUsername();
-        String spjangcd = tenantUserService.getSpjangcd(username); // ← 수정
+        String spjangcd = tenantUserService.getSpjangcd(username);
 
-        Map<String, Object> userInfo     = mobileMainService.getUserInfo(username);
+        // TenantUserService에서 사업체DB 기준 사원 정보 조회
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(username);
+        if (userInfo == null) {
+            result.success = false;
+            result.message = "사용자 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        username = (String) userInfo.get("username"); //사업체 DB username 조회
+
         Map<String, Object> timeInfo     = mobileMainService.getInOfficeTime(username, spjangcd);
         Map<String, Object> overtimeInfo = mobileMainService.getOvertimeInfo(username, spjangcd);
 
         Map<String, Object> resultData = new HashMap<>();
-        resultData.put("first_name", (String) userInfo.get("first_name"));
-        resultData.put("Name",       (String) userInfo.get("Name"));
-        resultData.put("jik_id",     (String) userInfo.get("jik_id"));
-        resultData.put("last_name",  (String) userInfo.get("last_name"));
-        resultData.put("RSPNM",      (String) userInfo.get("RSPNM"));
-        resultData.put("divinm",     (String) userInfo.get("divinm"));
-        resultData.put("perid",      userInfo.get("personid"));
+        resultData.put("perid",   userInfo.get("personid") != null ? userInfo.get("personid").toString() : null);
+        resultData.put("pernm",   userInfo.get("pernm"));
+        resultData.put("divinm",  userInfo.get("divinm"));
+        resultData.put("RSPNM",   userInfo.get("rspnm"));
+        resultData.put("last_name", userInfo.get("pernm"));  // 화면 호환성 유지
+        resultData.put("username",  userInfo.get("username"));
 
         if (timeInfo != null) {
-            resultData.put("inOfficeTime", (String) timeInfo.get("starttime"));
-            resultData.put("workcd",       (String) timeInfo.get("workcd"));
+            resultData.put("inOfficeTime", timeInfo.get("starttime"));
+            resultData.put("workcd",       timeInfo.get("workcd"));
         }
 
         if (overtimeInfo != null) {
-            resultData.put("ovStartTime", (String) overtimeInfo.get("starttime"));
+            resultData.put("ovStartTime", overtimeInfo.get("starttime"));
         }
 
         result.data = resultData;
@@ -85,11 +92,17 @@ public class MobileMainController {
         AjaxResult result = new AjaxResult();
         User user       = (User) auth.getPrincipal();
         String username = user.getUsername();
-        String spjangcd = tenantUserService.getSpjangcd(username); // ← 수정
 
-        Map<String, Object> personInfo = mobileMainService.getPersonId(username);
-        String perId    = personInfo.get("personid").toString();
-        String workType = String.format("%02d", Integer.parseInt(personInfo.get("PersonGroup_id").toString()));
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(username);
+        if (userInfo == null) {
+            result.success = false;
+            result.message = "사용자 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        username = (String) userInfo.get("username"); //사업체 DB username 조회
+        String spjangcd = (String) userInfo.get("spjangcd");
+        String perId    = userInfo.get("personid").toString();
+        String workType = String.format("%02d", ((Number) userInfo.get("PersonGroup_id")).intValue());
 
         LocalTime currentTime       = LocalDateTime.now().toLocalTime();
         String    formattedCurrTime = currentTime.format(timeFormatter);
@@ -153,11 +166,16 @@ public class MobileMainController {
         AjaxResult result = new AjaxResult();
         User user       = (User) auth.getPrincipal();
         String username = user.getUsername();
-        String spjangcd = tenantUserService.getSpjangcd(username); // ← 수정
 
-        Map<String, Object> personInfo = mobileMainService.getPersonId(username);
-        String perId    = personInfo.get("personid").toString();
-        String workType = String.format("%02d", Integer.parseInt(personInfo.get("PersonGroup_id").toString()));
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(username);
+        if (userInfo == null) {
+            result.success = false;
+            result.message = "사용자 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        String spjangcd = (String) userInfo.get("spjangcd");
+        String perId    = userInfo.get("personid") != null ? userInfo.get("personid").toString() : null;
+        String workType = String.format("%02d", ((Number) userInfo.get("PersonGroup_id")).intValue());
 
         LocalTime currentTime       = LocalDateTime.now().toLocalTime();
         String    formattedCurrTime = currentTime.format(timeFormatter);

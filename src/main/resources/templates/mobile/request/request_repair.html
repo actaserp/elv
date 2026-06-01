@@ -146,12 +146,11 @@
                     <textarea id="regRemark" placeholder="상세내용 입력"></textarea>
                 </div>
                 <div class="form-row">
-<!--                    <label>통보(전달)자</label>-->
-                    <input type="hidden" id="regReperid" placeholder="통보자 입력">
+                    <label>통보(전달)자</label>
+                    <input type="text" id="regReperid" placeholder="통보자 입력">
                 </div>
                 <div class="form-row">
-<!--                    <label>비고</label>-->
-                    <input type="hidden" id="regBigo" placeholder="비고 입력">
+                    <input type="hidden" id="regBigo">
                 </div>
                 <button class="form-save-btn" onclick="saveRepair()">등록</button>
             </div>
@@ -309,7 +308,7 @@
         AjaxUtil.postAsyncData('/api/request_repair/save', data, function (result) {
             if (result && result.success) {
                 Alert.alert('', result.message, function () {
-                    location.href = '/mobile/request/request_status';
+                    location.href = window.CTX_PATH + '/mobile/request/request_status';
                 });
             } else {
                 Alert.alert('', (result && result.message) || '등록 중 오류가 발생하였습니다.');

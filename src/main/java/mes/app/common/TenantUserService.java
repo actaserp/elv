@@ -29,9 +29,9 @@ public class TenantUserService {
 
     /**
      * 본사DB username → personid 조회
-     * → 사업체DB person.id → TB_JA001 spjangcd, custcd 조회
+     * → 사업체DB person.id → TB_JA001 + TB_JC002 + TB_PZ001 조인으로 전체 사원 정보 조회
      *
-     * @return { personid, spjangcd, custcd }
+     * @return { personid, spjangcd, custcd, perid, pernm, divinm, rspnm, username }
      */
     public Map<String, Object> getUserInfo(String username) {
         // 1. 본사DB에서 personid 조회
@@ -56,17 +56,27 @@ public class TenantUserService {
             return null;
         }
 
-        // 2. 사업체DB에서 person.id → TB_JA001 조인으로 spjangcd, custcd 조회
+        // 2. 사업체DB에서 personid → TB_JA001 + 부서 + 직책 + auth_user 조인
         MapSqlParameterSource tenantParam = new MapSqlParameterSource();
         tenantParam.addValue("personid", personid);
 
         String tenantSql = """
                 SELECT TOP 1
-                    p.id        AS personid,
+                    p.id              AS personid,
+                    p.PersonGroup_id,
                     j.custcd,
-                    j.spjangcd
+                    j.spjangcd,
+                    j.perid,
+                    j.pernm,
+                    jc.divinm,
+                    pz.RSPNM          AS rspnm,
+                    u.username        AS username
                 FROM person p
-                JOIN TB_JA001 j ON j.perid = p.Code
+                JOIN TB_JA001 j       ON j.perid    = p.Code
+                LEFT JOIN TB_JC002 jc ON jc.divicd  = j.divicd
+                                     AND jc.spjangcd = j.spjangcd
+                LEFT JOIN TB_PZ001 pz ON pz.RSPCD   = j.rspcd
+                LEFT JOIN auth_user u ON u.personid  = p.id
                 WHERE p.id = :personid
                 """;
 

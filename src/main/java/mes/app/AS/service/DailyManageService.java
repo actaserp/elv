@@ -111,7 +111,10 @@ public class DailyManageService {
                     e.filesvnm,
                     e.filepath
                 FROM TB_E038 e
-                LEFT JOIN TB_E611 m ON m.equpcd   = e.equpcd
+                LEFT JOIN TB_E611 m ON m.equpcd   = e.equpcd 
+                                    AND e.actcd = m.actcd
+                                    AND m.spjangcd = e.spjangcd
+                                    AND m.custcd = e.custcd
                 LEFT JOIN TB_E021 b ON b.custcd   = e.custcd
                                    AND b.spjangcd  = e.spjangcd
                                    AND b.busicd    = e.wkcd

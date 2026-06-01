@@ -321,7 +321,7 @@
                 const userIdEl   = document.getElementById('userId');
                 const userNameEl = document.getElementById('userName2');
                 if (userIdEl)   userIdEl.value   = result.data.username   ?? '';
-                if (userNameEl) userNameEl.value = result.data.last_name ?? '';
+                if (userNameEl) userNameEl.value = result.data.first_name ?? '';
 
                 if (result.data.carnum) {
                     hasMyVehicle = true;
@@ -559,7 +559,7 @@
             if (result != null) {
                 if (result.success) {
                     Alert.alert('', result.message, function () {
-                        window.location.href = window.CTX_PATH + '/mobile/request/vehicle_manage';
+                        window.location.href = window.CTX_PATH + '/mobile/request/vehicle_status';
                     });
                 } else {
                     Alert.alert('', "운행기록 등록에 실패하였습니다.");

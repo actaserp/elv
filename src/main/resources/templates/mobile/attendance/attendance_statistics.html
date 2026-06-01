@@ -220,7 +220,6 @@
     $(document).ready(function () {
         loadAvailableYears().then(() => {
             searchDeductionData();
-            searchUserData();
         });
     });
 
@@ -310,6 +309,9 @@
                 let canvas = document.getElementById("SignupOfWeek");
                 if (canvas) canvas.style.display = 'block';
                 else console.error("SignupOfWeek 요소를 찾을 수 없습니다.");
+
+                // ── contents-wrap 표시 후 userInfo 바인딩 ──
+                searchUserData();
             },
             error: function (error) {
                 console.error("데이터 불러오기 실패:", error);
@@ -325,7 +327,7 @@
                 console.log(response);
                 let searchYear = document.getElementById('searchYear').value;
                 document.querySelector(".contents-wrap h4").innerText =
-                    `${response.data.divinm} ${response.data.Name} ${response.data.RSPNM}\n${searchYear} 휴가통계`;
+                    `${response.data.divinm} ${response.data.pernm} ${response.data.rspnm}\n${searchYear} 휴가통계`;
             },
             error: function (error) {
                 console.error("데이터 불러오기 실패:", error);

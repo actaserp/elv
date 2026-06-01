@@ -2,12 +2,16 @@ package mes.app.AS;
 
 import lombok.extern.slf4j.Slf4j;
 import mes.app.AS.service.WebRequestService;
+import mes.app.common.TenantUserService;
+import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -17,6 +21,19 @@ public class WebRequestController {
 
     @Autowired
     WebRequestService webRequestService;
+
+    @Autowired
+    TenantUserService tenantUserService;
+
+    // ── 사용자 정보 조회 (custcd 포함) ───────────────────────
+    @GetMapping("/user_info")
+    public AjaxResult getUserInfo(HttpServletRequest request, Authentication auth) {
+        AjaxResult result = new AjaxResult();
+        User user = (User) auth.getPrincipal();
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
+        result.data = userInfo;
+        return result;
+    }
 
     // ── 카운트 (금일수신/고장접수/콜백예약/당일처리) ──────────
     @GetMapping("/count")

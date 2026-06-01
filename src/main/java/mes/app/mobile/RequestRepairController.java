@@ -59,7 +59,7 @@ public class RequestRepairController {
 
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
-        String spjangcd = tenantUserService.getSpjangcd(user.getUsername()); // ← 수정
+        String spjangcd = tenantUserService.getSpjangcd(user.getUsername());
         result.data = requestRepairService.getActList(spjangcd);
         return result;
     }
@@ -73,7 +73,7 @@ public class RequestRepairController {
 
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
-        String spjangcd = tenantUserService.getSpjangcd(user.getUsername()); // ← 수정
+        String spjangcd = tenantUserService.getSpjangcd(user.getUsername());
         result.data = requestRepairService.getEqupList(actcd, spjangcd);
         return result;
     }
@@ -114,7 +114,6 @@ public class RequestRepairController {
         User user = (User) auth.getPrincipal();
         String username = user.getUsername();
 
-        // 사업체DB에서 spjangcd, custcd 조회 ← 수정
         Map<String, Object> userInfo = tenantUserService.getUserInfo(username);
         if (userInfo == null) {
             result.success = false;
@@ -139,6 +138,63 @@ public class RequestRepairController {
             result.message = "고장접수 등록 중 오류가 발생하였습니다.";
         }
 
+        return result;
+    }
+
+    // ── 고장접수 수정 (TB_E401 UPDATE) ───────────────────────
+    @PostMapping("/update")
+    public AjaxResult updateRepair(
+            @RequestParam(value = "spjangcd")                   String spjangcd,
+            @RequestParam(value = "recedate")                   String recedate,
+            @RequestParam(value = "recenum")                    String recenum,
+            @RequestParam(value = "recetime",  required = false) String recetime,
+            @RequestParam(value = "hitchdate", required = false) String hitchdate,
+            @RequestParam(value = "hitchhour", required = false) String hitchhour,
+            @RequestParam(value = "actcd",     required = false) String actcd,
+            @RequestParam(value = "actnm",     required = false) String actnm,
+            @RequestParam(value = "equpcd",    required = false) String equpcd,
+            @RequestParam(value = "equpnm",    required = false) String equpnm,
+            @RequestParam(value = "contents",  required = false) String contents,
+            @RequestParam(value = "remark",    required = false) String remark,
+            @RequestParam(value = "reperid",   required = false) String reperid,
+            @RequestParam(value = "bigo",      required = false) String bigo,
+            HttpServletRequest request, Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            requestRepairService.updateRepair(
+                    spjangcd, recedate, recenum,
+                    recetime, hitchdate, hitchhour,
+                    actcd, actnm, equpcd, equpnm,
+                    contents, remark, reperid, bigo);
+            result.success = true;
+            result.message = "수정되었습니다.";
+        } catch (Exception e) {
+            log.error("고장접수 수정 오류", e);
+            result.success = false;
+            result.message = "수정 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
+
+    // ── 고장접수 삭제 (TB_E401 DELETE) ───────────────────────
+    @PostMapping("/delete")
+    public AjaxResult deleteRepair(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "recedate") String recedate,
+            @RequestParam(value = "recenum")  String recenum,
+            HttpServletRequest request, Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            requestRepairService.deleteRepair(spjangcd, recedate, recenum);
+            result.success = true;
+            result.message = "삭제되었습니다.";
+        } catch (Exception e) {
+            log.error("고장접수 삭제 오류", e);
+            result.success = false;
+            result.message = "삭제 중 오류가 발생하였습니다.";
+        }
         return result;
     }
 }

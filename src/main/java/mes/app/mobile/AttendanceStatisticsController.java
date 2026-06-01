@@ -1,5 +1,6 @@
 package mes.app.mobile;
 
+import mes.app.common.TenantUserService;
 import mes.app.mobile.Service.AttendanceStatisticsService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
@@ -17,23 +18,31 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/attendance_statistics")
 public class AttendanceStatisticsController {
+
     @Autowired
     AttendanceStatisticsService attendanceStatisticsService;
 
+    @Autowired
+    TenantUserService tenantUserService;
 
     @GetMapping("/read")
     public AjaxResult getVacInfo(
             @RequestParam(value="searchYear") String searchYear,
             HttpServletRequest request,
             Authentication auth) {
+
         AjaxResult result = new AjaxResult();
-        User user = (User)auth.getPrincipal();
-        String username = user.getUsername();
+        User user = (User) auth.getPrincipal();
 
-        List<Map<String, Object>> data = attendanceStatisticsService.getVacInfo(username, searchYear);
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (userInfo == null) {
+            result.message = "사업체 DB에서 유저 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        String tenantUsername = userInfo.get("username") != null ? userInfo.get("username").toString() : null;
 
+        List<Map<String, Object>> data = attendanceStatisticsService.getVacInfo(tenantUsername, searchYear);
         result.data = data;
-
         return result;
     }
 
@@ -41,13 +50,16 @@ public class AttendanceStatisticsController {
     public AjaxResult getUserInfo(
             HttpServletRequest request,
             Authentication auth) {
+
         AjaxResult result = new AjaxResult();
-        User user = (User)auth.getPrincipal();
-        String username = user.getUsername();
+        User user = (User) auth.getPrincipal();
 
-        Map<String, Object> userInfo = attendanceStatisticsService.getUserInfo(username);
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (userInfo == null) {
+            result.message = "사업체 DB에서 유저 정보를 찾을 수 없습니다.";
+            return result;
+        }
         result.data = userInfo;
-
         return result;
     }
 }

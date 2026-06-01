@@ -114,4 +114,66 @@ public class VehicleManageController {
         String spjangcd = tenantUserService.getSpjangcd(user.getUsername());
         return vehicleManageService.submitAttendance(param, spjangcd);
     }
+
+    @GetMapping("/read_status")
+    public AjaxResult getStatusList(
+            @RequestParam(value = "fromDate", required = false) String fromDate,
+            @RequestParam(value = "toDate",   required = false) String toDate,
+            @RequestParam(value = "carnum",   required = false) String carnum,
+            @RequestParam(value = "spjangcd", required = false) String spjangcd,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        result.data = vehicleManageService.getStatusList(spjangcd, fromDate, toDate, carnum);
+        return result;
+    }
+
+    @PostMapping("/update_status")
+    public AjaxResult updateStatus(
+            @RequestParam(value = "kcdate")    String kcdate,
+            @RequestParam(value = "kcnum")     String kcnum,
+            @RequestParam(value = "spjangcd")  String spjangcd,
+            @RequestParam(value = "newKcdate", required = false) String newKcdate,
+            @RequestParam(value = "actcd",     required = false) String actcd,
+            @RequestParam(value = "actnm",     required = false) String actnm,
+            @RequestParam(value = "gubun",     required = false) String gubun,
+            @RequestParam(value = "km",        required = false) String km,
+            @RequestParam(value = "liter",     required = false) String liter,
+            @RequestParam(value = "uamt",      required = false) String uamt,
+            @RequestParam(value = "samt",      required = false) String samt,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            vehicleManageService.updateStatus(spjangcd, kcdate, kcnum,
+                    newKcdate, actcd, actnm, gubun, km, liter, uamt, samt);
+            result.success = true;
+            result.message = "수정되었습니다.";
+        } catch (Exception e) {
+            log.error("차량운행 수정 오류", e);
+            result.success = false;
+            result.message = "수정 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
+
+    @PostMapping("/delete_status")
+    public AjaxResult deleteStatus(
+            @RequestParam(value = "kcdate")   String kcdate,
+            @RequestParam(value = "kcnum")    String kcnum,
+            @RequestParam(value = "spjangcd") String spjangcd,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            vehicleManageService.deleteStatus(spjangcd, kcdate, kcnum);
+            result.success = true;
+            result.message = "삭제되었습니다.";
+        } catch (Exception e) {
+            log.error("차량운행 삭제 오류", e);
+            result.success = false;
+            result.message = "삭제 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
 }

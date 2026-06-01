@@ -210,6 +210,69 @@ public class RequestRepairService {
         namedParameterJdbcTemplate.update(sql, param);
     }
 
+    // ── 고장접수 수정 (TB_E401 UPDATE) ───────────────────────
+    public void updateRepair(
+            String spjangcd, String recedate, String recenum,
+            String recetime, String hitchdate, String hitchhour,
+            String actcd, String actnm, String equpcd, String equpnm,
+            String contents, String remark, String reperid, String bigo) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd",  spjangcd);
+        param.addValue("recedate",  recedate);
+        param.addValue("recenum",   recenum);
+        param.addValue("recetime",  recetime);
+        param.addValue("hitchdate", hitchdate);
+        param.addValue("hitchhour", hitchhour);
+        param.addValue("actcd",     actcd);
+        param.addValue("actnm",     actnm);
+        param.addValue("equpcd",    equpcd);
+        param.addValue("equpnm",    equpnm);
+        param.addValue("contents",  contents);
+        param.addValue("remark",    remark);
+        param.addValue("reperid",   reperid);
+        param.addValue("bigo",      bigo);
+
+        java.time.LocalDateTime receDt  = toLocalDateTime(recedate, recetime);
+        java.time.LocalDateTime hitchDt = toLocalDateTime(hitchdate, hitchhour);
+        param.addValue("datetime",  receDt);
+        param.addValue("datetime2", hitchDt);
+
+        namedParameterJdbcTemplate.update("""
+                UPDATE TB_E401 SET
+                    recetime  = :recetime,
+                    hitchdate = :hitchdate,
+                    hitchhour = :hitchhour,
+                    actcd     = :actcd,
+                    actnm     = :actnm,
+                    equpcd    = :equpcd,
+                    equpnm    = :equpnm,
+                    contents  = :contents,
+                    remark    = :remark,
+                    reperid   = :reperid,
+                    [datetime]  = :datetime,
+                    [datetime2] = :datetime2
+                WHERE spjangcd = :spjangcd
+                  AND recedate = :recedate
+                  AND recenum  = :recenum
+                """, param);
+    }
+
+    // ── 고장접수 삭제 (TB_E401 DELETE) ───────────────────────
+    public void deleteRepair(String spjangcd, String recedate, String recenum) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("recedate", recedate);
+        param.addValue("recenum",  recenum);
+
+        namedParameterJdbcTemplate.update("""
+                DELETE FROM TB_E401
+                WHERE spjangcd = :spjangcd
+                  AND recedate = :recedate
+                  AND recenum  = :recenum
+                """, param);
+    }
+
     // ── yyyyMMdd + HHmm → LocalDateTime ─────────────────────
     private java.time.LocalDateTime toLocalDateTime(String date, String time) {
         try {

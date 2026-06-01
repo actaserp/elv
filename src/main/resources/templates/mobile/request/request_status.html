@@ -34,10 +34,12 @@
     .detail-label { color: #999; min-width: 80px; flex-shrink: 0; font-size: 13px; }
     .detail-value { color: #222; flex: 1; word-break: break-all; }
 
-    /* 상세 팝업 하단 수정 버튼 */
-    .detail-footer { padding: 12px 20px 24px; border-top: 1px solid #eee; flex-shrink: 0; }
-    .btn-edit { width: 100%; padding: 12px; background: #333; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
+    /* 상세 팝업 하단 버튼 */
+    .detail-footer { padding: 12px 20px 24px; border-top: 1px solid #eee; flex-shrink: 0; display:flex; gap:8px; }
+    .btn-edit   { flex:1; padding: 12px; background: #333; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
     .btn-edit:active { background: #111; }
+    .btn-delete { flex:1; padding: 12px; background: #ff4444; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
+    .btn-delete:active { background: #cc0000; }
 
     /* 수정 팝업 폼 */
     .form-row { margin-bottom: 16px; }
@@ -156,7 +158,8 @@
         </div>
         <div class="popup-body" id="detailBody"></div>
         <div class="detail-footer">
-            <button class="btn-edit" onclick="openEditPopup()">수정</button>
+            <button class="btn-edit"   onclick="openEditPopup()">수정</button>
+            <button class="btn-delete" onclick="deleteRepair()">삭제</button>
         </div>
     </div>
 </div>
@@ -207,10 +210,6 @@
             <div class="form-row">
                 <label>통보(전달)자</label>
                 <input type="text" id="editReperid" placeholder="통보자 입력">
-            </div>
-            <div class="form-row">
-                <label>비고</label>
-                <input type="text" id="editBigo" placeholder="비고 입력">
             </div>
             <button class="form-save-btn" onclick="updateRepair()">수정 저장</button>
         </div>
@@ -346,6 +345,27 @@
         openPopup('detailPopup');
     }
 
+    /* ── 삭제 ── */
+    function deleteRepair() {
+        if (!_currentItem) return;
+        Alert.confirm('', '해당 고장접수를 삭제하시겠습니까?', function () {
+            AjaxUtil.postAsyncData('/api/request_repair/delete', {
+                spjangcd : _spjangcd,
+                recedate : _currentItem.recedate,
+                recenum  : _currentItem.recenum,
+            }, function (result) {
+                if (result && result.success) {
+                    Alert.alert('', '삭제되었습니다.', function () {
+                        closePopup('detailPopup');
+                        searchRepairList();
+                    });
+                } else {
+                    Alert.alert('', (result && result.message) || '삭제 중 오류가 발생하였습니다.');
+                }
+            });
+        });
+    }
+
     /* ── 수정 팝업 ── */
     function openEditPopup() {
         if (!_currentItem) return;
@@ -472,7 +492,6 @@
             contents  : document.getElementById('editContents').value,
             remark    : document.getElementById('editRemark').value,
             reperid   : document.getElementById('editReperid').value,
-            bigo      : document.getElementById('editBigo').value,
         };
 
         AjaxUtil.postAsyncData('/api/request_repair/update', data, function (result) {

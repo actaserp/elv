@@ -632,7 +632,7 @@
         AjaxUtil.postAsyncData('/api/maintenance_repair/save_comp', data, function (result) {
             if (result && result.success) {
                 Alert.alert('', result.message, function () {
-                    location.href = '/mobile/request/maintenance_status';
+                    location.href = window.CTX_PATH + '/mobile/request/maintenance_status';
                 });
             } else {
                 Alert.alert('', (result && result.message) || '등록 중 오류가 발생하였습니다.');

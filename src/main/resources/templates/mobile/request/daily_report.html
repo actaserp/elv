@@ -197,6 +197,7 @@
     }
 
     .popup-close {
+        width: 0%;
         background: none;
         border: none;
         font-size: 22px;
@@ -403,6 +404,11 @@
             <span>행선지 선택</span>
             <button class="popup-close" onclick="closeDestPopup()">×</button>
         </div>
+        <div style="padding:10px 16px; border-bottom:1px solid #eee;">
+            <input type="text" id="destSearchKeyword" placeholder="현장명 검색"
+                   style="width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:6px; font-size:14px; box-sizing:border-box;"
+                   oninput="filterDestList(this.value)">
+        </div>
         <div class="popup-list">
             <ul id="destList"></ul>
         </div>
@@ -416,6 +422,11 @@
             <span>호기 선택</span>
             <button class="popup-close" onclick="closeEqupPopup()">×</button>
         </div>
+        <div style="padding:10px 16px; border-bottom:1px solid #eee;">
+            <input type="text" id="equpSearchKeyword" placeholder="호기명 검색"
+                   style="width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:6px; font-size:14px; box-sizing:border-box;"
+                   oninput="filterEqupList(this.value)">
+        </div>
         <div class="popup-list">
             <ul id="equpList"></ul>
         </div>
@@ -423,6 +434,8 @@
 </div>
 
 <script type="text/javascript">
+
+    var ctx = document.querySelector('meta[name="ctx"]').getAttribute('content') || '/';
 
     $(document).ready(function () {
         initPage();
@@ -432,6 +445,12 @@
     function initPage() {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('writeDate').value = today;
+
+        // 현재 시간 HH:mm 형식으로 바인딩
+        const now  = new Date();
+        const hhmm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        document.getElementById('frtime').value = hhmm;
+        document.getElementById('totime').value = hhmm;
 
         searchMainData();
         loadGubunList();
@@ -477,22 +496,41 @@
     }
 
     // ── 행선지 팝업 ───────────────────────────────────────────
+    var _destData = []; // 전체 목록 캐시
+
     function openDestPopup() {
-        let url = '/api/daily_report/read_dest';
-        let fnsuccess = function (result) {
+        document.getElementById('destSearchKeyword').value = '';
+        AjaxUtil.getAsyncData('/api/daily_report/read_dest', {}, function (result) {
             if (result != null && result.data) {
-                const ul = document.getElementById('destList');
-                ul.innerHTML = '';
-                result.data.forEach(function(item) {
-                    const li = document.createElement('li');
-                    li.innerHTML = '<span class="item-code">' + item.actcd + '</span>' + item.actnm;
-                    li.onclick = function() { setDestData(item); };
-                    ul.appendChild(li);
-                });
+                _destData = result.data;
+                renderDestList(_destData);
                 document.getElementById('destPopup').classList.add('active');
             }
-        };
-        AjaxUtil.getAsyncData(url, {}, fnsuccess);
+        });
+    }
+
+    function filterDestList(keyword) {
+        const filtered = keyword.trim()
+            ? _destData.filter(function(item) {
+                return item.actnm && item.actnm.includes(keyword.trim());
+              })
+            : _destData;
+        renderDestList(filtered);
+    }
+
+    function renderDestList(list) {
+        const ul = document.getElementById('destList');
+        ul.innerHTML = '';
+        if (!list || list.length === 0) {
+            ul.innerHTML = '<li style="color:#999; cursor:default;">검색 결과가 없습니다.</li>';
+            return;
+        }
+        list.forEach(function(item) {
+            const li = document.createElement('li');
+            li.innerHTML = '<span class="item-code">' + (item.actcd || '') + '</span>' + (item.actnm || '');
+            li.onclick = function() { setDestData(item); };
+            ul.appendChild(li);
+        });
     }
 
     function closeDestPopup() {
@@ -512,32 +550,46 @@
     });
 
     // ── 호기 팝업 ─────────────────────────────────────────────
+    var _equpData = []; // 전체 목록 캐시
+
     function openEqupPopup() {
         const actcd = document.getElementById('actcd').value;
         if (!actcd) {
             Alert.alert('', '행선지를 먼저 선택해주세요.');
             return;
         }
-        let url = '/api/daily_report/read_equp';
-        let data = { actcd: actcd };
-        let fnsuccess = function (result) {
+        document.getElementById('equpSearchKeyword').value = '';
+        AjaxUtil.getAsyncData('/api/daily_report/read_equp', { actcd: actcd }, function (result) {
             if (result != null && result.data) {
-                const ul = document.getElementById('equpList');
-                ul.innerHTML = '';
-                if (result.data.length === 0) {
-                    ul.innerHTML = '<li style="color:#999; cursor:default;">조회된 호기가 없습니다.</li>';
-                } else {
-                    result.data.forEach(function(item) {
-                        const li = document.createElement('li');
-                        li.innerHTML = '<span class="item-code">' + item.equpcd + '</span>' + item.equpnm;
-                        li.onclick = function() { setEqupData(item); };
-                        ul.appendChild(li);
-                    });
-                }
+                _equpData = result.data;
+                renderEqupList(_equpData);
                 document.getElementById('equpPopup').classList.add('active');
             }
-        };
-        AjaxUtil.getAsyncData(url, data, fnsuccess);
+        });
+    }
+
+    function filterEqupList(keyword) {
+        const filtered = keyword.trim()
+            ? _equpData.filter(function(item) {
+                return item.equpnm && item.equpnm.includes(keyword.trim());
+              })
+            : _equpData;
+        renderEqupList(filtered);
+    }
+
+    function renderEqupList(list) {
+        const ul = document.getElementById('equpList');
+        ul.innerHTML = '';
+        if (!list || list.length === 0) {
+            ul.innerHTML = '<li style="color:#999; cursor:default;">조회된 호기가 없습니다.</li>';
+            return;
+        }
+        list.forEach(function(item) {
+            const li = document.createElement('li');
+            li.innerHTML = '<span class="item-code">' + (item.equpcd || '') + '</span>' + (item.equpnm || '');
+            li.onclick = function() { setEqupData(item); };
+            ul.appendChild(li);
+        });
     }
 
     function closeEqupPopup() {
@@ -572,7 +624,7 @@
         const formData  = new FormData();
         formData.append('file', file);
 
-        fetch('/api/daily_report/upload_file', {
+        fetch(ctx + 'api/daily_report/upload_file', {
             method: 'POST',
             headers: { 'X-CSRF-TOKEN': csrfToken },
             body: formData
@@ -655,7 +707,7 @@
             if (result != null) {
                 if (result.success) {
                     Alert.alert('', result.message, function () {
-                        window.location.href = '/mobile/daily_report_list';
+                        window.location.href = window.CTX_PATH + '/mobile/request/daily_status';
                     });
                 } else {
                     Alert.alert('', '업무일지 등록에 실패하였습니다.');

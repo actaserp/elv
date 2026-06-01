@@ -2,12 +2,16 @@ package mes.app.AS;
 
 import lombok.extern.slf4j.Slf4j;
 import mes.app.AS.service.WebHandleService;
+import mes.app.common.TenantUserService;
+import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -17,6 +21,9 @@ public class WebHandleController {
 
     @Autowired
     WebHandleService webHandleService;
+
+    @Autowired
+    TenantUserService tenantUserService;
 
     // ── 고장접수 목록 (왼쪽 그리드, TB_E401) ─────────────────
     @GetMapping("/list")
@@ -53,12 +60,22 @@ public class WebHandleController {
             @RequestParam(value = "customer",  required = false) String customer,
             @RequestParam(value = "remark",    required = false) String remark,
             @RequestParam(value = "perid",     required = false) String perid,
-            HttpServletRequest request) {
+            HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
+
+        User user = (User) auth.getPrincipal();
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (userInfo == null) {
+            result.success = false;
+            result.message = "사용자 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        String custcd = (String) userInfo.get("custcd");
+
         try {
             webHandleService.saveComp(
-                    spjangcd, compdate, comptime,
+                    custcd, spjangcd, compdate, comptime,
                     recedate, recenum, recetime,
                     arrivdate, arrivtime,
                     actcd, actnm, equpcd, equpnm,

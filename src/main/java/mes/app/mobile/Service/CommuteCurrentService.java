@@ -17,14 +17,13 @@ public class CommuteCurrentService {
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
         dicParam.addValue("username", username);
-        dicParam.addValue("workcd", workcd);
+        dicParam.addValue("workcd",   workcd);
 
-        // 날짜 포맷 처리 (yyyy-MM-dd -> yyyyMMdd)
-        String fromDate = searchFromDate.replace("-", ""); // yyyyMMdd
-        String toDate = searchToDate.replace("-", "");     // yyyyMMdd
+        String fromDate = searchFromDate.replace("-", "");
+        String toDate   = searchToDate.replace("-", "");
 
         dicParam.addValue("fromDate", fromDate);
-        dicParam.addValue("toDate", toDate);
+        dicParam.addValue("toDate",   toDate);
 
         String sql = """
             SELECT
@@ -60,11 +59,10 @@ public class CommuteCurrentService {
                     CASE WHEN t.bantime = 1 THEN ', 반차' ELSE '' END
                 , 1, 2, '') AS status_text
             FROM tb_pb201 t
-            LEFT JOIN auth_user a ON a.personid = t.perid
-            LEFT JOIN person p ON p.id = a.personid
-            LEFT JOIN tb_pb210 td ON t.workcd = td.workcd
-            WHERE 1=1
-              AND a.username = :username
+            LEFT JOIN auth_user a  ON a.personid = t.perid
+            LEFT JOIN person p     ON p.id       = a.personid
+            LEFT JOIN tb_pb210 td  ON t.workcd   = td.workcd
+            WHERE a.username = :username
            """;
 
         if (workcd != null && !workcd.isEmpty()) {

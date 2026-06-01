@@ -17,8 +17,7 @@ public class AttendanceStatisticsService {
     public List<Map<String, Object>> getVacInfo(String username, String searchYear) {
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
-        dicParam.addValue("username", username);
-
+        dicParam.addValue("username",   username);
         dicParam.addValue("searchYear", searchYear);
 
         String sql = """
@@ -31,11 +30,9 @@ public class AttendanceStatisticsService {
                 WHERE t.appuserid = :username
                   AND LEFT(t.reqdate, 4) = :searchYear
                 GROUP BY t.workcd, tn.worknm
-        		""";
+                """;
 
-        List<Map<String, Object>> items = this.sqlRunner.getRows(sql, dicParam);
-
-        return items;
+        return this.sqlRunner.getRows(sql, dicParam);
     }
     // 유저정보 조회
     public Map<String, Object> getUserInfo(String username) {
@@ -53,7 +50,7 @@ public class AttendanceStatisticsService {
                     s.[Value] as jiknm,
                     d.[Name] as departnm,
                     p.[Depart_id],
-                    pz.RSPNM
+                    pz.[RSPNM]
                 FROM auth_user a
                 LEFT JOIN person p ON p.id = a.personid
                 LEFT JOIN sys_code s ON p.jik_id = s.[Code] AND s.[CodeType] = 'jik_type'

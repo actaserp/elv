@@ -1,5 +1,6 @@
 package mes.app.mobile;
 
+import mes.app.common.TenantUserService;
 import mes.app.mobile.Service.CommuteCurrentService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
@@ -17,11 +18,13 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/commute_current")
 public class CommuteCurrentController {
-    // 출퇴근현황
+
     @Autowired
     CommuteCurrentService commuteCurrentService;
 
-    // 사용자 출퇴근 현황 조회
+    @Autowired
+    TenantUserService tenantUserService;
+
     @GetMapping("/read")
     public AjaxResult getUserInfo(
             @RequestParam(value="workcd", required = false) String workcd,
@@ -29,22 +32,26 @@ public class CommuteCurrentController {
             @RequestParam(value="searchToDate") String searchToDate,
             HttpServletRequest request,
             Authentication auth) {
+
         AjaxResult result = new AjaxResult();
-        User user = (User)auth.getPrincipal();
-        String username = user.getUsername();
+        User user = (User) auth.getPrincipal();
 
-        List<Map<String, Object>> data = commuteCurrentService.getUserInfo(username, workcd, searchFromDate, searchToDate);
-        for(Map<String, Object>dataDetail : data) {
-            String workym = (String) dataDetail.get("workym"); // YYYYMM
-            String workday = (String) dataDetail.get("workday"); // DD
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (userInfo == null) {
+            result.message = "사업체 DB에서 유저 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        String tenantUsername = userInfo.get("username") != null ? userInfo.get("username").toString() : null;
 
+        List<Map<String, Object>> data = commuteCurrentService.getUserInfo(tenantUsername, workcd, searchFromDate, searchToDate);
+        for (Map<String, Object> dataDetail : data) {
+            String workym  = (String) dataDetail.get("workym");
+            String workday = (String) dataDetail.get("workday");
             if (workym != null && workday != null && workym.length() == 6 && workday.length() == 2) {
-                String formattedDate = workym.substring(0, 4) + "." + workym.substring(4) + "." + workday;
-                dataDetail.put("workym", formattedDate);
+                dataDetail.put("workym", workym.substring(0, 4) + "." + workym.substring(4) + "." + workday);
             }
         }
         result.data = data;
-
         return result;
     }
 }

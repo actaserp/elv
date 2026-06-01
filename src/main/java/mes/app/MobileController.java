@@ -51,10 +51,22 @@ public class MobileController {
         return "mobile/request/vehicle_manage";
     }
 
+    @GetMapping("/request/vehicle_status")
+    public String vehicleStatus(Model model) {
+        model.addAttribute("currentPage", "vehicle_status");
+        return "mobile/request/vehicle_status";
+    }
+
     @GetMapping("/request/daily_report")
     public String dailyReport(Model model) {
         model.addAttribute("currentPage", "daily_report");
         return "mobile/request/daily_report";
+    }
+
+    @GetMapping("/request/daily_status")
+    public String dailyStatus(Model model) {
+        model.addAttribute("currentPage", "daily_status");
+        return "mobile/request/daily_status";
     }
 
     @GetMapping("/request/maintenance_comp")

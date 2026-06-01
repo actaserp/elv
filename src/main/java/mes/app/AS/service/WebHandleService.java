@@ -56,7 +56,7 @@ public class WebHandleService {
 
     // ── 고장처리결과 등록 (TB_E411 INSERT) ───────────────────
     public void saveComp(
-            String spjangcd, String compdate, String comptime,
+            String custcd, String spjangcd, String compdate, String comptime,
             String recedate, String recenum, String recetime,
             String arrivdate, String arrivtime,
             String actcd, String actnm, String equpcd, String equpnm,
@@ -66,6 +66,7 @@ public class WebHandleService {
         String compnum = getNextCompnum(spjangcd, compdate);
 
         MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("custcd",     custcd);
         param.addValue("spjangcd",   spjangcd);
         param.addValue("compdate",   compdate);
         param.addValue("compnum",    compnum);
@@ -85,24 +86,25 @@ public class WebHandleService {
         param.addValue("resultcd",   resultcd);
         param.addValue("customer",   customer);
         param.addValue("remark",     remark);
+        param.addValue("result",     "1");
         param.addValue("perid",      perid != null ? perid : "");
         param.addValue("inperid",    perid != null ? perid : "");
         param.addValue("indate",     compdate);
 
         String sql = """
                 INSERT INTO TB_E411
-                    (spjangcd, compdate, compnum, comptime,
+                    (custcd, spjangcd, compdate, compnum, comptime,
                      recedate, recenum, recetime, arrivdate, arrivtime,
                      actcd, actnm, equpcd, equpnm,
                      contremark, remoremark, resuremark, resultcd,
-                     customer, remark,
+                     customer, remark, result,
                      perid, inperid, indate)
                 VALUES
-                    (:spjangcd, :compdate, :compnum, :comptime,
+                    (:custcd, :spjangcd, :compdate, :compnum, :comptime,
                      :recedate, :recenum, :recetime, :arrivdate, :arrivtime,
                      :actcd, :actnm, :equpcd, :equpnm,
                      :contremark, :remoremark, :resuremark, :resultcd,
-                     :customer, :remark,
+                     :customer, :remark, :result,
                      :perid, :inperid, :indate)
                 """;
 

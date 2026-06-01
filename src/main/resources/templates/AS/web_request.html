@@ -357,8 +357,21 @@
     var selectedRecedate = null;
     var selectedRecenum  = null;
     var spjangcd = sessionStorage.getItem('spjangcd');
+    var _custcd  = '';
 
-    var smsGrid, smsData;
+    document.readyState === 'complete' ? init() : window.onload = init;
+
+    function init() {
+      // custcd 조회
+      AjaxUtil.getAsyncData('/api/AS/web_request/user_info', {}, function (result) {
+        if (result && result.data) {
+          _custcd = result.data.custcd || '';
+          document.getElementById('custcd').value = _custcd;
+        }
+      });
+
+      const today = new Date();
+      var smsGrid, smsData;
     let smsColumns = [
       {binding: 'result',   header: '결과',     width:  80, align: 'center'},
       {binding: 'recedate', header: '일자',     width:  90, align: 'center'},
@@ -373,6 +386,7 @@
 
     function init() {
       const today = new Date();
+      var smsGrid, smsData;
       const yyyy  = today.getFullYear();
       const mm    = String(today.getMonth() + 1).padStart(2, '0');
       const dd    = String(today.getDate()).padStart(2, '0');
