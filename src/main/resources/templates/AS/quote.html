@@ -916,22 +916,22 @@
     let page = null;
 
     $(document).ready(function () {
-      page = new SujuUploadPage();
-
-      $('#srchStartDt').val(CommonUtil.getYYYYMMDD(-7));
-      $('#srchEndDt').val(CommonUtil.getYYYYMMDD());
-
-      page.searchMainData();
-
-      $('#btnSearch').click(function () {
-        page.searchMainData();
-      });
-      $('#btnDownloadTemplate').click(function () {
-        page.downloadExcelForm();
-      });
-      $('#btnShowUpload').click(function () {
-        page.showPopupExcelUpload({id: '', data_date: CommonUtil.getYYYYMMDD()});
-      });
+      // page = new SujuUploadPage();
+      //
+      // $('#srchStartDt').val(CommonUtil.getYYYYMMDD(-7));
+      // $('#srchEndDt').val(CommonUtil.getYYYYMMDD());
+      //
+      // page.searchMainData();
+      //
+      // $('#btnSearch').click(function () {
+      //   page.searchMainData();
+      // });
+      // $('#btnDownloadTemplate').click(function () {
+      //   page.downloadExcelForm();
+      // });
+      // $('#btnShowUpload').click(function () {
+      //   page.showPopupExcelUpload({id: '', data_date: CommonUtil.getYYYYMMDD()});
+      // });
     });
 
   </script>

@@ -31,16 +31,9 @@
         text-overflow: ellipsis;
         white-space: nowrap;
     }
-    .card-badge {
-        font-size: 11px;
-        padding: 2px 8px;
-        border-radius: 20px;
-        background: #e8f0fe;
-        color: #1a56db;
-        margin-left: 8px;
-        white-space: nowrap;
-        flex-shrink: 0;
-    }
+    .card-badge-cont  { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #e6f4ea; color: #1a7a3a; margin-left: 8px; white-space: nowrap; flex-shrink: 0; }
+    .card-badge-cancel{ font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #fde8e8; color: #cc2222; margin-left: 8px; white-space: nowrap; flex-shrink: 0; }
+    .card-badge-etc   { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #f0f0f0; color: #888;    margin-left: 8px; white-space: nowrap; flex-shrink: 0; }
     .card-row {
         display: flex;
         font-size: 13px;
@@ -180,6 +173,24 @@
                         <dt>현장명</dt>
                         <dd><input type="text" id="searchKeyword" placeholder="현장명을 입력하세요"></dd>
                     </dl>
+                    <dl>
+                        <dt>승강기번호</dt>
+                        <dd><input type="text" id="searchEqupcd" placeholder="승강기번호를 입력하세요"></dd>
+                    </dl>
+                    <dl>
+                        <dt>전화번호</dt>
+                        <dd><input type="text" id="searchTel" placeholder="전화번호를 입력하세요"></dd>
+                    </dl>
+                    <dl>
+                        <dt>계약구분</dt>
+                        <dd>
+                            <select id="searchActgubun" style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:6px; font-size:14px;">
+                                <option value="01">계약중</option>
+                                <option value="02">해지</option>
+                                <option value="">전체</option>
+                            </select>
+                        </dd>
+                    </dl>
                     <div class="srch-btn">
                         <button class="btn-dark" onclick="handleSearch()">조회</button>
                     </div>
@@ -225,9 +236,15 @@
     }
 
     function searchSiteList() {
-        const keyword = document.getElementById('searchKeyword').value.trim();
+        const keyword   = document.getElementById('searchKeyword').value.trim();
+        const equpcd    = document.getElementById('searchEqupcd').value.trim();
+        const tel       = document.getElementById('searchTel').value.trim();
+        const actgubun  = document.getElementById('searchActgubun').value;
         AjaxUtil.getAsyncData('/api/maintenance_comp/read_site', {
             keyword  : keyword,
+            equpcd   : equpcd,
+            tel      : tel,
+            actgubun : actgubun,
             spjangcd : _spjangcd
         }, function (result) {
             if (result != null && result.data != null) {
@@ -254,7 +271,7 @@
             <div class="site-card" onclick='openDetailPopup(${JSON.stringify(item)})'>
                 <div class="card-header">
                     <span class="card-actnm">${esc(item.actnm || '')}</span>
-                    ${item.actgubun ? `<span class="card-badge">${esc(item.actgubun)}</span>` : ''}
+                    ${item.actgubun ? `<span class="${getGubunClass(item.actgubun)}">${getGubunNm(item.actgubun)}</span>` : ''}
                 </div>
                 ${item.bildyd ? `<div class="card-row"><span class="card-label">건물용도</span><span class="card-value">${esc(item.bildyd)}</span></div>` : ''}
                 ${item.actpernm ? `<div class="card-row"><span class="card-label">담당자</span><span class="card-value">${esc(item.actpernm)}${item.divinm ? ' / ' + esc(item.divinm) : ''}</span></div>` : ''}
@@ -272,7 +289,7 @@
         html += buildDetailRows([
             { label: '현장코드',   value: item.actcd    },
             { label: '현장명',     value: item.actnm    },
-            { label: '현장구분',   value: item.actgubun },
+            { label: '현장구분',   value: getGubunNm(item.actgubun) },
             { label: '거래처코드', value: item.cltcd    },
             { label: '건물용도',   value: item.bildyd   },
             { label: '건물층수',   value: item.bildlv   },
@@ -334,6 +351,17 @@
                 <span class="detail-value">${esc(String(r.value))}</span>
             </div>`;
         }).join('');
+    }
+
+    function getGubunNm(val) {
+        if (val == '01') return '계약중';
+        if (val == '02') return '해지';
+        return val || '';
+    }
+    function getGubunClass(val) {
+        if (val == '01') return 'card-badge-cont';
+        if (val == '02') return 'card-badge-cancel';
+        return 'card-badge-etc';
     }
 
     function esc(str) {

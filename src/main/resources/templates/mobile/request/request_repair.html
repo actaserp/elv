@@ -138,19 +138,20 @@
                 </div>
                 <div class="form-row">
                     <label>고장내용</label>
-                    <input type="text" id="regContents" placeholder="고장내용 입력">
+                    <input type="hidden" id="regContcd">
+                    <input type="text" id="regContents" placeholder="고장내용 선택" readonly onclick="openContnmPopup()">
                 </div>
                 <div class="form-row">
                     <label>상세내용</label>
                     <textarea id="regRemark" placeholder="상세내용 입력"></textarea>
                 </div>
                 <div class="form-row">
-                    <label>통보(전달)자</label>
-                    <input type="text" id="regReperid" placeholder="통보자 입력">
+<!--                    <label>통보(전달)자</label>-->
+                    <input type="hidden" id="regReperid" placeholder="통보자 입력">
                 </div>
                 <div class="form-row">
-                    <label>비고</label>
-                    <input type="text" id="regBigo" placeholder="비고 입력">
+<!--                    <label>비고</label>-->
+                    <input type="hidden" id="regBigo" placeholder="비고 입력">
                 </div>
                 <button class="form-save-btn" onclick="saveRepair()">등록</button>
             </div>
@@ -179,6 +180,19 @@
             <button class="popup-close" onclick="closePopup('equpPopup')">×</button>
         </div>
         <div class="popup-list"><ul id="equpList"></ul></div>
+    </div>
+</div>
+
+<!-- 고장내용 선택 팝업 -->
+<div class="popup-overlay" id="contnmPopup">
+    <div class="popup-sheet">
+        <div class="popup-header">
+            <span>고장내용 선택</span>
+            <button class="popup-close" onclick="closePopup('contnmPopup')">×</button>
+        </div>
+        <input type="text" class="popup-search-input" id="contnmSearchInput" placeholder="고장내용 검색"
+               oninput="filterContnmList(this.value)">
+        <div class="popup-list"><ul id="contnmList"></ul></div>
     </div>
 </div>
 
@@ -286,6 +300,7 @@
             equpcd    : document.getElementById('regEqupcd').value,
             equpnm    : document.getElementById('regEqupnm').value,
             contents  : document.getElementById('regContents').value,
+            contcd    : document.getElementById('regContcd').value,
             remark    : document.getElementById('regRemark').value,
             reperid   : document.getElementById('regReperid').value,
             bigo      : document.getElementById('regBigo').value,
@@ -294,20 +309,7 @@
         AjaxUtil.postAsyncData('/api/request_repair/save', data, function (result) {
             if (result && result.success) {
                 Alert.alert('', result.message, function () {
-                    const today = new Date().toISOString().split('T')[0];
-                    const now   = new Date().toTimeString().slice(0, 5);
-                    document.getElementById('regRecedate').value  = today;
-                    document.getElementById('regRecetime').value  = now;
-                    document.getElementById('regHitchdate').value = today;
-                    document.getElementById('regHitchhour').value = now;
-                    document.getElementById('regActcd').value     = '';
-                    document.getElementById('regActnm').value     = '';
-                    document.getElementById('regEqupcd').value    = '';
-                    document.getElementById('regEqupnm').value    = '';
-                    document.getElementById('regContents').value  = '';
-                    document.getElementById('regRemark').value    = '';
-                    document.getElementById('regReperid').value   = '';
-                    document.getElementById('regBigo').value      = '';
+                    location.href = '/mobile/request/request_status';
                 });
             } else {
                 Alert.alert('', (result && result.message) || '등록 중 오류가 발생하였습니다.');
@@ -319,11 +321,57 @@
     function openPopup(id)  { document.getElementById(id).classList.add('active');    }
     function closePopup(id) { document.getElementById(id).classList.remove('active'); }
 
-    ['actPopup', 'equpPopup'].forEach(function (id) {
+    ['actPopup', 'equpPopup', 'contnmPopup'].forEach(function (id) {
         document.getElementById(id).addEventListener('click', function (e) {
             if (e.target === this) closePopup(id);
         });
     });
+
+    /* ── 고장내용 선택 팝업 ── */
+    var _contnmListCache = [];
+
+    function openContnmPopup() {
+        document.getElementById('contnmSearchInput').value = '';
+        if (_contnmListCache.length > 0) {
+            renderContnmList(_contnmListCache);
+            openPopup('contnmPopup');
+            return;
+        }
+        AjaxUtil.getAsyncData('/api/request_repair/read_contnm', {}, function (result) {
+            if (result && result.data) {
+                _contnmListCache = result.data;
+                renderContnmList(_contnmListCache);
+                openPopup('contnmPopup');
+            }
+        });
+    }
+
+    function renderContnmList(list) {
+        const ul = document.getElementById('contnmList');
+        ul.innerHTML = '';
+        if (!list || list.length === 0) {
+            ul.innerHTML = '<li style="color:#999; cursor:default;">조회된 고장내용이 없습니다.</li>';
+            return;
+        }
+        list.forEach(function (item) {
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="item-code">${esc(item.contcd || '')}</span>${esc(item.contnm || '')}`;
+            li.onclick = function () { setContnmData(item); };
+            ul.appendChild(li);
+        });
+    }
+
+    function filterContnmList(keyword) {
+        renderContnmList(_contnmListCache.filter(function (item) {
+            return (item.contnm || '').includes(keyword);
+        }));
+    }
+
+    function setContnmData(item) {
+        document.getElementById('regContcd').value   = item.contcd || '';
+        document.getElementById('regContents').value = item.contnm || '';
+        closePopup('contnmPopup');
+    }
 
     function esc(str) {
         if (!str) return '';

@@ -79,7 +79,7 @@ public class MaintenanceRepairService {
 
     // ── 고장처리결과 목록 조회 (TB_E411) ─────────────────────
     public List<Map<String, Object>> getCompList(
-            String fromDate, String toDate, String actnm, String spjangcd) {
+            String fromDate, String toDate, String actnm, String resultck, String spjangcd) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
@@ -108,11 +108,15 @@ public class MaintenanceRepairService {
                     e.remark,
                     e.perid,
                     j.pernm,
-                    jc.divinm
+                    jc.divinm,
+                    a.resultck
                 FROM TB_E411 e
                 LEFT JOIN TB_JA001 j  ON j.perid    = 'p' + e.perid
                                      AND j.spjangcd  = e.spjangcd
                 LEFT JOIN TB_JC002 jc ON j.divicd   = jc.divicd
+                LEFT JOIN TB_E401  a  ON a.recedate  = e.recedate
+                                     AND a.recenum   = e.recenum
+                                     AND a.spjangcd  = e.spjangcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.compdate BETWEEN :fromDate AND :toDate
                 """;
@@ -120,6 +124,14 @@ public class MaintenanceRepairService {
         if (actnm != null && !actnm.isBlank()) {
             sql += " AND e.actnm LIKE :actnm";
             param.addValue("actnm", "%" + actnm.trim() + "%");
+        }
+
+        if (resultck != null && !resultck.isBlank()) {
+            if (resultck.equals("1")) {
+                sql += " AND a.resultck = '1'";
+            } else if (resultck.equals("null")) {
+                sql += " AND (a.resultck IS NULL OR a.resultck <> '1')";
+            }
         }
 
         sql += " ORDER BY e.compdate DESC, e.compnum DESC";
@@ -165,6 +177,7 @@ public class MaintenanceRepairService {
 
     // ── 고장처리결과 등록 (TB_E411 INSERT) ───────────────────
     public void saveComp(
+            String custcd,
             String spjangcd,
             String compdate,
             String comptime,
@@ -177,17 +190,18 @@ public class MaintenanceRepairService {
             String actnm,
             String equpcd,
             String equpnm,
-            String contremark,
-            String remoremark,
-            String resuremark,
-            String resultcd,
-            String customer,
-            String remark,
+            String contremark,   // 고장부위
+            String remoremark,   // 고장부위상세
+            String resuremark,   // 고장요인
+            // String resultcd   // 고장원인 — 매핑 확인 후 추가
+            // String customer   // 처리내용 — 매핑 확인 후 추가
+            // String remark     // 처리결과 — 매핑 확인 후 추가
             String perid) {
 
         String compnum = getNextCompnum(spjangcd, compdate);
 
         MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("custcd",     custcd);
         param.addValue("spjangcd",   spjangcd);
         param.addValue("compdate",   compdate);
         param.addValue("compnum",    compnum);
@@ -201,34 +215,53 @@ public class MaintenanceRepairService {
         param.addValue("actnm",      actnm);
         param.addValue("equpcd",     equpcd);
         param.addValue("equpnm",     equpnm);
-        param.addValue("contremark", contremark);
-        param.addValue("remoremark", remoremark);
-        param.addValue("resuremark", resuremark);
-        param.addValue("resultcd",   resultcd);
-        param.addValue("customer",   customer);
-        param.addValue("remark",     remark);
+        param.addValue("contremark", contremark);  // 고장부위
+        param.addValue("remoremark", remoremark);  // 고장부위상세
+        param.addValue("resuremark", resuremark);  // 고장요인
+        param.addValue("result",     "1");          // 처리완료 고정
         param.addValue("perid",      perid);
         param.addValue("inperid",    perid);
         param.addValue("indate",     compdate);
+        // param.addValue("resultcd",   resultcd);  // 고장원인 — 매핑 확인 후 추가
+        // param.addValue("customer",   customer);  // 처리내용 — 매핑 확인 후 추가
+        // param.addValue("remark",     remark);    // 처리결과 — 매핑 확인 후 추가
 
         String sql = """
                 INSERT INTO TB_E411
-                    (spjangcd, compdate, compnum, comptime,
-                     recedate, recenum, recetime, arrivdate, arrivtime,
+                    (custcd, spjangcd, compdate, compnum, comptime,
+                     recedate, recenum, recetime,
+                     arrivdate, arrivtime,
                      actcd, actnm, equpcd, equpnm,
-                     contremark, remoremark, resuremark, resultcd,
-                     customer, remark,
+                     contremark, remoremark, resuremark,
+                     result,
                      perid, inperid, indate)
                 VALUES
-                    (:spjangcd, :compdate, :compnum, :comptime,
-                     :recedate, :recenum, :recetime, :arrivdate, :arrivtime,
+                    (:custcd, :spjangcd, :compdate, :compnum, :comptime,
+                     :recedate, :recenum, :recetime,
+                     :arrivdate, :arrivtime,
                      :actcd, :actnm, :equpcd, :equpnm,
-                     :contremark, :remoremark, :resuremark, :resultcd,
-                     :customer, :remark,
+                     :contremark, :remoremark, :resuremark,
+                     :result,
                      :perid, :inperid, :indate)
                 """;
 
         namedParameterJdbcTemplate.update(sql, param);
+
+        // ── TB_E401 처리완료 상태 업데이트 ──────────────────
+        if (recedate != null && !recedate.isBlank() && recenum != null && !recenum.isBlank()) {
+            MapSqlParameterSource updateParam = new MapSqlParameterSource();
+            updateParam.addValue("spjangcd", spjangcd);
+            updateParam.addValue("recedate",  recedate);
+            updateParam.addValue("recenum",   recenum);
+
+            namedParameterJdbcTemplate.update("""
+                    UPDATE TB_E401
+                    SET resultck = '1'
+                    WHERE spjangcd = :spjangcd
+                      AND recedate = :recedate
+                      AND recenum  = :recenum
+                    """, updateParam);
+        }
     }
 
     // ── compnum 채번 (001 ~ 999) ──────────────────────────────

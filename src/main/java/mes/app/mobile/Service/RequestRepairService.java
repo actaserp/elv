@@ -43,7 +43,7 @@ public class RequestRepairService {
 
     // ── 고장접수 목록 조회 (TB_E401) ─────────────────────────
     public List<Map<String, Object>> getRepairList(
-            String fromDate, String toDate, String actnm, String spjangcd) {
+            String fromDate, String toDate, String actnm, String resultck, String spjangcd) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
@@ -57,6 +57,7 @@ public class RequestRepairService {
                     e.recetime,
                     e.hitchdate,
                     e.hitchhour,
+                    e.actcd,
                     e.actnm,
                     e.equpcd,
                     e.equpnm,
@@ -66,7 +67,8 @@ public class RequestRepairService {
                     e.divicd,
                     jc.divinm,
                     j.pernm,
-                    e.perid
+                    e.perid,
+                    e.resultck
                 FROM TB_E401 e
                 LEFT JOIN TB_JA001 j  ON j.perid    = 'p' + e.perid
                                      AND j.spjangcd  = e.spjangcd
@@ -78,6 +80,14 @@ public class RequestRepairService {
         if (actnm != null && !actnm.isBlank()) {
             sql += " AND e.actnm LIKE :actnm";
             param.addValue("actnm", "%" + actnm.trim() + "%");
+        }
+
+        if (resultck != null && !resultck.isBlank()) {
+            if (resultck.equals("1")) {
+                sql += " AND e.resultck = '1'";
+            } else if (resultck.equals("null")) {
+                sql += " AND (e.resultck IS NULL OR e.resultck <> '1')";
+            }
         }
 
         sql += " ORDER BY e.recedate DESC, e.recenum DESC";
@@ -117,8 +127,24 @@ public class RequestRepairService {
         return this.sqlRunner.getRows(sql, param);
     }
 
+    // ── 고장내용 목록 조회 (TB_E010) ────────────────────────
+    public List<Map<String, Object>> getContnmList(String spjangcd) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+
+        String sql = """
+                SELECT contcd, contnm
+                FROM TB_E010
+                WHERE spjangcd = :spjangcd
+                ORDER BY contcd ASC
+                """;
+
+        return this.sqlRunner.getRows(sql, param);
+    }
+
     // ── 고장접수 등록 (TB_E401 INSERT) ───────────────────────
     public void saveRepair(
+            String custcd,
             String spjangcd,
             String recedate,
             String recetime,
@@ -128,16 +154,17 @@ public class RequestRepairService {
             String actnm,
             String equpcd,
             String equpnm,
+            String contcd,
             String contents,
             String remark,
             String reperid,
             String bigo,
             String perid) {
 
-        // recenum 채번
         String recenum = getNextRecenum(spjangcd, recedate);
 
         MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("custcd",    custcd);
         param.addValue("spjangcd",  spjangcd);
         param.addValue("recedate",  recedate);
         param.addValue("recenum",   recenum);
@@ -148,6 +175,7 @@ public class RequestRepairService {
         param.addValue("actnm",     actnm);
         param.addValue("equpcd",    equpcd);
         param.addValue("equpnm",    equpnm);
+        param.addValue("contcd",    contcd);
         param.addValue("contents",  contents);
         param.addValue("remark",    remark);
         param.addValue("reperid",   reperid);
@@ -155,22 +183,47 @@ public class RequestRepairService {
         param.addValue("inperid",   perid);
         param.addValue("indate",    recedate);
 
+        // datetime  : 접수일자+시간 (yyyyMMdd + HHmm → datetime)
+        // datetime2 : 고장일자+시간 (yyyyMMdd + HHmm → datetime)
+        java.time.LocalDateTime receDt = toLocalDateTime(recedate, recetime);
+        java.time.LocalDateTime hitchDt = toLocalDateTime(hitchdate, hitchhour);
+        param.addValue("datetime",  receDt);
+        param.addValue("datetime2", hitchDt);
+
         String sql = """
                 INSERT INTO TB_E401
-                    (spjangcd, recedate, recenum, recetime,
+                    (custcd, spjangcd, recedate, recenum, recetime,
                      hitchdate, hitchhour,
                      actcd, actnm, equpcd, equpnm,
-                     contents, remark, reperid,
-                     perid, inperid, indate)
+                     contcd, contents, remark, reperid,
+                     perid, inperid, indate,
+                     [datetime], [datetime2])
                 VALUES
-                    (:spjangcd, :recedate, :recenum, :recetime,
+                    (:custcd, :spjangcd, :recedate, :recenum, :recetime,
                      :hitchdate, :hitchhour,
                      :actcd, :actnm, :equpcd, :equpnm,
-                     :contents, :remark, :reperid,
-                     :perid, :inperid, :indate)
+                     :contcd, :contents, :remark, :reperid,
+                     :perid, :inperid, :indate,
+                     :datetime, :datetime2)
                 """;
 
         namedParameterJdbcTemplate.update(sql, param);
+    }
+
+    // ── yyyyMMdd + HHmm → LocalDateTime ─────────────────────
+    private java.time.LocalDateTime toLocalDateTime(String date, String time) {
+        try {
+            if (date == null || date.isBlank()) return null;
+            String t = (time != null && time.length() >= 4) ? time.substring(0, 4) : "0000";
+            int year  = Integer.parseInt(date.substring(0, 4));
+            int month = Integer.parseInt(date.substring(4, 6));
+            int day   = Integer.parseInt(date.substring(6, 8));
+            int hour  = Integer.parseInt(t.substring(0, 2));
+            int min   = Integer.parseInt(t.substring(2, 4));
+            return java.time.LocalDateTime.of(year, month, day, hour, min);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // ── recenum 채번 (001 ~ 999) ──────────────────────────────

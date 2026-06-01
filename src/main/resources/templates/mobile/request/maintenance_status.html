@@ -9,7 +9,8 @@
     .comp-card:active { box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
     .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
     .card-actnm { font-size: 15px; font-weight: 700; color: #222; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .card-badge-green { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #e6f4ea; color: #1a7a3a; margin-left: 8px; white-space: nowrap; flex-shrink: 0; }
+    .card-badge-rece { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #fff3e0; color: #e65100; margin-left: 8px; white-space: nowrap; flex-shrink: 0; }
+    .card-badge-comp { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #e6f4ea; color: #1a7a3a; margin-left: 8px; white-space: nowrap; flex-shrink: 0; }
     .card-row { display: flex; font-size: 13px; color: #555; margin-top: 3px; gap: 4px; }
     .card-label { color: #999; min-width: 55px; flex-shrink: 0; }
     .card-value { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -122,6 +123,16 @@
                     <dl>
                         <dt>현장명</dt>
                         <dd><input type="text" id="searchActnm" placeholder="현장명 검색"></dd>
+                    </dl>
+                    <dl>
+                        <dt>처리여부</dt>
+                        <dd>
+                            <select id="searchResultck" style="width:100%;">
+                                <option value="">전체</option>
+                                <option value="null">접수</option>
+                                <option value="1">처리</option>
+                            </select>
+                        </dd>
                     </dl>
                     <div class="srch-btn">
                         <button class="btn-dark" onclick="handleSearch()">조회</button>
@@ -263,6 +274,8 @@
         $('#searchActnm').on('keypress', function (e) {
             if (e.keyCode === 13) handleSearch();
         });
+
+        searchCompList();
     });
 
     /* ── 목록 조회 ── */
@@ -272,14 +285,16 @@
     }
 
     function searchCompList() {
-        const fromDate = document.getElementById('compFromDate').value.replaceAll('-', '');
-        const toDate   = document.getElementById('compToDate').value.replaceAll('-', '');
-        const actnm    = document.getElementById('searchActnm').value.trim();
+        const fromDate  = document.getElementById('compFromDate').value.replaceAll('-', '');
+        const toDate    = document.getElementById('compToDate').value.replaceAll('-', '');
+        const actnm     = document.getElementById('searchActnm').value.trim();
+        const resultck  = document.getElementById('searchResultck').value;
 
         AjaxUtil.getAsyncData('/api/maintenance_repair/read_comp', {
             fromDate : fromDate,
             toDate   : toDate,
             actnm    : actnm,
+            resultck : resultck,
             spjangcd : _spjangcd
         }, function (result) {
             if (result != null && result.data != null) {
@@ -302,11 +317,14 @@
         countEl.textContent = `총 ${list.length}건`;
         let html = '';
         list.forEach(function (item) {
+            const isComp     = item.resultck == '1';
+            const badgeClass = isComp ? 'card-badge-comp' : 'card-badge-rece';
+            const badgeText  = isComp ? '처리' : '접수';
             html += `
             <div class="comp-card" onclick='openDetailPopup(${JSON.stringify(item)})'>
                 <div class="card-header">
                     <span class="card-actnm">${esc(item.actnm || '')}</span>
-                    <span class="card-badge-green">${esc(item.compdate || '')} / ${esc(item.compnum || '')}</span>
+                    <span class="${badgeClass}">${esc(item.compdate || '')} / ${badgeText}</span>
                 </div>
                 ${item.equpnm     ? `<div class="card-row"><span class="card-label">호기명</span><span class="card-value">${esc(item.equpnm)}</span></div>` : ''}
                 ${item.contremark ? `<div class="card-row"><span class="card-label">고장내용</span><span class="card-value">${esc(item.contremark)}</span></div>` : ''}
