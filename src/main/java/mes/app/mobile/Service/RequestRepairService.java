@@ -64,6 +64,7 @@ public class RequestRepairService {
                     e.contents,
                     e.remark,
                     e.reperid,
+                    rp.pernm    AS repernm,
                     e.divicd,
                     jc.divinm,
                     j.pernm,
@@ -73,6 +74,8 @@ public class RequestRepairService {
                 LEFT JOIN TB_JA001 j  ON j.perid    = 'p' + e.perid
                                      AND j.spjangcd  = e.spjangcd
                 LEFT JOIN TB_JC002 jc ON j.divicd   = jc.divicd
+                LEFT JOIN TB_JA001 rp ON rp.perid    = e.reperid
+                                     AND rp.spjangcd = e.spjangcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.recedate BETWEEN :fromDate AND :toDate
                 """;
@@ -142,7 +145,20 @@ public class RequestRepairService {
         return this.sqlRunner.getRows(sql, param);
     }
 
-    // ── 고장접수 등록 (TB_E401 INSERT) ───────────────────────
+    // ── 사원 목록 조회 (TB_JA001) ────────────────────────────
+    public List<Map<String, Object>> getPerList(String spjangcd) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+
+        String sql = """
+                SELECT perid, pernm
+                FROM TB_JA001
+                WHERE spjangcd = :spjangcd
+                ORDER BY pernm ASC
+                """;
+
+        return this.sqlRunner.getRows(sql, param);
+    }
     public void saveRepair(
             String custcd,
             String spjangcd,

@@ -282,71 +282,63 @@
                 <input type="hidden" id="regEqupcd">
 
                 <div class="form-row">
-                    <label>1.도착일자</label>
-                    <input type="date" id="regArrivdate">
-                </div>
-                <div class="form-row">
-                    <label>2.완료일자</label>
-                    <input type="date" id="regCompdate">
-                </div>
-                <div class="form-row">
                     <label>현장명</label>
-                    <input type="text" id="regActnm" placeholder="현장 선택" readonly onclick="openActPopup()">
+                    <input type="text" id="regActnm" placeholder="현장 선택" readonly onclick="openActPopupIfFree()">
                 </div>
                 <div class="form-row">
                     <label>호기명</label>
-                    <input type="text" id="regEqupnm" placeholder="호기 선택 (현장 먼저)" readonly onclick="openEqupPopup()">
+                    <input type="text" id="regEqupnm" placeholder="호기 선택 (현장 먼저)" readonly onclick="openEqupPopupIfFree()">
                 </div>
                 <div class="form-row">
                     <label>접수일자 / 접수시간</label>
                     <div class="row-2col">
-                        <input type="date" id="regRecedate2">
-                        <input type="time" id="regRecetime">
+                        <input type="date" id="regRecedate2" readonly style="background:#f5f5f5; color:#666;">
+                        <input type="time" id="regRecetime" readonly style="background:#f5f5f5; color:#666;">
                     </div>
                 </div>
                 <div class="form-row">
-                    <label>도착시간</label>
-                    <input type="time" id="regArrivtime">
+                    <label>도착일자 / 도착시간</label>
+                    <div class="row-2col">
+                        <input type="date" id="regArrivdate">
+                        <input type="time" id="regArrivtime">
+                    </div>
                 </div>
                 <div class="form-row">
-                    <label>완료시간</label>
-                    <input type="time" id="regComptime">
+                    <label>완료일자 / 완료시간</label>
+                    <div class="row-2col">
+                        <input type="date" id="regCompdate">
+                        <input type="time" id="regComptime">
+                    </div>
                 </div>
                 <div class="form-row">
-                    <label>3.고장부위 버튼을 클릭하세요</label>
-                    <input type="text" id="regContremark" placeholder="고장내용 입력">
+                    <label>고장부위</label>
+                    <input type="text" id="regContremark" placeholder="고장부위 선택" readonly onclick="openGreginmPopup()">
+                    <input type="hidden" id="regGregicd">
                 </div>
                 <div class="form-row">
-                    <label>4.고장부위상세 버튼을 클릭하세요</label>
-                    <textarea id="regRemoremark" placeholder="고장상세내용 입력"></textarea>
+                    <label>고장부위상세</label>
+                    <input type="text" id="regRemoremark" placeholder="고장부위 먼저 선택" readonly onclick="openReginmPopup()">
+                    <input type="hidden" id="regRegicd">
                 </div>
                 <div class="form-row">
-                    <label>5.고장요인 버튼을 클릭하세요</label>
-                    <textarea id="regResuremark" placeholder="처리내용 입력"></textarea>
+                    <label>고장요인</label>
+                    <input type="text" id="regResuremark" placeholder="고장요인 선택" readonly onclick="openRemonmPopup()">
+                    <input type="hidden" id="regRemocd">
                 </div>
                 <div class="form-row">
-                    <label>6.고장원인 버튼을 클릭하세요</label>
-                    <input type="text" id="regResultcd" placeholder="처리결과 입력">
+                    <label>고장원인</label>
+                    <input type="text" id="regResultcd" placeholder="고장원인 선택" readonly onclick="openFacnmPopup()">
+                    <input type="hidden" id="regFaccd">
                 </div>
                 <div class="form-row">
-                    <label>7.처리내용 버튼을 클릭하세요</label>
-                    <input type="text" id="regCustomer" placeholder="고객요망사항 입력">
+                    <label>처리내용</label>
+                    <input type="text" id="regCustomer" placeholder="처리내용 선택" readonly onclick="openResunmPopup()">
+                    <input type="hidden" id="regResucd">
                 </div>
                 <div class="form-row">
-                    <label>8.처리결과 버튼을 클릭하세요</label>
-                    <input type="text" id="regRemark" placeholder="비고 입력">
-                </div>
-                <div class="form-row">
-                    <label>9.고장원인상세내용을 입력하세요</label>
-                    <textarea id="regRepairDetail" placeholder="고장원인상세내용 입력"></textarea>
-                </div>
-                <div class="form-row">
-                    <label>10.처리상세를 입력하세요</label>
-                    <textarea id="regProcessDetail" placeholder="처리상세 입력"></textarea>
-                </div>
-                <div class="form-row">
-                    <label>11.사후관리를 입력하세요</label>
-                    <input type="text" id="regAftercare" placeholder="사후관리 입력">
+                    <label>처리결과</label>
+                    <input type="text" id="regRemark" placeholder="처리결과 선택" readonly onclick="openResultnmPopup()">
+                    <input type="hidden" id="regResultnmcd">
                 </div>
                 <div class="form-row">
                     <label>처리자</label>
@@ -406,6 +398,69 @@
     </div>
 </div>
 
+<!-- 고장부위 팝업 -->
+<div class="popup-overlay" id="greginmPopup">
+    <div class="popup-sheet">
+        <div class="popup-header"><span>고장부위 선택</span><button class="popup-close" onclick="closePopup('greginmPopup')">×</button></div>
+        <input type="text" class="popup-search-input" id="greginmKeyword" placeholder="고장부위 검색" oninput="filterCodePopup('greginmList', this.value, 'greginm')">
+        <div class="popup-list"><ul id="greginmList"></ul></div>
+    </div>
+</div>
+
+<!-- 고장부위상세 팝업 -->
+<div class="popup-overlay" id="reginmPopup">
+    <div class="popup-sheet">
+        <div class="popup-header"><span>고장부위상세 선택</span><button class="popup-close" onclick="closePopup('reginmPopup')">×</button></div>
+        <input type="text" class="popup-search-input" id="reginmKeyword" placeholder="고장부위상세 검색" oninput="filterCodePopup('reginmList', this.value, 'reginm')">
+        <div class="popup-list"><ul id="reginmList"></ul></div>
+    </div>
+</div>
+
+<!-- 고장요인 팝업 -->
+<div class="popup-overlay" id="remonmPopup">
+    <div class="popup-sheet">
+        <div class="popup-header"><span>고장요인 선택</span><button class="popup-close" onclick="closePopup('remonmPopup')">×</button></div>
+        <input type="text" class="popup-search-input" id="remonmKeyword" placeholder="고장요인 검색" oninput="filterCodePopup('remonmList', this.value, 'remonm')">
+        <div class="popup-list"><ul id="remonmList"></ul></div>
+    </div>
+</div>
+
+<!-- 고장원인 팝업 -->
+<div class="popup-overlay" id="facnmPopup">
+    <div class="popup-sheet">
+        <div class="popup-header"><span>고장원인 선택</span><button class="popup-close" onclick="closePopup('facnmPopup')">×</button></div>
+        <input type="text" class="popup-search-input" id="facnmKeyword" placeholder="고장원인 검색" oninput="filterCodePopup('facnmList', this.value, 'facnm')">
+        <div class="popup-list"><ul id="facnmList"></ul></div>
+    </div>
+</div>
+
+<!-- 처리내용 팝업 -->
+<div class="popup-overlay" id="resunmPopup">
+    <div class="popup-sheet">
+        <div class="popup-header"><span>처리내용 선택</span><button class="popup-close" onclick="closePopup('resunmPopup')">×</button></div>
+        <input type="text" class="popup-search-input" id="resunmKeyword" placeholder="처리내용 검색" oninput="filterCodePopup('resunmList', this.value, 'resunm')">
+        <div class="popup-list"><ul id="resunmList"></ul></div>
+    </div>
+</div>
+
+<!-- 처리결과 팝업 -->
+<div class="popup-overlay" id="resultnmPopup">
+    <div class="popup-sheet">
+        <div class="popup-header"><span>처리결과 선택</span><button class="popup-close" onclick="closePopup('resultnmPopup')">×</button></div>
+        <input type="text" class="popup-search-input" id="resultnmKeyword" placeholder="처리결과 검색" oninput="filterCodePopup('resultnmList', this.value, 'resultnm')">
+        <div class="popup-list"><ul id="resultnmList"></ul></div>
+    </div>
+</div>
+
+<!-- 처리자 팝업 -->
+<div class="popup-overlay" id="processorPopup">
+    <div class="popup-sheet">
+        <div class="popup-header"><span>처리자 선택</span><button class="popup-close" onclick="closePopup('processorPopup')">×</button></div>
+        <input type="text" class="popup-search-input" id="processorKeyword" placeholder="이름 검색" oninput="filterProcessorList(this.value)">
+        <div class="popup-list"><ul id="processorList"></ul></div>
+    </div>
+</div>
+
 <script type="text/javascript">
 
     var _actListCache  = [];
@@ -414,17 +469,24 @@
 
     /* ── 초기화 ── */
     $(document).ready(function () {
-        const today = new Date().toISOString().split('T')[0];
-        const now   = new Date().toTimeString().slice(0, 5);
+        const now   = new Date();
+        const yyyy  = now.getFullYear();
+        const mm    = String(now.getMonth() + 1).padStart(2, '0');
+        const dd    = String(now.getDate()).padStart(2, '0');
+        const hh    = String(now.getHours()).padStart(2, '0');
+        const mi    = String(now.getMinutes()).padStart(2, '0');
+        const today = `${yyyy}-${mm}-${dd}`;
+        const time  = `${hh}:${mi}`;
+
         document.getElementById('regCompdate').value   = today;
         document.getElementById('regRecedate2').value  = today;
-        document.getElementById('regRecetime').value   = now;
+        document.getElementById('regRecetime').value   = time;
         document.getElementById('regArrivdate').value  = today;
-        document.getElementById('regArrivtime').value  = now;
-        document.getElementById('regComptime').value   = now;
+        document.getElementById('regArrivtime').value  = time;
+        document.getElementById('regComptime').value   = time;
 
         // 고장접수 팝업 날짜 기본값 (당월 1일 ~ 오늘)
-        const firstDay = today.substring(0,7) + '-01';
+        const firstDay = `${yyyy}-${mm}-01`;
         document.getElementById('repairFromDate').value = firstDay;
         document.getElementById('repairToDate').value   = today;
     });
@@ -505,11 +567,11 @@
         document.getElementById('regRecedate').value  = item.recedate || '';
         document.getElementById('regRecenum').value   = item.recenum  || '';
 
-        // 현장/호기 바인딩
+        // 현장/호기 바인딩 (readonly 스타일 적용)
         document.getElementById('regActcd').value  = item.actcd  || '';
-        document.getElementById('regActnm').value  = item.actnm  || '';
         document.getElementById('regEqupcd').value = item.equpcd || '';
-        document.getElementById('regEqupnm').value = item.equpnm || '';
+        setFieldReadonly('regActnm',  item.actnm  || '');
+        setFieldReadonly('regEqupnm', item.equpnm || '');
 
         // 접수일자/시간 바인딩
         document.getElementById('regRecedate2').value = item.recedate ? formatDateInput(item.recedate) : '';
@@ -521,6 +583,26 @@
         document.getElementById('selectedContents').textContent = item.contents || '';
         document.getElementById('selectedEqupnm').textContent   = item.equpnm  || '';
         document.getElementById('selectedRepairCard').style.display = 'block';
+    }
+
+    // 고장접수에서 불러온 필드 readonly 스타일 적용
+    function setFieldReadonly(id, value) {
+        const el = document.getElementById(id);
+        el.value = value;
+        el.style.background = '#f0f0f0';
+        el.style.color = '#888';
+        el.setAttribute('data-from-repair', '1');
+    }
+
+    // 고장접수에서 불러온 경우 팝업 차단
+    function openActPopupIfFree() {
+        if (document.getElementById('regActnm').getAttribute('data-from-repair') === '1') return;
+        openActPopup();
+    }
+
+    function openEqupPopupIfFree() {
+        if (document.getElementById('regEqupnm').getAttribute('data-from-repair') === '1') return;
+        openEqupPopup();
     }
 
     /* ── 현장 선택 팝업 ── */
@@ -596,9 +678,156 @@
         closePopup('equpPopup');
     }
 
-    /* ── 처리자 선택 팝업 (추후 구현) ── */
+    /* ── 처리자 선택 팝업 ── */
+    var _processorCache = [];
+
     function openProcessorPopup() {
-        Alert.alert('', '처리자 선택 기능은 추후 구현 예정입니다.');
+        document.getElementById('processorKeyword').value = '';
+        if (_processorCache.length > 0) {
+            renderProcessorList(_processorCache);
+            openPopup('processorPopup');
+            return;
+        }
+        AjaxUtil.getAsyncData('/api/system/user/getPerson', { searchCode: '', searchName: '' }, function (result) {
+            if (result && result.data) {
+                _processorCache = result.data;
+                renderProcessorList(_processorCache);
+                openPopup('processorPopup');
+            }
+        });
+    }
+
+    function renderProcessorList(list) {
+        const ul = document.getElementById('processorList');
+        ul.innerHTML = '';
+        if (!list || list.length === 0) {
+            ul.innerHTML = '<li style="color:#999; cursor:default;">조회된 사원이 없습니다.</li>';
+            return;
+        }
+        list.forEach(function (item) {
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="item-code">${esc(item.code || '')}</span>${esc(item.name || '')}`;
+            li.onclick = function () {
+                document.getElementById('regProcessorId').value = item.code || '';
+                document.getElementById('regProcessorNm').value = item.name || '';
+                closePopup('processorPopup');
+            };
+            ul.appendChild(li);
+        });
+    }
+
+    function filterProcessorList(keyword) {
+        renderProcessorList(_processorCache.filter(function (item) {
+            return (item.name || '').includes(keyword);
+        }));
+    }
+
+    /* ── 코드 팝업 공통 ── */
+    var _codeCache = {};
+
+    function openCodePopup(popupId, apiUrl, listId, codeKey, nameKey, keywordId, onSelect) {
+        document.getElementById(keywordId).value = '';
+        if (_codeCache[popupId]) {
+            renderCodeList(listId, _codeCache[popupId], nameKey, onSelect);
+            openPopup(popupId);
+            return;
+        }
+        AjaxUtil.getAsyncData(apiUrl, {}, function (result) {
+            if (result && result.data) {
+                _codeCache[popupId] = result.data;
+                renderCodeList(listId, result.data, nameKey, onSelect);
+                openPopup(popupId);
+            }
+        });
+    }
+
+    function renderCodeList(listId, data, nameKey, onSelect) {
+        const ul = document.getElementById(listId);
+        ul.innerHTML = '';
+        if (!data || data.length === 0) {
+            ul.innerHTML = '<li style="color:#999; cursor:default;">조회된 데이터가 없습니다.</li>';
+            return;
+        }
+        data.forEach(function (item) {
+            const li = document.createElement('li');
+            li.textContent = item[nameKey] || '';
+            li.onclick = function () { onSelect(item); };
+            ul.appendChild(li);
+        });
+    }
+
+    function filterCodePopup(listId, keyword, nameKey) {
+        const ul = document.getElementById(listId);
+        Array.from(ul.querySelectorAll('li')).forEach(function (li) {
+            li.style.display = (li.textContent || '').includes(keyword) ? '' : 'none';
+        });
+    }
+
+    /* ── 고장부위 팝업 ── */
+    function openGreginmPopup() {
+        openCodePopup('greginmPopup', '/api/maintenance_repair/read_greginm', 'greginmList', 'gregicd', 'greginm', 'greginmKeyword', function (item) {
+            document.getElementById('regGregicd').value    = item.gregicd || '';
+            document.getElementById('regContremark').value = item.greginm || '';
+            // 고장부위 변경 시 고장부위상세 초기화
+            document.getElementById('regRegicd').value    = '';
+            document.getElementById('regRemoremark').value = '';
+            delete _codeCache['reginmPopup'];
+            closePopup('greginmPopup');
+        });
+    }
+
+    /* ── 고장부위상세 팝업 ── */
+    function openReginmPopup() {
+        const gregicd = document.getElementById('regGregicd').value;
+        if (!gregicd) { Alert.alert('', '고장부위를 먼저 선택해주세요.'); return; }
+        document.getElementById('reginmKeyword').value = '';
+        AjaxUtil.getAsyncData('/api/maintenance_repair/read_reginm', { gregicd: gregicd }, function (result) {
+            if (result && result.data) {
+                _codeCache['reginmPopup'] = result.data;
+                renderCodeList('reginmList', result.data, 'reginm', function (item) {
+                    document.getElementById('regRegicd').value    = item.regicd || '';
+                    document.getElementById('regRemoremark').value = item.reginm || '';
+                    closePopup('reginmPopup');
+                });
+                openPopup('reginmPopup');
+            }
+        });
+    }
+
+    /* ── 고장요인 팝업 ── */
+    function openRemonmPopup() {
+        openCodePopup('remonmPopup', '/api/maintenance_repair/read_remonm', 'remonmList', 'remocd', 'remonm', 'remonmKeyword', function (item) {
+            document.getElementById('regRemocd').value    = item.remocd || '';
+            document.getElementById('regResuremark').value = item.remonm || '';
+            closePopup('remonmPopup');
+        });
+    }
+
+    /* ── 고장원인 팝업 ── */
+    function openFacnmPopup() {
+        openCodePopup('facnmPopup', '/api/maintenance_repair/read_facnm', 'facnmList', 'faccd', 'facnm', 'facnmKeyword', function (item) {
+            document.getElementById('regFaccd').value    = item.faccd || '';
+            document.getElementById('regResultcd').value = item.facnm || '';
+            closePopup('facnmPopup');
+        });
+    }
+
+    /* ── 처리내용 팝업 ── */
+    function openResunmPopup() {
+        openCodePopup('resunmPopup', '/api/maintenance_repair/read_resunm', 'resunmList', 'resucd', 'resunm', 'resunmKeyword', function (item) {
+            document.getElementById('regResucd').value  = item.resucd || '';
+            document.getElementById('regCustomer').value = item.resunm || '';
+            closePopup('resunmPopup');
+        });
+    }
+
+    /* ── 처리결과 팝업 ── */
+    function openResultnmPopup() {
+        openCodePopup('resultnmPopup', '/api/maintenance_repair/read_resultnm', 'resultnmList', 'resultcd', 'resultnm', 'resultnmKeyword', function (item) {
+            document.getElementById('regResultnmcd').value = item.resultcd || '';
+            document.getElementById('regRemark').value     = item.resultnm || '';
+            closePopup('resultnmPopup');
+        });
     }
 
     /* ── 등록 ── */
@@ -622,11 +851,17 @@
             equpcd     : document.getElementById('regEqupcd').value,
             equpnm     : document.getElementById('regEqupnm').value,
             contremark : document.getElementById('regContremark').value,
+            gregicd    : document.getElementById('regGregicd').value,
             remoremark : document.getElementById('regRemoremark').value,
+            regicd     : document.getElementById('regRegicd').value,
             resuremark : document.getElementById('regResuremark').value,
-            resultcd   : document.getElementById('regResultcd').value,
+            remocd     : document.getElementById('regRemocd').value,
+            resultcd   : document.getElementById('regFaccd').value,
+            faccd      : document.getElementById('regFaccd').value,
             customer   : document.getElementById('regCustomer').value,
+            resucd     : document.getElementById('regResucd').value,
             remark     : document.getElementById('regRemark').value,
+            actperid   : document.getElementById('regProcessorId').value,
         };
 
         AjaxUtil.postAsyncData('/api/maintenance_repair/save_comp', data, function (result) {
@@ -642,8 +877,14 @@
 
     /* ── 폼 초기화 ── */
     function resetForm() {
-        const today = new Date().toISOString().split('T')[0];
-        const now   = new Date().toTimeString().slice(0, 5);
+        const now   = new Date();
+        const yyyy  = now.getFullYear();
+        const mm    = String(now.getMonth() + 1).padStart(2, '0');
+        const dd    = String(now.getDate()).padStart(2, '0');
+        const hh    = String(now.getHours()).padStart(2, '0');
+        const mi    = String(now.getMinutes()).padStart(2, '0');
+        const today = `${yyyy}-${mm}-${dd}`;
+        const time  = `${hh}:${mi}`;
 
         document.getElementById('regRecedate').value   = '';
         document.getElementById('regRecenum').value    = '';
@@ -653,10 +894,10 @@
         document.getElementById('regEqupcd').value     = '';
         document.getElementById('regEqupnm').value     = '';
         document.getElementById('regRecedate2').value  = today;
-        document.getElementById('regRecetime').value   = now;
+        document.getElementById('regRecetime').value   = time;
         document.getElementById('regArrivdate').value  = today;
-        document.getElementById('regArrivtime').value  = now;
-        document.getElementById('regComptime').value   = now;
+        document.getElementById('regArrivtime').value  = time;
+        document.getElementById('regComptime').value   = time;
         document.getElementById('regContremark').value = '';
         document.getElementById('regRemoremark').value = '';
         document.getElementById('regResuremark').value = '';
@@ -664,13 +905,21 @@
         document.getElementById('regCustomer').value   = '';
         document.getElementById('regRemark').value     = '';
         document.getElementById('selectedRepairCard').style.display = 'none';
+
+        // 현장/호기 readonly 해제
+        ['regActnm', 'regEqupnm'].forEach(function (id) {
+            const el = document.getElementById(id);
+            el.style.background = '';
+            el.style.color = '';
+            el.removeAttribute('data-from-repair');
+        });
     }
 
     /* ── 팝업 공통 ── */
     function openPopup(id)  { document.getElementById(id).classList.add('active');    }
     function closePopup(id) { document.getElementById(id).classList.remove('active'); }
 
-    ['actPopup', 'equpPopup', 'repairPopup'].forEach(function (id) {
+    ['actPopup', 'equpPopup', 'repairPopup', 'greginmPopup', 'reginmPopup', 'remonmPopup', 'facnmPopup', 'resunmPopup', 'resultnmPopup', 'processorPopup'].forEach(function (id) {
         document.getElementById(id).addEventListener('click', function (e) {
             if (e.target === this) closePopup(id);
         });

@@ -209,7 +209,8 @@
             </div>
             <div class="form-row">
                 <label>통보(전달)자</label>
-                <input type="text" id="editReperid" placeholder="통보자 입력">
+                <input type="text" id="editRepernm" placeholder="통보자 선택" readonly onclick="openPerPopup()">
+                <input type="hidden" id="editReperid">
             </div>
             <button class="form-save-btn" onclick="updateRepair()">수정 저장</button>
         </div>
@@ -237,6 +238,19 @@
             <button class="popup-close" onclick="closePopup('equpPopup')">×</button>
         </div>
         <div class="popup-list"><ul id="equpList"></ul></div>
+    </div>
+</div>
+
+<!-- 통보자 선택 팝업 -->
+<div class="popup-overlay" id="perPopup">
+    <div class="popup-sheet">
+        <div class="popup-header">
+            <span>통보자 선택</span>
+            <button class="popup-close" onclick="closePopup('perPopup')">×</button>
+        </div>
+        <input type="text" class="popup-search-input" id="perSearchInput" placeholder="이름 검색"
+               oninput="filterPerList(this.value)">
+        <div class="popup-list"><ul id="perList"></ul></div>
     </div>
 </div>
 
@@ -336,7 +350,7 @@
         ]);
         html += `<div class="detail-section-title">담당자 정보</div>`;
         html += buildDetailRows([
-            { label: '통보자', value: item.reperid },
+            { label: '통보자', value: item.repernm || item.reperid },
             { label: '부서명', value: item.divinm  },
             { label: '접수자', value: item.pernm   },
         ]);
@@ -393,7 +407,7 @@
         document.getElementById('editContents').value     = item.contents  || '';
         document.getElementById('editRemark').value       = item.remark    || '';
         document.getElementById('editReperid').value      = item.reperid   || '';
-        document.getElementById('editBigo').value         = item.bigo      || '';
+        document.getElementById('editRepernm').value      = item.repernm   || item.reperid || '';
 
         closePopup('detailPopup');
         openPopup('editPopup');
@@ -506,11 +520,57 @@
         });
     }
 
+    /* ── 통보자 선택 팝업 ── */
+    var _perListCache = [];
+
+    function openPerPopup() {
+        document.getElementById('perSearchInput').value = '';
+        if (_perListCache.length > 0) {
+            renderPerList(_perListCache);
+            openPopup('perPopup');
+            return;
+        }
+        AjaxUtil.getAsyncData('/api/system/user/getPerson', { searchCode: '', searchName: '' }, function (result) {
+            if (result && result.data) {
+                _perListCache = result.data;
+                renderPerList(_perListCache);
+                openPopup('perPopup');
+            }
+        });
+    }
+
+    function renderPerList(list) {
+        const ul = document.getElementById('perList');
+        ul.innerHTML = '';
+        if (!list || list.length === 0) {
+            ul.innerHTML = '<li style="color:#999; cursor:default;">조회된 사원이 없습니다.</li>';
+            return;
+        }
+        list.forEach(function (item) {
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="item-code">${esc(item.code || '')}</span>${esc(item.name || '')}`;
+            li.onclick = function () { setPerData(item); };
+            ul.appendChild(li);
+        });
+    }
+
+    function filterPerList(keyword) {
+        renderPerList(_perListCache.filter(function (item) {
+            return (item.name || '').includes(keyword);
+        }));
+    }
+
+    function setPerData(item) {
+        document.getElementById('editReperid').value = item.code || '';
+        document.getElementById('editRepernm').value = item.name || '';
+        closePopup('perPopup');
+    }
+
     /* ── 팝업 공통 ── */
     function openPopup(id)  { document.getElementById(id).classList.add('active');    }
     function closePopup(id) { document.getElementById(id).classList.remove('active'); }
 
-    ['detailPopup', 'editPopup', 'actPopup', 'equpPopup'].forEach(function (id) {
+    ['detailPopup', 'editPopup', 'actPopup', 'equpPopup', 'perPopup'].forEach(function (id) {
         document.getElementById(id).addEventListener('click', function (e) {
             if (e.target === this) closePopup(id);
         });

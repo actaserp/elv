@@ -147,7 +147,8 @@
                 </div>
                 <div class="form-row">
                     <label>통보(전달)자</label>
-                    <input type="text" id="regReperid" placeholder="통보자 입력">
+                    <input type="text" id="regRepernm" placeholder="통보자 선택" readonly onclick="openPerPopup()">
+                    <input type="hidden" id="regReperid">
                 </div>
                 <div class="form-row">
                     <input type="hidden" id="regBigo">
@@ -195,6 +196,19 @@
     </div>
 </div>
 
+<!-- 통보자 선택 팝업 -->
+<div class="popup-overlay" id="perPopup">
+    <div class="popup-sheet">
+        <div class="popup-header">
+            <span>통보자 선택</span>
+            <button class="popup-close" onclick="closePopup('perPopup')">×</button>
+        </div>
+        <input type="text" class="popup-search-input" id="perSearchInput" placeholder="이름 검색"
+               oninput="filterPerList(this.value)">
+        <div class="popup-list"><ul id="perList"></ul></div>
+    </div>
+</div>
+
 <script type="text/javascript">
 
     var _actListCache = [];
@@ -202,12 +216,18 @@
 
     /* ── 초기화 ── */
     $(document).ready(function () {
-        const today = new Date().toISOString().split('T')[0];
-        const now   = new Date().toTimeString().slice(0, 5);
+        const now  = new Date();
+        const yyyy = now.getFullYear();
+        const mm   = String(now.getMonth() + 1).padStart(2, '0');
+        const dd   = String(now.getDate()).padStart(2, '0');
+        const hh   = String(now.getHours()).padStart(2, '0');
+        const mi   = String(now.getMinutes()).padStart(2, '0');
+        const today = `${yyyy}-${mm}-${dd}`;
+        const time  = `${hh}:${mi}`;
         document.getElementById('regRecedate').value  = today;
-        document.getElementById('regRecetime').value  = now;
+        document.getElementById('regRecetime').value  = time;
         document.getElementById('regHitchdate').value = today;
-        document.getElementById('regHitchhour').value = now;
+        document.getElementById('regHitchhour').value = time;
     });
 
     /* ── 현장 선택 팝업 ── */
@@ -320,11 +340,57 @@
     function openPopup(id)  { document.getElementById(id).classList.add('active');    }
     function closePopup(id) { document.getElementById(id).classList.remove('active'); }
 
-    ['actPopup', 'equpPopup', 'contnmPopup'].forEach(function (id) {
+    ['actPopup', 'equpPopup', 'contnmPopup', 'perPopup'].forEach(function (id) {
         document.getElementById(id).addEventListener('click', function (e) {
             if (e.target === this) closePopup(id);
         });
     });
+
+    /* ── 통보자 선택 팝업 ── */
+    var _perListCache = [];
+
+    function openPerPopup() {
+        document.getElementById('perSearchInput').value = '';
+        if (_perListCache.length > 0) {
+            renderPerList(_perListCache);
+            openPopup('perPopup');
+            return;
+        }
+        AjaxUtil.getAsyncData('/api/system/user/getPerson', { searchCode: '', searchName: '' }, function (result) {
+            if (result && result.data) {
+                _perListCache = result.data;
+                renderPerList(_perListCache);
+                openPopup('perPopup');
+            }
+        });
+    }
+
+    function renderPerList(list) {
+        const ul = document.getElementById('perList');
+        ul.innerHTML = '';
+        if (!list || list.length === 0) {
+            ul.innerHTML = '<li style="color:#999; cursor:default;">조회된 사원이 없습니다.</li>';
+            return;
+        }
+        list.forEach(function (item) {
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="item-code">${esc(item.code || '')}</span>${esc(item.name || '')}`;
+            li.onclick = function () { setPerData(item); };
+            ul.appendChild(li);
+        });
+    }
+
+    function filterPerList(keyword) {
+        renderPerList(_perListCache.filter(function (item) {
+            return (item.name || '').includes(keyword);
+        }));
+    }
+
+    function setPerData(item) {
+        document.getElementById('regReperid').value  = item.code || '';
+        document.getElementById('regRepernm').value  = item.name || '';
+        closePopup('perPopup');
+    }
 
     /* ── 고장내용 선택 팝업 ── */
     var _contnmListCache = [];

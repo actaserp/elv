@@ -87,6 +87,67 @@ public class MaintenanceRepairController {
         return result;
     }
 
+    // ── 고장부위 조회 (TB_E013) ──────────────────────────────
+    @GetMapping("/read_greginm")
+    public AjaxResult getGreginmList(
+            @RequestParam(value = "keyword", required = false, defaultValue = "") String keyword,
+            Authentication auth) {
+        AjaxResult result = new AjaxResult();
+        result.data = maintenanceRepairService.getGreginmList(keyword);
+        return result;
+    }
+
+    // ── 고장부위상세 조회 (TB_E014, gregicd 조건) ─────────────
+    @GetMapping("/read_reginm")
+    public AjaxResult getReginmList(
+            @RequestParam(value = "gregicd") String gregicd,
+            @RequestParam(value = "keyword", required = false, defaultValue = "") String keyword,
+            Authentication auth) {
+        AjaxResult result = new AjaxResult();
+        result.data = maintenanceRepairService.getReginmList(gregicd, keyword);
+        return result;
+    }
+
+    // ── 고장요인 조회 (TB_E011) ──────────────────────────────
+    @GetMapping("/read_remonm")
+    public AjaxResult getRemonmList(
+            @RequestParam(value = "keyword", required = false, defaultValue = "") String keyword,
+            Authentication auth) {
+        AjaxResult result = new AjaxResult();
+        result.data = maintenanceRepairService.getRemonmList(keyword);
+        return result;
+    }
+
+    // ── 고장원인 조회 (TB_E019) ──────────────────────────────
+    @GetMapping("/read_facnm")
+    public AjaxResult getFacnmList(
+            @RequestParam(value = "keyword", required = false, defaultValue = "") String keyword,
+            Authentication auth) {
+        AjaxResult result = new AjaxResult();
+        result.data = maintenanceRepairService.getFacnmList(keyword);
+        return result;
+    }
+
+    // ── 처리내용 조회 (TB_E012) ──────────────────────────────
+    @GetMapping("/read_resunm")
+    public AjaxResult getResunmList(
+            @RequestParam(value = "keyword", required = false, defaultValue = "") String keyword,
+            Authentication auth) {
+        AjaxResult result = new AjaxResult();
+        result.data = maintenanceRepairService.getResunmList(keyword);
+        return result;
+    }
+
+    // ── 처리결과 조회 (TB_E015) ──────────────────────────────
+    @GetMapping("/read_resultnm")
+    public AjaxResult getResultnmList(
+            @RequestParam(value = "keyword", required = false, defaultValue = "") String keyword,
+            Authentication auth) {
+        AjaxResult result = new AjaxResult();
+        result.data = maintenanceRepairService.getResultnmList(keyword);
+        return result;
+    }
+
     // ── 고장처리결과 등록 (TB_E411 INSERT) ───────────────────
     @PostMapping("/save_comp")
     public AjaxResult saveComp(
@@ -102,18 +163,23 @@ public class MaintenanceRepairController {
             @RequestParam(value = "equpcd",     required = false) String equpcd,
             @RequestParam(value = "equpnm",     required = false) String equpnm,
             @RequestParam(value = "contremark", required = false) String contremark,
+            @RequestParam(value = "gregicd",    required = false) String gregicd,
             @RequestParam(value = "remoremark", required = false) String remoremark,
+            @RequestParam(value = "regicd",     required = false) String regicd,
             @RequestParam(value = "resuremark", required = false) String resuremark,
-            // @RequestParam(value = "resultcd",   required = false) String resultcd,   // 고장원인 — 매핑 확인 후 추가
-            // @RequestParam(value = "customer",   required = false) String customer,    // 처리내용 — 매핑 확인 후 추가
-            // @RequestParam(value = "remark",     required = false) String remark,      // 처리결과 — 매핑 확인 후 추가
+            @RequestParam(value = "remocd",     required = false) String remocd,
+            @RequestParam(value = "resultcd",   required = false) String resultcd,
+            @RequestParam(value = "faccd",      required = false) String faccd,
+            @RequestParam(value = "customer",   required = false) String customer,
+            @RequestParam(value = "resucd",     required = false) String resucd,
+            @RequestParam(value = "remark",     required = false) String remark,
+            @RequestParam(value = "actperid",   required = false) String actperid,
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
-        String username = user.getUsername();
 
-        Map<String, Object> userInfo = tenantUserService.getUserInfo(username);
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
         if (userInfo == null) {
             result.success = false;
             result.message = "사업체 DB에서 사용자 정보를 찾을 수 없습니다.";
@@ -121,6 +187,7 @@ public class MaintenanceRepairController {
         }
         String custcd   = (String) userInfo.get("custcd");
         String spjangcd = (String) userInfo.get("spjangcd");
+        String perid    = userInfo.get("perid") != null ? userInfo.get("perid").toString() : null;
 
         try {
             maintenanceRepairService.saveComp(
@@ -128,8 +195,13 @@ public class MaintenanceRepairController {
                     recedate, recenum, recetime,
                     arrivdate, arrivtime,
                     actcd, actnm, equpcd, equpnm,
-                    contremark, remoremark, resuremark,
-                    username
+                    contremark, gregicd,
+                    remoremark, regicd,
+                    resuremark, remocd,
+                    resultcd, faccd,
+                    customer, resucd,
+                    remark,
+                    actperid, perid
             );
             result.success = true;
             result.message = "고장처리결과가 등록되었습니다.";
@@ -137,6 +209,75 @@ public class MaintenanceRepairController {
             log.error("고장처리결과 등록 오류", e);
             result.success = false;
             result.message = "고장처리결과 등록 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
+
+    // ── 고장처리결과 수정 (TB_E411 UPDATE) ───────────────────
+    @PostMapping("/update_comp")
+    public AjaxResult updateComp(
+            @RequestParam(value = "spjangcd")               String spjangcd,
+            @RequestParam(value = "compdate")               String compdate,
+            @RequestParam(value = "compnum")                String compnum,
+            @RequestParam(value = "comptime",  required = false) String comptime,
+            @RequestParam(value = "recedate",  required = false) String recedate,
+            @RequestParam(value = "recetime",  required = false) String recetime,
+            @RequestParam(value = "arrivdate", required = false) String arrivdate,
+            @RequestParam(value = "arrivtime", required = false) String arrivtime,
+            @RequestParam(value = "actcd",     required = false) String actcd,
+            @RequestParam(value = "actnm",     required = false) String actnm,
+            @RequestParam(value = "equpcd",    required = false) String equpcd,
+            @RequestParam(value = "equpnm",    required = false) String equpnm,
+            @RequestParam(value = "contremark",required = false) String contremark,
+            @RequestParam(value = "gregicd",   required = false) String gregicd,
+            @RequestParam(value = "remoremark",required = false) String remoremark,
+            @RequestParam(value = "regicd",    required = false) String regicd,
+            @RequestParam(value = "resuremark",required = false) String resuremark,
+            @RequestParam(value = "remocd",    required = false) String remocd,
+            @RequestParam(value = "resultcd",  required = false) String resultcd,
+            @RequestParam(value = "faccd",     required = false) String faccd,
+            @RequestParam(value = "customer",  required = false) String customer,
+            @RequestParam(value = "resucd",    required = false) String resucd,
+            @RequestParam(value = "remark",    required = false) String remark,
+            @RequestParam(value = "actperid",  required = false) String actperid,
+            HttpServletRequest request, Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            maintenanceRepairService.updateComp(
+                    spjangcd, compdate, compnum, comptime,
+                    recedate, recetime, arrivdate, arrivtime,
+                    actcd, actnm, equpcd, equpnm,
+                    contremark, gregicd, remoremark, regicd,
+                    resuremark, remocd, resultcd, faccd,
+                    customer, resucd, remark, actperid);
+            result.success = true;
+            result.message = "수정되었습니다.";
+        } catch (Exception e) {
+            log.error("고장처리결과 수정 오류", e);
+            result.success = false;
+            result.message = "수정 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
+
+    // ── 고장처리결과 삭제 (TB_E411 DELETE) ───────────────────
+    @PostMapping("/delete_comp")
+    public AjaxResult deleteComp(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "compdate") String compdate,
+            @RequestParam(value = "compnum")  String compnum,
+            HttpServletRequest request, Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            maintenanceRepairService.deleteComp(spjangcd, compdate, compnum);
+            result.success = true;
+            result.message = "삭제되었습니다.";
+        } catch (Exception e) {
+            log.error("고장처리결과 삭제 오류", e);
+            result.success = false;
+            result.message = "삭제 중 오류가 발생하였습니다.";
         }
         return result;
     }
