@@ -2115,12 +2115,14 @@
                             .text("근태 위치 없음");
                         return;
                     }
+                    let bounds = new kakao.maps.LatLngBounds();
                     res.data.forEach(row => {
                         let pos =
                             new kakao.maps.LatLng(
                                 row.latitude,
                                 row.longitude
                             );
+                        bounds.extend(pos);
                         let marker =
                             new kakao.maps.Marker({
                                 position: pos,
@@ -2141,6 +2143,7 @@
                             () => info.open(map, marker)
                         );
                     });
+                    map.setBounds(bounds);
                     $('#gpsInfo')
                         .text(
                             res.data.length

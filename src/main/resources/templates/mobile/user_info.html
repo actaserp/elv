@@ -292,12 +292,10 @@
         { id: 'email', name: '이메일' },
     ];
     const validationFields = [
-        { id: 'login_id', name: '사용자 ID' },
-        { id: 'name', name: '성명' },
-        { id: 'loginPwd', name: '비밀번호' },
+        { id: 'name',      name: '성명' },
+        { id: 'loginPwd',  name: '비밀번호' },
         { id: 'loginPwd2', name: '비밀번호 확인' },
-        { id: 'userHp', name: '핸드폰 번호' },
-        { id: 'email', name: '이메일' }
+        { id: 'userHp',    name: '핸드폰 번호' },
     ];
 
     $(document).ready(function () {
@@ -336,28 +334,17 @@
     }
     // 수정버튼
     $('#btnSaveAuth').click(function () {
-        const emailInput = document.getElementById('email');
-        const emailValue = emailInput.value.trim();
-
         // 필수 필드 검증
         if (!validateFields()) {
             return false;
         }
 
-        // 이메일 형식 검증
-        if (!emailValidate(emailValue)) {
-            Alert.alert('', '유효한 이메일 형식을 입력하세요.');
-            return false;
-        }
-
         // 전송 데이터
         let data = {
-            'login_id': $('#login_id').val(),
-            'name': $('#name').val(),
-            'loginPwd': $('#loginPwd').val(),
-            'loginPwd2': $('#loginPwd2').val(),
-            'userHp': $('#userHp').val(),
-            'email': $('#email').val()
+            'name'      : $('#name').val(),
+            'loginPwd'  : $('#loginPwd').val(),
+            'loginPwd2' : $('#loginPwd2').val(),
+            'userHp'    : $('#userHp').val(),
         };
 
         console.log('전송 데이터:', data);

@@ -53,7 +53,14 @@ public class AccountController {
     UserRepository userRepository;
 	
 	@Autowired
+	@org.springframework.beans.factory.annotation.Qualifier("mainSqlRunner")
 	SqlRunner sqlRunner;
+
+	@Autowired
+	mes.app.common.TenantUserService tenantUserService;
+
+	@Autowired
+	SqlRunner tenantSqlRunner; // 사업체DB (@Primary)
 
 	@Autowired
 	MailService emailService;
@@ -628,68 +635,118 @@ public class AccountController {
 
 	@PostMapping("/account/myinfosave")
 	public AjaxResult setUserInfo(
-			@RequestParam("name") final String name,
-			@RequestParam("loginPwd") final String loginPwd,
+			@RequestParam("name")      final String name,
+			@RequestParam("loginPwd")  final String loginPwd,
 			@RequestParam("loginPwd2") final String loginPwd2,
-			@RequestParam("userHp") final String userHp,
+			@RequestParam("userHp")    final String userHp,
 			Authentication auth
 	) {
-		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		AjaxResult result = new AjaxResult();
-		User user = (User)auth.getPrincipal();
+		User user = (User) auth.getPrincipal();
 
-		if (StringUtils.hasText(loginPwd)==false | StringUtils.hasText(loginPwd2)==false) {
-			result.success=false;
-			result.message="The verification password is incorrect.";
+		// ── 비밀번호 검증 ──────────────────────────────────────
+		if (!StringUtils.hasText(loginPwd) || !StringUtils.hasText(loginPwd2)) {
+			result.success = false;
+			result.message = "비밀번호를 입력해주세요.";
 			return result;
 		}
-
-		if(loginPwd.equals(loginPwd2)==false) {
-			result.success=false;
-			result.message="비밀번호와 확인이 서로 맞지않습니다.";
+		if (!loginPwd.equals(loginPwd2)) {
+			result.success = false;
+			result.message = "비밀번호와 확인이 서로 맞지 않습니다.";
 			return result;
 		}
 
 		String encodedPWD = Pbkdf2Sha256.encode(loginPwd2);
-		if(name != null && !name.isEmpty()) {
-			dicParam.addValue("name", name);
+
+		// ── 1. 본사DB auth_user: 비밀번호 + 성명 + 핸드폰 ───────
+		MapSqlParameterSource p1 = new MapSqlParameterSource();
+		p1.addValue("password", encodedPWD);
+		p1.addValue("name",     name);
+		p1.addValue("tel",      userHp);
+		p1.addValue("id",       user.getId());
+		this.sqlRunner.execute("""
+				UPDATE auth_user SET
+				    password   = :password,
+				    first_name = :name,
+				    tel        = :tel
+				WHERE id = :id
+				""", p1);
+
+		// ── 2. 본사DB user_profile: 성명 ────────────────────────
+		MapSqlParameterSource p2 = new MapSqlParameterSource();
+		p2.addValue("name", name);
+		p2.addValue("id",   user.getId());
+		this.sqlRunner.execute("""
+				UPDATE user_profile SET
+				    "Name"       = :name,
+				    _modified    = now(),
+				    _modifier_id = :id
+				WHERE "User_id" = :id
+				""", p2);
+
+		// ── 3. 본사DB person: 성명 ──────────────────────────────
+		if (user.getPersonid() != null) {
+			MapSqlParameterSource p3 = new MapSqlParameterSource();
+			p3.addValue("name",     name);
+			p3.addValue("id",       user.getId());
+			p3.addValue("personid", user.getPersonid());
+			this.sqlRunner.execute("""
+					UPDATE person SET
+					    "Name"       = :name,
+					    _modified    = now(),
+					    _modifier_id = :id
+					WHERE id = :personid
+					""", p3);
 		}
-		if(userHp != null && !userHp.isEmpty()) {
-			dicParam.addValue("userHp", userHp);
+
+		// ── 4. 사업체DB: 성명 + 핸드폰 ──────────────────────────
+		try {
+			Map<String, Object> info = tenantUserService.getUserInfo(user.getUsername());
+			if (info != null) {
+				String perid    = info.get("perid")    != null ? info.get("perid").toString()    : null;
+				String spjangcd = info.get("spjangcd") != null ? info.get("spjangcd").toString() : null;
+				String tenantUn = info.get("username") != null ? info.get("username").toString() : null;
+
+				// 4-1. 사업체DB TB_JA001: 성명 + 전화
+				if (perid != null) {
+					MapSqlParameterSource p4 = new MapSqlParameterSource();
+					p4.addValue("pernm",    name);
+					p4.addValue("telnum",   userHp);
+					p4.addValue("perid",    perid);
+					p4.addValue("spjangcd", spjangcd);
+					this.tenantSqlRunner.execute("""
+							UPDATE TB_JA001 SET
+							    pernm  = :pernm,
+							    telnum = :telnum
+							WHERE perid    = :perid
+							  AND spjangcd = :spjangcd
+							""", p4);
+				}
+
+				// 4-2. 사업체DB auth_user: 성명 + 전화
+				if (tenantUn != null) {
+					MapSqlParameterSource p5 = new MapSqlParameterSource();
+					p5.addValue("firstName", name);
+					p5.addValue("tel",       userHp);
+					p5.addValue("username",  tenantUn);
+					p5.addValue("spjangcd",  spjangcd);
+					this.tenantSqlRunner.execute("""
+							UPDATE auth_user SET
+							    first_name = :firstName,
+							    tel        = :tel
+							WHERE username  = :username
+							  AND spjangcd  = :spjangcd
+							""", p5);
+				}
+			}
+		} catch (Exception e) {
+			result.success = true;
+			result.message = "수정되었으나 사업체DB 연동에 실패했습니다: " + e.getMessage() + "\n다시 로그인하여 주십시오";
+			return result;
 		}
-		if(loginPwd2 != null && !loginPwd2.isEmpty()) {
-			dicParam.addValue("encodedPWD", encodedPWD);
-		}
-		//user.getUserProfile().setName(name);
-		String authSql = """
-        	update auth_user set 
-        	password = :encodedPWD, tel = :userHp, first_name = :name 
-        	where id=:id 
-        """;
 
-		String profileSql = """
-        	update user_profile set 
-        	"Name"=:name, _modified = now(), _modifier_id=:id 
-        	where "User_id"=:id 
-        """;
-
-		String personSql = """
-        	update person set 
-        	"Name"=:name, _modified = now(), _modifier_id=:id 
-        	where id=:personid 
-        """;
-
-
-		dicParam.addValue("name", name);
-		dicParam.addValue("id", user.getId());
-		dicParam.addValue("personid", user.getPersonid());
-		this.sqlRunner.execute(authSql, dicParam);
-		this.sqlRunner.execute(profileSql, dicParam);
-		this.sqlRunner.execute(personSql, dicParam);
-
-		result.message="사용자 정보가 수정되었습니다.\n다시 로그인하여 주십시오";
-
-
+		result.success = true;
+		result.message = "사용자 정보가 수정되었습니다.\n다시 로그인하여 주십시오";
 		return result;
 	}
 
