@@ -228,7 +228,7 @@ public class DailyReportService {
                     e.filesvnm,
                     e.filepath
                 FROM TB_E038 e
-                LEFT JOIN TB_JA001 j  ON j.perid    = e.perid
+                LEFT JOIN TB_JA001 j  ON j.perid    = 'p' + e.perid
                                      AND j.spjangcd  = e.spjangcd
                 LEFT JOIN TB_E611 eq  ON eq.actcd    = e.actcd
                                      AND eq.equpcd   = e.equpcd

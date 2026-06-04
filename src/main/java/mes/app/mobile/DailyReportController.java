@@ -233,7 +233,7 @@ public class DailyReportController {
             result.message = "사원 정보를 찾을 수 없습니다.";
             return result;
         }
-        String perid   = String.valueOf(userInfo.get("perid")).trim();
+        String perid   = String.valueOf(userInfo.get("perid")).trim().replaceFirst("^p", "");
         String rptdate = writeDate.replaceAll("-", "");
 
         try {
