@@ -18,8 +18,7 @@ public class CarManageService {
      * 차량운행기록 조회 (TB_E037_CONF)
      * - TB_JA001  : perid  → pernm  (사원명)
      * - TB_E047   : carcd  → carnum (차량번호)
-     * - TB_E037_1 : gubun  → fuelnm (유종명)
-     * ※ TB_E601 (현장명) JOIN은 실제 컬럼명 확인 후 추가 예정
+     * - TB_E037_1 : gubun  → fuelnm (유종명) - gareacd 무관, 단가 최고값 서브쿼리로 중복 제거
      */
     public List<Map<String, Object>> getList(
             String startDate,
@@ -44,8 +43,19 @@ public class CarManageService {
                 FROM TB_E037_CONF c
                 LEFT JOIN TB_JA001  j ON j.perid   = 'p'+c.perid
                 LEFT JOIN TB_E047   e ON e.carcd    = c.carcd
-                LEFT JOIN TB_E037_1 f ON f.fuelcd   = c.gubun
-                                     AND f.spjangcd = c.spjangcd
+                LEFT JOIN (
+                    SELECT f1.fuelcd, f1.fuelnm
+                    FROM TB_E037_1 f1
+                    WHERE f1.spjangcd = :spjangcd
+                      AND f1.useyn    = '1'
+                      AND f1.uamt = (
+                          SELECT MAX(f2.uamt)
+                          FROM TB_E037_1 f2
+                          WHERE f2.fuelcd   = f1.fuelcd
+                            AND f2.spjangcd = f1.spjangcd
+                            AND f2.useyn    = '1'
+                      )
+                ) f ON f.fuelcd = c.gubun
                 WHERE c.spjangcd = :spjangcd
                   AND c.kcdate  BETWEEN :startDate AND :endDate
                 """;

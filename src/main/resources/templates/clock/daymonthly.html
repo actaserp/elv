@@ -1183,11 +1183,12 @@
                         if (callback) callback();
                         return;
                     }
-
+                    let bounds = new kakao.maps.LatLngBounds();
                     res.data.forEach(row => {
                         if (!row.latitude || !row.longitude) return;
 
                         let pos = new kakao.maps.LatLng(row.latitude, row.longitude);
+                        bounds.extend(pos);
                         let marker = new kakao.maps.Marker({ position: pos, map: map });
                         let info = new kakao.maps.InfoWindow({
                             content: `<div style="padding:5px;font-size:12px">
@@ -1211,6 +1212,8 @@
                             openInfoWindow = info;
                         });
                     });
+
+                    map.setBounds(bounds);
 
                     // 지도 중심은 DEFAULT_LAT/LNG 고정 좌표 유지 (이동하지 않음)
                     $('#gpsInfo').text(markers.length + "명 위치");

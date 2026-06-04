@@ -83,7 +83,9 @@ public class VehicleManageController {
             Authentication auth) {
 
         AjaxResult result = new AjaxResult();
-        result.data = vehicleManageService.getVehicleList(keyword);
+        User user = (User) auth.getPrincipal();
+        String spjangcd = tenantUserService.getSpjangcd(user.getUsername());
+        result.data = vehicleManageService.getVehicleList(spjangcd, keyword);
         return result;
     }
 

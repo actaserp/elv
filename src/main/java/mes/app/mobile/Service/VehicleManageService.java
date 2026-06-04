@@ -81,7 +81,7 @@ public class VehicleManageService {
         return items;
     }
 
-    // 유류 단가 정보 조회 (TB_E037_1)
+    // 유류 단가 정보 조회 (TB_E037_1) - gareacd 무관, 단가 최고값 1건
     public Map<String, Object> getFuelInfo(String spjangcd, String fuelcd) {
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
@@ -99,31 +99,44 @@ public class VehicleManageService {
                 WHERE spjangcd = :spjangcd
                   AND fuelcd   = :fuelcd
                   AND useyn    = '1'
+                ORDER BY uamt DESC
                 """;
 
         Map<String, Object> item = this.sqlRunner.getRow(sql, dicParam);
         return item;
     }
 
-    // 차량 목록 조회 (TB_E047)
-    public List<Map<String, Object>> getVehicleList(String keyword) {
+    // 차량 목록 조회 (TB_E047) - gareacd 제거, 단가 최고값 서브쿼리로 fuelnm 매핑
+    public List<Map<String, Object>> getVehicleList(String spjangcd, String keyword) {
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
+        dicParam.addValue("spjangcd", spjangcd);
 
         String sql = """
-                SELECT e.carcd, e.carnum, e.gubun AS fuelcd, e.samt, f.fuelnm, e.gareacd
+                SELECT e.carcd, e.carnum, e.gubun AS fuelcd, e.samt, f.fuelnm
                 FROM TB_E047 e
-                LEFT JOIN TB_E037_1 f ON f.fuelcd = e.gubun
-                AND f.gareacd = e.gareacd
+                LEFT JOIN (
+                    SELECT f1.fuelcd, f1.fuelnm, f1.uamt
+                    FROM TB_E037_1 f1
+                    WHERE f1.spjangcd = :spjangcd
+                      AND f1.useyn    = '1'
+                      AND f1.uamt = (
+                          SELECT MAX(f2.uamt)
+                          FROM TB_E037_1 f2
+                          WHERE f2.fuelcd   = f1.fuelcd
+                            AND f2.spjangcd = f1.spjangcd
+                            AND f2.useyn    = '1'
+                      )
+                ) f ON f.fuelcd = e.gubun
                 WHERE 1=1
                 """;
 
         if (keyword != null && !keyword.trim().isEmpty()) {
-            sql += " AND carnum LIKE :keyword";
+            sql += " AND e.carnum LIKE :keyword";
             dicParam.addValue("keyword", "%" + keyword.trim() + "%");
         }
 
-        sql += " ORDER BY carnum";
+        sql += " ORDER BY e.carnum";
 
         List<Map<String, Object>> items = this.sqlRunner.getRows(sql, dicParam);
         return items;
@@ -440,8 +453,19 @@ public class VehicleManageService {
                 LEFT JOIN TB_JC002 jc  ON jc.divicd  = j.divicd
                                       AND jc.spjangcd = j.spjangcd
                 LEFT JOIN TB_E047 e    ON e.carcd     = c.carcd
-                LEFT JOIN TB_E037_1 f  ON f.fuelcd    = c.gubun
-                                      AND f.spjangcd  = c.spjangcd
+                LEFT JOIN (
+                    SELECT f1.fuelcd, f1.fuelnm
+                    FROM TB_E037_1 f1
+                    WHERE f1.spjangcd = :spjangcd
+                      AND f1.useyn    = '1'
+                      AND f1.uamt = (
+                          SELECT MAX(f2.uamt)
+                          FROM TB_E037_1 f2
+                          WHERE f2.fuelcd   = f1.fuelcd
+                            AND f2.spjangcd = f1.spjangcd
+                            AND f2.useyn    = '1'
+                      )
+                ) f ON f.fuelcd = c.gubun
                 LEFT JOIN TB_E601 s    ON s.actcd     = c.actcd
                                       AND s.spjangcd  = c.spjangcd
                 WHERE c.spjangcd = :spjangcd

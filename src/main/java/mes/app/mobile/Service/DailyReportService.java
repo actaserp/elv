@@ -233,6 +233,7 @@ public class DailyReportService {
                 LEFT JOIN TB_E611 eq  ON eq.actcd    = e.actcd
                                      AND eq.equpcd   = e.equpcd
                                      AND eq.spjangcd = e.spjangcd
+                                     AND eq.custcd = e.custcd
                 WHERE e.custcd   = :custcd
                   AND e.spjangcd = :spjangcd
                   AND e.rptdate  BETWEEN :fromDate AND :toDate
