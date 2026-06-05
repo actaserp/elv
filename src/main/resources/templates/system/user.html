@@ -63,7 +63,7 @@
                             </dt>
                             <dd>
                                 <div class="srch-box">
-                                    <input class="form-control2" id="username" name="username" style="width: 120px;"/>
+                                    <input class="form-control2" id="username" name="username" style="width: 120px;" readonly/>
                                 </div>
                             </dd>
                         </dl>
@@ -1150,6 +1150,8 @@
                     $('#personid').val(selectedItem.id);
                     $('#Depart_id').val(selectedItem.dept_id);
                     $('#personname').val(selectedItem.name);
+                    $('#login_id').val((selectedItem.code || '').replace(/^p/, ''));
+                    $('#login_id').attr('readonly', true);
                     popContainer.close();
                 } else {
                     Alert.alert('', '사번을 선택해주세요.');
@@ -1168,6 +1170,8 @@
                 $('#personid').val(selectedItem.id);
                 $('#Depart_id').val(selectedItem.dept_id);
                 $('#personname').val(selectedItem.name);
+                $('#login_id').val((selectedItem.code || '').replace(/^p/, ''));
+                $('#login_id').attr('readonly', true);
                 popContainer.close();
             });
 
