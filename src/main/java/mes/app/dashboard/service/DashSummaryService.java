@@ -451,7 +451,7 @@ public class DashSummaryService {
                 LEFT JOIN tb_pb210 tb210
                     ON tb210.workcd = tb204.workcd
                 LEFT JOIN person per
-                    ON tb204.perid = per.id
+                            ON per.id = TRY_CAST(tb204.perid AS int)
             WHERE
                 CONVERT(date, tb204.frdate, 112) BETWEEN
                     DATEFROMPARTS(YEAR(GETDATE())-1,1,1)
@@ -805,6 +805,8 @@ public class DashSummaryService {
             WHERE t.spjangcd = :spjangcd
             AND t.workym = :workym
             AND t.workday = :workday
+            AND t.latitude  IS NOT NULL
+            AND t.longitude IS NOT NULL
         """;
         // username이 있을 때만 param에 추가
         if (username != null) {
