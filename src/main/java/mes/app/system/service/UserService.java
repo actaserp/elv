@@ -153,7 +153,7 @@ public class UserService {
 					String tenantSql = """
                     SELECT ja.perid as person_code
                          , ja.pernm  AS personname
-                         , ja.telnum AS tel
+                         , ja.handphone AS handphone
                          , jc.divicd
                          , jc.divinm AS dept_name
                     FROM tb_ja001 ja
@@ -165,7 +165,7 @@ public class UserService {
 
 					if (tenantInfo != null) {
 						item.put("personname", tenantInfo.get("personname"));
-						item.put("tel",        tenantInfo.get("tel"));
+						item.put("handphone",        tenantInfo.get("handphone"));
 						item.put("dept_name",  tenantInfo.get("dept_name"));
 						item.put("divicd",     tenantInfo.get("divicd"));
 					}

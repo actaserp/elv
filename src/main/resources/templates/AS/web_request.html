@@ -19,10 +19,13 @@
     /* ── 구조 레이아웃 ── */
     .wr-main-col { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
     .wr-top-row  { display: flex; gap: 10px; align-items: flex-start; }
+    .wr-left {
+      max-width: 340px;
+    }
 
     /* ── 카드 리스트 ── */
     .card-list-wrap {
-      overflow-y: auto; height: 220px;
+      overflow-y: auto; height: 276px;
       display: flex; flex-direction: column; gap: 8px; padding: 4px 2px;
     }
     .recv-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 14px; cursor: pointer; transition: border-color 0.15s; }
@@ -243,11 +246,15 @@
               <tbody>
               <tr>
                 <th>수신일자</th>
-                <td><input type="datetime-local" id="memoCalldate"></td>
+                <td colspan="3"><input type="datetime-local" id="memoCalldate"></td>
               </tr>
-              <tr><th>고객명</th><td><input type="text" id="memoCusnm"></td></tr>
-              <tr><th>전화번호</th><td><input type="text" id="memoCustel"></td></tr>
               <tr>
+                <th>고객명</th>
+                <td><input type="text" id="memoCusnm"></td>
+              </tr>
+              <tr>
+                <th>전화번호</th>
+                <td><input type="text" id="memoCustel"></td>
                 <th>콜백예약</th>
                 <td style="justify-items:center;"><input type="checkbox" id="memoCallbackFlag" value="1"></td>
               </tr>

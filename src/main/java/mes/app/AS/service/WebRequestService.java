@@ -234,6 +234,7 @@ public class WebRequestService {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("srchDate", srchDate);
+        param.addValue("today",    java.time.LocalDate.now().toString().replace("-", ""));
         param.addValue("callnm",   callnm != null ? callnm : "%");
 
         String sql = """
@@ -249,7 +250,7 @@ public class WebRequestService {
                     callbackmemo,
                     callendmemo
                 FROM TB_CALLMAIN
-                WHERE calldate = :srchDate
+                WHERE calldate BETWEEN :srchDate AND :today
                   AND callnm   LIKE :callnm
                 ORDER BY calldate DESC, calltime DESC
                 """;
