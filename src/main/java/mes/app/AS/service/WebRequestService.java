@@ -228,12 +228,11 @@ public class WebRequestService {
         return sqlRunner.getRows(sql, param);
     }
 
-    // ── 통화메모 목록 조회 (TB_E403 - 임시, 추후 테이블명 확인) ─
+    // ── 통화메모 목록 조회 (TB_CALLMAIN) ────────────────────
     public List<Map<String, Object>> getMemoList(
             String spjangcd, String srchDate, String callnm) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
-        param.addValue("spjangcd", spjangcd);
         param.addValue("srchDate", srchDate);
         param.addValue("callnm",   callnm != null ? callnm : "%");
 
@@ -249,9 +248,8 @@ public class WebRequestService {
                     callbacktime,
                     callbackmemo,
                     callendmemo
-                FROM TB_E403
-                WHERE spjangcd = :spjangcd
-                  AND calldate = :srchDate
+                FROM TB_CALLMAIN
+                WHERE calldate = :srchDate
                   AND callnm   LIKE :callnm
                 ORDER BY calldate DESC, calltime DESC
                 """;
@@ -259,15 +257,14 @@ public class WebRequestService {
         return sqlRunner.getRows(sql, param);
     }
 
-    // ── 통화메모 저장 (TB_E403 - 임시, 추후 테이블명 확인) ───
+    // ── 통화메모 저장 (TB_CALLMAIN INSERT / UPDATE) ──────────
     public void saveMemo(String spjangcd, String seq,
                          String calldate, String calltime,
                          String callnm, String callnum,
                          String callbackflag, String callbacktime, String callbackmemo,
-                         String callmemo, String callendmemo) {
+                         String callmemo, String callendmemo, String pernm) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
-        param.addValue("spjangcd",     spjangcd);
         param.addValue("seq",          seq);
         param.addValue("calldate",     calldate);
         param.addValue("calltime",     calltime);
@@ -278,21 +275,27 @@ public class WebRequestService {
         param.addValue("callbackmemo", callbackmemo);
         param.addValue("callmemo",     callmemo);
         param.addValue("callendmemo",  callendmemo);
+        param.addValue("pernm",        pernm);
+        param.addValue("regdate",      java.time.LocalDate.now().toString().replace("-", ""));
 
         if (seq == null || seq.isBlank()) {
+            // 신규 INSERT - seq 채번 (yyyymm + 순번)
+            String newSeq = getNextCallSeq(calldate.substring(0, 6));
+            param.addValue("seq", newSeq);
+
             namedParameterJdbcTemplate.update("""
-                    INSERT INTO TB_E403
-                        (spjangcd, calldate, calltime, callnm, callnum,
+                    INSERT INTO TB_CALLMAIN
+                        (seq, calldate, calltime, callnm, callnum,
                          callbackflag, callbacktime, callbackmemo,
-                         callmemo, callendmemo)
+                         callmemo, callendmemo, pernm, regdate)
                     VALUES
-                        (:spjangcd, :calldate, :calltime, :callnm, :callnum,
+                        (:seq, :calldate, :calltime, :callnm, :callnum,
                          :callbackflag, :callbacktime, :callbackmemo,
-                         :callmemo, :callendmemo)
+                         :callmemo, :callendmemo, :pernm, :regdate)
                     """, param);
         } else {
             namedParameterJdbcTemplate.update("""
-                    UPDATE TB_E403 SET
+                    UPDATE TB_CALLMAIN SET
                         calldate     = :calldate,
                         calltime     = :calltime,
                         callnm       = :callnm,
@@ -302,24 +305,37 @@ public class WebRequestService {
                         callbackmemo = :callbackmemo,
                         callmemo     = :callmemo,
                         callendmemo  = :callendmemo
-                    WHERE spjangcd = :spjangcd
-                      AND seq      = :seq
+                    WHERE seq = :seq
                     """, param);
         }
     }
 
-    // ── 통화메모 삭제 (TB_E403 - 임시, 추후 테이블명 확인) ───
+    // ── 통화메모 삭제 (TB_CALLMAIN DELETE) ───────────────────
     public void deleteMemo(String spjangcd, String seq) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
-        param.addValue("spjangcd", spjangcd);
-        param.addValue("seq",      seq);
+        param.addValue("seq", seq);
 
         namedParameterJdbcTemplate.update("""
-                DELETE FROM TB_E403
-                WHERE spjangcd = :spjangcd
-                  AND seq      = :seq
+                DELETE FROM TB_CALLMAIN
+                WHERE seq = :seq
                 """, param);
+    }
+
+    // ── seq 채번 (yyyymm 기준 MAX + 1) ───────────────────────
+    private String getNextCallSeq(String yyyymm) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("yyyymm", yyyymm);
+
+        String sql = """
+                SELECT ISNULL(MAX(CAST(seq AS BIGINT)), 0) + 1
+                FROM TB_CALLMAIN
+                WHERE LEFT(seq, 6) = :yyyymm
+                """;
+
+        Long next = namedParameterJdbcTemplate.queryForObject(sql, param, Long.class);
+        if (next == null) next = Long.parseLong(yyyymm + "0001");
+        return String.valueOf(next);
     }
 
     // ── 팝업: 현장 검색 (TB_E601) ────────────────────────────

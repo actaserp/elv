@@ -146,7 +146,7 @@ public class WebRequestController {
     // ── 통화메모 저장 ─────────────────────────────────────────
     @PostMapping("/save_memo")
     public AjaxResult saveMemo(
-            @RequestParam(value = "spjangcd")                   String spjangcd,
+            @RequestParam(value = "spjangcd")                      String spjangcd,
             @RequestParam(value = "seq",          required = false) String seq,
             @RequestParam(value = "calldate",     required = false) String calldate,
             @RequestParam(value = "calltime",     required = false) String calltime,
@@ -157,14 +157,17 @@ public class WebRequestController {
             @RequestParam(value = "callbackmemo", required = false) String callbackmemo,
             @RequestParam(value = "callmemo",     required = false) String callmemo,
             @RequestParam(value = "callendmemo",  required = false) String callendmemo,
-            HttpServletRequest request) {
+            HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
         try {
+            User user = (User) auth.getPrincipal();
+            String pernm = user.getUsername();
+
             webRequestService.saveMemo(spjangcd, seq,
                     calldate, calltime, callnm, callnum,
                     callbackflag, callbacktime, callbackmemo,
-                    callmemo, callendmemo);
+                    callmemo, callendmemo, pernm);
             result.success = true;
             result.message = "저장되었습니다.";
         } catch (Exception e) {
