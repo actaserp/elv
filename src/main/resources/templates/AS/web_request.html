@@ -181,14 +181,14 @@
                     </td>
                   </tr>
                   <tr>
-                    <th>접수자</th>
+                    <th>통보자</th>
                     <td>
                       <div class="input-row">
                         <input type="hidden" id="reperid">
-                        <input type="text" id="repernm" placeholder="접수자 선택" readonly class="readonly" onclick="openRepernmPopup()">
+                        <input type="text" id="repernm" placeholder="통보자 선택" readonly class="readonly" onclick="openRepernmPopup()">
                       </div>
                     </td>
-                    <th class="th-sm">통보자<br>(담당기사)</th>
+                    <th class="th-sm">접수자<br>(담당기사)</th>
                     <td>
                       <div class="input-row">
                         <input type="hidden" id="perid">
@@ -358,21 +358,9 @@
     var selectedRecenum  = null;
     var spjangcd = sessionStorage.getItem('spjangcd');
     var _custcd  = '';
+    var smsGrid, smsData;
 
-    document.readyState === 'complete' ? init() : window.onload = init;
-
-    function init() {
-      // custcd 조회
-      AjaxUtil.getAsyncData('/api/AS/web_request/user_info', {}, function (result) {
-        if (result && result.data) {
-          _custcd = result.data.custcd || '';
-          document.getElementById('custcd').value = _custcd;
-        }
-      });
-
-      const today = new Date();
-      var smsGrid, smsData;
-    let smsColumns = [
+    var smsColumns = [
       {binding: 'result',   header: '결과',     width:  80, align: 'center'},
       {binding: 'recedate', header: '일자',     width:  90, align: 'center'},
       {binding: 'recetime', header: '시간',     width:  70, align: 'center'},
@@ -386,7 +374,6 @@
 
     function init() {
       const today = new Date();
-      var smsGrid, smsData;
       const yyyy  = today.getFullYear();
       const mm    = String(today.getMonth() + 1).padStart(2, '0');
       const dd    = String(today.getDate()).padStart(2, '0');
@@ -398,6 +385,14 @@
       document.getElementById('hitchdate').value     = `${yyyy}-${mm}-${dd}T${hhmm}`;
       document.getElementById('memoCalldate').value  = `${yyyy}-${mm}-${dd}T${hhmm}`;
       document.getElementById('memoSrchDate').value  = `${yyyy}-${mm}-${dd}`;
+
+      // custcd 조회
+      AjaxUtil.getAsyncData('/api/AS/web_request/user_info', {}, function (result) {
+        if (result && result.data) {
+          _custcd = result.data.custcd || '';
+          document.getElementById('custcd').value = _custcd;
+        }
+      });
 
       smsData = new wijmo.collections.CollectionView([]);
       smsGrid = new wijmo.grid.FlexGrid('#smsGrid', {
@@ -859,15 +854,15 @@
     }
 
     function openRepernmPopup() {
-      openPernmPopupCommon('접수자 선택', function (item) {
-        document.getElementById('reperid').value = item.perid || '';
+      openPernmPopupCommon('통보자 선택', function (item) {
+        document.getElementById('reperid').value = (item.perid || '').replace(/^p/, '');
         document.getElementById('repernm').value = item.pernm || '';
       });
     }
 
     function openPernmPopup() {
-      openPernmPopupCommon('통보자(담당기사) 선택', function (item) {
-        document.getElementById('perid').value = item.perid || '';
+      openPernmPopupCommon('접수자(담당기사) 선택', function (item) {
+        document.getElementById('perid').value = (item.perid || '').replace(/^p/, '');
         document.getElementById('pernm').value = item.pernm || '';
         searchPushId(item.pernm);
       });

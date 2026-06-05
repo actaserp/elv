@@ -43,12 +43,13 @@ public class RequestRepairService {
 
     // ── 고장접수 목록 조회 (TB_E401) ─────────────────────────
     public List<Map<String, Object>> getRepairList(
-            String fromDate, String toDate, String actnm, String resultck, String spjangcd) {
+            String fromDate, String toDate, String actnm, String resultck, String spjangcd, String perid) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
         param.addValue("fromDate", fromDate);
         param.addValue("toDate",   toDate);
+        param.addValue("perid",    perid);
 
         String sql = """
                 SELECT
@@ -61,23 +62,28 @@ public class RequestRepairService {
                     e.actnm,
                     e.equpcd,
                     e.equpnm,
+                    e.contcd,
+                    ct.contnm,
                     e.contents,
                     e.remark,
                     e.reperid,
                     rp.pernm    AS repernm,
                     e.divicd,
                     jc.divinm,
-                    j.pernm,
+                    j.pernm     AS pernm,
                     e.perid,
                     e.resultck
                 FROM TB_E401 e
                 LEFT JOIN TB_JA001 j  ON j.perid    = 'p' + e.perid
                                      AND j.spjangcd  = e.spjangcd
                 LEFT JOIN TB_JC002 jc ON j.divicd   = jc.divicd
-                LEFT JOIN TB_JA001 rp ON rp.perid    = e.reperid
+                LEFT JOIN TB_JA001 rp ON rp.perid    = 'p' + e.reperid
                                      AND rp.spjangcd = e.spjangcd
+                LEFT JOIN TB_E010  ct ON ct.contcd   = e.contcd
+                                     AND ct.spjangcd = e.spjangcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.recedate BETWEEN :fromDate AND :toDate
+                  AND e.perid    = :perid
                 """;
 
         if (actnm != null && !actnm.isBlank()) {
@@ -231,7 +237,7 @@ public class RequestRepairService {
             String spjangcd, String recedate, String recenum,
             String recetime, String hitchdate, String hitchhour,
             String actcd, String actnm, String equpcd, String equpnm,
-            String contents, String remark, String reperid, String bigo) {
+            String contcd, String contents, String remark, String reperid) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd",  spjangcd);
@@ -244,10 +250,10 @@ public class RequestRepairService {
         param.addValue("actnm",     actnm);
         param.addValue("equpcd",    equpcd);
         param.addValue("equpnm",    equpnm);
+        param.addValue("contcd",    contcd);
         param.addValue("contents",  contents);
         param.addValue("remark",    remark);
         param.addValue("reperid",   reperid);
-        param.addValue("bigo",      bigo);
 
         java.time.LocalDateTime receDt  = toLocalDateTime(recedate, recetime);
         java.time.LocalDateTime hitchDt = toLocalDateTime(hitchdate, hitchhour);
@@ -263,6 +269,7 @@ public class RequestRepairService {
                     actnm     = :actnm,
                     equpcd    = :equpcd,
                     equpnm    = :equpnm,
+                    contcd    = :contcd,
                     contents  = :contents,
                     remark    = :remark,
                     reperid   = :reperid,

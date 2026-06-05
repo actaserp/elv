@@ -200,7 +200,7 @@ public class WebRequestService {
                 """, param);
     }
 
-    // ── 문자전송내역 조회 (TB_E402 - 임시, 추후 테이블명 확인) ─
+    // ── 문자전송내역 조회 (TB_E401_SMS) ─────────────────────
     public List<Map<String, Object>> getSmsHistory(
             String spjangcd, String recedate, String recenum) {
 
@@ -213,16 +213,16 @@ public class WebRequestService {
                 SELECT
                     s.result,
                     s.recedate,
-                    s.recetime,
+                    CONVERT(varchar(6), s.receipdate, 108) AS recetime,
                     s.pernm,
                     s.sms_tel,
                     s.flag,
                     s.sms_text
-                FROM TB_E402 s
+                FROM TB_E401_SMS s
                 WHERE s.spjangcd = :spjangcd
                   AND s.recedate = :recedate
                   AND s.recenum  = :recenum
-                ORDER BY s.recedate DESC, s.recetime DESC
+                ORDER BY s.receipdate DESC
                 """;
 
         return sqlRunner.getRows(sql, param);

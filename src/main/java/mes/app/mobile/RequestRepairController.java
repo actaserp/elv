@@ -46,8 +46,20 @@ public class RequestRepairController {
 
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
-        String spjangcd = tenantUserService.getSpjangcd(user.getUsername());
-        result.data = requestRepairService.getRepairList(fromDate, toDate, actnm, resultck, spjangcd);
+        String username = user.getUsername();
+
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(username);
+        if (userInfo == null) {
+            result.success = false;
+            result.message = "사용자 정보를 찾을 수 없습니다.";
+            return result;
+        }
+
+        String spjangcd = (String) userInfo.get("spjangcd");
+        // TB_E401.perid는 p 없는 형태 (ex: HY010405)
+        String perid = ((String) userInfo.get("perid")).replaceFirst("^p", "");
+
+        result.data = requestRepairService.getRepairList(fromDate, toDate, actnm, resultck, spjangcd, perid);
         return result;
     }
 
@@ -144,9 +156,9 @@ public class RequestRepairController {
     // ── 고장접수 수정 (TB_E401 UPDATE) ───────────────────────
     @PostMapping("/update")
     public AjaxResult updateRepair(
-            @RequestParam(value = "spjangcd")                   String spjangcd,
-            @RequestParam(value = "recedate")                   String recedate,
-            @RequestParam(value = "recenum")                    String recenum,
+            @RequestParam(value = "spjangcd")                    String spjangcd,
+            @RequestParam(value = "recedate")                    String recedate,
+            @RequestParam(value = "recenum")                     String recenum,
             @RequestParam(value = "recetime",  required = false) String recetime,
             @RequestParam(value = "hitchdate", required = false) String hitchdate,
             @RequestParam(value = "hitchhour", required = false) String hitchhour,
@@ -154,10 +166,10 @@ public class RequestRepairController {
             @RequestParam(value = "actnm",     required = false) String actnm,
             @RequestParam(value = "equpcd",    required = false) String equpcd,
             @RequestParam(value = "equpnm",    required = false) String equpnm,
+            @RequestParam(value = "contcd",    required = false) String contcd,
             @RequestParam(value = "contents",  required = false) String contents,
             @RequestParam(value = "remark",    required = false) String remark,
             @RequestParam(value = "reperid",   required = false) String reperid,
-            @RequestParam(value = "bigo",      required = false) String bigo,
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
@@ -166,7 +178,7 @@ public class RequestRepairController {
                     spjangcd, recedate, recenum,
                     recetime, hitchdate, hitchhour,
                     actcd, actnm, equpcd, equpnm,
-                    contents, remark, reperid, bigo);
+                    contcd, contents, remark, reperid);
             result.success = true;
             result.message = "수정되었습니다.";
         } catch (Exception e) {

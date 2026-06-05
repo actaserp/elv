@@ -18,7 +18,6 @@
     .result-count { padding: 4px 14px; font-size: 12px; color: #888; }
     .empty-msg { text-align: center; padding: 60px 20px; color: #bbb; font-size: 14px; }
 
-    /* 바텀시트 팝업 공통 */
     .popup-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 9000; justify-content: center; align-items: flex-end; }
     .popup-overlay.active { display: flex; }
     .popup-sheet { background: #fff; width: 100%; max-height: 80vh; border-radius: 16px 16px 0 0; overflow: hidden; display: flex; flex-direction: column; }
@@ -27,21 +26,18 @@
     .popup-close { width:0; border: none; font-size: 24px; cursor: pointer; color: #666; line-height: 1; flex-shrink: 0; margin-left: 12px; }
     .popup-body { overflow-y: auto; flex: 1; padding: 16px 20px 30px; }
 
-    /* 상세 팝업 */
     .detail-section-title { font-size: 13px; font-weight: 700; color: #444; margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 2px solid #dce6f1; }
     .detail-row { display: flex; padding: 9px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; gap: 12px; }
     .detail-row:last-child { border-bottom: none; }
     .detail-label { color: #999; min-width: 80px; flex-shrink: 0; font-size: 13px; }
     .detail-value { color: #222; flex: 1; word-break: break-all; }
 
-    /* 상세 팝업 하단 버튼 */
     .detail-footer { padding: 12px 20px 24px; border-top: 1px solid #eee; flex-shrink: 0; display:flex; gap:8px; }
     .btn-edit   { flex:1; padding: 12px; background: #333; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
     .btn-edit:active { background: #111; }
     .btn-delete { flex:1; padding: 12px; background: #ff4444; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
     .btn-delete:active { background: #cc0000; }
 
-    /* 수정 팝업 폼 */
     .form-row { margin-bottom: 16px; }
     .form-row label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; font-weight: 600; }
     .form-row input[type="text"], .form-row input[type="date"], .form-row input[type="time"], .form-row textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
@@ -52,7 +48,6 @@
     .form-save-btn { width: 100%; padding: 12px; background: #333; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; margin-top: 8px; }
     .form-save-btn:active { background: #111; }
 
-    /* 현장/호기 팝업 */
     .popup-list { overflow-y: auto; flex: 1; }
     .popup-list ul { list-style: none; margin: 0; padding: 0; }
     .popup-list ul li { padding: 14px 20px; border-bottom: 1px solid #f0f0f0; cursor: pointer; font-size: 14px; }
@@ -87,7 +82,6 @@
 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
 <div class="mobile-wrapper page-ticket-list">
 
-    <!-- 헤더 -->
     <div class="mobile-layout-header">
         <header>
             <div class="left"><a href="#" title="전체메뉴" class="logo"></a></div>
@@ -176,6 +170,7 @@
             <input type="hidden" id="editRecenum">
             <input type="hidden" id="editActcd">
             <input type="hidden" id="editEqupcd">
+            <input type="hidden" id="editContcd">
 
             <div class="form-row">
                 <label>접수일자 / 접수시간</label>
@@ -201,11 +196,15 @@
             </div>
             <div class="form-row">
                 <label>고장내용</label>
-                <input type="text" id="editContents" placeholder="고장내용 입력">
+                <input type="text" id="editContnm" placeholder="고장내용 선택" readonly onclick="openContnmPopup()">
             </div>
             <div class="form-row">
                 <label>상세내용</label>
-                <textarea id="editRemark" placeholder="상세내용 입력"></textarea>
+                <input type="text" id="editContents" placeholder="상세내용 입력">
+            </div>
+            <div class="form-row">
+                <label>비고</label>
+                <textarea id="editRemark" placeholder="비고 입력"></textarea>
             </div>
             <div class="form-row">
                 <label>통보(전달)자</label>
@@ -241,6 +240,19 @@
     </div>
 </div>
 
+<!-- 고장내용 선택 팝업 -->
+<div class="popup-overlay" id="contnmPopup">
+    <div class="popup-sheet">
+        <div class="popup-header">
+            <span>고장내용 선택</span>
+            <button class="popup-close" onclick="closePopup('contnmPopup')">×</button>
+        </div>
+        <input type="text" class="popup-search-input" id="contnmSearchInput" placeholder="고장내용 검색"
+               oninput="filterContnmList(this.value)">
+        <div class="popup-list"><ul id="contnmList"></ul></div>
+    </div>
+</div>
+
 <!-- 통보자 선택 팝업 -->
 <div class="popup-overlay" id="perPopup">
     <div class="popup-sheet">
@@ -256,9 +268,11 @@
 
 <script type="text/javascript">
 
-    var _actListCache = [];
-    var _spjangcd     = sessionStorage.getItem('spjangcd') || '';
-    var _currentItem  = null;
+    var _actListCache    = [];
+    var _contnmListCache = [];
+    var _perListCache    = [];
+    var _spjangcd        = sessionStorage.getItem('spjangcd') || '';
+    var _currentItem     = null;
 
     $(document).ready(function () {
         const today = new Date();
@@ -277,10 +291,10 @@
     }
 
     function searchRepairList() {
-        const fromDate  = document.getElementById('searchFromDate').value.replaceAll('-', '');
-        const toDate    = document.getElementById('searchToDate').value.replaceAll('-', '');
-        const actnm     = document.getElementById('searchActnm').value.trim();
-        const resultck  = document.getElementById('searchResultck').value;
+        const fromDate = document.getElementById('searchFromDate').value.replaceAll('-', '');
+        const toDate   = document.getElementById('searchToDate').value.replaceAll('-', '');
+        const actnm    = document.getElementById('searchActnm').value.trim();
+        const resultck = document.getElementById('searchResultck').value;
 
         AjaxUtil.getAsyncData('/api/request_repair/read', {
             fromDate : fromDate,
@@ -318,8 +332,8 @@
                     <span class="card-actnm">${esc(item.actnm || '')}</span>
                     <span class="${badgeClass}">${esc(item.recedate || '')} / ${badgeText}</span>
                 </div>
-                ${item.equpnm ? `<div class="card-row"><span class="card-label">호기명</span><span class="card-value">${esc(item.equpnm)}</span></div>` : ''}
-                ${item.contents ? `<div class="card-row"><span class="card-label">고장내용</span><span class="card-value">${esc(item.contents)}</span></div>` : ''}
+                ${item.equpnm  ? `<div class="card-row"><span class="card-label">호기명</span><span class="card-value">${esc(item.equpnm)}</span></div>` : ''}
+                ${item.contnm  ? `<div class="card-row"><span class="card-label">고장내용</span><span class="card-value">${esc(item.contnm)}</span></div>` : ''}
             </div>`;
         });
         container.innerHTML = html;
@@ -345,8 +359,9 @@
         ]);
         html += `<div class="detail-section-title">고장 내용</div>`;
         html += buildDetailRows([
-            { label: '고장내용', value: item.contents },
-            { label: '상세내용', value: item.remark   },
+            { label: '고장내용', value: item.contnm   },
+            { label: '상세내용', value: item.contents },
+            { label: '비고',     value: item.remark   },
         ]);
         html += `<div class="detail-section-title">담당자 정보</div>`;
         html += buildDetailRows([
@@ -398,12 +413,14 @@
         document.getElementById('editRecenum').value      = item.recenum   || '';
         document.getElementById('editActcd').value        = item.actcd     || '';
         document.getElementById('editEqupcd').value       = item.equpcd    || '';
+        document.getElementById('editContcd').value       = item.contcd    || '';
         document.getElementById('editRecedateDisp').value = toDateInput(item.recedate);
         document.getElementById('editRecetime').value     = toTimeInput(item.recetime);
         document.getElementById('editHitchdate').value    = toDateInput(item.hitchdate);
         document.getElementById('editHitchhour').value    = toTimeInput(item.hitchhour);
         document.getElementById('editActnm').value        = item.actnm    || '';
         document.getElementById('editEqupnm').value       = item.equpnm   || '';
+        document.getElementById('editContnm').value       = item.contnm   || '';
         document.getElementById('editContents').value     = item.contents  || '';
         document.getElementById('editRemark').value       = item.remark    || '';
         document.getElementById('editReperid').value      = item.reperid   || '';
@@ -411,6 +428,42 @@
 
         closePopup('detailPopup');
         openPopup('editPopup');
+    }
+
+    /* ── 수정 저장 ── */
+    function updateRepair() {
+        const recedate = document.getElementById('editRecedate').value;
+        const actcd    = document.getElementById('editActcd').value;
+        if (!recedate) { Alert.alert('', '접수일자가 없습니다.'); return; }
+        if (!actcd)    { Alert.alert('', '현장을 선택해주세요.'); return; }
+
+        const data = {
+            spjangcd  : _spjangcd,
+            recedate  : recedate,
+            recenum   : document.getElementById('editRecenum').value,
+            recetime  : document.getElementById('editRecetime').value.replaceAll(':', ''),
+            hitchdate : document.getElementById('editHitchdate').value.replaceAll('-', ''),
+            hitchhour : document.getElementById('editHitchhour').value.replaceAll(':', ''),
+            actcd     : actcd,
+            actnm     : document.getElementById('editActnm').value,
+            equpcd    : document.getElementById('editEqupcd').value,
+            equpnm    : document.getElementById('editEqupnm').value,
+            contcd    : document.getElementById('editContcd').value,
+            contents  : document.getElementById('editContents').value,
+            remark    : document.getElementById('editRemark').value,
+            reperid   : document.getElementById('editReperid').value,
+        };
+
+        AjaxUtil.postAsyncData('/api/request_repair/update', data, function (result) {
+            if (result && result.success) {
+                Alert.alert('', result.message, function () {
+                    closePopup('editPopup');
+                    searchRepairList();
+                });
+            } else {
+                Alert.alert('', (result && result.message) || '수정 중 오류가 발생하였습니다.');
+            }
+        });
     }
 
     /* ── 현장 선택 팝업 ── */
@@ -485,44 +538,51 @@
         closePopup('equpPopup');
     }
 
-    /* ── 수정 저장 ── */
-    function updateRepair() {
-        const recedate = document.getElementById('editRecedate').value;
-        const actcd    = document.getElementById('editActcd').value;
-        if (!recedate) { Alert.alert('', '접수일자가 없습니다.'); return; }
-        if (!actcd)    { Alert.alert('', '현장을 선택해주세요.'); return; }
-
-        const data = {
-            spjangcd  : _spjangcd,
-            recedate  : recedate,
-            recenum   : document.getElementById('editRecenum').value,
-            recetime  : document.getElementById('editRecetime').value.replaceAll(':', ''),
-            hitchdate : document.getElementById('editHitchdate').value.replaceAll('-', ''),
-            hitchhour : document.getElementById('editHitchhour').value.replaceAll(':', ''),
-            actcd     : actcd,
-            actnm     : document.getElementById('editActnm').value,
-            equpcd    : document.getElementById('editEqupcd').value,
-            equpnm    : document.getElementById('editEqupnm').value,
-            contents  : document.getElementById('editContents').value,
-            remark    : document.getElementById('editRemark').value,
-            reperid   : document.getElementById('editReperid').value,
-        };
-
-        AjaxUtil.postAsyncData('/api/request_repair/update', data, function (result) {
-            if (result && result.success) {
-                Alert.alert('', result.message, function () {
-                    closePopup('editPopup');
-                    searchRepairList();
-                });
-            } else {
-                Alert.alert('', (result && result.message) || '수정 중 오류가 발생하였습니다.');
+    /* ── 고장내용 선택 팝업 ── */
+    function openContnmPopup() {
+        document.getElementById('contnmSearchInput').value = '';
+        if (_contnmListCache.length > 0) {
+            renderContnmList(_contnmListCache);
+            openPopup('contnmPopup');
+            return;
+        }
+        AjaxUtil.getAsyncData('/api/request_repair/read_contnm', {}, function (result) {
+            if (result && result.data) {
+                _contnmListCache = result.data;
+                renderContnmList(_contnmListCache);
+                openPopup('contnmPopup');
             }
         });
     }
 
-    /* ── 통보자 선택 팝업 ── */
-    var _perListCache = [];
+    function renderContnmList(list) {
+        const ul = document.getElementById('contnmList');
+        ul.innerHTML = '';
+        if (!list || list.length === 0) {
+            ul.innerHTML = '<li style="color:#999; cursor:default;">조회된 고장내용이 없습니다.</li>';
+            return;
+        }
+        list.forEach(function (item) {
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="item-code">${esc(item.contcd || '')}</span>${esc(item.contnm || '')}`;
+            li.onclick = function () { setContnmData(item); };
+            ul.appendChild(li);
+        });
+    }
 
+    function filterContnmList(keyword) {
+        renderContnmList(_contnmListCache.filter(function (item) {
+            return (item.contnm || '').includes(keyword);
+        }));
+    }
+
+    function setContnmData(item) {
+        document.getElementById('editContcd').value = item.contcd || '';
+        document.getElementById('editContnm').value = item.contnm || '';
+        closePopup('contnmPopup');
+    }
+
+    /* ── 통보자 선택 팝업 ── */
     function openPerPopup() {
         document.getElementById('perSearchInput').value = '';
         if (_perListCache.length > 0) {
@@ -561,7 +621,7 @@
     }
 
     function setPerData(item) {
-        document.getElementById('editReperid').value = item.code || '';
+        document.getElementById('editReperid').value = (item.code || '').replace(/^p/, '');
         document.getElementById('editRepernm').value = item.name || '';
         closePopup('perPopup');
     }
@@ -570,7 +630,7 @@
     function openPopup(id)  { document.getElementById(id).classList.add('active');    }
     function closePopup(id) { document.getElementById(id).classList.remove('active'); }
 
-    ['detailPopup', 'editPopup', 'actPopup', 'equpPopup', 'perPopup'].forEach(function (id) {
+    ['detailPopup', 'editPopup', 'actPopup', 'equpPopup', 'contnmPopup', 'perPopup'].forEach(function (id) {
         document.getElementById(id).addEventListener('click', function (e) {
             if (e.target === this) closePopup(id);
         });

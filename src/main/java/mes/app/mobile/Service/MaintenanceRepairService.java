@@ -43,12 +43,13 @@ public class MaintenanceRepairService {
 
     // ── 고장접수 목록 조회 (TB_E401) ─────────────────────────
     public List<Map<String, Object>> getRepairList(
-            String fromDate, String toDate, String actnm, String spjangcd) {
+            String fromDate, String toDate, String actnm, String spjangcd, String perid) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
         param.addValue("fromDate", fromDate);
         param.addValue("toDate",   toDate);
+        param.addValue("perid",    perid);
 
         String sql = """
                 SELECT
@@ -66,6 +67,7 @@ public class MaintenanceRepairService {
                 FROM TB_E401 e
                 WHERE e.spjangcd = :spjangcd
                   AND e.recedate BETWEEN :fromDate AND :toDate
+                  AND e.reperid  = :perid
                 """;
 
         if (actnm != null && !actnm.isBlank()) {

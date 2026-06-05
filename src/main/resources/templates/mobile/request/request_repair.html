@@ -142,8 +142,12 @@
                     <input type="text" id="regContents" placeholder="고장내용 선택" readonly onclick="openContnmPopup()">
                 </div>
                 <div class="form-row">
-                    <label>상세내용</label>
-                    <textarea id="regRemark" placeholder="상세내용 입력"></textarea>
+                    <label>고장상세내용</label>
+                    <input type="text" id="regContentsDetail" placeholder="고장상세내용 입력">
+                </div>
+                <div class="form-row">
+                    <label>비고</label>
+                    <textarea id="regRemark" placeholder="비고 입력"></textarea>
                 </div>
                 <div class="form-row">
                     <label>통보(전달)자</label>
@@ -318,7 +322,7 @@
             actnm     : document.getElementById('regActnm').value,
             equpcd    : document.getElementById('regEqupcd').value,
             equpnm    : document.getElementById('regEqupnm').value,
-            contents  : document.getElementById('regContents').value,
+            contents  : document.getElementById('regContentsDetail').value,
             contcd    : document.getElementById('regContcd').value,
             remark    : document.getElementById('regRemark').value,
             reperid   : document.getElementById('regReperid').value,
@@ -387,7 +391,7 @@
     }
 
     function setPerData(item) {
-        document.getElementById('regReperid').value  = item.code || '';
+        document.getElementById('regReperid').value  = (item.code || '').replace(/^p/, '');
         document.getElementById('regRepernm').value  = item.name || '';
         closePopup('perPopup');
     }
