@@ -69,6 +69,12 @@
                 <div class="button-wrap">
                     <ul>
                         <li>
+                            <a class="btn btn-save" title="등록" id="btnInsert">
+                                <img th:src="@{/images/icon/ico-edit.svg}" alt="등록 아이콘">
+                                등록
+                            </a>
+                        </li>
+                        <li>
                             <a class="btn btn-excell" title="저장" id="btnSave">
                                 <img th:src="@{/images/icon/ico-edit.svg}" alt="저장 아이콘">
                                 확인
@@ -96,6 +102,95 @@
     <footer style="margin-top: 24px;">
         <p>Copyrightⓒ 0000 corp. All rights reserved.</p>
     </footer>
+
+    <!-- 휴가 등록/수정 팝업 템플릿 -->
+    <script type="text/x-tmpl" id="memberFormTemplate">
+        <div class="content_wrap popup">
+            <div class="table-wrap">
+                <table class="write-table">
+                    <tbody>
+                        <tr>
+                            <th style="text-align:center;">사원</th>
+                            <td colspan="3">
+                                <input type="hidden" id="modalPerid" value="{%=o.perid%}">
+                                <input type="text" id="modalPernm" value="{%=o.pernm%}" placeholder="사원 선택"
+                                       readonly style="width:200px; {%=o.isEdit ? 'cursor:default;' : 'cursor:pointer;'%}"
+                                       {%=o.isEdit ? '' : 'onclick="openPersonPopupInModal()"'%}>
+                                {% if (!o.isEdit) { %}
+                                <button type="button" class="btn-default" onclick="openPersonPopupInModal()">선택</button>
+                                {% } %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th style="text-align:center;">휴가항목</th>
+                            <td>
+                                <select id="modalWorkcd" style="width:180px;" onchange="onModalWorkcdChange()">
+                                    <option value="">선택</option>
+                                </select>
+                            </td>
+                            <th style="text-align:center;">연차</th>
+                            <td>
+                                <input type="checkbox" id="modalYearflag" {%=o.yearflag==='1' ? 'checked' : ''%}>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th style="text-align:center;">시작일</th>
+                            <td>
+                                <input type="date" id="modalFrdate" value="{%=o.frdate%}" style="width:140px;" onchange="calcModalDaynum()">
+                                <input type="time" id="modalSttime" value="{%=o.sttime%}" style="width:120px;">
+                            </td>
+                            <th style="text-align:center;">종료일</th>
+                            <td>
+                                <input type="date" id="modalTodate" value="{%=o.todate%}" style="width:140px;" onchange="calcModalDaynum()">
+                                <input type="time" id="modalEdtime" value="{%=o.edtime%}" style="width:120px;">
+                            </td>
+                        </tr>
+                        <tr>
+                            <th style="text-align:center;">사용일수</th>
+                            <td><input type="number" id="modalDaynum" value="{%=o.daynum%}" style="width:180px;"></td>
+                            <th style="text-align:center;">사유</th>
+                            <td><input type="text" id="modalRemark" value="{%=o.remark%}" style="width:180px;"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="popup-button">
+                <button type="button" class="btn-popup" id="btnMemberSave">저장</button>
+                {% if (o.isEdit) { %}
+                <button type="button" class="btn-popup" id="btnMemberDelete">삭제</button>
+                {% } %}
+                <button type="button" class="btn-popup" id="modal-close-button">닫기</button>
+            </div>
+        </div>
+    </script>
+
+    <!-- 사번찾기 팝업 템플릿 -->
+    <script type="text/x-tmpl" id="getPersonTemplate">
+        <div class="content_wrap popup">
+            <div class="table-wrap">
+                <table class="write-table">
+                    <tbody>
+                        <tr>
+                            <th style="text-align:center;"><label for="searchCode">사번</label></th>
+                            <td><input id="searchCode" type="text" style="width:180px;"/></td>
+                            <th style="text-align:center;"><label for="searchName">사원명</label></th>
+                            <td><input id="searchName" type="text" style="width:180px;"/></td>
+                            <td colspan="2" style="text-align:center;">
+                                <button type="button" class="btn-default" id="btnSubjectSearch"><i class="fas fa-search"></i> 검색</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="grid_box" style="margin-top:10px;">
+                    <div id="person-grid" style="height:300px; max-height:300px;"></div>
+                </div>
+            </div>
+            <div class="popup-button">
+                <button type="button" class="btn-popup" id="btnAccountSave"><span>선택</span></button>
+                <button type="button" class="btn-popup" id="modal-close-button"><span>닫기</span></button>
+            </div>
+        </div>
+    </script>
 
 </th:block>
 <th:block layout:fragment="scripts">
@@ -144,6 +239,14 @@
                                     : '';
                                 e.cell.style.textAlign = 'center';
                             }
+                            // 승인상태: fixflag === '1' 이면 체크 표시
+                            if (col.header === '승인상태') {
+                                let value = sender.getCellData(e.row, e.col, false);
+                                e.cell.innerHTML = value === '1'
+                                    ? '<span style="color: green;">✔</span>'
+                                    : '';
+                                e.cell.style.textAlign = 'center';
+                            }
                         }
                         // 기간 소수점1자리까지만
                         if (e.panel.cellType === wijmo.grid.CellType.Cell) {
@@ -168,7 +271,10 @@
                         {binding: 'daynum', header: '기간', width: 100, align: 'center'},
                         {binding: 'yearflag', header: '연차', width: 100, align: 'center'},
                         {binding: 'remark', header: '사유', width: '*', align: 'left'},
-                        {binding: 'appgubunnm', header: '결재상태', width: 100, align: 'left'},
+                        // {binding: 'appgubunnm', header: '결재상태', width: 100, align: 'left'},
+                        {binding: 'fixflag', header: '승인상태', width: 100, align: 'center'},
+                        {binding: 'appernm', header: '승인자', width: 120, align: 'center'},
+                        {binding: 'appdate', header: '승인일자', width: 120, align: 'center'},
                     ],
                     itemsSource: this.viewData, // 데이터를 설정할 배열
                 });
@@ -195,6 +301,15 @@
 
                 new FlexGridContextMenu(this.grid);
                 this.grid.downloadFileName = '사원별휴가현황';
+
+                // 더블클릭 시 수정 팝업
+                this.grid.hostElement.addEventListener('dblclick', (e) => {
+                    const ht = this.grid.hitTest(e);
+                    if (ht.cellType !== wijmo.grid.CellType.Cell) return;
+                    const rowData = this.grid.rows[ht.row].dataItem;
+                    if (!rowData || !rowData.id) return;
+                    openMemberModal(rowData);
+                });
 
             }
 
@@ -308,6 +423,211 @@
 
         let page = null;
 
+        // ── 팝업 관련 함수 ──────────────────────────────────────
+        let _memberPopContainer = null;
+        let _memberRowId = null;
+
+        function openMemberModal(rowData) {
+            _memberRowId = rowData ? rowData.id : null;
+            const isEdit = !!rowData;
+
+            const o = {
+                isEdit  : isEdit,
+                perid   : rowData ? (rowData.personid || '') : '',
+                pernm   : rowData ? (rowData.first_name || '') : '',
+                frdate  : rowData ? formatDate8ToInput(rowData.frdate) : '',
+                todate  : rowData ? formatDate8ToInput(rowData.todate) : '',
+                sttime  : rowData ? formatTime5ToInput(rowData.sttime) : '',
+                edtime  : rowData ? formatTime5ToInput(rowData.edtime) : '',
+                daynum  : rowData ? (rowData.daynum || '') : '',
+                remark  : rowData ? (rowData.remark || '') : '',
+                yearflag: rowData ? (rowData.yearflag || '0') : '0',
+            };
+
+            let content = tmpl('memberFormTemplate', o);
+            let $content = $(content);
+
+            _memberPopContainer = new PopupDraggable(isEdit ? '휴가 수정' : '휴가 등록');
+            _memberPopContainer.open({ width: 780, height: 380, $content });
+
+            // workcd 셀렉트 초기화 후 값 설정
+            AjaxUtil.fillSelectOptions($content.find('#modalWorkcd'), 'workcd', 'choose', false, 'work_division', '');
+            if (rowData && rowData.workcd) {
+                $content.find('#modalWorkcd').val(rowData.workcd);
+            }
+
+            // 저장 버튼
+            $content.find('#btnMemberSave').click(function() {
+                saveMemberModal($content);
+            });
+
+            // 삭제 버튼 (수정 모드만 존재)
+            $content.find('#btnMemberDelete').click(function() {
+                deleteMemberModal();
+            });
+        }
+
+        function openPersonPopupInModal() {
+            let selectedItem = null;
+            let theGrid4;
+            let viewdata4;
+
+            let content = tmpl('getPersonTemplate', {});
+            let $content = $(content);
+
+            let popContainer = new PopupDraggable('사번찾기');
+            popContainer.open({ width: 800, height: 500, $content });
+
+            let $searchName = $content.find('#searchName');
+            let $searchCode = $content.find('#searchCode');
+            let $btnSearch  = $content.find('#btnSubjectSearch');
+
+            function fetchPersonList() {
+                $.ajax({
+                    url: withCtx('/api/system/user/getPerson'),
+                    type: 'GET',
+                    data: {
+                        searchCode: $searchCode.val(),
+                        searchName: $searchName.val(),
+                        spjangcd: sessionStorage.getItem('spjangcd'),
+                    },
+                    async: false,
+                    success: function(res) {
+                        let data2 = res.data || [];
+                        viewdata4 = new wijmo.collections.CollectionView(data2);
+                        if (theGrid4) theGrid4.itemsSource = viewdata4;
+                    }
+                });
+            }
+
+            theGrid4 = new wijmo.grid.FlexGrid('#person-grid', {
+                autoGenerateColumns: false,
+                showMarquee: true,
+                isReadOnly: true,
+                columns: [
+                    { binding: 'code',      header: '사번',   width: 120, align: 'center' },
+                    { binding: 'name',      header: '이름',   width: 150, align: 'center' },
+                    { binding: 'dept_name', header: '부서',   width: 150, align: 'center' },
+                    { binding: 'handphone', header: '전화번호', width: 150, align: 'center' },
+                    { binding: '', header: '', width: '*' },
+                ],
+                itemsSource: null
+            });
+            theGrid4.rowHeaders.columns.splice(0, 1);
+            fetchPersonList();
+
+            $btnSearch.click(() => fetchPersonList());
+            $searchCode.add($searchName).on('keydown', function(e) {
+                if (e.keyCode === 13) fetchPersonList();
+            });
+
+            theGrid4.selectionChanged.addHandler((s) => {
+                selectedItem = s.collectionView.currentItem;
+            });
+
+            function applySelection(item) {
+                // 현재 열려있는 memberFormTemplate 팝업의 필드에 바인딩
+                $('#modalPerid').val((item.code || '').replace(/^p/, ''));
+                $('#modalPernm').val(item.name || '');
+                popContainer.close();
+            }
+
+            $content.find('#btnAccountSave').click(() => {
+                if (selectedItem) applySelection(selectedItem);
+                else Alert.alert('', '사번을 선택해주세요.');
+            });
+
+            theGrid4.hostElement.addEventListener('dblclick', function(e) {
+                let items = theGrid4.selectedItems;
+                if (items.length === 0) return;
+                applySelection(items[0]);
+            });
+        }
+
+        function onModalWorkcdChange() {
+            let workcd = $('#modalWorkcd').val();
+            $.ajax({
+                url: withCtx('/api/attendance_submit/bindPeriod'),
+                type: 'GET',
+                data: { attKind: workcd },
+                success: function(res) {
+                    if (res && res.data) {
+                        $('#modalYearflag').prop('checked', res.data.yearflag === '1');
+                    }
+                }
+            });
+        }
+
+        function calcModalDaynum() {
+            const fr = $('#modalFrdate').val();
+            const to = $('#modalTodate').val();
+            if (fr && to) {
+                const diff = (new Date(to) - new Date(fr)) / (1000 * 60 * 60 * 24);
+                $('#modalDaynum').val(diff === 0 ? '1.00' : (diff > 0 ? (diff + 1).toFixed(2) : '0.00'));
+            }
+        }
+
+        function saveMemberModal($content) {
+            const perid   = $('#modalPerid').val();
+            const workcd  = $('#modalWorkcd').val();
+            const frdate  = $('#modalFrdate').val();
+            const todate  = $('#modalTodate').val();
+            const sttime  = $('#modalSttime').val();
+            const edtime  = $('#modalEdtime').val();
+            const daynum  = $('#modalDaynum').val();
+            const remark  = $('#modalRemark').val();
+            const yearflag = $('#modalYearflag').is(':checked') ? '1' : '0';
+
+            if (!perid)  { Alert.alert('', '사원을 선택해주세요.'); return; }
+            if (!workcd) { Alert.alert('', '휴가항목을 선택해주세요.'); return; }
+            if (!frdate) { Alert.alert('', '시작일을 입력해주세요.'); return; }
+            if (!todate) { Alert.alert('', '종료일을 입력해주세요.'); return; }
+
+            const isEdit = _memberRowId !== null;
+            const url    = isEdit ? withCtx('/api/clock/member/update') : withCtx('/api/clock/member/insert');
+            const data   = {
+                id: _memberRowId, perid, workcd, frdate, todate,
+                sttime, edtime, daynum, remark, yearflag,
+                spjangcd: sessionStorage.getItem('spjangcd')
+            };
+
+            AjaxUtil.postJsonData(url, data, function(res) {
+                if (res.success) {
+                    Alert.alert('', res.message);
+                    if (_memberPopContainer) _memberPopContainer.close();
+                    page.searchMainData();
+                } else {
+                    Alert.alert('', res.message);
+                }
+            });
+        }
+
+        function deleteMemberModal() {
+            if (!_memberRowId) return;
+            Alert.confirm('', '삭제하시겠습니까?', function() {
+                AjaxUtil.postJsonData(withCtx('/api/clock/member/delete'), { id: _memberRowId }, function(res) {
+                    if (res.success) {
+                        Alert.alert('', res.message);
+                        if (_memberPopContainer) _memberPopContainer.close();
+                        page.searchMainData();
+                    } else {
+                        Alert.alert('', res.message);
+                    }
+                });
+            }, function() {});
+        }
+
+        // yyyyMMdd → yyyy-MM-dd
+        function formatDate8ToInput(val) {
+            if (!val || val.length !== 8) return '';
+            return `${val.substring(0,4)}-${val.substring(4,6)}-${val.substring(6,8)}`;
+        }
+        // HHmm → HH:mm
+        function formatTime5ToInput(val) {
+            if (!val || val.length < 4) return '';
+            return `${val.substring(0,2)}:${val.substring(2,4)}`;
+        }
+
         $(document).ready(function (e) {
             //yullinAuth.inspection();
             yullinAuth.removeWriteButton();
@@ -325,6 +645,10 @@
 
             $('#btnSearch').click(function (ex) {
                 page.searchMainData();
+            });
+
+            $('#btnInsert').click(function () {
+                openMemberModal(null);
             });
 
             $('#btnSave').click(function (e) {

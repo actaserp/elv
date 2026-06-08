@@ -53,7 +53,10 @@ public class ClockMemberService {
                 p.[Name] as first_name,
                 s.[Value] as jik_id,
                 pz.RSPNM,
-                sc.[Value] as appgubunnm
+                sc.[Value] as appgubunnm,
+                t.appperid as appperid,
+                app_p.[Name] as appernm,
+                t.appdate  as appdate
             from tb_pb204 t
               LEFT JOIN person p ON p.id = t.perid
               LEFT JOIN (
@@ -72,6 +75,8 @@ public class ClockMemberService {
                LEFT JOIN tb_ja001 j  ON j.perid = CONCAT('p', u.perid)
                LEFT JOIN tb_jc002 jc ON j.divicd = jc.divicd
                LEFT JOIN tb_pz001 pz  ON j.rspcd = pz.RSPCD
+               LEFT JOIN auth_user app_au ON app_au.username = t.appuserid
+               LEFT JOIN person app_p    ON app_p.id = app_au.personid
             WHERE t.reqdate between :start_date and :end_date
             AND t.spjangcd = :spjangcd
             AND (:person_name = '' OR CAST(t.perid AS VARCHAR(50)) = :person_name)
@@ -85,7 +90,7 @@ public class ClockMemberService {
     // 휴가 승인 저장 (TB_PB204 fixflag=1 + TB_PB201 upsert)
     // =========================================================
     @Transactional
-    public void saveMember(Map<String, Object> item, String spjangcd) {
+    public void saveMember(Map<String, Object> item, String spjangcd, String appperid, String appuserid) {
         int id = ((Number) item.get("id")).intValue();
 
         // TB_PB204 조회
@@ -103,8 +108,18 @@ public class ClockMemberService {
         String workcd    = String.valueOf(pb204.get("workcd"));
         String perid     = String.valueOf(pb204.get("perid"));
 
-        // TB_PB204 fixflag = '1' 업데이트
-        jdbcTemplate.update("UPDATE tb_pb204 SET fixflag = '1' WHERE id = ?", id);
+        // 오늘 날짜 yyyyMMdd
+        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+
+        // TB_PB204 fixflag = '1' + 승인자 정보 업데이트
+        jdbcTemplate.update("""
+                UPDATE tb_pb204
+                SET fixflag   = '1',
+                    appdate   = ?,
+                    appperid  = ?,
+                    appuserid = ?
+                WHERE id = ?
+                """, today, appperid, appuserid, id);
 
         // 날짜 범위만큼 TB_PB201 upsert
         LocalDate frdate = LocalDate.parse(frdateStr, DateTimeFormatter.ofPattern("yyyyMMdd"));
@@ -139,10 +154,70 @@ public class ClockMemberService {
     }
 
     // =========================================================
+    // 휴가 임의 등록 (INSERT)
+    // =========================================================
+    @Transactional
+    public void insertMember(Map<String, Object> item, String spjangcd) {
+        String perid     = String.valueOf(item.get("perid"));
+        String workcd    = String.valueOf(item.get("workcd"));
+        String frdate    = String.valueOf(item.get("frdate")).replace("-", "");
+        String todate    = String.valueOf(item.get("todate")).replace("-", "");
+        String sttime    = item.get("sttime") != null ? String.valueOf(item.get("sttime")).replace(":", "") : "";
+        String edtime    = item.get("edtime") != null ? String.valueOf(item.get("edtime")).replace(":", "") : "";
+        String daynum    = String.valueOf(item.get("daynum"));
+        String remark    = item.get("remark") != null ? String.valueOf(item.get("remark")) : "";
+        String yearflag  = item.get("yearflag") != null ? String.valueOf(item.get("yearflag")) : "0";
+        String reqdate   = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+
+        jdbcTemplate.update("""
+                INSERT INTO tb_pb204
+                    (spjangcd, reqdate, perid, frdate, todate, sttime, edtime, daynum, workcd, remark, yearflag, fixflag)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0')
+                """, spjangcd, reqdate, perid, frdate, todate, sttime, edtime, daynum, workcd, remark, yearflag);
+    }
+
+    // =========================================================
+    // 휴가 수정 (UPDATE)
+    // =========================================================
+    @Transactional
+    public void updateMember(Map<String, Object> item) {
+        int id       = ((Number) item.get("id")).intValue();
+        String workcd   = String.valueOf(item.get("workcd"));
+        String frdate   = String.valueOf(item.get("frdate")).replace("-", "");
+        String todate   = String.valueOf(item.get("todate")).replace("-", "");
+        String sttime   = item.get("sttime") != null ? String.valueOf(item.get("sttime")).replace(":", "") : "";
+        String edtime   = item.get("edtime") != null ? String.valueOf(item.get("edtime")).replace(":", "") : "";
+        String daynum   = String.valueOf(item.get("daynum"));
+        String remark   = item.get("remark") != null ? String.valueOf(item.get("remark")) : "";
+        String yearflag = item.get("yearflag") != null ? String.valueOf(item.get("yearflag")) : "0";
+
+        jdbcTemplate.update("""
+                UPDATE tb_pb204
+                SET workcd   = ?,
+                    frdate   = ?,
+                    todate   = ?,
+                    sttime   = ?,
+                    edtime   = ?,
+                    daynum   = ?,
+                    remark   = ?,
+                    yearflag = ?
+                WHERE id = ?
+                """, workcd, frdate, todate, sttime, edtime, daynum, remark, yearflag, id);
+    }
+
+    // =========================================================
+    // 휴가 삭제 (DELETE)
+    // =========================================================
+    @Transactional
+    public void deleteMember(int id) {
+        jdbcTemplate.update("DELETE FROM tb_pb204 WHERE id = ?", id);
+    }
+
+    // =========================================================
     // 휴가 승인 취소 (TB_PB204 fixflag=0)
     // =========================================================
     @Transactional
     public void cancelMember(int id) {
-        jdbcTemplate.update("UPDATE tb_pb204 SET fixflag = '0' WHERE id = ?", id);
+        jdbcTemplate.update("UPDATE tb_pb204 SET fixflag = '0', appdate = NULL, appperid = NULL, appuserid = NULL WHERE id = ?", id);
     }
 }

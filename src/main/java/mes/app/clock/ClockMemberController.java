@@ -66,9 +66,14 @@ public class ClockMemberController {
             return result;
         }
 
+        // 로그인 사용자 정보 추출
+        User user = (User) auth.getPrincipal();
+        String appuserid = user.getUsername();                          // 로그인 ID
+        String appperid  = appuserid.replaceFirst("^p", "");           // p 제거한 perid
+
         try {
             for (Map<String, Object> item : dataList) {
-                clockMemberService.saveMember(item, spjangcd);
+                clockMemberService.saveMember(item, spjangcd, appperid, appuserid);
             }
             result.success = true;
         } catch (Exception e) {
@@ -76,6 +81,68 @@ public class ClockMemberController {
             result.message = "저장 중 오류가 발생했습니다: " + e.getMessage();
         }
 
+        return result;
+    }
+
+    // =========================================================
+    // 휴가 임의 등록
+    // =========================================================
+    @PostMapping("/insert")
+    public AjaxResult insertMember(
+            @RequestBody Map<String, Object> requestData,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            String spjangcd = (String) requestData.get("spjangcd");
+            clockMemberService.insertMember(requestData, spjangcd);
+            result.success = true;
+            result.message = "등록되었습니다.";
+        } catch (Exception e) {
+            result.success = false;
+            result.message = "등록 중 오류가 발생했습니다: " + e.getMessage();
+        }
+        return result;
+    }
+
+    // =========================================================
+    // 휴가 수정
+    // =========================================================
+    @PostMapping("/update")
+    public AjaxResult updateMember(
+            @RequestBody Map<String, Object> requestData,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            clockMemberService.updateMember(requestData);
+            result.success = true;
+            result.message = "수정되었습니다.";
+        } catch (Exception e) {
+            result.success = false;
+            result.message = "수정 중 오류가 발생했습니다: " + e.getMessage();
+        }
+        return result;
+    }
+
+    // =========================================================
+    // 휴가 삭제
+    // =========================================================
+    @PostMapping("/delete")
+    public AjaxResult deleteMember(
+            @RequestBody Map<String, Object> requestData,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            int id = ((Number) requestData.get("id")).intValue();
+            clockMemberService.deleteMember(id);
+            result.success = true;
+            result.message = "삭제되었습니다.";
+        } catch (Exception e) {
+            result.success = false;
+            result.message = "삭제 중 오류가 발생했습니다: " + e.getMessage();
+        }
         return result;
     }
 

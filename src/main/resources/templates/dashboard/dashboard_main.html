@@ -50,7 +50,10 @@
         text-align: center !important;
     }
 
-
+    /* FullCalendar 요일 헤더 너비 고정 */
+    #calendar .fc-theme-standard th {
+        width: calc(100% / 7) !important;
+    }
 
 </style>
 <th:block layout:fragment="content">
