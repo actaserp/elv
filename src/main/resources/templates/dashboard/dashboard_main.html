@@ -50,25 +50,7 @@
         text-align: center !important;
     }
 
-    /* 🩵 FullCalendar 헤더(요일)과 날짜칸 가로폭 완전 동기화 */
-    #calendar,
-    .calendar-wrap {
-        width: 100% !important;
-        display: block !important;
-    }
 
-    .fc {
-        width: 100% !important;
-    }
-
-    #calendar,
-    .calendar-wrap {
-        width: 100%;
-    }
-
-    .fc {
-        width: 100%;
-    }
 
 </style>
 <th:block layout:fragment="content">
@@ -664,6 +646,9 @@
         const DEFAULT_LNG = 126.8272;
         const DEFAULT_LEVEL = 7;
 
+        // 그리드 날짜 필터 전역 변수 (캘린더 날짜 클릭 시 업데이트)
+        let _gridStartDate = '';
+        let _gridEndDate   = '';
 
         // 공지사항 localStorage key (popup 표출확인 용도)
         const LAST_READ_NOTICE_KEY = 'lastReadNoticeId';
@@ -688,7 +673,7 @@
             // 진행구분 셀렉트 박스 초기화
             AjaxUtil.fillSelectOptions($('#searchstate'), 'system_code', 'all', '', 'recyn');
 
-            initCalendar(); // 근태현황 캘린더
+            setTimeout(() => initCalendar(), 300); // 근태현황 캘린더
             applySavedSettings(); // 페이지 로드 시 설정 적용
             fetchListData(); // 월별 근태현황 그리드 조회
             initDatas(); // 월별근태현황 카드
@@ -794,14 +779,16 @@
             const searchTypeValue = $(this).data('search-type');
             fetchListData(searchTypeValue);  // 해당 값을 fetchListData 함수로 전달
         });
-        function fetchListData(searchTypeValue) {
-            let data2 = []; // 데이터를 담을 배열
+        function fetchListData(searchTypeValue, startDate, endDate) {
+            let data2 = [];
             let emptyRowsCount = 8;
             $.ajax({
                 url: withCtx('/api/dash_summary/readCalenderGrid'),
                 type: 'GET',
                 data: {
-                    'search_type': searchTypeValue
+                    'search_type': searchTypeValue,
+                    'startDate'  : startDate || '',
+                    'endDate'    : endDate   || '',
                 },
                 async: false,
                 success: function (response) {
@@ -867,6 +854,10 @@
         function initCalendar() {
             var calendarEl = document.getElementById('calendar');
             if (calendarEl) {
+                // 부모 창 resize 감지 시 캘린더 크기 재조정
+                window.parent.addEventListener('resize', function() {
+                    if (calendar) calendar.updateSize();
+                });
                 // FullCalendar 설정
                 calendar = new FullCalendar.Calendar(calendarEl, {
                     locale: 'ko',
@@ -877,6 +868,7 @@
                     },
                     initialView: 'dayGridMonth',
                     height: 700,
+                    expandRows: true,
                     dayHeaderFormat: { weekday: 'short' },
                     views: {
                         dayGridMonth: {
@@ -885,20 +877,10 @@
                             }
                         }
                     },
-                    dateClick:function(info){
-
-                        loadDailyGps(info.dateStr);   // ⭐ 추가
-
-                        document.getElementById("startDate2").value =
-                            info.dateStr;
-
-                        document.getElementById("endDate2").value =
-                            info.dateStr;
-
-                        fetchListData();
-
+                    dateClick: function(info) {
+                        loadDailyGps(info.dateStr);
+                        fetchListData(null, info.dateStr, info.dateStr);
                         initDatas();
-
                     },
                     events: [] // 기본 이벤트는 빈 배열로 설정
                 });
@@ -924,42 +906,32 @@
                 // 주문현황 데이터 가져오기
                 // 연차 정보 데이터 가져와서 날짜별 그룹화 후 캘린더에 추가(캘린더에 바인드)
                 fetchOrderDates().then(orderDates => {
-                    // 1️⃣ 날짜별 그룹화 ( { "YYYY-MM-DD": { "연차": 08, "반차": 04, "유연근무": 13} } 형태로 저장 )
+                    // 날짜별 worknm 기준 그룹화
                     let groupedEvents = {};
 
                     orderDates.forEach(order => {
-                        let date = order.date;  // 시작 날짜
-                        let name = order.name;  // 근태 상태 (연차, 반차 등)
+                        let date   = order.date;
+                        let worknm = order.worknm || '기타';
 
-                        // 해당 날짜가 이미 존재하는지 확인
                         if (!groupedEvents[date]) {
                             groupedEvents[date] = {};
                         }
-
-                        // 해당 상태가 이미 존재하면 count 증가
-                        if (groupedEvents[date][name]) {
-                            groupedEvents[date][name]++;
-                        } else {
-                            groupedEvents[date][name] = 1;
-                        }
+                        groupedEvents[date][worknm] = (groupedEvents[date][worknm] || 0) + 1;
                     });
 
-                    console.log("📢 날짜별 그룹화된 데이터:", groupedEvents);
-
-                    // 2️⃣ FullCalendar 이벤트 추가 (중복 제거 후 개수 표시)
+                    // FullCalendar 이벤트 추가 — "연차(3)", "반차(1)" 형태
                     Object.keys(groupedEvents).forEach(date => {
-                        Object.keys(groupedEvents[date]).forEach(name => {
-                            let count = groupedEvents[date][name]; // 주문 개수
-                            let displayTitle = count > 1 ? `${name} (${count})` : name; // 개수 표시
-
-                            let eventColor = getEventColor(name); // 색상 가져오기
+                        Object.keys(groupedEvents[date]).forEach(worknm => {
+                            let count        = groupedEvents[date][worknm];
+                            let displayTitle = `${worknm}(${count})`;
+                            let eventColor   = getEventColor(worknm);
 
                             calendar.addEvent({
-                                title: displayTitle,
-                                start: date,
+                                title          : displayTitle,
+                                start          : date,
                                 backgroundColor: eventColor.bg,
-                                borderColor: eventColor.border,
-                                textColor: eventColor.text
+                                borderColor    : eventColor.border,
+                                textColor      : eventColor.text
                             });
                         });
                     });
@@ -967,8 +939,6 @@
                     setTimeout(() => {
                         calendar.render();
                         calendar.updateSize();
-
-
                     }, 400);
                 }).catch(error => {
                     console.error("❌ 주문현황 데이터를 가져오는 데 실패했습니다:", error);
@@ -1020,12 +990,11 @@
                 let end = new Date(item.todate);
 
                 while (start <= end) {
-                    let dateStr = start.toISOString().split('T')[0]; // YYYY-MM-DD 형식
+                    let dateStr = start.toISOString().split('T')[0];
                     orderDates.push({
-                        name: item.Name,
+                        worknm: item.worknm,   // worknm 기준으로 변경
                         date: dateStr
                     });
-                    // 다음 날짜로 이동
                     start.setDate(start.getDate() + 1);
                 }
             });

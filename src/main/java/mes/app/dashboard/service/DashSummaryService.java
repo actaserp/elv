@@ -329,11 +329,20 @@ public class DashSummaryService {
     }
 
     // 근태현황 그리드
-    public List<Map<String, Object>> getOrderList(String spjangcd, String searchType) {
+    public List<Map<String, Object>> getOrderList(String spjangcd, String searchType, String startDate, String endDate) {
 
         MapSqlParameterSource paramMap = new MapSqlParameterSource();
-
         paramMap.addValue("spjangcd", spjangcd);
+
+        // YYYY-MM-DD → YYYYMMDD 변환
+        if (startDate != null && startDate.contains("-")) startDate = startDate.replace("-", "");
+        if (endDate   != null && endDate.contains("-"))   endDate   = endDate.replace("-", "");
+
+        boolean hasStart = startDate != null && !startDate.isEmpty();
+        boolean hasEnd   = endDate   != null && !endDate.isEmpty();
+
+        if (hasStart) paramMap.addValue("startDate", startDate);
+        if (hasEnd)   paramMap.addValue("endDate",   endDate);
 
         StringBuilder sql = new StringBuilder("""
         SELECT
@@ -355,50 +364,47 @@ public class DashSummaryService {
             s.[Value] as jik_id,
             sc.[Value] as appgubunnm
         FROM tb_pb204 t
-            LEFT JOIN person p 
-                ON p.id = t.perid
-
+            LEFT JOIN person p
+                ON p.id = TRY_CAST(t.perid AS INT)
             LEFT JOIN (
                 SELECT [Code], [Value]
                 FROM sys_code
                 WHERE [CodeType] = 'jik_type'
             ) s ON s.[Code] = p.jik_id
-
             LEFT JOIN (
                 SELECT [Code], [Value]
                 FROM sys_code
                 WHERE [CodeType] = 'approval_status'
             ) sc ON sc.[Code] = t.appgubun
-
-            LEFT JOIN tb_pb210 tb210 
+            LEFT JOIN tb_pb210 tb210
                 ON tb210.workcd = t.workcd
-
-        WHERE
-            t.spjangcd = :spjangcd
-
-            AND CONVERT(date, t.frdate, 112) BETWEEN
-                DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
-                AND EOMONTH(GETDATE())
+        WHERE t.spjangcd = :spjangcd
     """);
 
-        // 진행구분 필터
-        if (searchType != null && !searchType.isEmpty()) {
-
-            paramMap.addValue("searchType", searchType);
-
-            sql.append("""
-            AND t.workcd = :searchType
-        """);
+        if (hasStart && hasEnd && startDate.equals(endDate)) {
+            // 날짜 클릭 시 — 해당 날짜가 frdate~todate 범위 안에 포함되는 데이터 조회
+            sql.append(" AND :startDate BETWEEN t.frdate AND t.todate ");
+        } else {
+            if (hasStart) {
+                sql.append(" AND t.frdate >= :startDate ");
+            } else {
+                sql.append(" AND CONVERT(date, t.frdate, 112) >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) ");
+            }
+            if (hasEnd) {
+                sql.append(" AND t.frdate <= :endDate ");
+            } else {
+                sql.append(" AND CONVERT(date, t.frdate, 112) <= EOMONTH(GETDATE()) ");
+            }
         }
 
-        sql.append("""
-        ORDER BY t.reqdate
-    """);
+        if (searchType != null && !searchType.isEmpty()) {
+            paramMap.addValue("searchType", searchType);
+            sql.append(" AND t.workcd = :searchType ");
+        }
 
-        List<Map<String, Object>> items =
-                this.sqlRunner.getRows(sql.toString(), paramMap);
+        sql.append(" ORDER BY t.reqdate ");
 
-        return items;
+        return this.sqlRunner.getRows(sql.toString(), paramMap);
     }
 
     public List<Map<String, Object>> initDatas(String searchSpjangcd) {

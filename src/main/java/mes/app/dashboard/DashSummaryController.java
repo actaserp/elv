@@ -187,13 +187,13 @@ public class DashSummaryController {
     // 근태현황 조회 메서드
     @GetMapping("/readCalenderGrid")
     public AjaxResult getList(@RequestParam(value = "search_type", required = false) String searchType,
+                              @RequestParam(value = "startDate",   required = false) String startDate,
+                              @RequestParam(value = "endDate",     required = false) String endDate,
                               Authentication auth) {
         User user = (User) auth.getPrincipal();
-        String username = user.getUsername();  // 유저 사업자번호(id)
-        // Map<String, Object> userInfo = dashSummaryService.getUserInfo(username);
-        String searchSpjangcd = TenantContext.get(); // spjangcd
+        String searchSpjangcd = TenantContext.get();
         List<Map<String, Object>> items = this.dashSummaryService.getOrderList(
-                searchSpjangcd, searchType);
+                searchSpjangcd, searchType, startDate, endDate);
         for (Map<String, Object> item : items) {
             // 날짜 형식 변환 (frdate)
             if (item.containsKey("frdate")) {
