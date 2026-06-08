@@ -584,7 +584,7 @@
             if (!todate) { Alert.alert('', '종료일을 입력해주세요.'); return; }
 
             const isEdit = _memberRowId !== null;
-            const url    = isEdit ? withCtx('/api/clock/member/update') : withCtx('/api/clock/member/insert');
+            const url    = isEdit ? '/api/clock/member/update' : '/api/clock/member/insert';
             const data   = {
                 id: _memberRowId, perid, workcd, frdate, todate,
                 sttime, edtime, daynum, remark, yearflag,
@@ -605,7 +605,7 @@
         function deleteMemberModal() {
             if (!_memberRowId) return;
             Alert.confirm('', '삭제하시겠습니까?', function() {
-                AjaxUtil.postJsonData(withCtx('/api/clock/member/delete'), { id: _memberRowId }, function(res) {
+                AjaxUtil.postJsonData('/api/clock/member/delete', { id: _memberRowId }, function(res) {
                     if (res.success) {
                         Alert.alert('', res.message);
                         if (_memberPopContainer) _memberPopContainer.close();
