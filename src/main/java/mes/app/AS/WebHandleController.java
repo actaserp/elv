@@ -38,6 +38,18 @@ public class WebHandleController {
         return result;
     }
 
+    // ── 고장처리 단건 조회 (접수건 클릭 시) ──────────────────
+    @GetMapping("/comp_by_receive")
+    public AjaxResult getCompByReceive(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "recedate") String recedate,
+            @RequestParam(value = "recenum")  String recenum,
+            HttpServletRequest request) {
+        AjaxResult result = new AjaxResult();
+        result.data = webHandleService.getCompByReceive(spjangcd, recedate, recenum);
+        return result;
+    }
+
     // ── 고장처리 목록 조회 API ────────────────────────────────
     @GetMapping("/comp_list")
     public AjaxResult getCompList(

@@ -15,7 +15,8 @@ public class WebCompanyService {
     SqlRunner sqlRunner;
 
     // ── 현장 목록 조회 (TB_E601) ──────────────────────────────
-    public List<Map<String, Object>> getSiteList(String spjangcd, String keyword, String actgubun) {
+    public List<Map<String, Object>> getSiteList(
+            String spjangcd, String keyword, String equpcd, String tel, String actgubun) {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
 
@@ -56,7 +57,14 @@ public class WebCompanyService {
             sql += " AND e.actnm LIKE :keyword";
             param.addValue("keyword", "%" + keyword.trim() + "%");
         }
-
+        if (equpcd != null && !equpcd.trim().isEmpty()) {
+            sql += " AND EXISTS (SELECT 1 FROM TB_E611 eq WHERE eq.actcd = e.actcd AND eq.spjangcd = e.spjangcd AND eq.equpcd LIKE :equpcd)";
+            param.addValue("equpcd", "%" + equpcd.trim() + "%");
+        }
+        if (tel != null && !tel.trim().isEmpty()) {
+            sql += " AND e.tel LIKE :tel";
+            param.addValue("tel", "%" + tel.trim() + "%");
+        }
         if (actgubun != null && !actgubun.trim().isEmpty()) {
             sql += " AND e.actgubun = :actgubun";
             param.addValue("actgubun", actgubun.trim());
