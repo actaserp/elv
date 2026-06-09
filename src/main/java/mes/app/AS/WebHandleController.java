@@ -114,6 +114,57 @@ public class WebHandleController {
         return result;
     }
 
+    // ── 고장처리결과 수정 (TB_E411 UPDATE) ───────────────────
+    @PostMapping("/update")
+    public AjaxResult update(
+            @RequestParam(value = "spjangcd")                    String spjangcd,
+            @RequestParam(value = "compdate")                    String compdate,
+            @RequestParam(value = "compnum")                     String compnum,
+            @RequestParam(value = "comptime",  required = false) String comptime,
+            @RequestParam(value = "recedate",  required = false) String recedate,
+            @RequestParam(value = "recenum",   required = false) String recenum,
+            @RequestParam(value = "recetime",  required = false) String recetime,
+            @RequestParam(value = "arrivdate", required = false) String arrivdate,
+            @RequestParam(value = "arrivtime", required = false) String arrivtime,
+            @RequestParam(value = "actcd",     required = false) String actcd,
+            @RequestParam(value = "actnm",     required = false) String actnm,
+            @RequestParam(value = "equpcd",    required = false) String equpcd,
+            @RequestParam(value = "equpnm",    required = false) String equpnm,
+            @RequestParam(value = "contremark",required = false) String contremark,
+            @RequestParam(value = "gregicd",   required = false) String gregicd,
+            @RequestParam(value = "regicd",    required = false) String regicd,
+            @RequestParam(value = "remocd",    required = false) String remocd,
+            @RequestParam(value = "faccd",     required = false) String faccd,
+            @RequestParam(value = "remoremark",required = false) String remoremark,
+            @RequestParam(value = "resucd",    required = false) String resucd,
+            @RequestParam(value = "resuremark",required = false) String resuremark,
+            @RequestParam(value = "resultcd",  required = false) String resultcd,
+            @RequestParam(value = "remark",    required = false) String remark,
+            @RequestParam(value = "customer",  required = false) String customer,
+            @RequestParam(value = "perid",     required = false) String perid,
+            HttpServletRequest request, Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            webHandleService.updateComp(
+                    spjangcd, compdate, compnum, comptime,
+                    recedate, recenum, recetime,
+                    arrivdate, arrivtime,
+                    actcd, actnm, equpcd, equpnm,
+                    contremark, gregicd, regicd,
+                    remocd, faccd, remoremark,
+                    resucd, resuremark, resultcd,
+                    remark, customer, perid);
+            result.success = true;
+            result.message = "수정되었습니다.";
+        } catch (Exception e) {
+            log.error("고장처리 수정 오류", e);
+            result.success = false;
+            result.message = "수정 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
+
     // ── 고장처리결과 삭제 (TB_E411 DELETE) ───────────────────
     @PostMapping("/delete")
     public AjaxResult delete(

@@ -131,8 +131,8 @@ public class MobileMainController {
 
         String inFlag         = office.startsWith("inOffice") ? "0" : "1";
         String finalAddress   = "1".equals(inFlag) ? gpsInfo   : null;
-        String finalLatitude  = "1".equals(inFlag) ? latitude  : null;
-        String finalLongitude = "1".equals(inFlag) ? longitude : null;
+        String finalLatitude  = "1".equals(inFlag) && latitude  != null && !latitude.isEmpty()  ? latitude  : null;
+        String finalLongitude = "1".equals(inFlag) && longitude != null && !longitude.isEmpty() ? longitude : null;
 
         try {
             mobileMainService.saveCommute(

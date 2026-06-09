@@ -10,7 +10,7 @@
             align-items: flex-start;
         }
         .handle-left  { flex: 0 0 42%; min-width: 0; }
-        .handle-right { flex: 1; min-width: 0; border-left: 2px solid #4472c4; padding-left: 14px; }
+        .handle-right { flex: 1; min-width: 0; padding-left: 14px; }
 
         /* ── 선택된 접수 정보 배너 ── */
         .selected-banner {
@@ -364,7 +364,7 @@
                 showMarquee: true,
                 isReadOnly: true,
                 columns: [
-                    {binding: 'recedate', header: '접수일자', width:  90, align: 'center'},
+                    {binding: 'recedate', header: '접수일자', width:  92, align: 'center'},
                     {binding: 'actnm',    header: '현장명',   width: 120, align: 'left'},
                     {binding: 'equpnm',   header: '호기명',   width: 100, align: 'left'},
                     {binding: 'contnm',   header: '고장내용', width: 100, align: 'left'},
@@ -390,7 +390,7 @@
             });
             requestGrid.rowHeaders.columns.splice(0, 1);
 
-            // 행 클릭 → 오른쪽 폼 바인딩
+            // 고장접수 행 클릭 → 신규 등록 모드
             requestGrid.selectionChanged.addHandler(function (s, e) {
                 var row = s.selectedRows[0];
                 if (row && row.dataItem) {
@@ -399,8 +399,22 @@
                 }
             });
 
+            // compGrid 초기화
+            initCompGrid();
+
+            // 고장처리 행 클릭 → 수정/삭제 모드
+            compGrid.selectionChanged.addHandler(function (s, e) {
+                var row = s.selectedRows[0];
+                if (row && row.dataItem) {
+                    bindCompToForm(row.dataItem);
+                }
+            });
+
             // 버튼 이벤트
-            $('#btnSearch').click(function () { searchRequestList(); });
+            $('#btnSearch').click(function () {
+                searchRequestList();
+                searchCompList();
+            });
             $('#srchActnm').on('keypress', function (e) {
                 if (e.keyCode === 13) searchRequestList();
             });
@@ -429,7 +443,7 @@
                 showMarquee: true,
                 isReadOnly: true,
                 columns: [
-                    {binding: 'compdate',  header: '완료일자', width:  90, align: 'center'},
+                    {binding: 'compdate',  header: '완료일자', width:  92, align: 'center'},
                     {binding: 'actnm',     header: '현장명',   width: 120, align: 'left'},
                     {binding: 'equpnm',    header: '호기명',   width: 100, align: 'left'},
                     {binding: 'actpernm',  header: '처리자',   width:  80, align: 'center'},
@@ -493,8 +507,51 @@
         }
 
         /* ════════════════════════════════════
-           고장접수 선택 → 폼 바인딩
+           고장처리 선택 → 폼 바인딩 (수정/삭제 모드)
         ════════════════════════════════════ */
+        function bindCompToForm(item) {
+            // hidden 필드 — compdate/compnum 세팅 (수정/삭제 활성화)
+            document.getElementById('hidCompdate').value  = item.compdate || '';
+            document.getElementById('hidCompnum').value   = item.compnum  || '';
+            document.getElementById('hidRecedate').value  = item.recedate || '';
+            document.getElementById('hidRecenum').value   = item.recenum  || '';
+            document.getElementById('hidActcd').value     = item.actcd    || '';
+            document.getElementById('hidEqupcd').value    = item.equpcd   || '';
+            document.getElementById('hidPerid').value     = item.actperid || '';
+
+            // 폼 필드 바인딩
+            document.getElementById('regCompdate').value  = item.compdate ? fmtDateInput(item.compdate) : '';
+            document.getElementById('regComptime').value  = item.comptime ? fmtTime(item.comptime)      : '';
+            document.getElementById('regArrivdate').value = item.arrivdate ? fmtDateInput(item.arrivdate) : '';
+            document.getElementById('regArrivtime').value = item.arrivtime ? fmtTime(item.arrivtime)      : '';
+            document.getElementById('regRecedate2').value = item.recedate ? fmtDateInput(item.recedate)  : '';
+            document.getElementById('regRecetime').value  = item.recetime ? fmtTime(item.recetime)       : '';
+            document.getElementById('regActnm').value     = item.actnm    || '';
+            document.getElementById('regEqupnm').value    = item.equpnm   || '';
+            document.getElementById('regContremark').value = item.contremark || '';
+            document.getElementById('regGregicd').value   = item.gregicd  || '';
+            document.getElementById('regReginm').value    = item.reginm   || '';
+            document.getElementById('regRegicd').value    = item.regicd   || '';
+            document.getElementById('regRemonm').value    = item.remonm   || '';
+            document.getElementById('regRemocd').value    = item.remocd   || '';
+            document.getElementById('regFacnm').value     = item.facnm    || '';
+            document.getElementById('regFaccd').value     = item.faccd    || '';
+            document.getElementById('regRemoremark').value = item.remoremark || '';
+            document.getElementById('regResunm').value    = item.resunm   || '';
+            document.getElementById('regResucd').value    = item.resucd   || '';
+            document.getElementById('regResuremark').value = item.resuremark || '';
+            document.getElementById('regResultnm').value  = item.remark   || '';
+            document.getElementById('regResultcd').value  = item.resultcd || '';
+            document.getElementById('regCustomer').value  = item.customer || '';
+            document.getElementById('regPernm').value     = item.actpernm || '';
+
+            // 배너 표시
+            document.getElementById('bannerActnm').textContent    = item.actnm    || '-';
+            document.getElementById('bannerRecedate').textContent  = fmtDate(item.recedate || '');
+            document.getElementById('bannerEqupnm').textContent   = item.equpnm   || '-';
+            document.getElementById('bannerContents').textContent  = item.customer || '';
+            document.getElementById('selectedBanner').style.display = 'block';
+        }
         function bindRequestToForm(item) {
             // 배너 표시
             document.getElementById('bannerActnm').textContent    = item.actnm    || '-';
@@ -699,18 +756,23 @@
         }
 
         /* ════════════════════════════════════
-           저장
+           저장 (INSERT or UPDATE)
         ════════════════════════════════════ */
         function saveComp() {
-            var compdate = document.getElementById('regCompdate').value;
-            var actcd    = document.getElementById('hidActcd').value;
+            var compdate    = document.getElementById('regCompdate').value;
+            var actcd       = document.getElementById('hidActcd').value;
+            var hidCompdate = document.getElementById('hidCompdate').value;
+            var hidCompnum  = document.getElementById('hidCompnum').value;
+            var isEdit      = hidCompdate !== '' && hidCompnum !== '';
 
             if (!compdate) { Alert.alert('', '완료일자를 입력해주세요.'); return; }
             if (!actcd)    { Alert.alert('', '고장접수를 선택하거나 현장을 선택해주세요.'); return; }
 
+            var url  = isEdit ? '/api/AS/web_handle/update' : '/api/AS/web_handle/save';
             var data = {
                 spjangcd   : _spjangcd,
-                compdate   : compdate.replaceAll('-', ''),
+                compdate   : isEdit ? hidCompdate : compdate.replaceAll('-', ''),
+                compnum    : hidCompnum,
                 comptime   : document.getElementById('regComptime').value.replaceAll(':', ''),
                 recedate   : document.getElementById('regRecedate2').value.replaceAll('-', ''),
                 recenum    : document.getElementById('hidRecenum').value,
@@ -721,23 +783,23 @@
                 actnm      : document.getElementById('regActnm').value,
                 equpcd     : document.getElementById('hidEqupcd').value,
                 equpnm     : document.getElementById('regEqupnm').value,
-                contremark : document.getElementById('regContremark').value,  // 고장부위명
-                gregicd    : document.getElementById('regGregicd').value,      // 고장부위코드
-                regicd     : document.getElementById('regRegicd').value,       // 고장부위상세코드
-                remocd     : document.getElementById('regRemocd').value,       // 고장요인코드
-                faccd      : document.getElementById('regFaccd').value,        // 고장원인코드
-                remoremark : document.getElementById('regRemoremark').value,   // 고장원인상세 직접입력
-                resucd     : document.getElementById('regResucd').value,       // 처리내용코드
-                resuremark : document.getElementById('regResuremark').value,   // 처리상세 직접입력
-                resultcd   : document.getElementById('regResultcd').value,     // 처리결과코드
-                remark     : document.getElementById('regResultnm').value,     // 처리결과명
-                customer   : document.getElementById('regCustomer').value,     // 사후관리사항 직접입력
+                contremark : document.getElementById('regContremark').value,
+                gregicd    : document.getElementById('regGregicd').value,
+                regicd     : document.getElementById('regRegicd').value,
+                remocd     : document.getElementById('regRemocd').value,
+                faccd      : document.getElementById('regFaccd').value,
+                remoremark : document.getElementById('regRemoremark').value,
+                resucd     : document.getElementById('regResucd').value,
+                resuremark : document.getElementById('regResuremark').value,
+                resultcd   : document.getElementById('regResultcd').value,
+                remark     : document.getElementById('regResultnm').value,
+                customer   : document.getElementById('regCustomer').value,
                 perid      : document.getElementById('hidPerid').value,
                 filesvnm   : document.getElementById('regFilesvnm').value,
                 filepath   : document.getElementById('regFilepath').value
             };
 
-            AjaxUtil.postAsyncData('/api/AS/web_handle/save', data, function (result) {
+            AjaxUtil.postAsyncData(url, data, function (result) {
                 if (result && result.success) {
                     Alert.alert('', result.message, function () {
                         searchRequestList();

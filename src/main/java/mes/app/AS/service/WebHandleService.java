@@ -242,6 +242,74 @@ public class WebHandleService {
                 """, detailParam);
     }
 
+    // ── 고장처리결과 수정 (TB_E411 UPDATE) ───────────────────
+    public void updateComp(
+            String spjangcd, String compdate, String compnum, String comptime,
+            String recedate, String recenum, String recetime,
+            String arrivdate, String arrivtime,
+            String actcd, String actnm, String equpcd, String equpnm,
+            String contremark, String gregicd, String regicd,
+            String remocd, String faccd, String remoremark,
+            String resucd, String resuremark, String resultcd,
+            String remark, String customer, String perid) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd",   spjangcd);
+        param.addValue("compdate",   compdate);
+        param.addValue("compnum",    compnum);
+        param.addValue("comptime",   comptime);
+        param.addValue("recedate",   recedate);
+        param.addValue("recenum",    recenum);
+        param.addValue("recetime",   recetime);
+        param.addValue("arrivdate",  arrivdate);
+        param.addValue("arrivtime",  arrivtime);
+        param.addValue("actcd",      actcd);
+        param.addValue("actnm",      actnm);
+        param.addValue("equpcd",     equpcd);
+        param.addValue("equpnm",     equpnm);
+        param.addValue("contremark", contremark);
+        param.addValue("gregicd",    gregicd);
+        param.addValue("regicd",     regicd);
+        param.addValue("remocd",     remocd);
+        param.addValue("faccd",      faccd);
+        param.addValue("remoremark", remoremark);
+        param.addValue("resucd",     resucd);
+        param.addValue("resuremark", resuremark);
+        param.addValue("resultcd",   resultcd);
+        param.addValue("remark",     remark);
+        param.addValue("customer",   customer);
+        param.addValue("actperid",   perid);
+
+        namedParameterJdbcTemplate.update("""
+                UPDATE TB_E411 SET
+                    comptime   = :comptime,
+                    recedate   = :recedate,
+                    recenum    = :recenum,
+                    recetime   = :recetime,
+                    arrivdate  = :arrivdate,
+                    arrivtime  = :arrivtime,
+                    actcd      = :actcd,
+                    actnm      = :actnm,
+                    equpcd     = :equpcd,
+                    equpnm     = :equpnm,
+                    contremark = :contremark,
+                    gregicd    = :gregicd,
+                    regicd     = :regicd,
+                    remocd     = :remocd,
+                    faccd      = :faccd,
+                    remoremark = :remoremark,
+                    resucd     = :resucd,
+                    resuremark = :resuremark,
+                    resultcd   = :resultcd,
+                    remark     = :remark,
+                    customer   = :customer,
+                    actperid   = :actperid
+                WHERE spjangcd = :spjangcd
+                  AND compdate = :compdate
+                  AND compnum  = :compnum
+                """, param);
+    }
+
     // ── 고장처리결과 삭제 (TB_E411 DELETE) ───────────────────
     public void deleteComp(String spjangcd, String compdate, String compnum) {
         MapSqlParameterSource param = new MapSqlParameterSource();

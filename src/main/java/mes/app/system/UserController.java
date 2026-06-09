@@ -389,18 +389,10 @@ public class UserController {
 
 			Integer personid = user.getPersonid();
 
-			// 1. 본사DB user_profile 삭제
-			MapSqlParameterSource profileParam = new MapSqlParameterSource();
-			profileParam.addValue("User_id", id);
-			this.sqlRunner.execute(
-				"DELETE FROM user_profile WHERE \"User_id\" = :User_id",
-				profileParam
-			);
-
-			// 2. 본사DB auth_user 삭제
+			// 1. 본사DB auth_user + user_profile 삭제 (JPA cascade로 user_profile 함께 삭제)
 			this.userRepository.deleteById(id);
 
-			// 3. 사업체DB auth_user 삭제
+			// 2. 사업체DB auth_user 삭제
 			if (personid != null) {
 				MapSqlParameterSource tenantAuthParam = new MapSqlParameterSource();
 				tenantAuthParam.addValue("personid", personid);
@@ -409,7 +401,7 @@ public class UserController {
 					tenantAuthParam
 				);
 
-				// 4. 사업체DB person 삭제
+				// 3. 사업체DB person 삭제
 				MapSqlParameterSource personParam = new MapSqlParameterSource();
 				personParam.addValue("id", personid);
 				this.tenantSqlRunner.execute(
