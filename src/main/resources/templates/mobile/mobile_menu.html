@@ -25,7 +25,8 @@
                     <li data-target="menu1">근무관리</li>
 <!--                    <li data-target="menu2">업무일지</li>-->
 <!--                    <li data-target="menu3">보수관리</li>-->
-                    <li data-target="menu4">계정관리</li>
+                    <li data-target="menu4">근무관리</li>
+                    <li data-target="menu5">계정관리</li>
                 </ul>
                 <div class="dep2">
                     <ul data-menu="menu1">
@@ -42,13 +43,16 @@
                         <li><a th:href="@{/mobile/request/daily_status}" title="업무일지현황" class="menu-link">업무일지현황</a></li>
                     </ul>
                     <ul data-menu="menu3">
-                        <li><a th:href="@{/mobile/request/maintenance_comp}" title="보수업체현황" class="menu-link">보수업체현황</a></li>
+                        <li><a th:href="@{/mobile/request/maintenance_comp}" title="보수업체현황" class="menu-link">보수현장현황</a></li>
                         <li><a th:href="@{/mobile/request/request_repair}" title="고장접수등록" class="menu-link">고장접수등록</a></li>
                         <li><a th:href="@{/mobile/request/request_status}" title="고장접수현황" class="menu-link">고장접수현황</a></li>
                         <li><a th:href="@{/mobile/request/maintenance_repair}" title="고장처리등록" class="menu-link">고장처리등록</a></li>
                         <li><a th:href="@{/mobile/request/maintenance_status}" title="고장처리현황" class="menu-link">고장처리현황</a></li>
                     </ul>
                     <ul data-menu="menu4">
+                        <li><a th:href="@{/mobile/user_manage}" title="사용자관리" class="menu-link">사용자관리</a></li>
+                    </ul>
+                    <ul data-menu="menu5">
                         <li><a th:href="@{/mobile/user_info}" title="사용자정보" class="menu-link">사용자정보</a></li>
                     </ul>
                 </div>

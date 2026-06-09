@@ -10,7 +10,7 @@
             align-items: flex-start;
         }
         .company-left  { flex: 0 0 38%; min-width: 0; }
-        .company-right { flex: 1; min-width: 0; border-left: 2px solid #4472c4; padding-left: 14px; }
+        .company-right { flex: 1; min-width: 0; padding-left: 14px; }
 
         /* ── 섹션 구분 타이틀 ── */
         .sub-section-title {
@@ -61,39 +61,51 @@
             ════════════════════════ -->
             <section class="section company-left">
                 <div class="section-top">
-                    <div class="search-wrap">
-                        <dl>
-                            <dt><label>현장명</label></dt>
-                            <dd>
-                                <div class="srch-box">
+                    <div class="search-wrap" style="flex-direction:column; align-items:flex-start; gap:6px;">
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <dl>
+                                <dt><label>현장명</label></dt>
+                                <dd>
                                     <input type="text" id="srchKeyword" class="form-control2"
-                                           placeholder="현장명" style="width:140px;">
-                                </div>
-                            </dd>
-                        </dl>
-                        <dl>
-                            <dt><label>계약구분</label></dt>
-                            <dd>
-                                <div class="srch-box">
+                                           placeholder="현장명">
+                                </dd>
+                            </dl>
+                            <dl>
+                                <dt><label>승강기번호</label></dt>
+                                <dd>
+                                    <input type="text" id="srchEqupcd" class="form-control2"
+                                           placeholder="승강기번호" style="width:120px;">
+                                </dd>
+                            </dl>
+                            <dl>
+                                <dt><label>계약구분</label></dt>
+                                <dd>
                                     <select id="srchActgubun" class="form-control2" style="width:90px;">
+                                        <option value="">전체</option>
                                         <option value="01">계약중</option>
                                         <option value="02">해지</option>
-                                        <option value="">전체</option>
                                     </select>
-                                </div>
-                            </dd>
-                        </dl>
-                        <dl>
-                            <dt><span class="eq"></span></dt>
-                            <dd>
-                                <li>
+                                </dd>
+                            </dl>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <dl>
+                                <dt><label>전화번호</label></dt>
+                                <dd>
+                                    <input type="text" id="srchTel" class="form-control2"
+                                           placeholder="전화번호">
+                                </dd>
+                            </dl>
+                            <dl>
+                                <dt><span class="eq"></span></dt>
+                                <dd style="margin-left: 230%;">
                                     <a class="btn btn-delete" title="검색" id="btnSearch">
                                         <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
                                         검색
                                     </a>
-                                </li>
-                            </dd>
-                        </dl>
+                                </dd>
+                            </dl>
+                        </div>
                     </div>
                 </div>
                 <div class="container-fluid">
@@ -300,12 +312,15 @@
         ════════════════════════════════════ */
         function searchSiteList() {
             var keyword   = document.getElementById('srchKeyword').value.trim();
+            var equpcd    = document.getElementById('srchEqupcd').value.trim();
+            var tel       = document.getElementById('srchTel').value.trim();
             var actgubun  = document.getElementById('srchActgubun').value;
-            clearDetail();
 
             AjaxUtil.getAsyncData('/api/AS/web_company/list', {
                 spjangcd : _spjangcd,
                 keyword  : keyword,
+                equpcd   : equpcd,
+                tel      : tel,
                 actgubun : actgubun
             }, function (result) {
                 var data = (result && result.data) ? result.data : [];

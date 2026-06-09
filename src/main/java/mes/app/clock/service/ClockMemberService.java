@@ -154,11 +154,22 @@ public class ClockMemberService {
     }
 
     // =========================================================
+    // 휴가 일괄 등록 (Excel Upload)
+    // =========================================================
+    @Transactional
+    public void bulkInsertMember(List<Map<String, Object>> list, String spjangcd) {
+        for (Map<String, Object> item : list) {
+            item.put("spjangcd", spjangcd);
+            insertMember(item, spjangcd);
+        }
+    }
+
+    // =========================================================
     // 휴가 임의 등록 (INSERT)
     // =========================================================
     @Transactional
     public void insertMember(Map<String, Object> item, String spjangcd) {
-        String perid     = String.valueOf(item.get("perid"));
+        String peridRaw  = String.valueOf(item.get("perid")).replace("/^p/", "").trim();
         String workcd    = String.valueOf(item.get("workcd"));
         String frdate    = String.valueOf(item.get("frdate")).replace("-", "");
         String todate    = String.valueOf(item.get("todate")).replace("-", "");
@@ -168,6 +179,19 @@ public class ClockMemberService {
         String remark    = item.get("remark") != null ? String.valueOf(item.get("remark")) : "";
         String yearflag  = item.get("yearflag") != null ? String.valueOf(item.get("yearflag")) : "0";
         String reqdate   = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+
+        // person 테이블에서 id 조회 (Code = 'p' + perid 형태)
+        String personCode = "p" + peridRaw;
+        List<Map<String, Object>> personRows = jdbcTemplate.queryForList(
+                "SELECT id FROM person WHERE Code = ?", personCode);
+
+        String perid;
+        if (!personRows.isEmpty()) {
+            perid = String.valueOf(personRows.get(0).get("id"));
+        } else {
+            // person에 없으면 원본값 그대로 사용
+            perid = peridRaw;
+        }
 
         jdbcTemplate.update("""
                 INSERT INTO tb_pb204

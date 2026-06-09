@@ -798,6 +798,9 @@ public class DashSummaryService {
                 t.latitude,
                 t.longitude,
                 t.address,
+                t.out_latitude,
+                t.out_longitude,
+                t.out_address,
                 t.remark,
                 t.starttime,
                 t.endtime
@@ -811,8 +814,10 @@ public class DashSummaryService {
             WHERE t.spjangcd = :spjangcd
             AND t.workym = :workym
             AND t.workday = :workday
-            AND t.latitude  IS NOT NULL
-            AND t.longitude IS NOT NULL
+            AND (
+                (t.latitude IS NOT NULL AND t.longitude IS NOT NULL)
+                OR (t.out_latitude IS NOT NULL AND t.out_longitude IS NOT NULL)
+            )
         """;
         // username이 있을 때만 param에 추가
         if (username != null) {

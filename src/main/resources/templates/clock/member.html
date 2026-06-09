@@ -75,6 +75,19 @@
                             </a>
                         </li>
                         <li>
+                            <a class="btn btn-excell" title="엑셀양식" id="btnExcelTemplate">
+                                <img th:src="@{/images/icon/ico-edit.svg}" alt="양식 아이콘">
+                                양식다운
+                            </a>
+                        </li>
+                        <li>
+                            <a class="btn btn-excell" title="엑셀업로드" id="btnExcelUpload">
+                                <img th:src="@{/images/icon/ico-edit.svg}" alt="업로드 아이콘">
+                                일괄등록
+                            </a>
+                            <input type="file" id="excelFileInput" style="display:none;" accept=".xlsx,.xls">
+                        </li>
+                        <li>
                             <a class="btn btn-excell" title="저장" id="btnSave">
                                 <img th:src="@{/images/icon/ico-edit.svg}" alt="저장 아이콘">
                                 확인
@@ -102,6 +115,22 @@
     <footer style="margin-top: 24px;">
         <p>Copyrightⓒ 0000 corp. All rights reserved.</p>
     </footer>
+
+    <!-- 엑셀 일괄등록 미리보기 팝업 템플릿 -->
+    <script type="text/x-tmpl" id="excelPreviewTemplate">
+        <div class="content_wrap popup">
+            <div style="padding:10px 0 6px; font-size:13px; color:#666;">
+                총 <strong id="excelPreviewCount">0</strong>건을 등록합니다. 내용을 확인 후 저장하세요.
+            </div>
+            <div class="grid_box">
+                <div id="excelPreviewGrid" style="height:350px;"></div>
+            </div>
+            <div class="popup-button">
+                <button type="button" class="btn-popup" id="btnExcelSave">저장</button>
+                <button type="button" class="btn-popup" id="modal-close-button">닫기</button>
+            </div>
+        </div>
+    </script>
 
     <!-- 휴가 등록/수정 팝업 템플릿 -->
     <script type="text/x-tmpl" id="memberFormTemplate">
@@ -194,6 +223,7 @@
 
 </th:block>
 <th:block layout:fragment="scripts">
+    <script th:src="@{/resource/sheetjs/xlsx.full.min.js}"></script>
     <th:block th:replace="common/columns_setting :: columns_setting"></th:block>
     <script type="text/javascript">
         class MemberPage {
@@ -617,7 +647,119 @@
             }, function() {});
         }
 
-        // yyyyMMdd → yyyy-MM-dd
+        // ── 엑셀 양식 다운로드 ──────────────────────────────────
+        function downloadExcelTemplate() {
+            var wb = XLSX.utils.book_new();
+            var headerRow = [];
+            headerRow.push('\uc0ac\ubc88');
+            headerRow.push('\ud734\uac00\ud56d\ubaa9\ucf54\ub4dc');
+            headerRow.push('\uc2dc\uc791\uc77c');
+            headerRow.push('\uc885\ub8cc\uc77c');
+            headerRow.push('\uc0ac\uc6a9\uc77c\uc218');
+            headerRow.push('\uc5f0\ucc28\uc5ec\ubd80');
+            headerRow.push('\uc0ac\uc720');
+            headerRow.push('');
+            headerRow.push('\ud734\uac00\ud56d\ubaa9 \ucf54\ub4dc \ubaa9\ub85d');
+            var sampleRow = ['3026', '08', '2026-06-10', '2026-06-10', '1', '1', '\uc5f0\ucc28 \uc0ac\uc6a9', '', '04 - \ubc18\ucc28'];
+            var codeRows = [
+                ['', '', '', '', '', '', '', '', '05 - \ubcd1\uac00'],
+                ['', '', '', '', '', '', '', '', '06 - \ud734\uac00'],
+                ['', '', '', '', '', '', '', '', '08 - \uc5f0\ucc28'],
+                ['', '', '', '', '', '', '', '', '09 - \ud6c8\ub828'],
+                ['', '', '', '', '', '', '', '', '10 - \ucd9c\uc7a5'],
+                ['', '', '', '', '', '', '', '', '11 - \uc678\uadfc'],
+                ['', '', '', '', '', '', '', '', '12 - \uc219\uc9c1'],
+            ];
+            var allRows = [headerRow, sampleRow];
+            codeRows.forEach(function(r) { allRows.push(r); });
+            var ws = XLSX.utils.aoa_to_sheet(allRows);
+            ws['!cols'] = [{wch:12},{wch:14},{wch:16},{wch:16},{wch:10},{wch:12},{wch:20},{wch:4},{wch:20}];
+            XLSX.utils.book_append_sheet(wb, ws, '\ud734\uac00\uc77c\uad04\ub4f1\ub85d');
+            XLSX.writeFile(wb, '\ud734\uac00\uc77c\uad04\ub4f1\ub85d_\uc591\uc2dd.xlsx');
+        }
+
+        // ── 엑셀 업로드 → 미리보기 팝업 ───────────────────────
+        let _excelData = [];
+        let _excelPopContainer = null;
+
+        function handleExcelUpload(file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const data  = new Uint8Array(e.target.result);
+                const wb    = XLSX.read(data, { type: 'array' });
+                const ws    = wb.Sheets[wb.SheetNames[0]];
+                const rows  = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+                if (rows.length < 2) {
+                    Alert.alert('', '데이터가 없습니다.');
+                    return;
+                }
+
+                // 헤더 제외, 빈 행 제거
+                _excelData = rows.slice(1)
+                    .filter(r => r[0] !== '')
+                    .map(r => ({
+                        perid   : String(r[0] || '').replace(/^p/, ''),
+                        workcd  : String(r[1] || ''),
+                        frdate  : String(r[2] || ''),
+                        todate  : String(r[3] || ''),
+                        daynum  : String(r[4] || ''),
+                        yearflag: String(r[5] || '0'),
+                        remark  : String(r[6] || ''),
+                        spjangcd: sessionStorage.getItem('spjangcd')
+                    }));
+
+                if (_excelData.length === 0) {
+                    Alert.alert('', '유효한 데이터가 없습니다.');
+                    return;
+                }
+
+                openExcelPreviewPopup();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function openExcelPreviewPopup() {
+            const content  = tmpl('excelPreviewTemplate', {});
+            const $content = $(content);
+
+            _excelPopContainer = new PopupDraggable('엑셀 일괄등록 미리보기');
+            _excelPopContainer.open({ width: 900, height: 520, $content });
+
+            $content.find('#excelPreviewCount').text(_excelData.length);
+
+            const previewGrid = new wijmo.grid.FlexGrid('#excelPreviewGrid', {
+                autoGenerateColumns: false,
+                isReadOnly: true,
+                showMarquee: true,
+                columns: [
+                    { binding: 'perid',    header: '사번',           width:  90, align: 'center' },
+                    { binding: 'workcd',   header: '휴가항목코드',   width: 110, align: 'center' },
+                    { binding: 'frdate',   header: '시작일',         width: 120, align: 'center' },
+                    { binding: 'todate',   header: '종료일',         width: 120, align: 'center' },
+                    { binding: 'daynum',   header: '사용일수',       width:  80, align: 'center' },
+                    { binding: 'yearflag', header: '연차여부',       width:  80, align: 'center' },
+                    { binding: 'remark',   header: '사유',           width: '*',  align: 'left'  },
+                ],
+                itemsSource: new wijmo.collections.CollectionView(_excelData)
+            });
+            previewGrid.rowHeaders.columns.splice(0, 1);
+
+            $content.find('#btnExcelSave').click(function () {
+                AjaxUtil.postJsonData('/api/clock/member/bulk_insert', {
+                    list    : _excelData,
+                    spjangcd: sessionStorage.getItem('spjangcd')
+                }, function (res) {
+                    if (res.success) {
+                        Alert.alert('', res.message);
+                        if (_excelPopContainer) _excelPopContainer.close();
+                        page.searchMainData();
+                    } else {
+                        Alert.alert('', res.message);
+                    }
+                });
+            });
+        }
         function formatDate8ToInput(val) {
             if (!val || val.length !== 8) return '';
             return `${val.substring(0,4)}-${val.substring(4,6)}-${val.substring(6,8)}`;
@@ -649,6 +791,19 @@
 
             $('#btnInsert').click(function () {
                 openMemberModal(null);
+            });
+
+            $('#btnExcelTemplate').click(function () {
+                downloadExcelTemplate();
+            });
+
+            $('#btnExcelUpload').click(function () {
+                $('#excelFileInput').val('').click();
+            });
+
+            $('#excelFileInput').on('change', function () {
+                const file = this.files[0];
+                if (file) handleExcelUpload(file);
             });
 
             $('#btnSave').click(function (e) {

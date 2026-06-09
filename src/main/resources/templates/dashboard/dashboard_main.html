@@ -2077,52 +2077,43 @@
             $.ajax({
                 url: withCtx('/api/dash_summary/readDailyGps'),
                 type: 'GET',
-                data: {
-                    date: date
-                },
+                data: { date: date },
                 success: function (res) {
                     clearMarkers();
                     if (!res.data || res.data.length === 0) {
-                        $('#gpsInfo')
-                            .text("근태 위치 없음");
+                        $('#gpsInfo').text("근태 위치 없음");
                         return;
                     }
                     let bounds = new kakao.maps.LatLngBounds();
                     res.data.forEach(row => {
-                        let pos =
-                            new kakao.maps.LatLng(
-                                row.latitude,
-                                row.longitude
-                            );
-                        bounds.extend(pos);
-                        let marker =
-                            new kakao.maps.Marker({
-                                position: pos,
-                                map: map
-                            });
-                        markers.push(marker);
-                        let info =
-                            new kakao.maps.InfoWindow({
-                                content:
-                                    `<div style="padding:5px;font-size:12px">
-                            이름 : ${row.Name}<br>
-                            ${row.address ?? ""}
-                        </div>`
-                            });
-                        kakao.maps.event.addListener(
-                            marker,
-                            'click',
-                            () => info.open(map, marker)
-                        );
+                        // 출근 마커 (파란색)
+                        if (row.latitude && row.longitude) {
+                            addGpsMarker(row.latitude, row.longitude, row.Name, row.address, '\ucd9c\uadfc', '#1a7aff', bounds);
+                        }
+                        // 퇴근 마커 (빨간색)
+                        if (row.out_latitude && row.out_longitude) {
+                            addGpsMarker(row.out_latitude, row.out_longitude, row.Name, row.out_address, '\ud1f4\uadfc', '#ff4444', bounds);
+                        }
                     });
                     map.setBounds(bounds);
-                    $('#gpsInfo')
-                        .text(
-                            res.data.length
-                            + "명 위치"
-                        );
+                    $('#gpsInfo').text(res.data.length + "\uba85 \uc704\uce58");
                 }
             });
+        }
+
+        function addGpsMarker(lat, lng, name, address, type, color, bounds) {
+            let pos    = new kakao.maps.LatLng(lat, lng);
+            if (bounds) bounds.extend(pos);
+            let marker = new kakao.maps.Marker({ position: pos, map: map });
+            markers.push(marker);
+            let info = new kakao.maps.InfoWindow({
+                content: '<div style="padding:5px;font-size:12px;">'
+                    + '<span style="color:' + color + '; font-weight:bold;">[' + type + ']</span><br>'
+                    + '\uc774\ub984 : ' + (name || '') + '<br>'
+                    + (address || '')
+                    + '</div>'
+            });
+            kakao.maps.event.addListener(marker, 'click', function() { info.open(map, marker); });
         }
 
         // 기존 marker 제거

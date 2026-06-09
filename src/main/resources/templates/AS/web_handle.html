@@ -9,8 +9,8 @@
             gap: 12px;
             align-items: flex-start;
         }
-        .handle-left  { flex: 0 0 42%; min-width: 0; }
-        .handle-right { flex: 1; min-width: 0; padding-left: 14px; }
+        .handle-left  { flex: 0 0 55%; min-width: 0; }
+        .handle-right { flex: 0 0 520px; min-width: 0; padding-left: 14px; }
 
         /* ── 선택된 접수 정보 배너 ── */
         .selected-banner {
@@ -170,9 +170,9 @@
                         <table class="write-table" style="width:100%; border-collapse:collapse; table-layout:fixed;">
                             <caption style="text-align:left; margin-bottom:6px;">고장처리등록</caption>
                             <colgroup>
-                                <col style="width:90px;">
+                                <col style="width:120px;">
                                 <col>
-                                <col style="width:90px;">
+                                <col style="width:120px;">
                                 <col>
                             </colgroup>
                             <tbody>
@@ -553,7 +553,23 @@
             document.getElementById('selectedBanner').style.display = 'block';
         }
         function bindRequestToForm(item) {
-            // 배너 표시
+            // 처리된 건이면 처리 데이터 조회 후 bindCompToForm() 호출
+            if (item.resultck === '1' || item.resultck === 1) {
+                AjaxUtil.getAsyncData('/api/AS/web_handle/comp_by_receive', {
+                    spjangcd : _spjangcd,
+                    recedate : item.recedate,
+                    recenum  : item.recenum
+                }, function (result) {
+                    if (result && result.data) {
+                        bindCompToForm(result.data);
+                    } else {
+                        Alert.alert('', '처리 데이터를 찾을 수 없습니다.');
+                    }
+                });
+                return;
+            }
+
+            // 미처리 건 → 신규 등록 모드
             document.getElementById('bannerActnm').textContent    = item.actnm    || '-';
             document.getElementById('bannerRecedate').textContent = fmtDate(item.recedate)
                 + (item.recetime ? ' ' + fmtTime(item.recetime) : '');
@@ -561,21 +577,17 @@
             document.getElementById('bannerContents').textContent = item.contents || '';
             document.getElementById('selectedBanner').style.display = 'block';
 
-            // 고장접수 연결 정보
             document.getElementById('hidRecedate').value = item.recedate || '';
             document.getElementById('hidRecenum').value  = item.recenum  || '';
+            document.getElementById('hidActcd').value    = item.actcd    || '';
+            document.getElementById('regActnm').value    = item.actnm    || '';
+            document.getElementById('hidEqupcd').value   = item.equpcd   || '';
+            document.getElementById('regEqupnm').value   = item.equpnm   || '';
 
-            // 현장/호기
-            document.getElementById('hidActcd').value  = item.actcd  || '';
-            document.getElementById('regActnm').value  = item.actnm  || '';
-            document.getElementById('hidEqupcd').value = item.equpcd || '';
-            document.getElementById('regEqupnm').value = item.equpnm || '';
-
-            // 접수일자/시간 자동 세팅
             document.getElementById('regRecedate2').value = item.recedate ? fmtDateInput(item.recedate) : '';
             document.getElementById('regRecetime').value  = item.recetime ? fmtTime(item.recetime)      : '';
 
-            // 처리 관련 필드 초기화 (신규 입력용)
+            // hidCompdate/compnum 초기화 → INSERT 모드
             document.getElementById('hidCompdate').value   = '';
             document.getElementById('hidCompnum').value    = '';
             document.getElementById('regContremark').value = '';

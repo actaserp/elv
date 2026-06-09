@@ -85,6 +85,35 @@ public class ClockMemberController {
     }
 
     // =========================================================
+    // 휴가 일괄 등록 (Excel Upload)
+    // =========================================================
+    @PostMapping("/bulk_insert")
+    public AjaxResult bulkInsertMember(
+            @RequestBody Map<String, Object> requestData,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            List<Map<String, Object>> list = (List<Map<String, Object>>) requestData.get("list");
+            String spjangcd = (String) requestData.get("spjangcd");
+
+            if (list == null || list.isEmpty()) {
+                result.success = false;
+                result.message = "등록할 데이터가 없습니다.";
+                return result;
+            }
+
+            clockMemberService.bulkInsertMember(list, spjangcd);
+            result.success = true;
+            result.message = list.size() + "건이 등록되었습니다.";
+        } catch (Exception e) {
+            result.success = false;
+            result.message = "일괄 등록 중 오류가 발생하였습니다: " + e.getMessage();
+        }
+        return result;
+    }
+
+    // =========================================================
     // 휴가 임의 등록
     // =========================================================
     @PostMapping("/insert")

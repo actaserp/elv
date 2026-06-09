@@ -12,7 +12,7 @@
         <!-- Page Title -->
         <div class="page-title-wrap">
             <div class="left">
-                <h2>공지사항 등록</h2>
+                <h2>자료실</h2>
                 <a title="북마크" class="bookmark toggle">
                     내메뉴
                 </a>
@@ -20,7 +20,7 @@
             <ul class="page-navi">
                 <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
                 <li>시스템관리</li>
-                <li>공지사항 등록</li>
+                <li>자료실</li>
             </ul>
         </div>
         <section class="section">
@@ -49,7 +49,7 @@
                         <dl>
                             <dt>
                                 <label for="keyword">
-                                    공지 제목<span class="eq"></span>
+                                    제목<span class="eq"></span>
                                 </label>
                             </dt>
                             <dd>
@@ -118,7 +118,7 @@
         <p>Copyrightⓒ 0000 corp. All rights reserved.</p>
     </footer>
 
-    <!--공지사항 등록 스크립트-->
+    <!--자료 등록 스크립트-->
     <script type="text/x-tmpl" id="noticeTmpl">
         <div class="content_wrap popup">
             <div class="table-wrap">
@@ -129,7 +129,7 @@
                         <tbody>
                             <tr>
                                 <th style="text-align: center">
-                                    <label for="title">공지제목</label>
+                                    <label for="title">제목</label>
                                 </th>
                                 <td colspan="4">
                                        <input class="form-control2" id="title" name="title" value="{%=o.title%}" disabled style="width:100%;" />
@@ -138,12 +138,13 @@
 
                             <tr>
                                 <th style="text-align: center">
-                                    <label for="notice_yn">공지여부</label>
+                                    <label for="notice_yn">구분</label>
                                 </th>
                                 <td>
                                      <select style="width:100%" class="form-control2" id="notice_yn" name="notice_yn" disabled >
-                                        <option value="Y">예</option>
-                                        <option value="N" selected>아니오</option>
+                                        <option value="I">이미지</option>
+                                        <option value="F" selected>파일</option>
+
                                      </select>
                                 </td>
                                 <th style="text-align: center">
@@ -195,9 +196,9 @@
             {binding: 'id', header: '번호', width: 80, align: 'center'},
             {binding: 'title', header: '제목', width: '*', align: 'left'},
             {binding: 'write_date_time', header: '작성일', width: 120, align: 'center'},
-            {binding: 'notice_from_date', header: '공지시작일', width: 120, align: 'center'},
-            {binding: 'notice_end_date', header: '공지종료일', width: 120, align: 'center'},
-            {binding: 'notice_yn', header: '공지여부', width: 90, align: 'center'},
+            // {binding: 'notice_from_date', header: '공지시작일', width: 120, align: 'center'},
+            // {binding: 'notice_end_date', header: '공지종료일', width: 120, align: 'center'},
+            {binding: 'notice_yn', header: '구분', width: 90, align: 'center'},
         ];
 
         function edit() {
@@ -315,9 +316,9 @@
             let $content = $(content);
             let modalContainer;
             if (!data.id) {	//if (!data.id) {
-                modalContainer = new PopupDraggable('공지 사항 등록');
+                modalContainer = new PopupDraggable('자료 등록');
             } else {
-                modalContainer = new PopupDraggable('공지 사항 수정');
+                modalContainer = new PopupDraggable('자료 수정');
             }
             modalContainer.open({width: 1010, height: 670, $content});
             edit();
@@ -375,21 +376,21 @@
                 return false;
             }
             if (!data.notice_yn) {
-                Alert.alert('', "공지여부를 선택하세요.");
+                Alert.alert('', "구분을 선택하세요.");
                 return false;
             }
 
-            if (data.notice_yn === 'y') {
-                if (!data.notice_from_date) {
-                    Alert.alert('', "공지시작일을 설정하세요.");
-                    return false;
-                }
-
-                if (!data.notice_end_date) {
-                    Alert.alert('', "공지종료일을 설정하세요.");
-                    return false;
-                }
-            }
+            // if (data.notice_yn === 'y') {
+            //     if (!data.notice_from_date) {
+            //         Alert.alert('', "공지시작일을 설정하세요.");
+            //         return false;
+            //     }
+            //
+            //     if (!data.notice_end_date) {
+            //         Alert.alert('', "공지종료일을 설정하세요.");
+            //         return false;
+            //     }
+            // }
 
             Alert.confirm('', '저장하시겠습니까?', function () {
                 let fnSuccess = function (result) {
@@ -530,7 +531,7 @@
 
                     // 파일 조회: setUploader(id) init() 내부에서 getAttachFiles() 자동 호출됨
                 } else {
-                    Alert.alert('', '수정할 공지를 선택해 주세요');
+                    Alert.alert('', '수정할 자료를 선택해 주세요');
                 }
             }
 
@@ -554,7 +555,7 @@
                         deleteData(id);
                     });
                 } else {
-                    Alert.alert('', "삭제할 공지를 선택해 주세요.")
+                    Alert.alert('', "삭제할 자료를 선택해 주세요.")
                 }
             });
 

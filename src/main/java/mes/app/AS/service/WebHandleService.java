@@ -57,6 +57,55 @@ public class WebHandleService {
         return this.sqlRunner.getRows(sql, param);
     }
 
+    // ── 고장처리 단건 조회 (recedate+recenum) ─────────────────
+    public Map<String, Object> getCompByReceive(String spjangcd, String recedate, String recenum) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("recedate", recedate);
+        param.addValue("recenum",  recenum);
+
+        String sql = """
+                SELECT
+                    e.compdate, e.compnum, e.comptime,
+                    e.recedate, e.recenum, e.recetime,
+                    e.arrivdate, e.arrivtime,
+                    e.actcd, e.actnm, e.equpcd, e.equpnm,
+                    e.gregicd, e.contremark,
+                    e.regicd,
+                    eg.reginm,
+                    e.remocd,
+                    em.remonm,
+                    e.faccd,
+                    f19.facnm,
+                    e.remoremark,
+                    e.resucd,
+                    es.resunm,
+                    e.resuremark,
+                    e.resultcd,
+                    er.resultnm,
+                    e.customer,
+                    e.remark,
+                    e.actperid,
+                    ap.pernm AS actpernm,
+                    e.filesvnm,
+                    e.filepath
+                FROM TB_E411 e
+                LEFT JOIN TB_JA001 ap ON ap.perid    = e.actperid
+                                     AND ap.spjangcd = e.spjangcd
+                LEFT JOIN TB_E014 eg  ON eg.regicd   = e.regicd
+                LEFT JOIN TB_E011 em  ON em.remocd   = e.remocd
+                LEFT JOIN TB_E019 f19 ON f19.faccd   = e.faccd
+                LEFT JOIN TB_E012 es  ON es.resucd   = e.resucd
+                LEFT JOIN TB_E015 er  ON er.resultcd = e.resultcd
+                WHERE e.spjangcd = :spjangcd
+                  AND e.recedate = :recedate
+                  AND e.recenum  = :recenum
+                """;
+
+        List<Map<String, Object>> rows = this.sqlRunner.getRows(sql, param);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     // ── 고장처리 목록 조회 (TB_E411) ─────────────────────────
     public List<Map<String, Object>> getCompList(
             String spjangcd, String fromDate, String toDate, String actnm) {

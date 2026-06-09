@@ -207,19 +207,23 @@ public class MobileMainController {
 
         String inFlag;
         String finalWorkcd;
-        String finalAddress   = null;
-        String finalLatitude  = null;
-        String finalLongitude = null;
+        String finalAddress     = null;
+        String finalLatitude    = null;
+        String finalLongitude   = null;
+        String finalOutAddress  = null;
+        String finalOutLatitude = null;
+        String finalOutLongitude= null;
 
         if ("inOfficeOut".equals(office)) {
-            inFlag     = "0";
+            inFlag      = "0";
             finalWorkcd = (entityWorkcd == null || entityWorkcd.isEmpty()) ? "01" : entityWorkcd;
         } else {
-            inFlag     = "1";
+            inFlag      = "1";
             finalWorkcd = (entityWorkcd == null || entityWorkcd.isEmpty()) ? workcd : entityWorkcd;
-            if (gpsInfo   != null && !gpsInfo.isEmpty()) finalAddress   = gpsInfo;
-            if (latitude  != null) finalLatitude  = latitude;
-            if (longitude != null) finalLongitude = longitude;
+            // 출근 위치는 기존 address 컬럼 유지, 퇴근 위치는 out_* 컬럼에 저장
+            if (gpsInfo   != null && !gpsInfo.isEmpty())   finalOutAddress   = gpsInfo;
+            if (latitude  != null && !latitude.isEmpty())  finalOutLatitude  = latitude;
+            if (longitude != null && !longitude.isEmpty()) finalOutLongitude = longitude;
         }
 
         int jotFlag = 0;
@@ -307,6 +311,7 @@ public class MobileMainController {
                     spjangcd, perId, workym, workday, targetIdx,
                     formattedCurrTime, remark, inFlag, workyn, jotFlag,
                     finalWorkcd, finalAddress, finalLatitude, finalLongitude,
+                    finalOutAddress, finalOutLatitude, finalOutLongitude,
                     finalWorktime, finalNomaltime, finalOvertime, finalNighttime, finalHolitime);
             result.success = true;
             result.message = isOvertimeOut ? "추가근무 퇴근처리가 완료되었습니다." : "퇴근처리가 마무리되었습니다.";
