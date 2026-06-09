@@ -61,10 +61,13 @@ public class MaintenanceRepairService {
                     e.equpcd,
                     e.equpnm,
                     e.contcd,
+                    ct.contnm,
                     e.contents,
                     e.remark,
                     e.resultck
                 FROM TB_E401 e
+                LEFT JOIN TB_E010 ct ON ct.contcd   = e.contcd
+                                    AND ct.spjangcd  = e.spjangcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.recedate BETWEEN :fromDate AND :toDate
                   AND e.reperid  = :perid
@@ -102,11 +105,20 @@ public class MaintenanceRepairService {
                     e.actnm,
                     e.equpcd,
                     e.equpnm,
+                    e.gregicd,
                     e.contremark,
+                    e.regicd,
+                    eg.reginm,
+                    e.remocd,
+                    em.remonm,
+                    e.faccd,
+                    f19.facnm,
                     e.remoremark,
+                    e.resucd,
+                    es.resunm,
                     e.resuremark,
                     e.resultcd,
-                    f19.facnm   AS facnm,
+                    er.resultnm,
                     e.customer,
                     e.remark,
                     e.perid,
@@ -121,7 +133,11 @@ public class MaintenanceRepairService {
                 LEFT JOIN TB_JA001 ap  ON ap.perid    = e.actperid
                                       AND ap.spjangcd = e.spjangcd
                 LEFT JOIN TB_JC002 jc  ON j.divicd   = jc.divicd
-                LEFT JOIN TB_E019 f19  ON f19.faccd   = e.resultcd
+                LEFT JOIN TB_E019 f19  ON f19.faccd   = e.faccd
+                LEFT JOIN TB_E014 eg   ON eg.regicd   = e.regicd
+                LEFT JOIN TB_E011 em   ON em.remocd   = e.remocd
+                LEFT JOIN TB_E012 es   ON es.resucd   = e.resucd
+                LEFT JOIN TB_E015 er   ON er.resultcd = e.resultcd
                 LEFT JOIN TB_E401  a   ON a.recedate  = e.recedate
                                       AND a.recenum   = e.recenum
                                       AND a.spjangcd  = e.spjangcd
@@ -198,19 +214,21 @@ public class MaintenanceRepairService {
             String actnm,
             String equpcd,
             String equpnm,
-            String contremark,   // 고장부위(명칭)
-            String gregicd,      // 고장부위(코드)
-            String remoremark,   // 고장부위상세(명칭)
-            String regicd,       // 고장부위상세(코드)
-            String resuremark,   // 고장요인(명칭)
-            String remocd,       // 고장요인(코드)
-            String resultcd,     // 고장원인(명칭)
-            String faccd,        // 고장원인(코드)
-            String customer,     // 처리내용(명칭)
-            String resucd,       // 처리내용(코드)
-            String remark,       // 처리결과(명칭)
-            String actperid,     // 처리자 perid
-            String perid) {
+            String contremark,
+            String gregicd,
+            String remoremark,
+            String regicd,
+            String resuremark,
+            String remocd,
+            String resultcd,
+            String faccd,
+            String customer,
+            String resucd,
+            String remark,
+            String actperid,
+            String perid,
+            String filesvnm,
+            String filepath) {
 
         String compnum = getNextCompnum(spjangcd, compdate);
 
@@ -245,8 +263,10 @@ public class MaintenanceRepairService {
         param.addValue("perid",      perid);
         param.addValue("inperid",    perid);
         param.addValue("indate",     compdate);
+        param.addValue("filesvnm",   filesvnm != null ? filesvnm : "");
+        param.addValue("filepath",   filepath  != null ? filepath  : "");
 
-        String sql = """
+        namedParameterJdbcTemplate.update("""
                 INSERT INTO TB_E411
                     (custcd, spjangcd, compdate, compnum, comptime,
                      recedate, recenum, recetime,
@@ -257,10 +277,9 @@ public class MaintenanceRepairService {
                      resuremark, remocd,
                      resultcd, faccd,
                      customer, resucd,
-                     remark,
-                     actperid,
-                     result,
-                     perid, inperid, indate)
+                     remark, actperid, result,
+                     perid, inperid, indate,
+                     filesvnm, filepath)
                 VALUES
                     (:custcd, :spjangcd, :compdate, :compnum, :comptime,
                      :recedate, :recenum, :recetime,
@@ -271,13 +290,10 @@ public class MaintenanceRepairService {
                      :resuremark, :remocd,
                      :resultcd, :faccd,
                      :customer, :resucd,
-                     :remark,
-                     :actperid,
-                     :result,
-                     :perid, :inperid, :indate)
-                """;
-
-        namedParameterJdbcTemplate.update(sql, param);
+                     :remark, :actperid, :result,
+                     :perid, :inperid, :indate,
+                     :filesvnm, :filepath)
+                """, param);
 
         // ── TB_E401 처리완료 상태 업데이트 ──────────────────
         if (recedate != null && !recedate.isBlank() && recenum != null && !recenum.isBlank()) {
@@ -285,15 +301,70 @@ public class MaintenanceRepairService {
             updateParam.addValue("spjangcd", spjangcd);
             updateParam.addValue("recedate",  recedate);
             updateParam.addValue("recenum",   recenum);
-
             namedParameterJdbcTemplate.update("""
-                    UPDATE TB_E401
-                    SET resultck = '1'
+                    UPDATE TB_E401 SET resultck = '1'
                     WHERE spjangcd = :spjangcd
                       AND recedate = :recedate
                       AND recenum  = :recenum
                     """, updateParam);
         }
+
+        // ── TB_E037 HEAD MERGE + TB_E038 업무일지 자동 등록 ──
+        MapSqlParameterSource headParam = new MapSqlParameterSource();
+        headParam.addValue("custcd",   custcd);
+        headParam.addValue("spjangcd", spjangcd);
+        headParam.addValue("rptdate",  compdate);
+        headParam.addValue("perid",    actperid);
+
+        namedParameterJdbcTemplate.update("""
+                MERGE INTO TB_E037 AS target
+                USING (SELECT :custcd AS custcd, :spjangcd AS spjangcd,
+                              :rptdate AS rptdate, :perid AS perid) AS source
+                ON (    target.custcd   = source.custcd
+                    AND target.spjangcd = source.spjangcd
+                    AND target.rptdate  = source.rptdate
+                    AND target.perid    = source.perid)
+                WHEN NOT MATCHED THEN
+                    INSERT (custcd, spjangcd, rptdate, perid)
+                    VALUES (:custcd, :spjangcd, :rptdate, :perid);
+                """, headParam);
+
+        Integer nextRpt = namedParameterJdbcTemplate.queryForObject("""
+                SELECT ISNULL(MAX(CAST(rptnum AS INT)), 0) + 1
+                FROM TB_E038
+                WHERE custcd   = :custcd
+                  AND spjangcd = :spjangcd
+                  AND rptdate  = :rptdate
+                  AND perid    = :perid
+                """, headParam, Integer.class);
+        String rptnum = String.format("%03d", nextRpt != null ? nextRpt : 1);
+
+        MapSqlParameterSource detailParam = new MapSqlParameterSource();
+        detailParam.addValue("custcd",   custcd);
+        detailParam.addValue("spjangcd", spjangcd);
+        detailParam.addValue("rptdate",  compdate);
+        detailParam.addValue("perid",    actperid);
+        detailParam.addValue("rptnum",   rptnum);
+        detailParam.addValue("actcd",    actcd);
+        detailParam.addValue("actnm",    actnm);
+        detailParam.addValue("equpcd",   equpcd != null ? equpcd : "");
+        detailParam.addValue("wkcd",     "");
+        detailParam.addValue("frtime",   comptime != null ? comptime : "");
+        detailParam.addValue("totime",   comptime != null ? comptime : "");
+        detailParam.addValue("remark",   customer != null ? customer : "");
+        detailParam.addValue("filesvnm", filesvnm != null ? filesvnm : "");
+        detailParam.addValue("filepath", filepath  != null ? filepath  : "");
+
+        namedParameterJdbcTemplate.update("""
+                INSERT INTO TB_E038
+                    (custcd, spjangcd, rptdate, perid, rptnum,
+                     actcd, actnm, equpcd, wkcd, frtime, totime, remark,
+                     filesvnm, filepath)
+                VALUES
+                    (:custcd, :spjangcd, :rptdate, :perid, :rptnum,
+                     :actcd, :actnm, :equpcd, :wkcd, :frtime, :totime, :remark,
+                     :filesvnm, :filepath)
+                """, detailParam);
     }
 
     // ── 고장부위 조회 (TB_E013) ──────────────────────────────

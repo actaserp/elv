@@ -214,28 +214,40 @@
             </div>
             <div class="form-row">
                 <label>고장부위상세</label>
-                <input type="text" id="editRemoremark" placeholder="고장부위 먼저 선택" readonly onclick="openEditReginmPopup()">
+                <input type="text" id="editReginm" placeholder="고장부위 먼저 선택" readonly onclick="openEditReginmPopup()">
                 <input type="hidden" id="editRegicd">
             </div>
             <div class="form-row">
                 <label>고장요인</label>
-                <input type="text" id="editResuremark" placeholder="고장요인 선택" readonly onclick="openEditRemonmPopup()">
+                <input type="text" id="editRemonm" placeholder="고장요인 선택" readonly onclick="openEditRemonmPopup()">
                 <input type="hidden" id="editRemocd">
             </div>
             <div class="form-row">
                 <label>고장원인</label>
-                <input type="text" id="editResultcd" placeholder="고장원인 선택" readonly onclick="openEditFacnmPopup()">
+                <input type="text" id="editFacnm" placeholder="고장원인 선택" readonly onclick="openEditFacnmPopup()">
                 <input type="hidden" id="editFaccd">
             </div>
             <div class="form-row">
+                <label>고장원인상세</label>
+                <textarea id="editRemoremark" placeholder="고장원인상세 입력"></textarea>
+            </div>
+            <div class="form-row">
                 <label>처리내용</label>
-                <input type="text" id="editCustomer" placeholder="처리내용 선택" readonly onclick="openEditResunmPopup()">
+                <input type="text" id="editResunm" placeholder="처리내용 선택" readonly onclick="openEditResunmPopup()">
                 <input type="hidden" id="editResucd">
             </div>
             <div class="form-row">
+                <label>처리상세</label>
+                <textarea id="editResuremark" placeholder="처리상세 입력"></textarea>
+            </div>
+            <div class="form-row">
                 <label>처리결과</label>
-                <input type="text" id="editRemark" placeholder="처리결과 선택" readonly onclick="openEditResultnmPopup()">
-                <input type="hidden" id="editResultnmcd">
+                <input type="text" id="editResultnm" placeholder="처리결과 선택" readonly onclick="openEditResultnmPopup()">
+                <input type="hidden" id="editResultcd">
+            </div>
+            <div class="form-row">
+                <label>사후관리사항</label>
+                <textarea id="editCustomer" placeholder="사후관리사항 입력"></textarea>
             </div>
             <div class="form-row">
                 <label>처리자</label>
@@ -436,12 +448,15 @@
         ]);
         html += `<div class="detail-section-title">고장/처리 내용</div>`;
         html += buildDetailRows([
-            { label: '고장내용',     value: item.contremark },
-            { label: '고장부위상세', value: item.remoremark },
-            { label: '고장요인',     value: item.resuremark },
+            { label: '고장부위',     value: item.contremark },
+            { label: '고장부위상세', value: item.reginm     },
+            { label: '고장요인',     value: item.remonm     },
             { label: '고장원인',     value: item.facnm      },
-            { label: '처리내용',     value: item.customer   },
+            { label: '고장원인상세', value: item.remoremark },
+            { label: '처리내용',     value: item.resunm     },
+            { label: '처리상세',     value: item.resuremark },
             { label: '처리결과',     value: item.remark     },
+            { label: '사후관리사항', value: item.customer   },
         ]);
 
         document.getElementById('detailBody').innerHTML = html;
@@ -475,19 +490,22 @@
         document.getElementById('editActnm').value         = item.actnm       || '';
         document.getElementById('editEqupnm').value        = item.equpnm      || '';
         document.getElementById('editContremark').value    = item.contremark  || '';
-        document.getElementById('editGregicd').value       = item.gregicd     || '';
-        document.getElementById('editRemoremark').value    = item.remoremark  || '';
-        document.getElementById('editRegicd').value        = item.regicd      || '';
-        document.getElementById('editResuremark').value    = item.resuremark  || '';
-        document.getElementById('editRemocd').value        = item.remocd      || '';
-        document.getElementById('editResultcd').value      = item.facnm      || '';
-        document.getElementById('editFaccd').value         = item.resultcd   || '';
-        document.getElementById('editCustomer').value      = item.customer    || '';
-        document.getElementById('editResucd').value        = item.resucd      || '';
-        document.getElementById('editRemark').value        = item.remark      || '';
-        document.getElementById('editResultnmcd').value    = item.resultcd    || '';
-        document.getElementById('editActperid').value      = item.actperid    || '';
-        document.getElementById('editProcessorNm').value   = item.actpernm    || '';
+        document.getElementById('editGregicd').value        = item.gregicd     || '';
+        document.getElementById('editReginm').value         = item.reginm      || '';
+        document.getElementById('editRegicd').value         = item.regicd      || '';
+        document.getElementById('editRemonm').value         = item.remonm      || '';
+        document.getElementById('editRemocd').value         = item.remocd      || '';
+        document.getElementById('editFacnm').value          = item.facnm       || '';
+        document.getElementById('editFaccd').value          = item.faccd       || '';
+        document.getElementById('editRemoremark').value     = item.remoremark  || '';
+        document.getElementById('editResunm').value         = item.resunm      || '';
+        document.getElementById('editResucd').value         = item.resucd      || '';
+        document.getElementById('editResuremark').value     = item.resuremark  || '';
+        document.getElementById('editResultnm').value       = item.remark      || '';
+        document.getElementById('editResultcd').value       = item.resultcd    || '';
+        document.getElementById('editCustomer').value       = item.customer    || '';
+        document.getElementById('editActperid').value       = item.actperid    || '';
+        document.getElementById('editProcessorNm').value    = item.actpernm    || '';
 
         closePopup('detailPopup');
         openPopup('editPopup');
@@ -539,7 +557,7 @@
             document.getElementById('editGregicd').value    = item.gregicd || '';
             document.getElementById('editContremark').value = item.greginm || '';
             document.getElementById('editRegicd').value     = '';
-            document.getElementById('editRemoremark').value = '';
+            document.getElementById('editReginm').value     = '';
             delete _editCodeCache['editReginmPopup'];
             closePopup('editGreginmPopup');
         });
@@ -553,8 +571,8 @@
             if (result && result.data) {
                 _editCodeCache['editReginmPopup'] = result.data;
                 renderEditCodeList('editReginmList', result.data, 'reginm', function (item) {
-                    document.getElementById('editRegicd').value     = item.regicd || '';
-                    document.getElementById('editRemoremark').value = item.reginm || '';
+                    document.getElementById('editRegicd').value = item.regicd || '';
+                    document.getElementById('editReginm').value = item.reginm || '';
                     closePopup('editReginmPopup');
                 });
                 openPopup('editReginmPopup');
@@ -564,32 +582,32 @@
 
     function openEditRemonmPopup() {
         openEditCodePopup('editRemonmPopup', '/api/maintenance_repair/read_remonm', 'editRemonmList', 'remonm', 'editRemonmKeyword', function (item) {
-            document.getElementById('editRemocd').value    = item.remocd || '';
-            document.getElementById('editResuremark').value = item.remonm || '';
+            document.getElementById('editRemocd').value = item.remocd || '';
+            document.getElementById('editRemonm').value = item.remonm || '';
             closePopup('editRemonmPopup');
         });
     }
 
     function openEditFacnmPopup() {
         openEditCodePopup('editFacnmPopup', '/api/maintenance_repair/read_facnm', 'editFacnmList', 'facnm', 'editFacnmKeyword', function (item) {
-            document.getElementById('editFaccd').value    = item.faccd || '';
-            document.getElementById('editResultcd').value = item.facnm || '';
+            document.getElementById('editFaccd').value  = item.faccd || '';
+            document.getElementById('editFacnm').value  = item.facnm || '';
             closePopup('editFacnmPopup');
         });
     }
 
     function openEditResunmPopup() {
         openEditCodePopup('editResunmPopup', '/api/maintenance_repair/read_resunm', 'editResunmList', 'resunm', 'editResunmKeyword', function (item) {
-            document.getElementById('editResucd').value   = item.resucd || '';
-            document.getElementById('editCustomer').value = item.resunm || '';
+            document.getElementById('editResucd').value  = item.resucd || '';
+            document.getElementById('editResunm').value  = item.resunm || '';
             closePopup('editResunmPopup');
         });
     }
 
     function openEditResultnmPopup() {
         openEditCodePopup('editResultnmPopup', '/api/maintenance_repair/read_resultnm', 'editResultnmList', 'resultnm', 'editResultnmKeyword', function (item) {
-            document.getElementById('editResultnmcd').value = item.resultcd || '';
-            document.getElementById('editRemark').value     = item.resultnm || '';
+            document.getElementById('editResultcd').value  = item.resultcd || '';
+            document.getElementById('editResultnm').value  = item.resultnm || '';
             closePopup('editResultnmPopup');
         });
     }
@@ -727,17 +745,17 @@
             actnm      : document.getElementById('editActnm').value,
             equpcd     : document.getElementById('editEqupcd').value,
             equpnm     : document.getElementById('editEqupnm').value,
-            contremark : document.getElementById('editContremark').value,
-            gregicd    : document.getElementById('editGregicd').value,
-            remoremark : document.getElementById('editRemoremark').value,
-            regicd     : document.getElementById('editRegicd').value,
-            resuremark : document.getElementById('editResuremark').value,
-            remocd     : document.getElementById('editRemocd').value,
-            resultcd   : document.getElementById('editFaccd').value,
-            faccd      : document.getElementById('editFaccd').value,
-            customer   : document.getElementById('editCustomer').value,
-            resucd     : document.getElementById('editResucd').value,
-            remark     : document.getElementById('editRemark').value,
+            contremark : document.getElementById('editContremark').value,  // 고장부위명
+            gregicd    : document.getElementById('editGregicd').value,      // 고장부위코드
+            regicd     : document.getElementById('editRegicd').value,       // 고장부위상세코드
+            remocd     : document.getElementById('editRemocd').value,       // 고장요인코드
+            faccd      : document.getElementById('editFaccd').value,        // 고장원인코드
+            remoremark : document.getElementById('editRemoremark').value,   // 고장원인상세 직접입력
+            resucd     : document.getElementById('editResucd').value,       // 처리내용코드
+            resuremark : document.getElementById('editResuremark').value,   // 처리상세 직접입력
+            resultcd   : document.getElementById('editResultcd').value,     // 처리결과코드
+            remark     : document.getElementById('editResultnm').value,     // 처리결과명
+            customer   : document.getElementById('editCustomer').value,     // 사후관리사항 직접입력
             actperid   : document.getElementById('editActperid').value,
         };
 

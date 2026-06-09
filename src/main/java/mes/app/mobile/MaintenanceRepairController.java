@@ -186,6 +186,8 @@ public class MaintenanceRepairController {
             @RequestParam(value = "resucd",     required = false) String resucd,
             @RequestParam(value = "remark",     required = false) String remark,
             @RequestParam(value = "actperid",   required = false) String actperid,
+            @RequestParam(value = "filesvnm",   required = false) String filesvnm,
+            @RequestParam(value = "filepath",   required = false) String filepath,
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
@@ -212,8 +214,8 @@ public class MaintenanceRepairController {
                     resuremark, remocd,
                     resultcd, faccd,
                     customer, resucd,
-                    remark,
-                    actperid, perid
+                    remark, actperid, perid,
+                    filesvnm, filepath
             );
             result.success = true;
             result.message = "고장처리결과가 등록되었습니다.";

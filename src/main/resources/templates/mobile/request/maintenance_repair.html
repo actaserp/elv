@@ -311,34 +311,73 @@
                     </div>
                 </div>
                 <div class="form-row">
+                    <label>고장내용</label>
+                    <input type="text" id="regContnm" placeholder="고장접수 선택 시 자동입력" readonly style="background:#f5f5f5; color:#666;">
+                </div>
+                <div class="form-row">
+                    <label>고장상세내용</label>
+                    <input type="text" id="regContents" placeholder="고장접수 선택 시 자동입력" readonly style="background:#f5f5f5; color:#666;">
+                </div>
+                <div class="form-row">
                     <label>고장부위</label>
                     <input type="text" id="regContremark" placeholder="고장부위 선택" readonly onclick="openGreginmPopup()">
                     <input type="hidden" id="regGregicd">
                 </div>
                 <div class="form-row">
                     <label>고장부위상세</label>
-                    <input type="text" id="regRemoremark" placeholder="고장부위 먼저 선택" readonly onclick="openReginmPopup()">
+                    <input type="text" id="regReginm" placeholder="고장부위 먼저 선택" readonly onclick="openReginmPopup()">
                     <input type="hidden" id="regRegicd">
                 </div>
                 <div class="form-row">
                     <label>고장요인</label>
-                    <input type="text" id="regResuremark" placeholder="고장요인 선택" readonly onclick="openRemonmPopup()">
+                    <input type="text" id="regRemonm" placeholder="고장요인 선택" readonly onclick="openRemonmPopup()">
                     <input type="hidden" id="regRemocd">
                 </div>
                 <div class="form-row">
                     <label>고장원인</label>
-                    <input type="text" id="regResultcd" placeholder="고장원인 선택" readonly onclick="openFacnmPopup()">
+                    <input type="text" id="regFacnm" placeholder="고장원인 선택" readonly onclick="openFacnmPopup()">
                     <input type="hidden" id="regFaccd">
                 </div>
                 <div class="form-row">
+                    <label>고장원인상세</label>
+                    <textarea id="regRemoremark" placeholder="고장원인상세 입력"></textarea>
+                </div>
+                <div class="form-row">
                     <label>처리내용</label>
-                    <input type="text" id="regCustomer" placeholder="처리내용 선택" readonly onclick="openResunmPopup()">
+                    <input type="text" id="regResunm" placeholder="처리내용 선택" readonly onclick="openResunmPopup()">
                     <input type="hidden" id="regResucd">
                 </div>
                 <div class="form-row">
+                    <label>처리상세</label>
+                    <textarea id="regResuremark" placeholder="처리상세 입력"></textarea>
+                </div>
+                <div class="form-row">
                     <label>처리결과</label>
-                    <input type="text" id="regRemark" placeholder="처리결과 선택" readonly onclick="openResultnmPopup()">
-                    <input type="hidden" id="regResultnmcd">
+                    <input type="text" id="regResultnm" placeholder="처리결과 선택" readonly onclick="openResultnmPopup()">
+                    <input type="hidden" id="regResultcd">
+                </div>
+                <div class="form-row">
+                    <label>사후관리사항</label>
+                    <textarea id="regCustomer" placeholder="사후관리사항 입력"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <label>파일 첨부</label>
+                    <div class="file-upload-wrap">
+                        <input type="file" id="regFileInput" style="display:none"
+                               accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip">
+                        <input type="hidden" id="regFilesvnm">
+                        <input type="hidden" id="regFilepath">
+                        <div class="file-upload-btn" onclick="document.getElementById('regFileInput').click()"
+                             style="border:2px dashed #ddd; border-radius:8px; padding:12px; text-align:center; cursor:pointer; background:#fafafa; font-size:13px; color:#888;">
+                            📎 클릭하여 파일 선택
+                        </div>
+                        <div id="regFilePreview" style="display:none; margin-top:8px; padding:8px 12px; background:#f5f5f5; border-radius:6px; font-size:13px; color:#444; display:flex; align-items:center; justify-content:space-between;">
+                            <span id="regFileNameDisplay" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+                            <span id="regFileStatus" style="font-size:12px; white-space:nowrap; margin-left:8px;"></span>
+                            <button onclick="removeRepairFile()" style="background:none; border:none; font-size:18px; color:#aaa; cursor:pointer;">×</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-row">
                     <label>처리자</label>
@@ -567,6 +606,10 @@
         document.getElementById('regRecedate').value  = item.recedate || '';
         document.getElementById('regRecenum').value   = item.recenum  || '';
 
+        // 고장내용/고장상세내용 바인딩
+        document.getElementById('regContnm').value   = item.contnm   || '';
+        document.getElementById('regContents').value = item.contents || '';
+
         // 현장/호기 바인딩 (readonly 스타일 적용)
         document.getElementById('regActcd').value  = item.actcd  || '';
         document.getElementById('regEqupcd').value = item.equpcd || '';
@@ -763,14 +806,66 @@
         });
     }
 
-    /* ── 고장부위 팝업 ── */
+    // ── 파일 처리 ─────────────────────────────────────────────
+    document.getElementById('regFileInput').addEventListener('change', function () {
+        const file = this.files[0];
+        if (file) handleRepairFileSelect(file);
+    });
+
+    function handleRepairFileSelect(file) {
+        const preview  = document.getElementById('regFilePreview');
+        const nameEl   = document.getElementById('regFileNameDisplay');
+        const statusEl = document.getElementById('regFileStatus');
+
+        nameEl.textContent   = file.name;
+        statusEl.textContent = '업로드 중...';
+        statusEl.style.color = '#f0a500';
+        preview.style.display = 'flex';
+
+        document.getElementById('regFilesvnm').value = '';
+        document.getElementById('regFilepath').value  = '';
+
+        const csrfToken = document.querySelector('input[name="_csrf"]').value;
+        const formData  = new FormData();
+        formData.append('file', file);
+
+        fetch(withCtx('api/daily_report/upload_file'), {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrfToken },
+            body: formData
+        })
+        .then(res => res.json())
+        .then(result => {
+            if (result.success && result.data) {
+                document.getElementById('regFilesvnm').value = result.data.filesvnm;
+                document.getElementById('regFilepath').value  = result.data.filepath;
+                statusEl.textContent = '✓ 업로드 완료';
+                statusEl.style.color = '#2a9d2a';
+            } else {
+                statusEl.textContent = '✗ 업로드 실패';
+                statusEl.style.color = '#cc3333';
+                Alert.alert('', result.message || '파일 업로드에 실패하였습니다.');
+            }
+        })
+        .catch(() => {
+            statusEl.textContent = '✗ 업로드 실패';
+            statusEl.style.color = '#cc3333';
+            Alert.alert('', '파일 업로드 중 오류가 발생하였습니다.');
+        });
+    }
+
+    function removeRepairFile() {
+        document.getElementById('regFileInput').value    = '';
+        document.getElementById('regFilesvnm').value     = '';
+        document.getElementById('regFilepath').value      = '';
+        document.getElementById('regFilePreview').style.display = 'none';
+    }
     function openGreginmPopup() {
         openCodePopup('greginmPopup', '/api/maintenance_repair/read_greginm', 'greginmList', 'gregicd', 'greginm', 'greginmKeyword', function (item) {
             document.getElementById('regGregicd').value    = item.gregicd || '';
             document.getElementById('regContremark').value = item.greginm || '';
-            // 고장부위 변경 시 고장부위상세 초기화
             document.getElementById('regRegicd').value    = '';
-            document.getElementById('regRemoremark').value = '';
+            document.getElementById('regReginm').value    = '';
             delete _codeCache['reginmPopup'];
             closePopup('greginmPopup');
         });
@@ -785,8 +880,8 @@
             if (result && result.data) {
                 _codeCache['reginmPopup'] = result.data;
                 renderCodeList('reginmList', result.data, 'reginm', function (item) {
-                    document.getElementById('regRegicd').value    = item.regicd || '';
-                    document.getElementById('regRemoremark').value = item.reginm || '';
+                    document.getElementById('regRegicd').value = item.regicd || '';
+                    document.getElementById('regReginm').value = item.reginm || '';
                     closePopup('reginmPopup');
                 });
                 openPopup('reginmPopup');
@@ -797,8 +892,8 @@
     /* ── 고장요인 팝업 ── */
     function openRemonmPopup() {
         openCodePopup('remonmPopup', '/api/maintenance_repair/read_remonm', 'remonmList', 'remocd', 'remonm', 'remonmKeyword', function (item) {
-            document.getElementById('regRemocd').value    = item.remocd || '';
-            document.getElementById('regResuremark').value = item.remonm || '';
+            document.getElementById('regRemocd').value  = item.remocd || '';
+            document.getElementById('regRemonm').value  = item.remonm || '';
             closePopup('remonmPopup');
         });
     }
@@ -806,8 +901,8 @@
     /* ── 고장원인 팝업 ── */
     function openFacnmPopup() {
         openCodePopup('facnmPopup', '/api/maintenance_repair/read_facnm', 'facnmList', 'faccd', 'facnm', 'facnmKeyword', function (item) {
-            document.getElementById('regFaccd').value    = item.faccd || '';
-            document.getElementById('regResultcd').value = item.facnm || '';
+            document.getElementById('regFaccd').value  = item.faccd || '';
+            document.getElementById('regFacnm').value  = item.facnm || '';
             closePopup('facnmPopup');
         });
     }
@@ -816,7 +911,7 @@
     function openResunmPopup() {
         openCodePopup('resunmPopup', '/api/maintenance_repair/read_resunm', 'resunmList', 'resucd', 'resunm', 'resunmKeyword', function (item) {
             document.getElementById('regResucd').value  = item.resucd || '';
-            document.getElementById('regCustomer').value = item.resunm || '';
+            document.getElementById('regResunm').value  = item.resunm || '';
             closePopup('resunmPopup');
         });
     }
@@ -824,8 +919,8 @@
     /* ── 처리결과 팝업 ── */
     function openResultnmPopup() {
         openCodePopup('resultnmPopup', '/api/maintenance_repair/read_resultnm', 'resultnmList', 'resultcd', 'resultnm', 'resultnmKeyword', function (item) {
-            document.getElementById('regResultnmcd').value = item.resultcd || '';
-            document.getElementById('regRemark').value     = item.resultnm || '';
+            document.getElementById('regResultcd').value  = item.resultcd || '';
+            document.getElementById('regResultnm').value  = item.resultnm || '';
             closePopup('resultnmPopup');
         });
     }
@@ -850,18 +945,20 @@
             actnm      : document.getElementById('regActnm').value,
             equpcd     : document.getElementById('regEqupcd').value,
             equpnm     : document.getElementById('regEqupnm').value,
-            contremark : document.getElementById('regContremark').value,
-            gregicd    : document.getElementById('regGregicd').value,
-            remoremark : document.getElementById('regRemoremark').value,
-            regicd     : document.getElementById('regRegicd').value,
-            resuremark : document.getElementById('regResuremark').value,
-            remocd     : document.getElementById('regRemocd').value,
-            resultcd   : document.getElementById('regFaccd').value,
-            faccd      : document.getElementById('regFaccd').value,
-            customer   : document.getElementById('regCustomer').value,
-            resucd     : document.getElementById('regResucd').value,
-            remark     : document.getElementById('regRemark').value,
+            contremark : document.getElementById('regContremark').value,  // 고장부위명
+            gregicd    : document.getElementById('regGregicd').value,      // 고장부위코드
+            regicd     : document.getElementById('regRegicd').value,       // 고장부위상세코드
+            remocd     : document.getElementById('regRemocd').value,       // 고장요인코드
+            faccd      : document.getElementById('regFaccd').value,        // 고장원인코드
+            remoremark : document.getElementById('regRemoremark').value,   // 고장원인상세 직접입력
+            resucd     : document.getElementById('regResucd').value,       // 처리내용코드
+            resuremark : document.getElementById('regResuremark').value,   // 처리상세 직접입력
+            resultcd   : document.getElementById('regResultcd').value,     // 처리결과코드
+            remark     : document.getElementById('regResultnm').value,     // 처리결과명
+            customer   : document.getElementById('regCustomer').value,     // 사후관리사항 직접입력
             actperid   : document.getElementById('regProcessorId').value,
+            filesvnm   : document.getElementById('regFilesvnm').value,
+            filepath   : document.getElementById('regFilepath').value,
         };
 
         AjaxUtil.postAsyncData('/api/maintenance_repair/save_comp', data, function (result) {
@@ -899,12 +996,22 @@
         document.getElementById('regArrivtime').value  = time;
         document.getElementById('regComptime').value   = time;
         document.getElementById('regContremark').value = '';
+        document.getElementById('regGregicd').value    = '';
+        document.getElementById('regReginm').value     = '';
+        document.getElementById('regRegicd').value     = '';
+        document.getElementById('regRemonm').value     = '';
+        document.getElementById('regRemocd').value     = '';
+        document.getElementById('regFacnm').value      = '';
+        document.getElementById('regFaccd').value      = '';
         document.getElementById('regRemoremark').value = '';
+        document.getElementById('regResunm').value     = '';
+        document.getElementById('regResucd').value     = '';
         document.getElementById('regResuremark').value = '';
+        document.getElementById('regResultnm').value   = '';
         document.getElementById('regResultcd').value   = '';
         document.getElementById('regCustomer').value   = '';
-        document.getElementById('regRemark').value     = '';
         document.getElementById('selectedRepairCard').style.display = 'none';
+        removeRepairFile();
 
         // 현장/호기 readonly 해제
         ['regActnm', 'regEqupnm'].forEach(function (id) {

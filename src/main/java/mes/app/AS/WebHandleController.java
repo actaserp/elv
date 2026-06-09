@@ -38,6 +38,19 @@ public class WebHandleController {
         return result;
     }
 
+    // ── 고장처리 목록 조회 API ────────────────────────────────
+    @GetMapping("/comp_list")
+    public AjaxResult getCompList(
+            @RequestParam(value = "fromDate", required = false) String fromDate,
+            @RequestParam(value = "toDate",   required = false) String toDate,
+            @RequestParam(value = "actnm",    required = false) String actnm,
+            @RequestParam(value = "spjangcd") String spjangcd,
+            HttpServletRequest request) {
+        AjaxResult result = new AjaxResult();
+        result.data = webHandleService.getCompList(spjangcd, fromDate, toDate, actnm);
+        return result;
+    }
+
     // ── 고장처리결과 저장 (TB_E411 INSERT) ───────────────────
     @PostMapping("/save")
     public AjaxResult save(
@@ -54,12 +67,19 @@ public class WebHandleController {
             @RequestParam(value = "equpcd",    required = false) String equpcd,
             @RequestParam(value = "equpnm",    required = false) String equpnm,
             @RequestParam(value = "contremark",required = false) String contremark,
+            @RequestParam(value = "gregicd",   required = false) String gregicd,
+            @RequestParam(value = "regicd",    required = false) String regicd,
+            @RequestParam(value = "remocd",    required = false) String remocd,
+            @RequestParam(value = "faccd",     required = false) String faccd,
             @RequestParam(value = "remoremark",required = false) String remoremark,
+            @RequestParam(value = "resucd",    required = false) String resucd,
             @RequestParam(value = "resuremark",required = false) String resuremark,
             @RequestParam(value = "resultcd",  required = false) String resultcd,
-            @RequestParam(value = "customer",  required = false) String customer,
             @RequestParam(value = "remark",    required = false) String remark,
+            @RequestParam(value = "customer",  required = false) String customer,
             @RequestParam(value = "perid",     required = false) String perid,
+            @RequestParam(value = "filesvnm",  required = false) String filesvnm,
+            @RequestParam(value = "filepath",  required = false) String filepath,
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
@@ -79,8 +99,11 @@ public class WebHandleController {
                     recedate, recenum, recetime,
                     arrivdate, arrivtime,
                     actcd, actnm, equpcd, equpnm,
-                    contremark, remoremark, resuremark,
-                    resultcd, customer, remark, perid);
+                    contremark, gregicd, regicd,
+                    remocd, faccd, remoremark,
+                    resucd, resuremark, resultcd,
+                    remark, customer, perid,
+                    filesvnm, filepath);
             result.success = true;
             result.message = "고장처리가 등록되었습니다.";
         } catch (Exception e) {

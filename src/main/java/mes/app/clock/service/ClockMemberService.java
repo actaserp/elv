@@ -58,7 +58,7 @@ public class ClockMemberService {
                 app_p.[Name] as appernm,
                 t.appdate  as appdate
             from tb_pb204 t
-              LEFT JOIN person p ON p.id = t.perid
+               LEFT JOIN person p ON p.id = TRY_CAST(t.perid AS INT)
               LEFT JOIN (
                    SELECT [Code], [Value]
                    FROM sys_code
@@ -76,7 +76,7 @@ public class ClockMemberService {
                LEFT JOIN tb_jc002 jc ON j.divicd = jc.divicd
                LEFT JOIN tb_pz001 pz  ON j.rspcd = pz.RSPCD
                LEFT JOIN auth_user app_au ON app_au.username = t.appuserid
-               LEFT JOIN person app_p    ON app_p.id = app_au.personid
+               LEFT JOIN person app_p    ON app_p.id = TRY_CAST(app_au.personid AS INT)
             WHERE t.reqdate between :start_date and :end_date
             AND t.spjangcd = :spjangcd
             AND (:person_name = '' OR CAST(t.perid AS VARCHAR(50)) = :person_name)

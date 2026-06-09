@@ -72,7 +72,7 @@
         <div class="handle-split-wrap">
 
             <!-- ════════════════════════
-                 LEFT : 고장접수 목록
+                 LEFT : 고장접수 목록 + 처리목록
             ════════════════════════ -->
             <section class="section handle-left">
                 <div class="section-top">
@@ -109,8 +109,13 @@
                         </dl>
                     </div>
                 </div>
+                <div style="margin-bottom:6px; font-weight:700; color:#2c4f9e; font-size:13px;">▶ 고장접수 목록</div>
+                <div class="container-fluid" style="margin-bottom:16px;">
+                    <div id="requestGrid" style="height:280px;"></div>
+                </div>
+                <div style="margin-bottom:6px; font-weight:700; color:#2c4f9e; font-size:13px;">▶ 고장처리 목록</div>
                 <div class="container-fluid">
-                    <div id="requestGrid" style="height:600px;"></div>
+                    <div id="compGrid" style="height:280px;"></div>
                 </div>
             </section>
 
@@ -164,12 +169,18 @@
                     <div class="table-wrap" style="overflow-x:auto; margin-top:6px;">
                         <table class="write-table" style="width:100%; border-collapse:collapse; table-layout:fixed;">
                             <caption style="text-align:left; margin-bottom:6px;">고장처리등록</caption>
+                            <colgroup>
+                                <col style="width:90px;">
+                                <col>
+                                <col style="width:90px;">
+                                <col>
+                            </colgroup>
                             <tbody>
 
                             <tr>
-                                <th style="width:100px;"><label>완료일자</label></th>
+                                <th><label>완료일자</label></th>
                                 <td><input type="date" id="regCompdate"></td>
-                                <th style="width:100px;"><label>완료시간</label></th>
+                                <th><label>완료시간</label></th>
                                 <td><input type="time" id="regComptime"></td>
                             </tr>
 
@@ -189,60 +200,63 @@
 
                             <tr>
                                 <th><label>현장명</label></th>
-                                <td colspan="3">
-                                    <input type="text" id="regActnm" placeholder="현장 선택 (팝업)"
-                                           readonly onclick="openActPopup()">
-                                </td>
-                            </tr>
-
-                            <tr>
+                                <td><input type="text" id="regActnm" placeholder="현장 선택" readonly onclick="openActPopup()"></td>
                                 <th><label>호기명</label></th>
-                                <td colspan="3">
-                                    <input type="text" id="regEqupnm" placeholder="호기 선택 (현장 먼저)"
-                                           readonly onclick="openEqupPopup()">
-                                </td>
+                                <td><input type="text" id="regEqupnm" placeholder="호기 선택" readonly onclick="openEqupPopup()"></td>
                             </tr>
 
                             <tr>
                                 <th><label>고장부위</label></th>
-                                <td colspan="3">
-                                    <input type="text" id="regContremark" placeholder="고장부위 입력">
+                                <td>
+                                    <input type="text" id="regContremark" placeholder="고장부위 선택" readonly onclick="openGreginmPopup()">
+                                    <input type="hidden" id="regGregicd">
                                 </td>
-                            </tr>
-
-                            <tr>
                                 <th><label>고장부위상세</label></th>
-                                <td colspan="3">
-                                    <textarea id="regRemoremark" placeholder="고장부위 상세 입력"></textarea>
+                                <td>
+                                    <input type="text" id="regReginm" placeholder="고장부위 먼저 선택" readonly onclick="openReginmPopup()">
+                                    <input type="hidden" id="regRegicd">
                                 </td>
                             </tr>
 
                             <tr>
                                 <th><label>고장요인</label></th>
-                                <td colspan="3">
-                                    <textarea id="regResuremark" placeholder="고장요인 입력"></textarea>
+                                <td>
+                                    <input type="text" id="regRemonm" placeholder="고장요인 선택" readonly onclick="openRemonmPopup()">
+                                    <input type="hidden" id="regRemocd">
+                                </td>
+                                <th><label>고장원인</label></th>
+                                <td>
+                                    <input type="text" id="regFacnm" placeholder="고장원인 선택" readonly onclick="openFacnmPopup()">
+                                    <input type="hidden" id="regFaccd">
                                 </td>
                             </tr>
 
                             <tr>
-                                <th><label>고장원인</label></th>
-                                <td colspan="3">
-                                    <input type="text" id="regResultcd" placeholder="고장원인 입력">
-                                </td>
+                                <th><label>고장원인상세</label></th>
+                                <td colspan="3"><textarea id="regRemoremark" placeholder="고장원인상세 입력"></textarea></td>
                             </tr>
 
                             <tr>
                                 <th><label>처리내용</label></th>
-                                <td colspan="3">
-                                    <input type="text" id="regCustomer" placeholder="처리내용 입력">
+                                <td>
+                                    <input type="text" id="regResunm" placeholder="처리내용 선택" readonly onclick="openResunmPopup()">
+                                    <input type="hidden" id="regResucd">
+                                </td>
+                                <th><label>처리결과</label></th>
+                                <td>
+                                    <input type="text" id="regResultnm" placeholder="처리결과 선택" readonly onclick="openResultnmPopup()">
+                                    <input type="hidden" id="regResultcd">
                                 </td>
                             </tr>
 
                             <tr>
-                                <th><label>처리결과</label></th>
-                                <td colspan="3">
-                                    <input type="text" id="regRemark" placeholder="처리결과 입력">
-                                </td>
+                                <th><label>처리상세</label></th>
+                                <td colspan="3"><textarea id="regResuremark" placeholder="처리상세 입력"></textarea></td>
+                            </tr>
+
+                            <tr>
+                                <th><label>사후관리사항</label></th>
+                                <td colspan="3"><textarea id="regCustomer" placeholder="사후관리사항 입력"></textarea></td>
                             </tr>
 
                             <tr>
@@ -250,6 +264,25 @@
                                 <td colspan="3">
                                     <input type="text" id="regPernm" placeholder="처리자 선택 (팝업)"
                                            readonly onclick="openPernmPopup()">
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <th><label>파일 첨부</label></th>
+                                <td colspan="3">
+                                    <input type="file" id="regFileInput" style="display:none"
+                                           accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip">
+                                    <input type="hidden" id="regFilesvnm">
+                                    <input type="hidden" id="regFilepath">
+                                    <div onclick="document.getElementById('regFileInput').click()"
+                                         style="border:2px dashed #ddd; border-radius:8px; padding:12px; text-align:center; cursor:pointer; background:#fafafa; font-size:13px; color:#888;">
+                                        📎 클릭하여 파일 선택
+                                    </div>
+                                    <div id="regFilePreview" style="display:none; margin-top:8px; padding:8px 12px; background:#f5f5f5; border-radius:6px; font-size:13px; color:#444; align-items:center; justify-content:space-between;">
+                                        <span id="regFileNameDisplay" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+                                        <span id="regFileStatus" style="font-size:12px; white-space:nowrap; margin-left:8px;"></span>
+                                        <button onclick="removeHandleFile()" style="background:none; border:none; font-size:18px; color:#aaa; cursor:pointer; margin-left:8px;">×</button>
+                                    </div>
                                 </td>
                             </tr>
 
@@ -331,17 +364,29 @@
                 showMarquee: true,
                 isReadOnly: true,
                 columns: [
-                    {binding: 'recedate', header: '접수일자', width: 100, align: 'center'},
-                    {binding: 'actnm',    header: '현장명',   width: 130, align: 'left'},
-                    {binding: 'equpnm',   header: '호기명',   width: 120, align: 'left'},
-                    {binding: 'contents', header: '고장내용', width: '*',  align: 'left'},
-                    {binding: 'resultck', header: '처리',     width:  60, align: 'center',
+                    {binding: 'recedate', header: '접수일자', width:  90, align: 'center'},
+                    {binding: 'actnm',    header: '현장명',   width: 120, align: 'left'},
+                    {binding: 'equpnm',   header: '호기명',   width: 100, align: 'left'},
+                    {binding: 'contnm',   header: '고장내용', width: 100, align: 'left'},
+                    {binding: 'contents', header: '상세내용', width: '*',  align: 'left'},
+                    {binding: 'resultck', header: '처리',     width:  50, align: 'center',
                         cellTemplate: function(ctx) {
                             return ctx.value ? '<span style="color:#1a7a3a;">✔</span>' : '<span style="color:#cc4400;">-</span>';
                         }
                     }
                 ],
-                itemsSource: requestData
+                itemsSource: requestData,
+                formatItem: function(s, e) {
+                    if (e.panel.cellType !== wijmo.grid.CellType.Cell) return;
+                    var col = s.columns[e.col];
+                    if (col.binding === 'recedate') {
+                        var val = s.getCellData(e.row, e.col, false);
+                        if (val && String(val).length === 8) {
+                            var v = String(val);
+                            e.cell.textContent = v.substring(0,4) + '.' + v.substring(4,6) + '.' + v.substring(6,8);
+                        }
+                    }
+                }
             });
             requestGrid.rowHeaders.columns.splice(0, 1);
 
@@ -369,6 +414,61 @@
 
             // 초기 조회
             searchRequestList();
+            searchCompList();
+        }
+
+        /* ════════════════════════════════════
+           고장처리 목록 조회 (TB_E411)
+        ════════════════════════════════════ */
+        var compGrid, compData;
+
+        function initCompGrid() {
+            compData = new wijmo.collections.CollectionView([]);
+            compGrid = new wijmo.grid.FlexGrid('#compGrid', {
+                autoGenerateColumns: false,
+                showMarquee: true,
+                isReadOnly: true,
+                columns: [
+                    {binding: 'compdate',  header: '완료일자', width:  90, align: 'center'},
+                    {binding: 'actnm',     header: '현장명',   width: 120, align: 'left'},
+                    {binding: 'equpnm',    header: '호기명',   width: 100, align: 'left'},
+                    {binding: 'actpernm',  header: '처리자',   width:  80, align: 'center'},
+                    {binding: 'contremark',header: '고장부위', width: 100, align: 'left'},
+                    {binding: 'customer',  header: '처리내용', width: '*',  align: 'left'},
+                ],
+                itemsSource: compData,
+                formatItem: function(s, e) {
+                    if (e.panel.cellType !== wijmo.grid.CellType.Cell) return;
+                    var col = s.columns[e.col];
+                    if (col.binding === 'compdate') {
+                        var val = s.getCellData(e.row, e.col, false);
+                        if (val && String(val).length === 8) {
+                            var v = String(val);
+                            e.cell.textContent = v.substring(0,4) + '.' + v.substring(4,6) + '.' + v.substring(6,8);
+                        }
+                    }
+                }
+            });
+            compGrid.rowHeaders.columns.splice(0, 1);
+        }
+
+        function searchCompList() {
+            if (!compGrid) initCompGrid();
+            var fromDate = document.getElementById('fromDate').value.replaceAll('-', '');
+            var toDate   = document.getElementById('toDate').value.replaceAll('-', '');
+            var actnm    = document.getElementById('srchActnm').value.trim();
+
+            AjaxUtil.getAsyncData('/api/AS/web_handle/comp_list', {
+                fromDate : fromDate,
+                toDate   : toDate,
+                actnm    : actnm,
+                spjangcd : _spjangcd
+            }, function (result) {
+                var data = (result && result.data) ? result.data : [];
+                compData = new wijmo.collections.CollectionView(data);
+                compGrid.itemsSource = compData;
+                compGrid.refresh();
+            });
         }
 
         /* ════════════════════════════════════
@@ -419,16 +519,183 @@
             document.getElementById('regRecetime').value  = item.recetime ? fmtTime(item.recetime)      : '';
 
             // 처리 관련 필드 초기화 (신규 입력용)
-            document.getElementById('hidCompdate').value  = '';
-            document.getElementById('hidCompnum').value   = '';
+            document.getElementById('hidCompdate').value   = '';
+            document.getElementById('hidCompnum').value    = '';
             document.getElementById('regContremark').value = '';
+            document.getElementById('regGregicd').value    = '';
+            document.getElementById('regReginm').value     = '';
+            document.getElementById('regRegicd').value     = '';
+            document.getElementById('regRemonm').value     = '';
+            document.getElementById('regRemocd').value     = '';
+            document.getElementById('regFacnm').value      = '';
+            document.getElementById('regFaccd').value      = '';
             document.getElementById('regRemoremark').value = '';
+            document.getElementById('regResunm').value     = '';
+            document.getElementById('regResucd').value     = '';
             document.getElementById('regResuremark').value = '';
+            document.getElementById('regResultnm').value   = '';
             document.getElementById('regResultcd').value   = '';
             document.getElementById('regCustomer').value   = '';
-            document.getElementById('regRemark').value     = '';
             document.getElementById('hidPerid').value      = '';
             document.getElementById('regPernm').value      = '';
+        }
+
+        /* ════════════════════════════════════
+           파일 처리
+        ════════════════════════════════════ */
+        document.getElementById('regFileInput').addEventListener('change', function () {
+            var file = this.files[0];
+            if (file) handleHandleFileSelect(file);
+        });
+
+        function handleHandleFileSelect(file) {
+            var preview  = document.getElementById('regFilePreview');
+            var nameEl   = document.getElementById('regFileNameDisplay');
+            var statusEl = document.getElementById('regFileStatus');
+
+            nameEl.textContent   = file.name;
+            statusEl.textContent = '업로드 중...';
+            statusEl.style.color = '#f0a500';
+            preview.style.display = 'flex';
+
+            document.getElementById('regFilesvnm').value = '';
+            document.getElementById('regFilepath').value  = '';
+
+            var csrfToken = document.querySelector('input[name="_csrf"]').value;
+            var formData  = new FormData();
+            formData.append('file', file);
+
+            fetch(withCtx('api/daily_report/upload_file'), {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrfToken },
+                body: formData
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(result) {
+                if (result.success && result.data) {
+                    document.getElementById('regFilesvnm').value = result.data.filesvnm;
+                    document.getElementById('regFilepath').value  = result.data.filepath;
+                    statusEl.textContent = '✓ 업로드 완료';
+                    statusEl.style.color = '#2a9d2a';
+                } else {
+                    statusEl.textContent = '✗ 업로드 실패';
+                    statusEl.style.color = '#cc3333';
+                    Alert.alert('', result.message || '파일 업로드에 실패하였습니다.');
+                }
+            })
+            .catch(function() {
+                statusEl.textContent = '✗ 업로드 실패';
+                statusEl.style.color = '#cc3333';
+                Alert.alert('', '파일 업로드 중 오류가 발생하였습니다.');
+            });
+        }
+
+        function removeHandleFile() {
+            document.getElementById('regFileInput').value    = '';
+            document.getElementById('regFilesvnm').value     = '';
+            document.getElementById('regFilepath').value      = '';
+            document.getElementById('regFilePreview').style.display = 'none';
+        }
+
+        /* ════════════════════════════════════
+           코드 팝업 공통
+        ════════════════════════════════════ */
+        var _codeCache = {};
+
+        function openCodePopup(popupId, apiUrl, listId, codeKey, nameKey, keywordId, onSelect) {
+            if (_codeCache[popupId]) {
+                renderCodeList(listId, _codeCache[popupId], nameKey, onSelect, popupId);
+                return;
+            }
+            AjaxUtil.getAsyncData(apiUrl, {}, function(result) {
+                if (result && result.data) {
+                    _codeCache[popupId] = result.data;
+                    renderCodeList(listId, result.data, nameKey, onSelect, popupId);
+                }
+            });
+        }
+
+        function renderCodeList(listId, data, nameKey, onSelect, popupId) {
+            var tmplId = popupId + 'Template';
+            var content = '<div style="padding:10px;"><input type="text" id="' + listId + 'Kwd" class="form-control2" placeholder="검색" style="width:100%; margin-bottom:8px;"><div id="' + listId + '" style="height:300px;"></div></div>';
+            var $c = $(content);
+            var popContainer = new PopupDraggable('선택');
+            popContainer.open({ width: 400, height: 420, $content: $c });
+
+            var grid = new wijmo.grid.FlexGrid('#' + listId, {
+                autoGenerateColumns: false,
+                showMarquee: true,
+                isReadOnly: true,
+                columns: [
+                    {binding: nameKey, header: '명칭', width: '*', align: 'left'}
+                ],
+                itemsSource: new wijmo.collections.CollectionView(data)
+            });
+            grid.rowHeaders.columns.splice(0, 1);
+
+            $c.find('#' + listId + 'Kwd').on('input', function() {
+                var kwd = this.value;
+                var filtered = data.filter(function(item) { return (item[nameKey] || '').includes(kwd); });
+                grid.itemsSource = new wijmo.collections.CollectionView(filtered);
+            });
+
+            grid.hostElement.addEventListener('dblclick', function() {
+                var item = grid.selectedItems[0];
+                if (!item) return;
+                onSelect(item);
+                popContainer.close();
+            });
+        }
+
+        function openGreginmPopup() {
+            openCodePopup('greginm', '/api/maintenance_repair/read_greginm', 'greginmList', 'gregicd', 'greginm', 'greginmKwd', function(item) {
+                document.getElementById('regGregicd').value    = item.gregicd || '';
+                document.getElementById('regContremark').value = item.greginm || '';
+                document.getElementById('regRegicd').value     = '';
+                document.getElementById('regReginm').value     = '';
+                delete _codeCache['reginm'];
+            });
+        }
+
+        function openReginmPopup() {
+            var gregicd = document.getElementById('regGregicd').value;
+            if (!gregicd) { Alert.alert('', '고장부위를 먼저 선택해주세요.'); return; }
+            AjaxUtil.getAsyncData('/api/maintenance_repair/read_reginm', { gregicd: gregicd }, function(result) {
+                if (result && result.data) {
+                    renderCodeList('reginmList', result.data, 'reginm', function(item) {
+                        document.getElementById('regRegicd').value = item.regicd || '';
+                        document.getElementById('regReginm').value = item.reginm || '';
+                    }, 'reginm');
+                }
+            });
+        }
+
+        function openRemonmPopup() {
+            openCodePopup('remonm', '/api/maintenance_repair/read_remonm', 'remonmList', 'remocd', 'remonm', 'remonmKwd', function(item) {
+                document.getElementById('regRemocd').value = item.remocd || '';
+                document.getElementById('regRemonm').value = item.remonm || '';
+            });
+        }
+
+        function openFacnmPopup() {
+            openCodePopup('facnm', '/api/maintenance_repair/read_facnm', 'facnmList', 'faccd', 'facnm', 'facnmKwd', function(item) {
+                document.getElementById('regFaccd').value  = item.faccd || '';
+                document.getElementById('regFacnm').value  = item.facnm || '';
+            });
+        }
+
+        function openResunmPopup() {
+            openCodePopup('resunm', '/api/maintenance_repair/read_resunm', 'resunmList', 'resucd', 'resunm', 'resunmKwd', function(item) {
+                document.getElementById('regResucd').value  = item.resucd || '';
+                document.getElementById('regResunm').value  = item.resunm || '';
+            });
+        }
+
+        function openResultnmPopup() {
+            openCodePopup('resultnm', '/api/maintenance_repair/read_resultnm', 'resultnmList', 'resultcd', 'resultnm', 'resultnmKwd', function(item) {
+                document.getElementById('regResultcd').value  = item.resultcd || '';
+                document.getElementById('regResultnm').value  = item.resultnm || '';
+            });
         }
 
         /* ════════════════════════════════════
@@ -454,19 +721,27 @@
                 actnm      : document.getElementById('regActnm').value,
                 equpcd     : document.getElementById('hidEqupcd').value,
                 equpnm     : document.getElementById('regEqupnm').value,
-                contremark : document.getElementById('regContremark').value,
-                remoremark : document.getElementById('regRemoremark').value,
-                resuremark : document.getElementById('regResuremark').value,
-                resultcd   : document.getElementById('regResultcd').value,
-                customer   : document.getElementById('regCustomer').value,
-                remark     : document.getElementById('regRemark').value,
-                perid      : document.getElementById('hidPerid').value
+                contremark : document.getElementById('regContremark').value,  // 고장부위명
+                gregicd    : document.getElementById('regGregicd').value,      // 고장부위코드
+                regicd     : document.getElementById('regRegicd').value,       // 고장부위상세코드
+                remocd     : document.getElementById('regRemocd').value,       // 고장요인코드
+                faccd      : document.getElementById('regFaccd').value,        // 고장원인코드
+                remoremark : document.getElementById('regRemoremark').value,   // 고장원인상세 직접입력
+                resucd     : document.getElementById('regResucd').value,       // 처리내용코드
+                resuremark : document.getElementById('regResuremark').value,   // 처리상세 직접입력
+                resultcd   : document.getElementById('regResultcd').value,     // 처리결과코드
+                remark     : document.getElementById('regResultnm').value,     // 처리결과명
+                customer   : document.getElementById('regCustomer').value,     // 사후관리사항 직접입력
+                perid      : document.getElementById('hidPerid').value,
+                filesvnm   : document.getElementById('regFilesvnm').value,
+                filepath   : document.getElementById('regFilepath').value
             };
 
             AjaxUtil.postAsyncData('/api/AS/web_handle/save', data, function (result) {
                 if (result && result.success) {
                     Alert.alert('', result.message, function () {
                         searchRequestList();
+                        searchCompList();
                         resetForm();
                     });
                 } else {
@@ -495,6 +770,7 @@
                 if (result && result.success) {
                     Alert.alert('', result.message, function () {
                         searchRequestList();
+                        searchCompList();
                         resetForm();
                     });
                 } else {
@@ -508,23 +784,33 @@
         ════════════════════════════════════ */
         function resetForm() {
             setFormDefaults();
-            document.getElementById('hidCompdate').value  = '';
-            document.getElementById('hidCompnum').value   = '';
-            document.getElementById('hidRecedate').value  = '';
-            document.getElementById('hidRecenum').value   = '';
-            document.getElementById('hidActcd').value     = '';
-            document.getElementById('hidEqupcd').value    = '';
-            document.getElementById('hidPerid').value     = '';
-            document.getElementById('regActnm').value     = '';
-            document.getElementById('regEqupnm').value    = '';
+            document.getElementById('hidCompdate').value   = '';
+            document.getElementById('hidCompnum').value    = '';
+            document.getElementById('hidRecedate').value   = '';
+            document.getElementById('hidRecenum').value    = '';
+            document.getElementById('hidActcd').value      = '';
+            document.getElementById('hidEqupcd').value     = '';
+            document.getElementById('hidPerid').value      = '';
+            document.getElementById('regActnm').value      = '';
+            document.getElementById('regEqupnm').value     = '';
             document.getElementById('regContremark').value = '';
+            document.getElementById('regGregicd').value    = '';
+            document.getElementById('regReginm').value     = '';
+            document.getElementById('regRegicd').value     = '';
+            document.getElementById('regRemonm').value     = '';
+            document.getElementById('regRemocd').value     = '';
+            document.getElementById('regFacnm').value      = '';
+            document.getElementById('regFaccd').value      = '';
             document.getElementById('regRemoremark').value = '';
+            document.getElementById('regResunm').value     = '';
+            document.getElementById('regResucd').value     = '';
             document.getElementById('regResuremark').value = '';
+            document.getElementById('regResultnm').value   = '';
             document.getElementById('regResultcd').value   = '';
             document.getElementById('regCustomer').value   = '';
-            document.getElementById('regRemark').value     = '';
             document.getElementById('regPernm').value      = '';
             document.getElementById('selectedBanner').style.display = 'none';
+            removeHandleFile();
         }
 
         function setFormDefaults() {

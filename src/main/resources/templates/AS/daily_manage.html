@@ -303,13 +303,15 @@
         ];
 
         const detailColumns = [
-            {binding: 'rptnum',  header: '순번',     width:  60, align: 'center'},
-            {binding: 'businm',  header: '구분',     width: 100, align: 'center'},
-            {binding: 'actnm',   header: '행선지',   width: 150, align: 'left'},
-            {binding: 'frtime',  header: '도착시간', width:  90, align: 'center'},
-            {binding: 'totime',  header: '완료시간', width:  90, align: 'center'},
-            {binding: 'equpnm',  header: '호기명',   width: 150, align: 'left'},
-            {binding: 'remark',  header: '세부내용', width: '*', align: 'left'},
+            {binding: 'rptnum',   header: '순번',     width:  60, align: 'center'},
+            {binding: 'businm',   header: '구분',     width: 100, align: 'center'},
+            {binding: 'actnm',    header: '행선지',   width: 150, align: 'left'},
+            {binding: 'frtime',   header: '도착시간', width:  90, align: 'center'},
+            {binding: 'totime',   header: '완료시간', width:  90, align: 'center'},
+            {binding: 'equpnm',   header: '호기명',   width: 150, align: 'left'},
+            {binding: 'remark',   header: '세부내용', width: '*', align: 'left'},
+            {binding: 'filesvnm', header: '첨부파일', width: 120, align: 'center'},
+            {binding: 'filepath', visible: false},
         ];
 
         function initTab1() {
@@ -323,7 +325,18 @@
                 showMarquee: true,
                 columns: headColumns,
                 isReadOnly: true,
-                itemsSource: headData
+                itemsSource: headData,
+                formatItem: function(s, e) {
+                    if (e.panel.cellType !== wijmo.grid.CellType.Cell) return;
+                    const col = s.columns[e.col];
+                    if (col.binding === 'rptdate') {
+                        const val = s.getCellData(e.row, e.col, false);
+                        if (val && String(val).length === 8) {
+                            const v = String(val);
+                            e.cell.textContent = `${v.substring(0,4)}.${v.substring(4,6)}.${v.substring(6,8)}`;
+                        }
+                    }
+                }
             });
             headGrid.rowHeaders.columns.splice(0, 1);
 
@@ -341,7 +354,33 @@
                 showMarquee: true,
                 columns: detailColumns,
                 isReadOnly: true,
-                itemsSource: detailData
+                itemsSource: detailData,
+                formatItem: function(s, e) {
+                    if (e.panel.cellType !== wijmo.grid.CellType.Cell) return;
+                    const col = s.columns[e.col];
+                    if (col.binding === 'frtime' || col.binding === 'totime') {
+                        const val = s.getCellData(e.row, e.col, false);
+                        if (val && String(val).length >= 4) {
+                            const v = String(val).replace(':', '');
+                            e.cell.textContent = `${v.substring(0,2)}:${v.substring(2,4)}`;
+                        }
+                    }
+                    if (col.binding === 'filesvnm') {
+                        const item     = s.rows[e.row].dataItem;
+                        const filesvnm = item && item.filesvnm ? item.filesvnm.trim() : '';
+                        const filepath = item && item.filepath  ? item.filepath.trim()  : '';
+                        if (filesvnm) {
+                            const url = withCtx('/api/daily_report/download')
+                                + '?filepath=' + encodeURIComponent(filepath)
+                                + '&filesvnm=' + encodeURIComponent(filesvnm);
+                            e.cell.innerHTML = `<a href="${url}" target="_blank"
+                                style="color:#4472c4; text-decoration:underline; font-size:12px;">
+                                📎 다운로드</a>`;
+                        } else {
+                            e.cell.innerHTML = '';
+                        }
+                    }
+                }
             });
             detailGrid.rowHeaders.columns.splice(0, 1);
 

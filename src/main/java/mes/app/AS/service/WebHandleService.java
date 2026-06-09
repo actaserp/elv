@@ -37,10 +37,13 @@ public class WebHandleService {
                     e.equpcd,
                     e.equpnm,
                     e.contcd,
+                    ct.contnm,
                     e.contents,
                     e.remark,
                     e.resultck
                 FROM TB_E401 e
+                LEFT JOIN TB_E010 ct ON ct.contcd  = e.contcd
+                                    AND ct.spjangcd = e.spjangcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.recedate BETWEEN :fromDate AND :toDate
                 """;
@@ -54,14 +57,60 @@ public class WebHandleService {
         return this.sqlRunner.getRows(sql, param);
     }
 
+    // ── 고장처리 목록 조회 (TB_E411) ─────────────────────────
+    public List<Map<String, Object>> getCompList(
+            String spjangcd, String fromDate, String toDate, String actnm) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("fromDate", fromDate);
+        param.addValue("toDate",   toDate);
+
+        String sql = """
+                SELECT
+                    e.compdate,
+                    e.compnum,
+                    e.comptime,
+                    e.recedate,
+                    e.recenum,
+                    e.actcd,
+                    e.actnm,
+                    e.equpcd,
+                    e.equpnm,
+                    e.contremark,
+                    e.remoremark,
+                    e.resuremark,
+                    e.customer,
+                    e.remark,
+                    e.actperid,
+                    ap.pernm AS actpernm
+                FROM TB_E411 e
+                LEFT JOIN TB_JA001 ap ON ap.perid    = e.actperid
+                                     AND ap.spjangcd = e.spjangcd
+                WHERE e.spjangcd = :spjangcd
+                  AND e.compdate BETWEEN :fromDate AND :toDate
+                """;
+
+        if (actnm != null && !actnm.isBlank()) {
+            sql += " AND e.actnm LIKE :actnm";
+            param.addValue("actnm", "%" + actnm.trim() + "%");
+        }
+
+        sql += " ORDER BY e.compdate DESC, e.compnum DESC";
+        return this.sqlRunner.getRows(sql, param);
+    }
+
     // ── 고장처리결과 등록 (TB_E411 INSERT) ───────────────────
     public void saveComp(
             String custcd, String spjangcd, String compdate, String comptime,
             String recedate, String recenum, String recetime,
             String arrivdate, String arrivtime,
             String actcd, String actnm, String equpcd, String equpnm,
-            String contremark, String remoremark, String resuremark,
-            String resultcd, String customer, String remark, String perid) {
+            String contremark, String gregicd, String regicd,
+            String remocd, String faccd, String remoremark,
+            String resucd, String resuremark, String resultcd,
+            String remark, String customer, String perid,
+            String filesvnm, String filepath) {
 
         String compnum = getNextCompnum(spjangcd, compdate);
 
@@ -81,34 +130,45 @@ public class WebHandleService {
         param.addValue("equpcd",     equpcd);
         param.addValue("equpnm",     equpnm);
         param.addValue("contremark", contremark);
+        param.addValue("gregicd",    gregicd);
+        param.addValue("regicd",     regicd);
+        param.addValue("remocd",     remocd);
+        param.addValue("faccd",      faccd);
         param.addValue("remoremark", remoremark);
+        param.addValue("resucd",     resucd);
         param.addValue("resuremark", resuremark);
         param.addValue("resultcd",   resultcd);
-        param.addValue("customer",   customer);
         param.addValue("remark",     remark);
+        param.addValue("customer",   customer);
         param.addValue("result",     "1");
         param.addValue("perid",      perid != null ? perid : "");
         param.addValue("inperid",    perid != null ? perid : "");
         param.addValue("indate",     compdate);
+        param.addValue("filesvnm",   filesvnm != null ? filesvnm : "");
+        param.addValue("filepath",   filepath  != null ? filepath  : "");
 
-        String sql = """
+        namedParameterJdbcTemplate.update("""
                 INSERT INTO TB_E411
                     (custcd, spjangcd, compdate, compnum, comptime,
                      recedate, recenum, recetime, arrivdate, arrivtime,
                      actcd, actnm, equpcd, equpnm,
-                     contremark, remoremark, resuremark, resultcd,
-                     customer, remark, result,
-                     perid, inperid, indate)
+                     contremark, gregicd, regicd,
+                     remocd, faccd, remoremark,
+                     resucd, resuremark, resultcd,
+                     remark, customer, result,
+                     perid, inperid, indate,
+                     filesvnm, filepath)
                 VALUES
                     (:custcd, :spjangcd, :compdate, :compnum, :comptime,
                      :recedate, :recenum, :recetime, :arrivdate, :arrivtime,
                      :actcd, :actnm, :equpcd, :equpnm,
-                     :contremark, :remoremark, :resuremark, :resultcd,
-                     :customer, :remark, :result,
-                     :perid, :inperid, :indate)
-                """;
-
-        namedParameterJdbcTemplate.update(sql, param);
+                     :contremark, :gregicd, :regicd,
+                     :remocd, :faccd, :remoremark,
+                     :resucd, :resuremark, :resultcd,
+                     :remark, :customer, :result,
+                     :perid, :inperid, :indate,
+                     :filesvnm, :filepath)
+                """, param);
 
         // ── TB_E401 처리완료 상태 업데이트 ──────────────────
         if (recedate != null && !recedate.isBlank() && recenum != null && !recenum.isBlank()) {
@@ -116,15 +176,70 @@ public class WebHandleService {
             updateParam.addValue("spjangcd", spjangcd);
             updateParam.addValue("recedate",  recedate);
             updateParam.addValue("recenum",   recenum);
-
             namedParameterJdbcTemplate.update("""
-                    UPDATE TB_E401
-                    SET resultck = '1'
+                    UPDATE TB_E401 SET resultck = '1'
                     WHERE spjangcd = :spjangcd
                       AND recedate = :recedate
                       AND recenum  = :recenum
                     """, updateParam);
         }
+
+        // ── TB_E037 HEAD MERGE + TB_E038 업무일지 자동 등록 ──
+        MapSqlParameterSource headParam = new MapSqlParameterSource();
+        headParam.addValue("custcd",   custcd);
+        headParam.addValue("spjangcd", spjangcd);
+        headParam.addValue("rptdate",  compdate);
+        headParam.addValue("perid",    perid);
+
+        namedParameterJdbcTemplate.update("""
+                MERGE INTO TB_E037 AS target
+                USING (SELECT :custcd AS custcd, :spjangcd AS spjangcd,
+                              :rptdate AS rptdate, :perid AS perid) AS source
+                ON (    target.custcd   = source.custcd
+                    AND target.spjangcd = source.spjangcd
+                    AND target.rptdate  = source.rptdate
+                    AND target.perid    = source.perid)
+                WHEN NOT MATCHED THEN
+                    INSERT (custcd, spjangcd, rptdate, perid)
+                    VALUES (:custcd, :spjangcd, :rptdate, :perid);
+                """, headParam);
+
+        Integer nextRpt = namedParameterJdbcTemplate.queryForObject("""
+                SELECT ISNULL(MAX(CAST(rptnum AS INT)), 0) + 1
+                FROM TB_E038
+                WHERE custcd   = :custcd
+                  AND spjangcd = :spjangcd
+                  AND rptdate  = :rptdate
+                  AND perid    = :perid
+                """, headParam, Integer.class);
+        String rptnum = String.format("%03d", nextRpt != null ? nextRpt : 1);
+
+        MapSqlParameterSource detailParam = new MapSqlParameterSource();
+        detailParam.addValue("custcd",   custcd);
+        detailParam.addValue("spjangcd", spjangcd);
+        detailParam.addValue("rptdate",  compdate);
+        detailParam.addValue("perid",    perid);
+        detailParam.addValue("rptnum",   rptnum);
+        detailParam.addValue("actcd",    actcd);
+        detailParam.addValue("actnm",    actnm);
+        detailParam.addValue("equpcd",   equpcd != null ? equpcd : "");
+        detailParam.addValue("wkcd",     "");
+        detailParam.addValue("frtime",   comptime != null ? comptime : "");
+        detailParam.addValue("totime",   comptime != null ? comptime : "");
+        detailParam.addValue("remark",   customer != null ? customer : "");
+        detailParam.addValue("filesvnm", filesvnm != null ? filesvnm : "");
+        detailParam.addValue("filepath", filepath  != null ? filepath  : "");
+
+        namedParameterJdbcTemplate.update("""
+                INSERT INTO TB_E038
+                    (custcd, spjangcd, rptdate, perid, rptnum,
+                     actcd, actnm, equpcd, wkcd, frtime, totime, remark,
+                     filesvnm, filepath)
+                VALUES
+                    (:custcd, :spjangcd, :rptdate, :perid, :rptnum,
+                     :actcd, :actnm, :equpcd, :wkcd, :frtime, :totime, :remark,
+                     :filesvnm, :filepath)
+                """, detailParam);
     }
 
     // ── 고장처리결과 삭제 (TB_E411 DELETE) ───────────────────
