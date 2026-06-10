@@ -44,6 +44,10 @@
     .badge-process  { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 6px; background: #e3f2fd; color: #1565c0; }
     .badge-done     { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 6px; background: #e8f5e9; color: #2e7d32; }
     .badge-callback { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 6px; background: #f3e5f5; color: #6a1b9a; }
+
+    table th {
+      width: 115px;
+    }
   </style>
 </head>
 
@@ -250,21 +254,21 @@
               </tr>
               <tr>
                 <th>고객명</th>
-                <td><input type="text" id="memoCusnm"></td>
+                <td colspan="3"><input type="text" id="memoCusnm"></td>
               </tr>
               <tr>
                 <th>전화번호</th>
-                <td><input type="text" id="memoCustel"></td>
+                <td><input type="text" id="memoCustel" style="width: 176px;"></td>
                 <th>콜백예약</th>
                 <td style="justify-items:center;"><input type="checkbox" id="memoCallbackFlag" value="1"></td>
               </tr>
-              <tr><th>예약시간</th><td><input type="time" id="memoCallbackTime"></td></tr>
-              <tr><th>콜백메모</th><td><input type="text" id="memoCallbackMemo"></td></tr>
+              <tr><th>예약시간</th><td colspan="3"><input type="time" id="memoCallbackTime"></td></tr>
+              <tr><th>콜백메모</th><td colspan="3"><input type="text" id="memoCallbackMemo"></td></tr>
               <tr>
                 <th class="vtop">메모내용</th>
-                <td><textarea id="memoContent" rows="3" style="height:80px;"></textarea></td>
+                <td colspan="3"><textarea id="memoContent" rows="3" style="height:80px;"></textarea></td>
               </tr>
-              <tr><th class="vtop">처리내용</th><td><input type="text" id="memoProcess"/></td></tr>
+              <tr><th class="vtop">처리내용</th><td colspan="3"><input type="text" id="memoProcess"/></td></tr>
               </tbody>
             </table>
           </div>
