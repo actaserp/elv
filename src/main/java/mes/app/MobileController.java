@@ -99,6 +99,12 @@ public class MobileController {
         return "mobile/request/maintenance_repair";
     }
 
+    @GetMapping("/user_manage")
+    public String userManage(Model model) {
+        model.addAttribute("currentPage", "user_manage");
+        return "mobile/user_manage";
+    }
+
     // ========== 계정관리 ==========
 
     @GetMapping("/user_info")

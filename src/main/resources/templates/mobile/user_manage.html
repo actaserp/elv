@@ -1,10 +1,226 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
+<style>
+    .btn-clear { display: none !important; }
+    .btn-close { display: none !important; }
+    #searcharea, #detailarea { position: relative; width: 100%; margin-top: 10px; }
+    .search-container input { margin-top: 10px; margin-bottom: 10px; box-shadow: 0 4px 5px rgba(0,0,0,0.2); }
+    #searcharea input, #detailarea input { width: 100%; border: none; outline: none; font-size: 16px; padding: 10px; }
+    .search-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; }
+    .search-guide { padding: 10px; font-size: 14px; color: #666; }
+    .btn-select, .btn-login { width: 100%; padding: 10px; margin-top: 10px; border: none; border-radius: 5px; cursor: pointer; }
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }
+    .modal { display: none; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 400px; height: 650px; max-width: 90%; background-color: white; border-radius: 10px; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); padding: 20px; border: none; z-index: 9999; }
+    .modal-close { position: absolute; top: 10px; right: 5px; width: 30px; height: 25px; border: none; border-radius: 3px; background: none; z-index: 1000; cursor: pointer; }
+    #loadingSpinner { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+    #loadingImage { width: 95%; max-width: 900px; }
+
+    /* 사용자 카드 리스트 */
+    .user-list { padding: 10px; }
+    .user-card {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        padding: 14px 16px;
+        margin-bottom: 12px;
+        position: relative;
+    }
+    .user-card .user-name {
+        font-size: 16px;
+        font-weight: 700;
+        color: #1a3a6b;
+        margin-bottom: 6px;
+        padding-right: 60px;
+    }
+    .user-card .user-info {
+        font-size: 13px;
+        color: #555;
+        line-height: 1.8;
+    }
+    .user-card .user-info span {
+        display: inline-block;
+        min-width: 60px;
+        color: #999;
+        font-size: 12px;
+    }
+    .user-card .badge {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        padding: 3px 10px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .badge-active   { background: #e3f0ff !important; color: #1a6fff !important; }
+    .badge-inactive { background: #f5f5f5 !important; color: #aaa    !important; }
+    .no-data {
+        text-align: center;
+        padding: 40px 0;
+        color: #aaa;
+        font-size: 14px;
+    }
+</style>
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACTAS MES</title>
+    <meta name="ctx" th:content="@{/}">
+    <link rel="icon" type="image/png" th:href="@{/images/logo/actas_log_a.png}">
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/smoothness/jquery-ui.css">
+    <link rel="stylesheet" th:href="@{/resource/ax5ui/ax5ui.all.css}">
+    <link rel="stylesheet" th:href="@{/assets_mobile/css/import.css}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <script th:src="@{/assets_mobile/js/ui.js}"></script>
+    <script type="text/javascript" th:src="@{/resource/ax5ui/ax5ui.all.min.js}"></script>
+    <script type="text/javascript" th:src="@{/js/ax5commUtil.js}"></script>
+    <script th:src="@{/js/common.js}"></script>
+    <script th:src="@{/js/Mobile.js}"></script>
 </head>
-<body>
 
+<body>
+<input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+<div class="mobile-wrapper page-ticket-list">
+    <div class="mobile-layout-header">
+        <header>
+            <div class="left"><a href="#" title="전체메뉴" class="logo"></a></div>
+            <div class="left" style="margin-left:35px; font-size: 25px;"><h2>사용자관리</h2></div>
+            <div class="right">
+                <a href="#" title="전체메뉴" class="btn-menu">
+                    <img th:src="@{/assets_mobile/images/icon/btn-menu.svg}" alt="전체메뉴 아이콘">
+                </a>
+            </div>
+        </header>
+    </div>
+
+    <div th:insert="~{mobile/mobile_menu :: mobile_menu}"></div>
+
+    <div class="mobile-layout-contents">
+        <div class="layout-contents">
+            <div class="search-wrap">
+                <div class="srch-tit aco-hd">
+                    <p>기본검색</p>
+                    <a href="#" title="열기/닫기" class="btn-aco">
+                        <img th:src="@{/assets_mobile/images/icon/ico-down.svg}" alt="열기/닫기">
+                    </a>
+                </div>
+                <div class="srch-cont aco-cont">
+                    <dl>
+                        <dt>사원명</dt>
+                        <dd>
+                            <input type="text" id="searchName" placeholder="사원명 입력">
+                        </dd>
+                    </dl>
+                    <dl>
+                        <dt>활성여부</dt>
+                        <dd>
+                            <select id="searchActive" style="width:100%; border:1px solid #ddd; border-radius:5px; font-size:14px;">
+                                <option value="true">활성</option>
+                                <option value="false">비활성</option>
+                                <option value="">전체</option>
+                            </select>
+                        </dd>
+                    </dl>
+                    <dl>
+                        <dt>그룹</dt>
+                        <dd>
+                            <select id="searchGroup" style="width:100%; border:1px solid #ddd; border-radius:5px; font-size:14px;">
+                                <option value="">전체</option>
+                            </select>
+                        </dd>
+                    </dl>
+                    <div class="srch-btn">
+                        <button class="btn-dark" onclick="handleSearch()">조회</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="contents-wrap">
+                <div id="userTotalCount" style="padding:8px 12px; font-size:13px; color:#666;"></div>
+                <div class="user-list" id="userList"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+
+    $(document).ready(function () {
+        // 그룹 셀렉트 바인딩
+        $.ajax({
+            url: withCtx('/api/system/usergroup/read'),
+            type: 'GET',
+            success: function(result) {
+                if (result && result.data) {
+                    result.data.forEach(function(g) {
+                        $('#searchGroup').append(
+                            '<option value="' + g.id + '">' + (g.Name || g.name) + '</option>'
+                        );
+                    });
+                }
+            }
+        });
+        searchMainData();
+    });
+
+    function searchMainData() {
+        var url = '/api/system/user/read';
+        var data = {
+            keyword : document.getElementById('searchName').value.trim(),
+            group   : document.getElementById('searchGroup').value
+        };
+
+        AjaxUtil.getAsyncData(url, data, function (result) {
+            var listEl  = document.getElementById('userList');
+            var countEl = document.getElementById('userTotalCount');
+            listEl.innerHTML = '';
+
+            if (!result || !result.data || result.data.length === 0) {
+                listEl.innerHTML = '<div class="no-data">조회된 사용자가 없습니다.</div>';
+                countEl.innerHTML = '';
+                return;
+            }
+
+            // 활성여부 필터 (클라이언트 사이드)
+            var activeFilter = document.getElementById('searchActive').value;
+            var items = result.data.filter(function(item) {
+                if (activeFilter === '') return true;
+                var isActive = item.is_active === true || item.is_active === 1;
+                return activeFilter === 'true' ? isActive : !isActive;
+            });
+
+            if (items.length === 0) {
+                listEl.innerHTML = '<div class="no-data">조회된 사용자가 없습니다.</div>';
+                countEl.innerHTML = '';
+                return;
+            }
+
+            countEl.innerHTML = '총 <strong>' + items.length + '</strong>명';
+
+            items.forEach(function (item) {
+                var isActive   = item.is_active === true || item.is_active === 1;
+                var badgeClass = isActive ? 'badge-active' : 'badge-inactive';
+                var badgeText  = isActive ? '활성' : '비활성';
+
+                var card = '<div class="user-card">'
+                    + '<span class="badge ' + badgeClass + '">' + badgeText + '</span>'
+                    + '<div class="user-name">' + (item.Name || item.first_name || '-') + '</div>'
+                    + '<div class="user-info">'
+                    +   '<span>이메일</span> ' + (item.email      || '-') + '<br>'
+                    +   '<span>연락처</span> ' + (item.tel        || '-') + '<br>'
+                    +   '<span>그룹</span> '   + (item.group_name || '-') + '<br>'
+                    + '</div>'
+                    + '</div>';
+                listEl.innerHTML += card;
+            });
+        });
+    }
+
+    function handleSearch() {
+        searchMainData();
+        document.querySelectorAll('.btn-aco').forEach(function(btn) { btn.click(); });
+    }
+</script>
 </body>
 </html>
