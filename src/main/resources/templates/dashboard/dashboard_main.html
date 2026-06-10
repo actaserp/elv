@@ -2102,13 +2102,28 @@
         }
 
         function addGpsMarker(lat, lng, name, address, type, color, bounds) {
-            let pos    = new kakao.maps.LatLng(lat, lng);
+            let pos = new kakao.maps.LatLng(lat, lng);
             if (bounds) bounds.extend(pos);
-            let marker = new kakao.maps.Marker({ position: pos, map: map });
+
+            // 카카오 기본 마커 모양 SVG — 출근(파란)/퇴근(빨간)
+            var svgColor = (type === '\ucd9c\uadfc') ? '#1a6fff' : '#ff3333';
+            var svgContent = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">'
+                + '<path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26S28 24.5 28 14C28 6.268 21.732 0 14 0z" fill="' + svgColor + '"/>'
+                + '<circle cx="14" cy="14" r="6" fill="white"/>'
+                + '</svg>';
+            var blob = new Blob([svgContent], {type: 'image/svg+xml'});
+            var url  = URL.createObjectURL(blob);
+            var markerImage = new kakao.maps.MarkerImage(
+                url,
+                new kakao.maps.Size(28, 40),
+                { offset: new kakao.maps.Point(14, 40) }
+            );
+
+            let marker = new kakao.maps.Marker({ position: pos, map: map, image: markerImage });
             markers.push(marker);
             let info = new kakao.maps.InfoWindow({
                 content: '<div style="padding:5px;font-size:12px;">'
-                    + '<span style="color:' + color + '; font-weight:bold;">[' + type + ']</span><br>'
+                    + '<span style="color:' + svgColor + '; font-weight:bold;">[' + type + ']</span><br>'
                     + '\uc774\ub984 : ' + (name || '') + '<br>'
                     + (address || '')
                     + '</div>'

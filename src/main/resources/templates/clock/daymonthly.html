@@ -71,6 +71,17 @@
                                     <select style="width: 150px;" id="depart" name="depart"></select>
                                 </dd>
                             </dl>
+                            <dl>
+                                <dt><span class="eq"></span></dt>
+                                <dd>
+                                    <li>
+                                        <a class="btn btn-delete" title="조회" id="btnDaySearch">
+                                            <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                                            조회
+                                        </a>
+                                    </li>
+                                </dd>
+                            </dl>
 
                             <!--<dl>
                                 <dt><span class="eq"></span></dt>
@@ -341,25 +352,30 @@
                     if (row < 0) return;
 
                     const item = s.rows[row]?.dataItem;
-                    if (!item || !item.id) return;
+                    if (!item) return;
 
-                    const target = markerMap[String(item.id)];
-                    // 해당 id의 마커가 없으면 지도 이동하지 않음
-                    if (!target) return;
+                    // 전체 마커 제거 후 해당 사람의 출/퇴근 마커만 표시
+                    clearMarkers();
+                    let bounds = new kakao.maps.LatLngBounds();
+                    let hasMarker = false;
 
-                    map.setCenter(target.marker.getPosition());
-                    map.setLevel(3);
-
-                    // 기존 InfoWindow 닫기 (같은 것이면 닫기만)
-                    if (openInfoWindow) {
-                        openInfoWindow.close();
-                        if (openInfoWindow === target.infoWindow) {
-                            openInfoWindow = null;
-                            return;
-                        }
+                    if (item.latitude && item.longitude) {
+                        addDayMonthlyMarker(item, item.latitude, item.longitude, item.address, '\ucd9c\uadfc', '#1a6fff', bounds);
+                        hasMarker = true;
                     }
-                    target.infoWindow.open(map, target.marker);
-                    openInfoWindow = target.infoWindow;
+                    if (item.out_latitude && item.out_longitude) {
+                        addDayMonthlyMarker(item, item.out_latitude, item.out_longitude, item.out_address, '\ud1f4\uadfc', '#ff3333', bounds);
+                        hasMarker = true;
+                    }
+
+                    if (hasMarker && !bounds.isEmpty()) {
+                        map.setBounds(bounds);
+                        map.setLevel(3);
+                    } else {
+                        map.setCenter(new kakao.maps.LatLng(DEFAULT_LAT, DEFAULT_LNG));
+                        map.setLevel(DEFAULT_LEVEL);
+                    }
+                    $('#gpsInfo').text((item.first_name || '') + ' \ucd9c\ud1f4\uadfc \uc704\uce58');
                 });
 
                 // 셀 편집 방지
@@ -602,31 +618,16 @@
                 let result = AjaxUtil.getSyncData(url + '/read', data);
 
                 if (result && result.data) {
-                    _this.isGridInitialLoad = true; // GPS 로드 완료 전까지 지도 이동 차단
+                    _this.isGridInitialLoad = true;
                     _this.viewData.sourceCollection = result.data;
 
                     setTimeout(() => {
-                        let hasFixedRow = false;
-
-                        _this.isGridInitialLoad = true; // row.isSelected 설정 시 selectionChanged → 지도 이동 방지
                         _this.grid.rows.forEach((row, idx) => {
                             if (_this.grid.getCellData(idx, 'fixflag', false) === '1') {
-                                row.isSelected = true; // 선택 (체크박스 자동 연동)
-                                hasFixedRow = true;    // 플래그 설정
+                                row.isSelected = true;
                             }
                         });
-                        _this.isGridInitialLoad = true; // GPS 로드 완료 전까지 계속 차단 유지
-
-                        // fixflag === '1' 인 행이 있으면 버튼 상태 변경
-                        /*   if (hasFixedRow) {
-                               $('#btncancel3').show();
-                               $('#btnSave').hide();
-                           } else {
-                               $('#btncancel3').hide();
-                               $('#btnSave').show();
-                           }*/
                     });
-
                 }
                 loadDailyGps(selectedDate, function() {
                     _this.isGridInitialLoad = false; // GPS 로드 완료 후 지도 이동 허용
@@ -1051,6 +1052,10 @@
                 page.searchMainData2();
             });
 
+            $('#btnDaySearch').click(function () {
+                page.searchMainData();
+            });
+
             $('#btnSave').click(function (e) {
                 Alert.confirm('',
                     "마감하시겠습니까?<br><span style='color:#0048ff;'>마감 이후엔 수정이 불가능 합니다.</span>",
@@ -1202,21 +1207,31 @@
         }
 
         function addDayMonthlyMarker(row, lat, lng, address, type, color, bounds) {
-            let pos    = new kakao.maps.LatLng(lat, lng);
+            let pos = new kakao.maps.LatLng(lat, lng);
             bounds.extend(pos);
-            let marker = new kakao.maps.Marker({ position: pos, map: map });
+
+            var svgColor = (type === '\ucd9c\uadfc') ? '#1a6fff' : '#ff3333';
+            var svgContent = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">'
+                + '<path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26S28 24.5 28 14C28 6.268 21.732 0 14 0z" fill="' + svgColor + '"/>'
+                + '<circle cx="14" cy="14" r="6" fill="white"/>'
+                + '</svg>';
+            var blob = new Blob([svgContent], {type: 'image/svg+xml'});
+            var url  = URL.createObjectURL(blob);
+            var markerImage = new kakao.maps.MarkerImage(
+                url,
+                new kakao.maps.Size(28, 40),
+                { offset: new kakao.maps.Point(14, 40) }
+            );
+
+            let marker = new kakao.maps.Marker({ position: pos, map: map, image: markerImage });
             let info   = new kakao.maps.InfoWindow({
                 content: '<div style="padding:5px;font-size:12px">'
-                    + '<span style="color:' + color + '; font-weight:bold;">[' + type + ']</span><br>'
-                    + '\uc774\ub984 : ' + (row.Name || '') + '<br>'
+                    + '<span style="color:' + svgColor + '; font-weight:bold;">[' + type + ']</span><br>'
+                    + '\uc774\ub984 : ' + (row.Name || row.first_name || '') + '<br>'
                     + (address || '')
                     + '</div>'
             });
             markers.push(marker);
-            // 출근 마커만 markerMap에 등록 (그리드 클릭 시 포커스용)
-            if (type === '\ucd9c\uadfc') {
-                markerMap[String(row.perid)] = { marker, infoWindow: info };
-            }
             kakao.maps.event.addListener(marker, 'click', function() {
                 if (openInfoWindow) {
                     openInfoWindow.close();
