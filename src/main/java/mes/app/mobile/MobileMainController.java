@@ -310,7 +310,7 @@ public class MobileMainController {
             mobileMainService.saveEndtime(
                     spjangcd, perId, workym, workday, targetIdx,
                     formattedCurrTime, remark, inFlag, workyn, jotFlag,
-                    finalWorkcd, finalAddress, finalLatitude, finalLongitude,
+                    finalWorkcd,
                     finalOutAddress, finalOutLatitude, finalOutLongitude,
                     finalWorktime, finalNomaltime, finalOvertime, finalNighttime, finalHolitime);
             result.success = true;

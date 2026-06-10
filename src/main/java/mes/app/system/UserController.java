@@ -247,28 +247,61 @@ public class UserController {
 						? person_code.substring(1)
 						: person_code;
 
-				String tenantAuthSql = """
-            INSERT INTO auth_user
-            (password, last_login, is_superuser, username, first_name, last_name,
-             email, is_staff, is_active, date_joined, spjangcd, tel, personid)
-            VALUES
-            (:password, NULL, :is_superuser, :username, :first_name, :last_name,
-             :email, :is_staff, :is_active, GETDATE(), :spjangcd, :tel, :personid)
-        """;
-				MapSqlParameterSource tenantAuthParam = new MapSqlParameterSource();
-				tenantAuthParam.addValue("password",     user.getPassword());
-				tenantAuthParam.addValue("is_superuser", false);
-				tenantAuthParam.addValue("username",     tenantUsername);
-				tenantAuthParam.addValue("first_name",   Name);
-				tenantAuthParam.addValue("last_name",    Name);
-				tenantAuthParam.addValue("email",        email != null ? email : "");
-				tenantAuthParam.addValue("is_staff",     false);
-				tenantAuthParam.addValue("is_active",    is_active);
-				tenantAuthParam.addValue("spjangcd",     user.getSpjangcd());
-				tenantAuthParam.addValue("tel",          tel);
-				tenantAuthParam.addValue("personid",     user.getPersonid());
+				// 사업체DB auth_user 중복 체크
+				MapSqlParameterSource tenantChkParam = new MapSqlParameterSource();
+				tenantChkParam.addValue("username", tenantUsername);
+				tenantChkParam.addValue("spjangcd", user.getSpjangcd());
+				List<Map<String, Object>> existTenantAuth = this.tenantSqlRunner.getRows(
+					"SELECT id FROM auth_user WHERE username = :username AND spjangcd = :spjangcd",
+					tenantChkParam
+				);
 
-				this.tenantSqlRunner.execute(tenantAuthSql, tenantAuthParam);
+				if (existTenantAuth.isEmpty()) {
+					// 없으면 INSERT
+					String tenantAuthSql = """
+						INSERT INTOlast_login, is_superuser, username, first_name, last_name,
+						 email, is_ auth_user
+						(password, staff, is_active, date_joined, spjangcd, tel, personid)
+						VALUES
+						(:password, NULL, :is_superuser, :username, :first_name, :last_name,
+						 :email, :is_staff, :is_active, GETDATE(), :spjangcd, :tel, :personid)
+					""";
+					MapSqlParameterSource tenantAuthParam = new MapSqlParameterSource();
+					tenantAuthParam.addValue("password",     user.getPassword());
+					tenantAuthParam.addValue("is_superuser", false);
+					tenantAuthParam.addValue("username",     tenantUsername);
+					tenantAuthParam.addValue("first_name",   Name);
+					tenantAuthParam.addValue("last_name",    Name);
+					tenantAuthParam.addValue("email",        email != null ? email : "");
+					tenantAuthParam.addValue("is_staff",     false);
+					tenantAuthParam.addValue("is_active",    is_active);
+					tenantAuthParam.addValue("spjangcd",     user.getSpjangcd());
+					tenantAuthParam.addValue("tel",          tel);
+					tenantAuthParam.addValue("personid",     user.getPersonid());
+					this.tenantSqlRunner.execute(tenantAuthSql, tenantAuthParam);
+				} else {
+					// 이미 있으면 빈 칸 항목만 UPDATE (first_name, last_name, email, tel, personid)
+					String updateSql = """
+							UPDATE auth_user SET
+							    first_name  = CASE WHEN first_name  IS NULL OR first_name  = '' THEN :first_name  ELSE first_name  END,
+							    last_name   = CASE WHEN last_name   IS NULL OR last_name   = '' THEN :last_name   ELSE last_name   END,
+							    email       = CASE WHEN email       IS NULL OR email       = '' THEN :email       ELSE email       END,
+							    tel         = CASE WHEN tel         IS NULL OR tel         = '' THEN :tel         ELSE tel         END,
+							    personid    = CASE WHEN personid    IS NULL                     THEN :personid    ELSE personid    END,
+							    is_active   = :is_active
+							WHERE username = :username AND spjangcd = :spjangcd
+					""";
+					MapSqlParameterSource updateParam = new MapSqlParameterSource();
+					updateParam.addValue("first_name", Name);
+					updateParam.addValue("last_name",  Name);
+					updateParam.addValue("email",      email != null ? email : "");
+					updateParam.addValue("tel",        tel);
+					updateParam.addValue("personid",   user.getPersonid());
+					updateParam.addValue("is_active",  is_active);
+					updateParam.addValue("username",   tenantUsername);
+					updateParam.addValue("spjangcd",   user.getSpjangcd());
+					this.tenantSqlRunner.execute(updateSql, updateParam);
+				}
 			} catch (Exception e) {
 				result.success = false;
 				result.message = "사업체DB auth_user 등록에 실패했습니다: " + e.getMessage();
