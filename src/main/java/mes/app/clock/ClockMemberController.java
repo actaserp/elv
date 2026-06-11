@@ -85,6 +85,32 @@ public class ClockMemberController {
     }
 
     // =========================================================
+    // 휴가 일괄 삭제
+    // =========================================================
+    @PostMapping("/bulk_delete")
+    public AjaxResult bulkDelete(
+            @RequestBody Map<String, Object> requestData,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            List<Object> ids = (List<Object>) requestData.get("ids");
+            if (ids == null || ids.isEmpty()) {
+                result.success = false;
+                result.message = "삭제할 데이터가 없습니다.";
+                return result;
+            }
+            clockMemberService.bulkDeleteMember(ids);
+            result.success = true;
+            result.message = ids.size() + "건이 삭제되었습니다.";
+        } catch (Exception e) {
+            result.success = false;
+            result.message = "일괄 삭제 중 오류가 발생하였습니다: " + e.getMessage();
+        }
+        return result;
+    }
+
+    // =========================================================
     // 휴가 일괄 등록 (Excel Upload)
     // =========================================================
     @PostMapping("/bulk_insert")

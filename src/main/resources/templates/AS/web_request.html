@@ -78,7 +78,7 @@
     .sms-section { flex-shrink: 0; height: 170px; display: flex; flex-direction: column; }
 
     /* ── 우측 메모 ── */
-    .wr-right { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid #eee; padding-left: 12px; overflow-y: auto; }
+    .wr-right { width: 500px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid #eee; padding-left: 12px; overflow-y: auto; }
     .memo-form { flex-shrink: 0; }
     .memo-table { width: 100%; border-collapse: collapse; }
     .memo-table th { width: 75px; background: #f5f7fa; font-size: 12px; font-weight: 600; color: #555; padding: 6px 7px; border: 1px solid #e0e0e0; text-align: left; white-space: nowrap; }
@@ -130,19 +130,19 @@
           <dl>
             <dt><span class="eq"></span></dt>
             <dd>
-              <li>
-                <a class="btn btn-delete" title="승강기번호조회" id="btnElvSearch">
-                  <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">승강기번호조회
-                </a>
-              </li>
+              <div class="srch-box">
+                <input type="text" id="elvnum" class="form-control2" placeholder="승강기번호 입력"/>
+              </div>
             </dd>
           </dl>
           <dl>
             <dt><span class="eq"></span></dt>
             <dd>
-              <div class="srch-box">
-                <input type="text" id="elvnum" class="form-control2" placeholder="승강기번호 입력"/>
-              </div>
+              <li>
+                <a class="btn btn-delete" title="승강기번호조회" id="btnElvSearch">
+                  <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">승강기번호조회
+                </a>
+              </li>
             </dd>
           </dl>
           <dl>
@@ -1017,35 +1017,50 @@
                 Alert.alert('', (result && result.message) || '\uc2b9\uac15\uae30 \uc815\ubcf4 \uc870\ud68c\uc5d0 \uc2e4\ud328\ud558\uc600\uc2b5\ub2c8\ub2e4.');
                 return;
             }
-            var raw = result.data;
-            var json;
-            try { json = JSON.parse(raw); } catch(e) {
-                Alert.alert('', '\uc870\ud68c \uacb0\uacfc\ub97c \ud30c\uc2f1\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.');
+
+            // XML 파싱
+            var xmlStr = result.data;
+            var parser = new DOMParser();
+            var xmlDoc = parser.parseFromString(xmlStr, 'text/xml');
+
+            var resultCode = xmlDoc.querySelector('resultCode');
+            if (!resultCode || resultCode.textContent !== '00') {
+                Alert.alert('', '\uc2b9\uac15\uae30 \uc815\ubcf4\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.');
                 return;
             }
-            var items = json && json.response && json.response.body
-                      && json.response.body.items && json.response.body.items.item;
-            if (!items || (Array.isArray(items) && items.length === 0)) {
+
+            var item = xmlDoc.querySelector('item');
+            if (!item) {
                 Alert.alert('', '\ud574\ub2f9 \uc2b9\uac15\uae30 \ubc88\ud638\uc758 \uc815\ubcf4\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.');
                 return;
             }
-            var item = Array.isArray(items) ? items[0] : items;
+
+            function getVal(tag) {
+                var el = item.querySelector(tag);
+                return el ? esc(el.textContent) : '-';
+            }
+
             var html = '<div style="padding:14px;">'
                 + '<div style="font-size:15px;font-weight:700;margin-bottom:10px;color:#1a3a6b;">'
-                +   esc(item.buldNm || '') + ' (' + esc(item.installationPlace || '') + ')'
+                +   getVal('buldNm') + ' (' + getVal('installationPlace') + ')'
                 + '</div>'
                 + '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+
             var rows = [
-                ['\uc8fc\uc18c',       esc(item.address1 || '') + ' ' + esc(item.address2 || '')],
-                ['\uc2b9\uac15\uae30\uad6c\ubd84', esc(item.elvtrDivNm || '')],
-                ['\uc2b9\uac15\uae30\uc885\ub958', esc(item.elvtrKindNm || '')],
-                ['\uc124\uce58\uc77c\uc790', esc(item.frstInstallationDe || '')],
-                ['\uc2dc\uad70\uad6c',       esc(item.sigunguNm || '')],
-                ['\uc6b4\ud589\uc0c1\ud0dc', esc(item.elvtrSttsNm || '')]
+                ['\uc8fc\uc18c',         getVal('address1') + ' ' + getVal('address2')],
+                ['\uc2b9\uac15\uae30\uad6c\ubd84', getVal('elvtrDivNm')],
+                ['\uc2b9\uac15\uae30\uc885\ub958', getVal('elvtrKindNm')],
+                ['\ucd5c\ucd08\uc124\uce58\uc77c',  getVal('frstInstallationDe')],
+                ['\uc6b4\ud589\uc0c1\ud0dc',       getVal('elvtrStts')],
+                ['\ubcf4\uc218\uc5c5\uccb4',       getVal('mntCpnyNm')],
+                ['\ubcf4\uc218\uc5c5\uccb4\uc5f0\ub77d\uccb4', getVal('mntCpnyTelno')],
+                ['\ucd5c\uc885\uac80\uc0ac\uc77c',  getVal('lastInspctDe')],
+                ['\ucd5c\uc885\uac80\uc0ac\uacb0\uacfc', getVal('lastResultNm')],
             ];
+
             rows.forEach(function(r) {
                 html += '<tr>'
-                    + '<td style="padding:5px 8px;background:#f5f7fa;font-weight:600;width:90px;border:1px solid #eee;">' + r[0] + '</td>'
+                    + '<td style="padding:5px 8px;background:#f5f7fa;font-weight:600;width:110px;border:1px solid #eee;white-space:nowrap;">' + r[0] + '</td>'
                     + '<td style="padding:5px 8px;border:1px solid #eee;">' + r[1] + '</td>'
                     + '</tr>';
             });
@@ -1053,7 +1068,7 @@
 
             var $content = $(html);
             var popup = new PopupDraggable('\uc2b9\uac15\uae30 \uc815\ubcf4');
-            popup.open({ width: 440, height: 340, $content: $content });
+            popup.open({ width: 460, height: 420, $content: $content });
         });
     }
 

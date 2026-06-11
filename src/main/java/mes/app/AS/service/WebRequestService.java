@@ -1,5 +1,6 @@
 package mes.app.AS.service;
 
+import lombok.extern.slf4j.Slf4j;
 import mes.domain.services.SqlRunner;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class WebRequestService {
 
@@ -431,28 +433,36 @@ public class WebRequestService {
 
     // ── 승강기번호 조회 (국가 승강기정보 공공 API) ────────────
     public String getElvInfo(String elvnum) throws Exception {
-        String apikey = "ECeTFAnF2DoeYFYBFygeY%2BFt3GLMMzD9OsgSaEF2h0Qvw3KAhuNWCfczIDQgC4ucmlS6BbLWojlyYuhFRXgXcQ%3D%3D";
-        String text   = java.net.URLEncoder.encode(elvnum, "UTF-8");
-        String apiURL = "http://openapi.elevator.go.kr/openapi/service/BuldElevatorService/getBuldElvtrList"
-                      + "?serviceKey=" + apikey
-                      + "&elevator_no=" + text;
+        String apikey  = "a0b009c35f320b2f60bd2ba0bfdc91cde87089876c80cad72fa563fd5463e3c0";
+        String text    = java.net.URLEncoder.encode(elvnum, "UTF-8");
+        String apiURL  = "https://apis.data.go.kr/B553664/ElevatorInformationService/getElevatorViewM"
+                       + "?serviceKey=" + apikey
+                       + "&elevator_no=" + text;
+
+//        log.info("[getElvInfo] 호출 URL: {}", apiURL);
 
         java.net.URL url = new java.net.URL(apiURL);
         java.net.HttpURLConnection con = (java.net.HttpURLConnection) url.openConnection();
-        con.setRequestProperty("Accept", "application/json");
+        con.setRequestProperty("Accept", "application/xml");
         con.setRequestMethod("GET");
-        con.setDoOutput(true);
+        con.setConnectTimeout(5000);
+        con.setReadTimeout(5000);
+
+        int responseCode = con.getResponseCode();
+//        log.info("[getElvInfo] 응답코드: {}", responseCode);
 
         java.io.BufferedReader br;
-        if (con.getResponseCode() == 200) {
-            br = new java.io.BufferedReader(new java.io.InputStreamReader(con.getInputStream()));
+        if (responseCode == 200) {
+            br = new java.io.BufferedReader(new java.io.InputStreamReader(con.getInputStream(), "UTF-8"));
         } else {
-            br = new java.io.BufferedReader(new java.io.InputStreamReader(con.getErrorStream()));
+            br = new java.io.BufferedReader(new java.io.InputStreamReader(con.getErrorStream(), "UTF-8"));
         }
         StringBuilder sb = new StringBuilder();
         String line;
         while ((line = br.readLine()) != null) sb.append(line);
         br.close();
+
+//        log.info("[getElvInfo] 응답내용: {}", sb.toString());
         return sb.toString();
     }
 

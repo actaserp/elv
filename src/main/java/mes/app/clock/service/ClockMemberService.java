@@ -154,6 +154,19 @@ public class ClockMemberService {
     }
 
     // =========================================================
+    // 휴가 일괄 삭제
+    // =========================================================
+    @Transactional
+    public void bulkDeleteMember(List<Object> ids) {
+        for (Object id : ids) {
+            jdbcTemplate.update(
+                "DELETE FROM tb_pb204 WHERE id = ?",
+                Integer.parseInt(String.valueOf(id))
+            );
+        }
+    }
+
+    // =========================================================
     // 휴가 일괄 등록 (Excel Upload)
     // =========================================================
     @Transactional
