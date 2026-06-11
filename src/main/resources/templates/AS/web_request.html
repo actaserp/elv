@@ -2,52 +2,103 @@
 <head>
   <style>
     .wj-header { text-align: center !important; }
-    .srch-box {}
-    .wr-body { display: flex; gap: 10px; }
-    .wr-center { border-left: 1px solid #ddd; }
-    .list-filter .search-wrap { gap: 5px; }
-    .center-topbar { display: flex; justify-content: flex-end; gap: 6px; }
-    input[type=text] { width: 95%; }
-    .center-bottom { display: flex; justify-content: flex-end; gap: 6px; }
-    .wr-right { flex-shrink: 0; border-left: 1px solid #ddd; display: flex; flex-direction: column; background: #fff; }
-    .wr-right .memo-form { padding: 10px 12px; border-bottom: 1px solid #eee; overflow-y: auto; }
-    .memo-search { padding: 8px 12px; border-bottom: 1px solid #eee; display: flex; gap: 4px; align-items: center; }
-    .memo-search input[type=date] { flex: 1; padding: 3px 5px; font-size: 12px; border: 1px solid #ccc; border-radius: 3px; }
-    .memo-search input[type=text] { width: 70px; padding: 3px 5px; font-size: 12px; border: 1px solid #ccc; border-radius: 3px; }
-    .btn-memo-search { padding: 3px 10px; background: #2c3e50; color: #fff; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; }
 
-    /* ── 구조 레이아웃 ── */
-    .wr-main-col { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-    .wr-top-row  { display: flex; gap: 10px; align-items: flex-start; }
-    .wr-left {
-      max-width: 340px;
-    }
+    /* ── 전체 레이아웃 ── */
+    .section { display: flex; flex-direction: column; height: calc(100vh - 200px); }
+    .section-top { flex-shrink: 0; }
+    .wr-body { display: flex; gap: 12px; flex: 1; min-height: 0; }
 
-    /* ── 카드 리스트 ── */
-    .card-list-wrap {
-      overflow-y: auto; height: 276px;
-      display: flex; flex-direction: column; gap: 8px; padding: 4px 2px;
-    }
-    .recv-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 14px; cursor: pointer; transition: border-color 0.15s; }
-    .recv-card:hover   { border-color: #bdbdbd; }
-    .recv-card.selected { border: 1.5px solid #4472c4; background: #f0f4ff; }
-    .recv-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
-    .recv-card-top-left { display: flex; align-items: center; gap: 7px; }
-    .recv-card-time    { font-size: 12px; color: #888; }
-    .recv-card-tel     { font-size: 12px; color: #888; }
-    .recv-card-actnm   { font-size: 14px; font-weight: 500; color: #333; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .recv-card-contents { font-size: 12px; color: #666; }
-    .recv-card-empty   { padding: 40px 0; text-align: center; color: #999; font-size: 13px; }
+    /* ── 좌측/중앙/우측 공통 ── */
+    .wr-main-col { flex: 1; min-width: 0; min-height: 0; }
+    .wr-top-row  { display: flex; gap: 12px; height: 100%; min-height: 0; }
+
+    /* ── 통계 배지 ── */
+    .stat-wrap { display: flex; gap: 8px; align-items: center; }
+    .stat-badge { display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 5px 12px; font-size: 13px; color: #555; }
+    .stat-badge strong { font-size: 15px; font-weight: 700; color: #2c4f9e; }
+    .stat-badge.recv strong { color: #e65100; }
+    .stat-badge.rece strong { color: #1565c0; }
+    .stat-badge.cb   strong { color: #6a1b9a; }
+    .stat-badge.done strong { color: #2e7d32; }
+
+    /* ── 섹션 타이틀 ── */
+    .form-section-title { font-size: 13px; font-weight: 700; color: #2c4f9e; padding-bottom: 5px; margin-bottom: 6px; border-bottom: 2px solid #2c4f9e; flex-shrink: 0; }
+
+    /* ── 좌측 카드 리스트 ── */
+    .wr-left { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
+    .list-filter { flex-shrink: 0; display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px; }
+    .list-filter-row { display: flex; gap: 4px; align-items: center; }
+    .list-filter-row input[type=date],
+    .list-filter-row input[type=text] { flex: 1; padding: 5px 6px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px; min-width: 133px; }
+    .btn-list-search { padding: 5px 10px; background: #2c4f9e; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+    .card-list-wrap { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 2px; min-height: 0; }
+
+    /* ── 카드 ── */
+    .recv-card { background: #fff; border: 1px solid #e8e8e8; border-radius: 7px; padding: 9px 11px; cursor: pointer; transition: all 0.12s; flex-shrink: 0; }
+    .recv-card:hover    { border-color: #b0bec5; box-shadow: 0 2px 5px rgba(0,0,0,0.07); }
+    .recv-card.selected { border: 1.5px solid #2c4f9e; background: #f0f4ff; }
+    .recv-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+    .recv-card-top-left { display: flex; align-items: center; gap: 5px; }
+    .recv-card-time     { font-size: 11px; color: #999; }
+    .recv-card-tel      { font-size: 11px; color: #999; }
+    .recv-card-actnm    { font-size: 13px; font-weight: 600; color: #333; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .recv-card-contents { font-size: 12px; color: #777; }
+    .recv-card-empty    { padding: 30px 0; text-align: center; color: #bbb; font-size: 13px; }
 
     /* ── 상태 배지 ── */
-    .badge-recv     { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 6px; background: #fff3e0; color: #e65100; }
-    .badge-process  { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 6px; background: #e3f2fd; color: #1565c0; }
-    .badge-done     { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 6px; background: #e8f5e9; color: #2e7d32; }
-    .badge-callback { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 6px; background: #f3e5f5; color: #6a1b9a; }
+    .badge-recv     { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #fff3e0; color: #e65100; }
+    .badge-process  { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #e3f2fd; color: #1565c0; }
+    .badge-done     { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #e8f5e9; color: #2e7d32; }
+    .badge-callback { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #f3e5f5; color: #6a1b9a; }
 
-    table th {
-      width: 115px;
-    }
+    /* ── 중앙 폼 ── */
+    .wr-center { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid #eee; padding-left: 12px; }
+    .center-topbar { display: flex; justify-content: flex-end; gap: 6px; margin-bottom: 8px; flex-shrink: 0; }
+    .form-scroll   { flex: 1; overflow-y: auto; min-height: 0; }
+    .center-bottom { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; flex-shrink: 0; }
+
+    /* ── 폼 테이블 ── */
+    .recv-table { width: 100%; border-collapse: collapse; }
+    .recv-table th { background: #f5f7fa; font-size: 12px; font-weight: 600; color: #555; padding: 7px 8px; border: 1px solid #e0e0e0; text-align: left; white-space: nowrap; }
+    .recv-table td { padding: 4px 5px; border: 1px solid #e8e8e8; }
+    .recv-table input[type=text],
+    .recv-table input[type=datetime-local] { width: 100%; padding: 5px 7px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box; }
+    .recv-table input.readonly { background: #f9f9f9; cursor: pointer; }
+    .recv-table input.readonly:hover { background: #f0f4ff; }
+    .recv-table .th-sm { font-size: 11px; }
+    .input-row { display: flex; align-items: center; gap: 4px; }
+
+    /* ── 버튼 ── */
+    .btn-sms  { padding: 6px 12px; background: #546e7a; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
+    .btn-del  { padding: 6px 12px; background: #e53935; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
+    .btn-new  { padding: 6px 12px; background: #43a047; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
+    .btn-save { padding: 6px 16px; background: #2c4f9e; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: 600; }
+
+    /* ── 문자전송내역 ── */
+    .sms-section { flex-shrink: 0; height: 170px; display: flex; flex-direction: column; }
+
+    /* ── 우측 메모 ── */
+    .wr-right { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid #eee; padding-left: 12px; overflow-y: auto; }
+    .memo-form { flex-shrink: 0; }
+    .memo-table { width: 100%; border-collapse: collapse; }
+    .memo-table th { width: 75px; background: #f5f7fa; font-size: 12px; font-weight: 600; color: #555; padding: 6px 7px; border: 1px solid #e0e0e0; text-align: left; white-space: nowrap; }
+    .memo-table th.vtop { vertical-align: top; padding-top: 8px; }
+    .memo-table td { padding: 4px 5px; border: 1px solid #e8e8e8; }
+    .memo-table input[type=text],
+    .memo-table input[type=time],
+    .memo-table input[type=datetime-local],
+    .memo-table textarea { width: 100%; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; box-sizing: border-box; }
+    .memo-btns { display: flex; gap: 5px; justify-content: flex-end; margin: 7px 0; flex-shrink: 0; }
+    .btn-memo-del  { padding: 5px 10px; background: #e53935; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .btn-memo-new  { padding: 5px 10px; background: #43a047; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .btn-memo-save { padding: 5px 10px; background: #2c4f9e; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .memo-search { display: flex; gap: 4px; align-items: center; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #eee; flex-shrink: 0; }
+    .memo-search input[type=date] { flex: 1; padding: 4px 5px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px; }
+    .memo-search input[type=text] { width: 65px; padding: 4px 5px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px; }
+    .btn-memo-search { padding: 4px 9px; background: #2c4f9e; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    #memoList { flex: 1; overflow-y: auto; min-height: 60px; }
+    #memoList > div { padding: 7px 4px; border-bottom: 1px solid #f0f0f0; cursor: pointer; font-size: 12px; }
+    #memoList > div:hover { background: #f5f7fa; }
   </style>
 </head>
 
@@ -68,10 +119,12 @@
     <section class="section">
       <div class="section-top">
         <div class="search-wrap">
-          <span>● 금일수신 <strong id="cntRecv">0</strong></span>
-          <span>● 고장접수 <strong id="cntRece">0</strong></span>
-          <span>● 콜백예약 <strong id="cntCallback">0</strong></span>
-          <span>● 당일처리 <strong id="cntToday">0</strong></span>
+          <div class="stat-wrap">
+            <div class="stat-badge recv"><span>금일수신</span> <strong id="cntRecv">0</strong></div>
+            <div class="stat-badge rece"><span>고장접수</span> <strong id="cntRece">0</strong></div>
+            <div class="stat-badge cb">  <span>콜백예약</span> <strong id="cntCallback">0</strong></div>
+            <div class="stat-badge done"><span>당일처리</span> <strong id="cntToday">0</strong></div>
+          </div>
         </div>
         <div class="search-wrap">
           <dl>
@@ -132,14 +185,14 @@
             <div class="wr-left">
               <div class="form-section-title">고장 접수현황</div>
               <div class="list-filter">
-                <div class="search-wrap">
+                <div class="list-filter-row">
                   <input type="date" id="listFromDate">
-                  <span>-</span>
+                  <span style="color:#ccc;">~</span>
                   <input type="date" id="listToDate">
                 </div>
-                <div class="search-wrap">
-                  <input type="text" id="listActnm" placeholder="현장명">
-                  <button type="button" onclick="searchList()">🔍</button>
+                <div class="list-filter-row">
+                  <input type="text" id="listActnm" placeholder="현장명 검색">
+                  <button type="button" class="btn-list-search" onclick="searchList()">검색</button>
                 </div>
               </div>
               <div class="card-list-wrap" id="cardListWrap">
@@ -147,7 +200,7 @@
               </div>
             </div>
 
-            <!-- 가운데: 고장 접수 폼 -->
+            <!-- 가운데: 고장 접수 폼 + 문자전송내역 -->
             <div class="wr-center">
               <div class="center-topbar">
                 <button type="button" class="btn-default" onclick="openCallbackList()">콜백리스트</button>
@@ -155,7 +208,7 @@
                 <button type="button" class="btn-default" onclick="openSiteSearch()">보수현장조회</button>
               </div>
               <div class="form-section-title">고장 접수</div>
-              <div class="form-scroll" style="padding:10px 12px;">
+              <div class="form-scroll">
                 <input type="hidden" id="hidRecedate">
                 <input type="hidden" id="hidRecenum">
                 <input type="hidden" id="actpushid">
@@ -229,20 +282,18 @@
                 <button type="button" class="btn-new"  onclick="newForm()">+ 신규</button>
                 <button type="button" class="btn-save" onclick="saveData()">저 장</button>
               </div>
+
+              <!-- 문자전송내역 -->
+              <div class="sms-section">
+                <div class="form-section-title" style="margin-top:10px;">문자전송내역</div>
+                <div id="smsGrid" style="height:150px;"></div>
+              </div>
             </div>
 
           </div><!-- //wr-top-row -->
-
-          <!-- 문자전송내역 그리드 -->
-          <div>
-            <div class="form-section-title">문자전송내역</div>
-            <div id="smsGrid" style="height:220px;"></div>
-          </div>
-
         </div><!-- //wr-main-col -->
 
-        <!-- 오른쪽: 고객 통화 메모 -->
-        <div class="wr-right">
+        <!-- 오른쪽: 고객 통화 메모 -->        <div class="wr-right">
           <div class="form-section-title">고객 통화 메모</div>
           <div class="memo-form">
             <input type="hidden" id="memoSeq">
@@ -258,9 +309,14 @@
               </tr>
               <tr>
                 <th>전화번호</th>
-                <td><input type="text" id="memoCustel" style="width: 176px;"></td>
-                <th>콜백예약</th>
-                <td style="justify-items:center;"><input type="checkbox" id="memoCallbackFlag" value="1"></td>
+                <td colspan="3">
+                  <div style="display:flex; gap:6px; align-items:center;">
+                    <input type="text" id="memoCustel" style="flex:1;">
+                    <label style="display:flex; align-items:center; gap:4px; white-space:nowrap; font-size:12px; cursor:pointer;">
+                      <input type="checkbox" id="memoCallbackFlag" value="1"> 콜백예약
+                    </label>
+                  </div>
+                </td>
               </tr>
               <tr><th>예약시간</th><td colspan="3"><input type="time" id="memoCallbackTime"></td></tr>
               <tr><th>콜백메모</th><td colspan="3"><input type="text" id="memoCallbackMemo"></td></tr>
@@ -421,6 +477,13 @@
 
       $('#listActnm').on('keypress', function (e) {
         if (e.keyCode === 13) searchList();
+      });
+
+      // 승강기번호 조회 버튼
+      $('#btnElvSearch').on('click', function() { getElvInfo(); });
+      $('#btnElvCall').on('click',   function() { getElvInfo(); });
+      $('#elvnum').on('keypress', function(e) {
+        if (e.keyCode === 13) getElvInfo();
       });
     }
 
@@ -940,6 +1003,58 @@
           document.getElementById('actpushid').value = result.data || '';
         }
       });
+    }
+
+    // ── 승강기번호 조회 ───────────────────────────────────────
+    function getElvInfo() {
+        var elvnum = document.getElementById('elvnum').value.trim();
+        if (!elvnum) {
+            Alert.alert('', '\uc2b9\uac15\uae30 \ubc88\ud638\ub97c \uc785\ub825\ud558\uc138\uc694.');
+            return;
+        }
+        AjaxUtil.getAsyncData('/api/AS/web_request/elvinfo', { elvnum: elvnum }, function(result) {
+            if (!result || !result.success) {
+                Alert.alert('', (result && result.message) || '\uc2b9\uac15\uae30 \uc815\ubcf4 \uc870\ud68c\uc5d0 \uc2e4\ud328\ud558\uc600\uc2b5\ub2c8\ub2e4.');
+                return;
+            }
+            var raw = result.data;
+            var json;
+            try { json = JSON.parse(raw); } catch(e) {
+                Alert.alert('', '\uc870\ud68c \uacb0\uacfc\ub97c \ud30c\uc2f1\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.');
+                return;
+            }
+            var items = json && json.response && json.response.body
+                      && json.response.body.items && json.response.body.items.item;
+            if (!items || (Array.isArray(items) && items.length === 0)) {
+                Alert.alert('', '\ud574\ub2f9 \uc2b9\uac15\uae30 \ubc88\ud638\uc758 \uc815\ubcf4\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.');
+                return;
+            }
+            var item = Array.isArray(items) ? items[0] : items;
+            var html = '<div style="padding:14px;">'
+                + '<div style="font-size:15px;font-weight:700;margin-bottom:10px;color:#1a3a6b;">'
+                +   esc(item.buldNm || '') + ' (' + esc(item.installationPlace || '') + ')'
+                + '</div>'
+                + '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+            var rows = [
+                ['\uc8fc\uc18c',       esc(item.address1 || '') + ' ' + esc(item.address2 || '')],
+                ['\uc2b9\uac15\uae30\uad6c\ubd84', esc(item.elvtrDivNm || '')],
+                ['\uc2b9\uac15\uae30\uc885\ub958', esc(item.elvtrKindNm || '')],
+                ['\uc124\uce58\uc77c\uc790', esc(item.frstInstallationDe || '')],
+                ['\uc2dc\uad70\uad6c',       esc(item.sigunguNm || '')],
+                ['\uc6b4\ud589\uc0c1\ud0dc', esc(item.elvtrSttsNm || '')]
+            ];
+            rows.forEach(function(r) {
+                html += '<tr>'
+                    + '<td style="padding:5px 8px;background:#f5f7fa;font-weight:600;width:90px;border:1px solid #eee;">' + r[0] + '</td>'
+                    + '<td style="padding:5px 8px;border:1px solid #eee;">' + r[1] + '</td>'
+                    + '</tr>';
+            });
+            html += '</table></div>';
+
+            var $content = $(html);
+            var popup = new PopupDraggable('\uc2b9\uac15\uae30 \uc815\ubcf4');
+            popup.open({ width: 440, height: 340, $content: $content });
+        });
     }
 
     // ── 콜백리스트 / 전화번호부 / 보수현장조회 (추후 구현) ──

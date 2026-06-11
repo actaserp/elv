@@ -429,6 +429,33 @@ public class WebRequestService {
         return (row != null) ? (String) row.get("pushid") : null;
     }
 
+    // ── 승강기번호 조회 (국가 승강기정보 공공 API) ────────────
+    public String getElvInfo(String elvnum) throws Exception {
+        String apikey = "ECeTFAnF2DoeYFYBFygeY%2BFt3GLMMzD9OsgSaEF2h0Qvw3KAhuNWCfczIDQgC4ucmlS6BbLWojlyYuhFRXgXcQ%3D%3D";
+        String text   = java.net.URLEncoder.encode(elvnum, "UTF-8");
+        String apiURL = "http://openapi.elevator.go.kr/openapi/service/BuldElevatorService/getBuldElvtrList"
+                      + "?serviceKey=" + apikey
+                      + "&elevator_no=" + text;
+
+        java.net.URL url = new java.net.URL(apiURL);
+        java.net.HttpURLConnection con = (java.net.HttpURLConnection) url.openConnection();
+        con.setRequestProperty("Accept", "application/json");
+        con.setRequestMethod("GET");
+        con.setDoOutput(true);
+
+        java.io.BufferedReader br;
+        if (con.getResponseCode() == 200) {
+            br = new java.io.BufferedReader(new java.io.InputStreamReader(con.getInputStream()));
+        } else {
+            br = new java.io.BufferedReader(new java.io.InputStreamReader(con.getErrorStream()));
+        }
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null) sb.append(line);
+        br.close();
+        return sb.toString();
+    }
+
     // ── recenum 채번 ──────────────────────────────────────────
     private String getNextRecenum(String spjangcd, String recedate) {
         MapSqlParameterSource param = new MapSqlParameterSource();

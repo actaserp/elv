@@ -241,6 +241,23 @@ public class WebRequestController {
         return result;
     }
 
+    // ── 승강기번호 조회 ───────────────────────────────────────
+    @GetMapping("/elvinfo")
+    public AjaxResult getElvInfo(
+            @RequestParam(value = "elvnum") String elvnum,
+            HttpServletRequest request) {
+        AjaxResult result = new AjaxResult();
+        try {
+            result.data    = webRequestService.getElvInfo(elvnum);
+            result.success = true;
+        } catch (Exception e) {
+            log.error("승강기번호 조회 오류", e);
+            result.success = false;
+            result.message = "승강기 정보 조회 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
+
     // ── PushID 조회 ───────────────────────────────────────────
     @PostMapping("/pushid")
     public AjaxResult getPushId(
