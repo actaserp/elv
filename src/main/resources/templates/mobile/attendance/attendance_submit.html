@@ -79,9 +79,11 @@
           <dd>
             <div style="display: flex; gap: 10%">
               <select style="width: 70%" id="attKind" onchange="bindPeriod();"><option>휴가</option></select>
-              <label style="display: flex; align-items: center">
+<!--              연차 표시 x (연차 관리 완벽구현되기 전까지)-->
+              <label style="display: none; align-items: center">
                 <input type="checkbox" style="margin: 0" id="isAnnual" disabled>&nbsp;&nbsp;연차
               </label>
+
             </div>
           </dd>
           <dt>기간</dt>
@@ -100,12 +102,12 @@
               </div>
             </div>
           </dd>
-          <div style="display: flex;">
+          <div style="display: none;">
             <dt>사용일수</dt>
             <dt style="margin-left: auto">연차잔여일수</dt>
           </div>
           <dd>
-            <div style="display: flex; gap: 10px">
+            <div style="display: none; gap: 10px">
               <div style="width: 100%; display: flex;">
                 <input type="number" id="useDate" style="width: 45%;" readonly>
                 <input type="number" id="usedDate" style="width: 45%; margin-left: auto;" readonly>

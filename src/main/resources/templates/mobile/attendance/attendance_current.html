@@ -103,7 +103,7 @@
                     <label for="editAttKind">근태항목:</label>
                     <div style="display: flex; gap: 10%">
                         <select id="editAttKind" style="width: 70%" onchange="bindPeriod();"><option>휴가</option></select>
-                        <label style="display: flex; align-items: center">
+                        <label style="display: none; align-items: center">
                             <input type="checkbox" style="margin: 0" id="isAnnual" disabled>&nbsp;&nbsp;연차
                         </label>
                     </div>
@@ -122,7 +122,7 @@
                         <input type="time" id="editEndTime" style="width: 140px;">
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group" style="display: none;">
                     <label for="editUseDate">사용일수:</label>
                     <input type="number" id="editUseDate" readonly>
                 </div>

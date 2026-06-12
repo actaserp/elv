@@ -208,8 +208,8 @@ public class ClockMemberService {
 
         jdbcTemplate.update("""
                 INSERT INTO tb_pb204
-                    (spjangcd, reqdate, perid, frdate, todate, sttime, edtime, daynum, workcd, remark, yearflag, fixflag)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0')
+                    (spjangcd, reqdate, perid, frdate, todate, sttime, edtime, daynum, workcd, remark, yearflag, fixflag, appgubun)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0', '001')
                 """, spjangcd, reqdate, perid, frdate, todate, sttime, edtime, daynum, workcd, remark, yearflag);
     }
 

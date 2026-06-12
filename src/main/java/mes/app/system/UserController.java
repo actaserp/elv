@@ -129,7 +129,7 @@ public class UserController {
 		@RequestParam(value="lang_code", required = false) String lang_code,
 		@RequestParam(value="is_active", required = false) Boolean is_active,
 		@RequestParam(value="personid", required = false) String personid,
-		@RequestParam(value="person_code", required = false) String person_code,  // ← 추가
+		@RequestParam(value="person_code", required = false) String person_code,
 		@RequestParam(value="tel", required = false) String tel,
 		@RequestParam(value="spjangcd", required = false) String selectedSpjangcd,
 		HttpServletRequest request,
@@ -139,6 +139,7 @@ public class UserController {
 		AjaxResult result = new AjaxResult();
 		String dbKey = TenantContext.getDbKey();
 		String spjangcd = TenantContext.get();
+		String effectiveSpjangcd = (selectedSpjangcd != null && !selectedSpjangcd.isEmpty()) ? selectedSpjangcd : spjangcd;
 
 		String sql = null;
 		User user = null;
@@ -169,11 +170,11 @@ public class UserController {
 			dicParam.addValue("loginUser", loginUser.getId());
 			sql = """
 					INSERT INTO user_profile
-					("_created", "_creater_id", "User_id", "lang_code", "Name", "Factory_id", "UserGroup_id", "Depart_id", "spjangcd") 
+					("_created", "_creater_id", "User_id", "lang_code", "Name", "Factory_id", "UserGroup_id", "Depart_id", "spjangcd")
 					VALUES (now(), :loginUser, :User_id, :lang_code, :name, :Factory_id, :UserGroup_id, :Depart_id, :spjangcd)
 			""";
 
-			// ── 기존 수정 ──────────────────────────────────────────
+		// ── 기존 수정 ──────────────────────────────────────────
 		} else {
 			user = this.userRepository.getUserById(id);
 
@@ -193,8 +194,8 @@ public class UserController {
 
 			if (count == 0) {
 				sql = """
-						INSERT INTO user_profile 
-						("_created", "_creater_id", "User_id", "lang_code", "Name", "Factory_id", "UserGroup_id", "Depart_id", "spjangcd") 
+						INSERT INTO user_profile
+						("_created", "_creater_id", "User_id", "lang_code", "Name", "Factory_id", "UserGroup_id", "Depart_id", "spjangcd")
 						VALUES (now(), :loginUser, :User_id, :lang_code, :name, :Factory_id, :UserGroup_id, :Depart_id, :spjangcd)
 					""";
 				dicParam.addValue("loginUser", loginUser.getId());
@@ -212,9 +213,8 @@ public class UserController {
 			}
 		}
 
-		// ── 1단계: auth_user + user_profile 저장 ───────────────
-		// selectedSpjangcd: 폼에서 선택한 사업장 코드. 없으면 현재 테넌트 기본값 사용
-		user.setSpjangcd(selectedSpjangcd != null && !selectedSpjangcd.isEmpty() ? selectedSpjangcd : spjangcd);
+		// ── 1단계: 본사 auth_user + user_profile 저장 ──────────
+		user.setSpjangcd(effectiveSpjangcd);
 		user.setUsername(login_id);
 		user.setFirst_name(Name);
 		user.setEmail(email);
@@ -225,7 +225,6 @@ public class UserController {
 		}
 		user.setDate_joined(today);
 		user.setActive(is_active);
-
 		user = this.userRepository.save(user);
 
 		dicParam.addValue("name", Name);
@@ -235,169 +234,213 @@ public class UserController {
 		dicParam.addValue("lang_code", lang_code);
 		dicParam.addValue("User_id", user.getId());
 		dicParam.addValue("spjangcd", dbKey);
-
 		this.sqlRunner.execute(sql, dicParam);
 
-		// ── 1.5단계: 신규 등록 + person_code 있고 + personid 없을 때만 사업체DB auth_user INSERT ──
-		if (id == null && person_code != null && !person_code.isEmpty()
-				&& (personid == null || personid.isEmpty())) {
-			try {
-				// person_code = "p001" 형태 → "p" 제거 → "001" 이 사업체 DB username
-				String tenantUsername = person_code.startsWith("p")
-						? person_code.substring(1)
-						: person_code;
-
-				// 사업체DB auth_user 중복 체크
-				MapSqlParameterSource tenantChkParam = new MapSqlParameterSource();
-				tenantChkParam.addValue("username", tenantUsername);
-				tenantChkParam.addValue("spjangcd", user.getSpjangcd());
-				List<Map<String, Object>> existTenantAuth = this.tenantSqlRunner.getRows(
-					"SELECT id FROM auth_user WHERE username = :username AND spjangcd = :spjangcd",
-					tenantChkParam
-				);
-
-				if (existTenantAuth.isEmpty()) {
-					// 없으면 INSERT
-					String tenantAuthSql = """
-						INSERT INTOlast_login, is_superuser, username, first_name, last_name,
-						 email, is_ auth_user
-						(password, staff, is_active, date_joined, spjangcd, tel, personid)
-						VALUES
-						(:password, NULL, :is_superuser, :username, :first_name, :last_name,
-						 :email, :is_staff, :is_active, GETDATE(), :spjangcd, :tel, :personid)
-					""";
-					MapSqlParameterSource tenantAuthParam = new MapSqlParameterSource();
-					tenantAuthParam.addValue("password",     user.getPassword());
-					tenantAuthParam.addValue("is_superuser", false);
-					tenantAuthParam.addValue("username",     tenantUsername);
-					tenantAuthParam.addValue("first_name",   Name);
-					tenantAuthParam.addValue("last_name",    Name);
-					tenantAuthParam.addValue("email",        email != null ? email : "");
-					tenantAuthParam.addValue("is_staff",     false);
-					tenantAuthParam.addValue("is_active",    is_active);
-					tenantAuthParam.addValue("spjangcd",     user.getSpjangcd());
-					tenantAuthParam.addValue("tel",          tel);
-					tenantAuthParam.addValue("personid",     user.getPersonid());
-					this.tenantSqlRunner.execute(tenantAuthSql, tenantAuthParam);
-				} else {
-					// 이미 있으면 빈 칸 항목만 UPDATE (first_name, last_name, email, tel, personid)
-					String updateSql = """
-							UPDATE auth_user SET
-							    first_name  = CASE WHEN first_name  IS NULL OR first_name  = '' THEN :first_name  ELSE first_name  END,
-							    last_name   = CASE WHEN last_name   IS NULL OR last_name   = '' THEN :last_name   ELSE last_name   END,
-							    email       = CASE WHEN email       IS NULL OR email       = '' THEN :email       ELSE email       END,
-							    tel         = CASE WHEN tel         IS NULL OR tel         = '' THEN :tel         ELSE tel         END,
-							    personid    = CASE WHEN personid    IS NULL                     THEN :personid    ELSE personid    END,
-							    is_active   = :is_active
-							WHERE username = :username AND spjangcd = :spjangcd
-					""";
-					MapSqlParameterSource updateParam = new MapSqlParameterSource();
-					updateParam.addValue("first_name", Name);
-					updateParam.addValue("last_name",  Name);
-					updateParam.addValue("email",      email != null ? email : "");
-					updateParam.addValue("tel",        tel);
-					updateParam.addValue("personid",   user.getPersonid());
-					updateParam.addValue("is_active",  is_active);
-					updateParam.addValue("username",   tenantUsername);
-					updateParam.addValue("spjangcd",   user.getSpjangcd());
-					this.tenantSqlRunner.execute(updateSql, updateParam);
-				}
-			} catch (Exception e) {
-				result.success = false;
-				result.message = "사업체DB auth_user 등록에 실패했습니다: " + e.getMessage();
-				return result;
-			}
-		}
-
-		// ── 2단계: personid 없을 때 MS DB에 person INSERT ──────
-		// personid가 비어으면동작(기존등록 사용자가 아닌 신규등록)
+		// ── 2단계: person 처리 (신규 + person_code 있을 때) ────
+		// personid가 없을 때만 person INSERT/조회 진행
 		if (personid == null || personid.equals("")) {
 			try {
-				// person Code 중복 체크
 				String personChkSql = "SELECT id FROM person WHERE Code = :Code AND spjangcd = :spjangcd";
 				MapSqlParameterSource personChkParam = new MapSqlParameterSource();
 				personChkParam.addValue("Code", person_code);
-				personChkParam.addValue("spjangcd", selectedSpjangcd != null && !selectedSpjangcd.isEmpty() ? selectedSpjangcd : spjangcd);
+				personChkParam.addValue("spjangcd", effectiveSpjangcd);
 				List<Map<String, Object>> existPersonList = this.tenantSqlRunner.getRows(personChkSql, personChkParam);
 
+				Integer resolvedPersonId = null;
+
 				if (!existPersonList.isEmpty()) {
-					// 이미 존재하면 해당 id를 personid로 사용
-					Integer existPersonId = ((Number) existPersonList.get(0).get("id")).intValue();
-					user.setPersonid(existPersonId);
+					// 이미 person 존재 → id 재활용
+					resolvedPersonId = ((Number) existPersonList.get(0).get("id")).intValue();
+					user.setPersonid(resolvedPersonId);
 					this.userRepository.save(user);
-				} else {
-					// TB_JA001에서 rtdate 조회
+
+				} else if (person_code != null && !person_code.isEmpty()) {
+					// person 없음 → INSERT
 					String rtdate = null;
-					if (person_code != null && !person_code.isEmpty()) {
-						MapSqlParameterSource ja001Param = new MapSqlParameterSource();
-						ja001Param.addValue("perid", person_code);
-						ja001Param.addValue("spjangcd", selectedSpjangcd != null && !selectedSpjangcd.isEmpty() ? selectedSpjangcd : spjangcd);
-						List<Map<String, Object>> ja001Rows = this.tenantSqlRunner.getRows(
-							"SELECT rtdate FROM TB_JA001 WHERE perid = :perid AND spjangcd = :spjangcd",
-							ja001Param
-						);
-						if (!ja001Rows.isEmpty() && ja001Rows.get(0).get("rtdate") != null) {
-							rtdate = ja001Rows.get(0).get("rtdate").toString();
-						}
+					MapSqlParameterSource ja001Param = new MapSqlParameterSource();
+					ja001Param.addValue("perid", person_code);
+					ja001Param.addValue("spjangcd", effectiveSpjangcd);
+					List<Map<String, Object>> ja001Rows = this.tenantSqlRunner.getRows(
+						"SELECT rtdate FROM TB_JA001 WHERE perid = :perid AND spjangcd = :spjangcd",
+						ja001Param
+					);
+					if (!ja001Rows.isEmpty() && ja001Rows.get(0).get("rtdate") != null) {
+						rtdate = ja001Rows.get(0).get("rtdate").toString();
 					}
-					// rtdate가 null이면 오늘 날짜로 대체
 					if (rtdate == null || rtdate.isEmpty()) {
 						rtdate = new java.text.SimpleDateFormat("yyyyMMdd").format(new java.util.Date());
 					}
 
-					// person INSERT
 					String personInsertSql = """
-                    INSERT INTO person
-                    ([Name], [Code], [Depart_id], [Factory_id], spjangcd, rtflag, [PersonGroup_id], rtdate, _created, _creater_id)
-                    OUTPUT INSERTED.id
-                    VALUES (:Name, :Code, :Depart_id, :Factory_id, :spjangcd, '0', 1, :rtdate, SYSDATETIMEOFFSET(), :creater_id)
-                """;
-
+						INSERT INTO person
+						([Name], [Code], [Depart_id], [Factory_id], spjangcd, rtflag, [PersonGroup_id], rtdate, _created, _creater_id)
+						OUTPUT INSERTED.id
+						VALUES (:Name, :Code, :Depart_id, :Factory_id, :spjangcd, '0', 1, :rtdate, SYSDATETIMEOFFSET(), :creater_id)
+					""";
 					MapSqlParameterSource personParam = new MapSqlParameterSource();
 					personParam.addValue("Name", Name);
 					personParam.addValue("Code", person_code);
 					personParam.addValue("Depart_id", 28);
 					personParam.addValue("Factory_id", Factory_id);
-					personParam.addValue("spjangcd", selectedSpjangcd != null && !selectedSpjangcd.isEmpty() ? selectedSpjangcd : spjangcd);
+					personParam.addValue("spjangcd", effectiveSpjangcd);
 					personParam.addValue("rtdate", rtdate);
 					personParam.addValue("creater_id", loginUser.getId());
 
-					// ── 3단계: INSERT 후 생성된 id → 본사DB + 사업체DB auth_user.personid 저장 ──
 					Map<String, Object> insertedRow = this.tenantSqlRunner.getRow(personInsertSql, personParam);
 					if (insertedRow != null) {
-						Integer newPersonId = ((Number) insertedRow.get("id")).intValue();
-
-						// 본사DB auth_user.personid UPDATE
-						user.setPersonid(newPersonId);
+						resolvedPersonId = ((Number) insertedRow.get("id")).intValue();
+						user.setPersonid(resolvedPersonId);
 						this.userRepository.save(user);
+					}
+				}
 
-						// 사업체DB auth_user.personid UPDATE
-						if (person_code != null && !person_code.isEmpty()) {
-							String tenantUsername = person_code.startsWith("p")
-									? person_code.substring(1)
-									: person_code;
-							String updateTenantAuthSql = """
-									UPDATE auth_user
-									SET personid = :personid
-									WHERE username = :username
-									AND spjangcd = :spjangcd
-							""";
-							MapSqlParameterSource updateTenantParam = new MapSqlParameterSource();
-							updateTenantParam.addValue("personid",  newPersonId);
-							updateTenantParam.addValue("username",  tenantUsername);
-							updateTenantParam.addValue("spjangcd",  selectedSpjangcd != null && !selectedSpjangcd.isEmpty() ? selectedSpjangcd : spjangcd);
-							this.tenantSqlRunner.execute(updateTenantAuthSql, updateTenantParam);
-						}
+				// ── 3단계: person 확정 후 사업체 auth_user 처리 ──
+				// person INSERT/조회가 완료된 시점에 personid가 확정됨
+				if (person_code != null && !person_code.isEmpty()) {
+					String tenantUsername = person_code.startsWith("p")
+							? person_code.substring(1)
+							: person_code;
+
+					MapSqlParameterSource tenantChkParam = new MapSqlParameterSource();
+					tenantChkParam.addValue("username",  tenantUsername);
+					tenantChkParam.addValue("spjangcd",  effectiveSpjangcd);
+					List<Map<String, Object>> existTenantAuth = this.tenantSqlRunner.getRows(
+						"SELECT id, personid FROM auth_user WHERE username = :username AND spjangcd = :spjangcd",
+						tenantChkParam
+					);
+
+					if (existTenantAuth.isEmpty()) {
+						// 사업체 auth_user 없음 → INSERT (resolvedPersonId 확정 후)
+						String tenantAuthSql = """
+							INSERT INTO auth_user
+							(password, last_login, is_superuser, username, first_name, last_name,
+							 email, is_staff, is_active, date_joined, spjangcd, tel, personid)
+							VALUES
+							(:password, NULL, :is_superuser, :username, :first_name, :last_name,
+							 :email, :is_staff, :is_active, GETDATE(), :spjangcd, :tel, :personid)
+						""";
+						MapSqlParameterSource tenantAuthParam = new MapSqlParameterSource();
+						tenantAuthParam.addValue("password",     user.getPassword());
+						tenantAuthParam.addValue("is_superuser", false);
+						tenantAuthParam.addValue("username",     tenantUsername);
+						tenantAuthParam.addValue("first_name",   Name);
+						tenantAuthParam.addValue("last_name",    Name);
+						tenantAuthParam.addValue("email",        email != null ? email : "");
+						tenantAuthParam.addValue("is_staff",     false);
+						tenantAuthParam.addValue("is_active",    is_active);
+						tenantAuthParam.addValue("spjangcd",     effectiveSpjangcd);
+						tenantAuthParam.addValue("tel",          tel);
+						tenantAuthParam.addValue("personid",     resolvedPersonId);
+						this.tenantSqlRunner.execute(tenantAuthSql, tenantAuthParam);
+
+					} else {
+						// 사업체 auth_user 이미 존재 → 빈 값만 보완 UPDATE
+						String updateSql = """
+							UPDATE auth_user SET
+							    first_name = CASE WHEN first_name IS NULL OR first_name = '' THEN :first_name ELSE first_name END,
+							    last_name  = CASE WHEN last_name  IS NULL OR last_name  = '' THEN :last_name  ELSE last_name  END,
+							    email      = CASE WHEN email      IS NULL OR email      = '' THEN :email      ELSE email      END,
+							    tel        = CASE WHEN tel        IS NULL OR tel        = '' THEN :tel        ELSE tel        END,
+							    personid   = CASE WHEN personid   IS NULL                   THEN :personid   ELSE personid   END,
+							    is_active  = :is_active
+							WHERE username = :username AND spjangcd = :spjangcd
+						""";
+						MapSqlParameterSource updateParam = new MapSqlParameterSource();
+						updateParam.addValue("first_name", Name);
+						updateParam.addValue("last_name",  Name);
+						updateParam.addValue("email",      email != null ? email : "");
+						updateParam.addValue("tel",        tel);
+						updateParam.addValue("personid",   resolvedPersonId);
+						updateParam.addValue("is_active",  is_active);
+						updateParam.addValue("username",   tenantUsername);
+						updateParam.addValue("spjangcd",   effectiveSpjangcd);
+						this.tenantSqlRunner.execute(updateSql, updateParam);
 					}
 				}
 
 			} catch (Exception e) {
-				// person 생성 실패 시 롤백 여부는 정책에 따라 결정
-				// 현재는 경고만 남기고 user 저장은 유지
 				result.success = true;
 				result.message = "저장되었으나 Person 연동에 실패했습니다: " + e.getMessage();
 				result.data = user;
 				return result;
+			}
+
+		} else {
+			// ── 수정 시 보완 로직 ──────────────────────────────
+			// personid가 있는 수정 케이스에서도 사업체 DB 누락 데이터 보완
+			if (person_code != null && !person_code.isEmpty()) {
+				try {
+					String tenantUsername = person_code.startsWith("p")
+							? person_code.substring(1)
+							: person_code;
+
+					// 사업체 person 누락 확인 및 보완
+					MapSqlParameterSource personChkParam = new MapSqlParameterSource();
+					personChkParam.addValue("id", Integer.valueOf(personid));
+					personChkParam.addValue("spjangcd", effectiveSpjangcd);
+					List<Map<String, Object>> existPersonList = this.tenantSqlRunner.getRows(
+						"SELECT id FROM person WHERE id = :id AND spjangcd = :spjangcd",
+						personChkParam
+					);
+
+					if (existPersonList.isEmpty()) {
+						// person이 없으면 INSERT
+						String rtdate = new java.text.SimpleDateFormat("yyyyMMdd").format(new java.util.Date());
+						String personInsertSql = """
+							INSERT INTO person
+							([Name], [Code], [Depart_id], [Factory_id], spjangcd, rtflag, [PersonGroup_id], rtdate, _created, _creater_id)
+							VALUES (:Name, :Code, :Depart_id, :Factory_id, :spjangcd, '0', 1, :rtdate, SYSDATETIMEOFFSET(), :creater_id)
+						""";
+						MapSqlParameterSource personParam = new MapSqlParameterSource();
+						personParam.addValue("Name",      Name);
+						personParam.addValue("Code",      person_code);
+						personParam.addValue("Depart_id", 28);
+						personParam.addValue("Factory_id", Factory_id);
+						personParam.addValue("spjangcd",  effectiveSpjangcd);
+						personParam.addValue("rtdate",    rtdate);
+						personParam.addValue("creater_id", loginUser.getId());
+						this.tenantSqlRunner.execute(personInsertSql, personParam);
+					}
+
+					// 사업체 auth_user personid 누락 확인 및 보완
+					MapSqlParameterSource tenantChkParam = new MapSqlParameterSource();
+					tenantChkParam.addValue("username", tenantUsername);
+					tenantChkParam.addValue("spjangcd", effectiveSpjangcd);
+					List<Map<String, Object>> existTenantAuth = this.tenantSqlRunner.getRows(
+						"SELECT id, personid FROM auth_user WHERE username = :username AND spjangcd = :spjangcd",
+						tenantChkParam
+					);
+
+					if (!existTenantAuth.isEmpty()) {
+						Object currentPersonId = existTenantAuth.get(0).get("personid");
+						if (currentPersonId == null) {
+							// personid 누락 → UPDATE로 보완
+							String fixSql = """
+								UPDATE auth_user SET
+								    personid  = :personid,
+								    first_name = CASE WHEN first_name IS NULL OR first_name = '' THEN :first_name ELSE first_name END,
+								    last_name  = CASE WHEN last_name  IS NULL OR last_name  = '' THEN :last_name  ELSE last_name  END,
+								    tel        = CASE WHEN tel        IS NULL OR tel        = '' THEN :tel        ELSE tel        END
+								WHERE username = :username AND spjangcd = :spjangcd
+							""";
+							MapSqlParameterSource fixParam = new MapSqlParameterSource();
+							fixParam.addValue("personid",   Integer.valueOf(personid));
+							fixParam.addValue("first_name", Name);
+							fixParam.addValue("last_name",  Name);
+							fixParam.addValue("tel",        tel);
+							fixParam.addValue("username",   tenantUsername);
+							fixParam.addValue("spjangcd",   effectiveSpjangcd);
+							this.tenantSqlRunner.execute(fixSql, fixParam);
+						}
+					}
+
+				} catch (Exception e) {
+					// 보완 실패는 경고만 남기고 저장은 유지
+					result.success = true;
+					result.message = "저장되었으나 사업체DB 보완에 실패했습니다: " + e.getMessage();
+					result.data = user;
+					return result;
+				}
 			}
 		}
 
