@@ -159,7 +159,7 @@ public class DayMonthlyController {
                 String workym   = (String) item.get("workym");
                 String spjangcd = (String) item.get("spjangcd");
                 String workday  = (String) item.get("workday");
-                String personid = (String) item.get("id");
+                String personid = String.valueOf(item.get("id"));
                 dayMonthlyService.cancelDayMagam(spjangcd, personid, workym, workday);
             }
             result.success = true;

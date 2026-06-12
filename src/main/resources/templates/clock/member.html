@@ -69,38 +69,35 @@
                 <div class="button-wrap">
                     <ul>
                         <li>
-                            <a class="btn btn-save" title="등록" id="btnInsert">
-<!--                                <img th:src="@{/images/icon/ico-edit.svg}" alt="등록 아이콘">-->
+                            <a class="btn btn-save y_write_auth" title="등록" id="btnInsert">
                                 등록
                             </a>
                         </li>
                         <li>
-                            <a class="btn btn-excell" title="엑셀양식" id="btnExcelTemplate">
+                            <a class="btn btn-excell y_write_auth" title="엑셀양식" id="btnExcelTemplate">
                                 <img th:src="@{/images/icon/ico-edit.svg}" alt="양식 아이콘">
                                 양식다운
                             </a>
                         </li>
                         <li>
-                            <a class="btn btn-excell" title="엑셀업로드" id="btnExcelUpload">
-<!--                                <img th:src="@{/images/icon/ico-edit.svg}" alt="업로드 아이콘">-->
+                            <a class="btn btn-excell y_write_auth" title="엑셀업로드" id="btnExcelUpload">
                                 일괄등록
                             </a>
                             <input type="file" id="excelFileInput" style="display:none;" accept=".xlsx,.xls">
                         </li>
                         <li>
-                            <a class="btn btn-delete" title="삭제" id="btnDelete">
-<!--                                <img th:src="@{/images/icon/ico-edit.svg}" alt="삭제 아이콘">-->
+                            <a class="btn btn-delete y_write_auth" title="삭제" id="btnDelete">
                                 일괄삭제
                             </a>
                         </li>
                         <li>
-                            <a class="btn btn-excell" title="저장" id="btnSave">
+                            <a class="btn btn-excell y_write_auth" title="저장" id="btnSave">
                                 <img th:src="@{/images/icon/ico-edit.svg}" alt="저장 아이콘">
                                 확인
                             </a>
                         </li>
                         <li>
-                            <a class="btn btn-excell" title="취소" id="btncancel">
+                            <a class="btn btn-excell y_write_auth" title="취소" id="btncancel">
                                 <img th:src="@{/images/icon/ico-edit.svg}" alt="취소 아이콘">
                                 확인취소
                             </a>
@@ -190,9 +187,9 @@
                 </table>
             </div>
             <div class="popup-button">
-                <button type="button" class="btn-popup" id="btnMemberSave">저장</button>
+                <button type="button" class="btn-popup y_write_auth" id="btnMemberSave">저장</button>
                 {% if (o.isEdit) { %}
-                <button type="button" class="btn-popup" id="btnMemberDelete">삭제</button>
+                <button type="button" class="btn-popup y_write_auth" id="btnMemberDelete">삭제</button>
                 {% } %}
                 <button type="button" class="btn-popup" id="modal-close-button">닫기</button>
             </div>
@@ -511,6 +508,9 @@
 
             _memberPopContainer = new PopupDraggable(isEdit ? '휴가 수정' : '휴가 등록');
             _memberPopContainer.open({ width: 780, height: 380, $content });
+
+            // 쓰기 권한 없으면 저장/삭제 버튼 제거
+            yullinAuth.removeWriteButton($content);
 
             // workcd 셀렉트 초기화 후 값 설정
             AjaxUtil.fillSelectOptions($content.find('#modalWorkcd'), 'workcd', 'choose', false, 'work_division', '');
