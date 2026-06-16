@@ -126,7 +126,9 @@ public class VehicleManageController {
             Authentication auth) {
 
         AjaxResult result = new AjaxResult();
-        result.data = vehicleManageService.getStatusList(spjangcd, fromDate, toDate, carnum);
+        User user = (User) auth.getPrincipal();
+        String perid = user.getUsername();
+        result.data = vehicleManageService.getStatusList(spjangcd, fromDate, toDate, carnum, perid);
         return result;
     }
 

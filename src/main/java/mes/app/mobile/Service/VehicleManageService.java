@@ -426,11 +426,12 @@ public class VehicleManageService {
     }
 
     // ── 차량운행 현황 조회 (TB_E037_CONF) ────────────────────
-    public List<Map<String, Object>> getStatusList(String spjangcd, String fromDate, String toDate, String carnum) {
+    public List<Map<String, Object>> getStatusList(String spjangcd, String fromDate, String toDate, String carnum, String perid) {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
         param.addValue("fromDate", fromDate);
         param.addValue("toDate",   toDate);
+        param.addValue("perid",    perid);
 
         String sql = """
                 SELECT
@@ -470,6 +471,7 @@ public class VehicleManageService {
                                       AND s.spjangcd  = c.spjangcd
                 WHERE c.spjangcd = :spjangcd
                   AND c.kcdate  BETWEEN :fromDate AND :toDate
+                  AND c.perid   = :perid
                 """;
 
         if (carnum != null && !carnum.trim().isEmpty()) {

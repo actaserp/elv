@@ -223,7 +223,7 @@
         if (fileResult && fileResult.data && fileResult.data.length > 0) {
           _fileList = fileResult.data;
           html += '<div class="detail-section-title">첨부파일 (' + _fileList.length + ')</div>';
-          _fileList.forEach(function (file, idx) {
+          _fileList.forEach(function (file) {
             const ext     = (file.fileExt || '').toLowerCase();
             const isImage = ['jpg','jpeg','png','gif','bmp','webp'].indexOf(ext) >= 0;
             const icon    = isImage ? '🖼️' : getFileIcon(ext);
@@ -236,10 +236,13 @@
             html += '<div class="file-item">'
                   + '  <div class="file-info"><span class="file-icon">' + icon + '</span><span class="file-name">' + esc(file.fileNm) + '</span></div>'
                   + '  <span class="file-size">' + sizeStr + '</span>'
-                  + '  <button class="btn-file-dl" onclick="downloadFile(\'' + dlUrl + '\', \'' + esc(file.fileNm) + '\')">다운로드</button>'
                   + '</div>';
           });
 
+          // footer 다운로드 버튼 표시
+          document.getElementById('popupFooter').style.display = 'flex';
+          document.getElementById('btnDownloadAll').textContent =
+              _fileList.length > 1 ? '전체 다운로드 (' + _fileList.length + ')' : '다운로드';
         }
 
         document.getElementById('popupBody').innerHTML = html;
@@ -247,22 +250,40 @@
     });
   }
 
-  function downloadFile(url, fileName) {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName || 'download';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }
-
   function downloadAll() {
     if (!_fileList || _fileList.length === 0) return;
-    _fileList.forEach(function (file) {
-      setTimeout(function () {
-        downloadFile('/api/files/download?file_id=' + file.fileId, file.fileNm);
-      }, 300);
-    });
+    var btn = document.getElementById('btnDownloadAll');
+    btn.disabled = true;
+    btn.textContent = '다운로드 중...';
+
+    var index = 0;
+    function downloadNext() {
+      if (index >= _fileList.length) {
+        btn.disabled = false;
+        btn.textContent = _fileList.length > 1
+            ? '전체 다운로드 (' + _fileList.length + ')' : '다운로드';
+        return;
+      }
+      var file = _fileList[index++];
+      var url  = '/api/files/download?file_id=' + file.fileId;
+      fetch(url, { credentials: 'include' })
+        .then(function(res) { return res.blob(); })
+        .then(function(blob) {
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = file.fileNm || 'download';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(a.href);
+          setTimeout(downloadNext, 500);
+        })
+        .catch(function() {
+          Alert.alert('', file.fileNm + ' 다운로드 중 오류가 발생하였습니다.');
+          setTimeout(downloadNext, 500);
+        });
+    }
+    downloadNext();
   }
 
   function getFileIcon(ext) {
