@@ -105,6 +105,12 @@ public class MobileController {
         return "mobile/user_manage";
     }
 
+    @GetMapping("/data_room")
+    public String dataRoom(Model model) {
+        model.addAttribute("currentPage", "data_room");
+        return "mobile/data_room";
+    }
+
     // ========== 계정관리 ==========
 
     @GetMapping("/user_info")

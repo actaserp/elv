@@ -538,6 +538,31 @@
 
     // ========== 등록 ==========
     function saveAttendance() {
+        var vehicleNm = document.getElementById('vehicleNm').value.trim();
+        var siteNm    = document.getElementById('siteNm').value.trim();
+        var startKM   = document.getElementById('startKM').value.trim();
+        var endKM     = document.getElementById('endKM').value.trim();
+
+        if (!vehicleNm) {
+            Alert.alert('', '차량번호를 선택하세요.');
+            return;
+        }
+        if (!siteNm) {
+            Alert.alert('', '현장명을 선택하세요.');
+            return;
+        }
+        if (!startKM) {
+            Alert.alert('', '출발(km) 값을 입력하세요.');
+            return;
+        }
+        if (!endKM) {
+            Alert.alert('', '도착(km) 값을 입력하세요.');
+            return;
+        }
+        if (parseFloat(endKM) <= parseFloat(startKM)) {
+            Alert.alert('', '도착(km)은 출발(km)보다 커야 합니다.');
+            return;
+        }
         let url  = '/api/vehicle_manage/submitAttendance';
         let data = {
             'userId'    : document.getElementById('userId').value,
