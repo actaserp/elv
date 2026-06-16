@@ -255,6 +255,7 @@
     var btn = document.getElementById('btnDownloadAll');
     btn.disabled = true;
     btn.textContent = '다운로드 중...';
+    var csrfToken = document.querySelector('input[name="_csrf"]') ? document.querySelector('input[name="_csrf"]').value : '';
 
     var index = 0;
     function downloadNext() {
@@ -266,7 +267,10 @@
       }
       var file = _fileList[index++];
       var url  = '/api/files/download?file_id=' + file.fileId;
-      fetch(url, { credentials: 'include' })
+      fetch(url, {
+        credentials: 'include',
+        headers: { 'X-CSRF-TOKEN': csrfToken }
+      })
         .then(function(res) { return res.blob(); })
         .then(function(blob) {
           var a = document.createElement('a');
