@@ -128,7 +128,56 @@ public class DailyManageService {
         return sqlRunner.getRows(sql, param);
     }
 
-    // ── 업무일지 삭제 ─────────────────────────────────────────
+    // ── 부서 목록 조회 (TB_JC002) ────────────────────────────
+    public List<Map<String, Object>> getDeptList(String spjangcd) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        String sql = """
+                SELECT divicd, divinm
+                FROM TB_JC002
+                WHERE spjangcd = :spjangcd
+                ORDER BY divicd ASC
+                """;
+        return sqlRunner.getRows(sql, param);
+    }
+
+    // ── 부서별 업무보고 조회 (TB_E037 + TB_E038 기준) ─────────
+    // 특정 날짜, 특정 부서(들)에 속한 사원의 업무일지 전체 반환
+    public List<Map<String, Object>> getDeptReport(
+            String rptdate,
+            String spjangcd,
+            String divicd) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("rptdate",  rptdate);
+        param.addValue("divicd",   divicd);
+
+        String sql = """
+                SELECT
+                    jc.divinm,
+                    j.pernm,
+                    e.actnm,
+                    m.equpnm,
+                    e.remark,
+                    e.rptdate,
+                    e.perid,
+                    e.rptnum
+                FROM TB_E038 e
+                LEFT JOIN TB_JA001 j  ON j.perid    = 'p' + e.perid
+                                     AND j.spjangcd  = e.spjangcd
+                LEFT JOIN TB_JC002 jc ON j.divicd   = jc.divicd
+                LEFT JOIN TB_E611  m  ON m.equpcd    = e.equpcd
+                                     AND m.actcd     = e.actcd
+                                     AND m.spjangcd  = e.spjangcd
+                WHERE e.spjangcd = :spjangcd
+                  AND e.rptdate  = :rptdate
+                  AND jc.divicd  = :divicd
+                ORDER BY j.pernm ASC, e.rptnum ASC
+                """;
+
+        return sqlRunner.getRows(sql, param);
+    }
     // 1. TB_E038 해당 건 filesvnm 조회 → NCP 파일 삭제
     // 2. TB_E038 DELETE
     // 3. TB_E037 HEAD: 잔여 TB_E038 없으면 DELETE

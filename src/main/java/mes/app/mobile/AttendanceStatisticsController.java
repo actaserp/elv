@@ -34,14 +34,13 @@ public class AttendanceStatisticsController {
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
 
-        Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
-        if (userInfo == null) {
+        Integer personId = tenantUserService.getPersonid(user.getUsername());
+        if (personId == null) {
             result.message = "사업체 DB에서 유저 정보를 찾을 수 없습니다.";
             return result;
         }
-        String tenantUsername = userInfo.get("username") != null ? userInfo.get("username").toString() : null;
 
-        List<Map<String, Object>> data = attendanceStatisticsService.getVacInfo(tenantUsername, searchYear);
+        List<Map<String, Object>> data = attendanceStatisticsService.getVacInfo(personId, searchYear);
         result.data = data;
         return result;
     }

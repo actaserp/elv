@@ -71,6 +71,7 @@ public class MaintenanceRepairService {
                 WHERE e.spjangcd = :spjangcd
                   AND e.recedate BETWEEN :fromDate AND :toDate
                   AND e.reperid  = :perid
+                  AND (e.resultck IS NULL OR e.resultck <> '1')
                 """;
 
         if (actnm != null && !actnm.isBlank()) {

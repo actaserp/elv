@@ -927,10 +927,15 @@
 
     /* ── 등록 ── */
     function saveComp() {
-        const compdate = document.getElementById('regCompdate').value;
-        const actcd    = document.getElementById('regActcd').value;
-        if (!compdate) { Alert.alert('', '완료일자를 입력해주세요.'); return; }
-        if (!actcd)    { Alert.alert('', '현장을 선택해주세요.');     return; }
+        const compdate   = document.getElementById('regCompdate').value;
+        const actcd      = document.getElementById('regActcd').value;
+        const recedate   = document.getElementById('regRecedate').value;
+        const processorId = document.getElementById('regProcessorId').value;
+
+        if (!recedate)    { Alert.alert('', '고장접수를 선택해주세요.');   return; }
+        if (!compdate)    { Alert.alert('', '완료일자를 입력해주세요.');   return; }
+        if (!actcd)       { Alert.alert('', '현장을 선택해주세요.');       return; }
+        if (!processorId) { Alert.alert('', '처리자를 선택해주세요.');     return; }
 
         const data = {
             spjangcd   : _spjangcd,

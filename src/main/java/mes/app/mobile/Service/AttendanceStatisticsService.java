@@ -14,10 +14,10 @@ public class AttendanceStatisticsService {
     SqlRunner sqlRunner;
 
     // 차트 데이터 조회
-    public List<Map<String, Object>> getVacInfo(String username, String searchYear) {
+    public List<Map<String, Object>> getVacInfo(Integer personId, String searchYear) {
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
-        dicParam.addValue("username",   username);
+        dicParam.addValue("personid",   String.valueOf(personId));
         dicParam.addValue("searchYear", searchYear);
 
         String sql = """
@@ -27,7 +27,7 @@ public class AttendanceStatisticsService {
                     SUM(t.daynum) AS HISPOINT
                 FROM tb_pb204 t
                 LEFT JOIN tb_pb210 tn ON t.workcd = tn.workcd
-                WHERE t.appuserid = :username
+                WHERE t.perid = :personid
                   AND LEFT(t.reqdate, 4) = :searchYear
                 GROUP BY t.workcd, tn.worknm
                 """;

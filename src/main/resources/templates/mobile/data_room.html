@@ -255,9 +255,9 @@
     var btn = document.getElementById('btnDownloadAll');
     btn.disabled = true;
     btn.textContent = '다운로드 중...';
-    var csrfToken = document.querySelector('input[name="_csrf"]') ? document.querySelector('input[name="_csrf"]').value : '';
 
     var index = 0;
+
     function downloadNext() {
       if (index >= _fileList.length) {
         btn.disabled = false;
@@ -266,27 +266,21 @@
         return;
       }
       var file = _fileList[index++];
-      var url  = '/api/files/download?file_id=' + file.fileId;
-      fetch(url, {
-        credentials: 'include',
-        headers: { 'X-CSRF-TOKEN': csrfToken }
-      })
-        .then(function(res) { return res.blob(); })
-        .then(function(blob) {
-          var a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = file.fileNm || 'download';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(a.href);
-          setTimeout(downloadNext, 500);
-        })
-        .catch(function() {
-          Alert.alert('', file.fileNm + ' 다운로드 중 오류가 발생하였습니다.');
-          setTimeout(downloadNext, 500);
-        });
+      var url = window.CTX_PATH + '/api/files/download?file_id=' + file.fileId;
+
+      // 모바일 WebView 호환: iframe을 이용한 다운로드 트리거
+      var iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = url;
+      document.body.appendChild(iframe);
+
+      // 다음 파일은 1.5초 간격으로 순차 처리 (브라우저 다운로드 대화상자 충돌 방지)
+      setTimeout(function () {
+        document.body.removeChild(iframe);
+        downloadNext();
+      }, 1500);
     }
+
     downloadNext();
   }
 

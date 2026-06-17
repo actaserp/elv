@@ -46,6 +46,28 @@ public class DailyManageController {
         return result;
     }
 
+    // ── 부서 목록 조회 ───────────────────────────────────────
+    @GetMapping("/read/dept_list")
+    public AjaxResult readDeptList(
+            @RequestParam(value = "spjangcd", required = false) String spjangcd,
+            HttpServletRequest request) {
+        AjaxResult result = new AjaxResult();
+        result.data = dailyManageService.getDeptList(spjangcd);
+        return result;
+    }
+
+    // ── 부서별 업무보고 조회 ──────────────────────────────────
+    @GetMapping("/read/dept_report")
+    public AjaxResult readDeptReport(
+            @RequestParam(value = "rptdate")                    String rptdate,
+            @RequestParam(value = "spjangcd", required = false) String spjangcd,
+            @RequestParam(value = "divicd",   required = false) String divicd,
+            HttpServletRequest request) {
+        AjaxResult result = new AjaxResult();
+        result.data = dailyManageService.getDeptReport(rptdate, spjangcd, divicd);
+        return result;
+    }
+
     // ── 업무일지 삭제 ─────────────────────────────────────────
     @PostMapping("/delete")
     public AjaxResult delete(

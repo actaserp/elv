@@ -170,6 +170,17 @@
                                         </li>
                                     </dd>
                                 </dl>
+                                <dl>
+                                    <dt><span class="eq"></span></dt>
+                                    <dd>
+                                        <li>
+                                            <button type="button" class="btn btn-excell" id="btnDeptReport"
+                                                    title="부서별업무보고" style="height:36px;">
+                                                📋 부서별업무보고
+                                            </button>
+                                        </li>
+                                    </dd>
+                                </dl>
                             </div>
                         </div>
 
@@ -272,6 +283,50 @@
     <footer style="margin-top: 24px;">
         <p>Copyrightⓒ 0000 corp. All rights reserved.</p>
     </footer>
+
+    <!-- ══════════════════════════════════════
+         부서별업무보고 — 부서/날짜 선택 모달
+    ══════════════════════════════════════ -->
+    <div id="deptReportModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+         background:rgba(0,0,0,0.45); z-index:9000; align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:10px; padding:28px 32px; min-width:360px; box-shadow:0 4px 20px rgba(0,0,0,0.25);">
+            <h3 style="margin:0 0 20px; font-size:16px; color:#222;">부서별 업무보고 조회</h3>
+            <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                <tr>
+                    <td style="padding:6px 0; color:#666; width:80px;">날짜</td>
+                    <td><input type="date" id="drDate" style="width:100%; padding:5px 8px; border:1px solid #ddd; border-radius:5px;"></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666;">부서</td>
+                    <td>
+                        <select id="drDeptSelect" style="width:100%; padding:5px 8px; border:1px solid #ddd; border-radius:5px;">
+                            <option value="">-- 부서 선택 --</option>
+                        </select>
+                    </td>
+                </tr>
+            </table>
+            <div style="display:flex; gap:8px; margin-top:20px; justify-content:flex-end;">
+                <button onclick="closeDeptModal()" style="padding:7px 18px; border:1px solid #ccc; border-radius:5px; background:#fff; cursor:pointer;">닫기</button>
+                <button onclick="previewDeptReport()" style="padding:7px 18px; border:none; border-radius:5px; background:#4472c4; color:#fff; cursor:pointer;">미리보기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         부서별업무보고 — 미리보기 팝업
+    ══════════════════════════════════════ -->
+    <div id="deptReportPreview" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+         background:rgba(0,0,0,0.55); z-index:9100; align-items:flex-start; justify-content:center; overflow-y:auto;">
+        <div style="background:#fff; border-radius:8px; margin:30px auto; width:860px; padding:32px 36px; position:relative;">
+            <!-- 닫기 + 다운로드 버튼 -->
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:16px;">
+                <button onclick="printDeptReport()" style="padding:7px 18px; border:none; border-radius:5px; background:#2c7d3a; color:#fff; cursor:pointer; font-size:13px;">🖨️ 인쇄 / PDF 저장</button>
+                <button onclick="closeDeptPreview()" style="padding:7px 18px; border:1px solid #ccc; border-radius:5px; background:#fff; cursor:pointer; font-size:13px;">닫기</button>
+            </div>
+            <!-- 실제 보고서 영역 (인쇄 대상) -->
+            <div id="deptReportContent"></div>
+        </div>
+    </div>
 </th:block>
 
 <th:block layout:fragment="scripts">
@@ -626,6 +681,203 @@
             totalRow += `<td>${totalWritten}</td><td>${totalNotWritten}</td></tr>`;
             body.innerHTML += totalRow;
         }
+
+        /* ═══════════════════════════════════════════
+           부서별 업무보고
+        ═══════════════════════════════════════════ */
+        var _deptList = [];
+
+        $('#btnDeptReport').click(function () {
+            // 날짜 기본값: 오늘
+            const today = new Date();
+            const yyyy  = today.getFullYear();
+            const mm    = String(today.getMonth() + 1).padStart(2, '0');
+            const dd    = String(today.getDate()).padStart(2, '0');
+            document.getElementById('drDate').value = `${yyyy}-${mm}-${dd}`;
+
+            // 부서 목록 조회 (캐시)
+            if (_deptList.length === 0) {
+                AjaxUtil.getAsyncData('/api/AS/daily_manage/read/dept_list', {
+                    spjangcd: sessionStorage.getItem('spjangcd')
+                }, function (result) {
+                    if (result && result.data) {
+                        _deptList = result.data;
+                        const sel = document.getElementById('drDeptSelect');
+                        sel.innerHTML = '<option value="">-- 부서 선택 --</option>';
+                        _deptList.forEach(function (d) {
+                            sel.innerHTML += `<option value="${esc(d.divicd)}">${esc(d.divinm)}</option>`;
+                        });
+                    }
+                });
+            }
+
+            const modal = document.getElementById('deptReportModal');
+            modal.style.display = 'flex';
+        });
+
+        function closeDeptModal() {
+            document.getElementById('deptReportModal').style.display = 'none';
+        }
+
+        function previewDeptReport() {
+            const rptdate  = document.getElementById('drDate').value.replaceAll('-', '');
+            const divicd   = document.getElementById('drDeptSelect').value;
+            const divinm   = document.getElementById('drDeptSelect').selectedOptions[0]?.text || '';
+
+            if (!rptdate) { Alert.alert('', '날짜를 선택해주세요.'); return; }
+            if (!divicd)  { Alert.alert('', '부서를 선택해주세요.'); return; }
+
+            AjaxUtil.getAsyncData('/api/AS/daily_manage/read/dept_report', {
+                rptdate  : rptdate,
+                spjangcd : sessionStorage.getItem('spjangcd'),
+                divicd   : divicd
+            }, function (result) {
+                if (!result || !result.data) {
+                    Alert.alert('', '조회 중 오류가 발생하였습니다.');
+                    return;
+                }
+
+                const rows = result.data;
+                const dateStr = rptdate.substring(0,4) + '년 '
+                              + rptdate.substring(4,6) + '월 '
+                              + rptdate.substring(6,8) + '일';
+
+                // 사람별로 그룹화
+                const personMap   = {};
+                const personOrder = [];
+                rows.forEach(function (r) {
+                    if (!personMap[r.perid]) {
+                        personMap[r.perid] = { pernm: r.pernm || '', rows: [] };
+                        personOrder.push(r.perid);
+                    }
+                    personMap[r.perid].rows.push(r);
+                });
+
+                // 보고서 HTML 생성
+                const style = `
+                    <style>
+                        .dr-wrap { font-family: '맑은 고딕', sans-serif; font-size: 13px; color: #111; }
+                        .dr-header-wrap { display:table; width:100%; border-collapse:collapse; margin-bottom:4px; }
+                        .dr-header-left  { display:table-cell; width:60%; vertical-align:middle; }
+                        .dr-header-right { display:table-cell; width:40%; vertical-align:top; text-align:right; }
+                        .dr-title { text-align:center; font-size:20px; font-weight:700; letter-spacing:8px; margin-bottom:6px; }
+                        .dr-date  { text-align:center; font-size:13px; }
+                        .dr-approval { border-collapse:collapse; margin-left:auto; }
+                        .dr-approval th, .dr-approval td { border:1px solid #333; padding:4px 14px; text-align:center; font-size:12px; min-width:64px; }
+                        .dr-approval th { background:#f5f5f5; }
+                        .dr-approval td { height:36px; }
+                        .dr-section-title { font-size:13px; font-weight:700; margin:18px 0 4px; }
+                        .dr-table { width:100%; border-collapse:collapse; font-size:12px; margin-bottom:0; }
+                        .dr-table th { background:#dce6f1; border:1px solid #999; padding:4px 6px; text-align:center; }
+                        .dr-table td { border:1px solid #bbb; padding:4px 6px; vertical-align:top; }
+                        .dr-table td.center { text-align:center; }
+                    </style>`;
+
+                let html = `<div class="dr-wrap">
+                    <div class="dr-header-wrap">
+                        <div class="dr-header-left">
+                            <div class="dr-title">일 일 업 무 보 고</div>
+                            <div class="dr-date">${dateStr}</div>
+                        </div>
+                        <div class="dr-header-right">
+                            <table class="dr-approval">
+                                <tr><th>결</th><th>담 당</th><th>사 장</th></tr>
+                                <tr><th>재</th><td></td><td></td></tr>
+                            </table>
+                        </div>
+                    </div>`;
+
+                if (personOrder.length === 0) {
+                    html += `<div style="padding:30px; text-align:center; color:#999;">해당 날짜에 작성된 업무일지가 없습니다.</div>`;
+                } else {
+                    html += `<div class="dr-section-title">※ ${esc(divinm)}</div>
+                        <table class="dr-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:60px;">구분</th>
+                                    <th style="width:130px;">현장</th>
+                                    <th style="width:110px;">호기</th>
+                                    <th>문 제 점 &nbsp; 및 &nbsp; 처 리 내 용</th>
+                                    <th style="width:70px;">작성자</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+                    personOrder.forEach(function (perid) {
+                        const person = personMap[perid];
+                        person.rows.forEach(function (r) {
+                            html += `<tr>
+                                <td class="center"></td>
+                                <td>${esc(r.actnm || '')}</td>
+                                <td class="center">${esc(r.equpnm || '')}</td>
+                                <td>${esc(r.remark || '')}</td>
+                                <td class="center">${esc(person.pernm)}</td>
+                            </tr>`;
+                        });
+                    });
+
+                    html += `</tbody></table>`;
+                }
+
+                html += `</div>`;
+
+                document.getElementById('deptReportContent').innerHTML = style + html;
+                closeDeptModal();
+
+                const preview = document.getElementById('deptReportPreview');
+                preview.style.display = 'flex';
+            });
+        }
+
+        function closeDeptPreview() {
+            document.getElementById('deptReportPreview').style.display = 'none';
+        }
+
+        function printDeptReport() {
+            const content = document.getElementById('deptReportContent').innerHTML;
+            const printWin = window.open('', 'deptReportPrint', 'width=900,height=700');
+            printWin.document.open();
+            printWin.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>일일업무보고</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: '맑은 고딕', sans-serif; font-size: 13px; color: #111; padding: 20px 28px; }
+    .dr-wrap { width: 100%; }
+    .dr-header-wrap { display: table; width: 100%; margin-bottom: 12px; }
+    .dr-header-left  { display: table-cell; width: 60%; vertical-align: middle; }
+    .dr-header-right { display: table-cell; width: 40%; vertical-align: top; text-align: right; }
+    .dr-title { text-align: center; font-size: 22px; font-weight: 700; letter-spacing: 10px; margin-bottom: 8px; }
+    .dr-date  { text-align: center; font-size: 13px; }
+    .dr-approval { border-collapse: collapse; margin-left: auto; }
+    .dr-approval th, .dr-approval td { border: 1px solid #333; padding: 4px 14px; text-align: center; font-size: 12px; min-width: 64px; }
+    .dr-approval th { background: #f5f5f5; }
+    .dr-approval td { height: 36px; }
+    .dr-section-title { font-size: 13px; font-weight: 700; margin: 16px 0 4px; }
+    .dr-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .dr-table th { background: #dce6f1; border: 1px solid #999; padding: 5px 6px; text-align: center; }
+    .dr-table td { border: 1px solid #bbb; padding: 5px 6px; vertical-align: middle; }
+    .dr-table td.center { text-align: center; }
+</style>
+</head>
+<body>${content}</body>
+</html>`);
+            printWin.document.close();
+            printWin.onload = function () {
+                printWin.focus();
+                printWin.print();
+            };
+        }
+
+        // 모달 바깥 클릭 시 닫기
+        document.getElementById('deptReportModal').addEventListener('click', function(e) {
+            if (e.target === this) closeDeptModal();
+        });
+        document.getElementById('deptReportPreview').addEventListener('click', function(e) {
+            if (e.target === this) closeDeptPreview();
+        });
 
         function esc(str) {
             if (!str) return '';

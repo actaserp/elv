@@ -156,8 +156,8 @@
                                 <div class="tab-item-sub" id="tab1_2">
                                     <div class="container-fluid" style="padding-left: 0; padding-right: 0;">
                                         <!-- 그리드 영역 -->
-                                        <div class="col-12" style="margin-bottom: 10px;">
-                                            <div id="theGrid" style="width: 100%; height: 450px;"></div>
+                                        <div class="col-12" style="margin-bottom: 10px; overflow-x: auto;">
+                                            <div id="theGrid" style="width: 100%; min-width: 500px; height: 450px;"></div>
                                         </div>
                                     </div>
 
@@ -829,10 +829,11 @@
                     showMarquee: true,
                     isReadOnly: true,
                     columns: [
-                        { binding: 'frdate', header: '일자(요일)', align: 'center', width: 100 },
+                        { binding: 'frdate', header: '시작일', align: 'center', width: 100 },
+                        { binding: 'todate', header: '종료일', align: 'center', width: 100 },
                         { binding: 'first_name', header: '사원명', align: 'center', width: 80 },
                         { binding: 'worknm', header: '구분', align: 'center', width: 50 },
-                        { binding: 'remark', header: '사유', align: 'left', width: 260 },
+                        { binding: 'remark', header: '사유', align: 'left', width: 150 },
                     ],
                     itemsSource: viewdata2 // 빈 객체가 추가된 배열 사용
                 });
@@ -840,6 +841,14 @@
                 theGrid.formatItem.addHandler(function (s, e) {
                     if (e.panel === s.columnHeaders) {
                         e.cell.style.textAlign = 'center';
+                    }
+                    // 날짜 컬럼 포맷 (yyyyMMdd → yyyy-MM-dd)
+                    if (e.panel.cellType === wijmo.grid.CellType.Cell) {
+                        const col = s.columns[e.col];
+                        const val = e.panel.getCellData(e.row, e.col, false);
+                        if (['frdate', 'todate'].includes(col.binding) && val && val.length === 8) {
+                            e.cell.textContent = val.substring(0, 4) + '-' + val.substring(4, 6) + '-' + val.substring(6, 8);
+                        }
                     }
                 });
                 attachDoubleClickEvent(theGrid);   //더블클릭 이벤트
