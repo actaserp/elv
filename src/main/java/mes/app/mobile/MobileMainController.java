@@ -64,6 +64,7 @@ public class MobileMainController {
         if (timeInfo != null) {
             resultData.put("inOfficeTime", timeInfo.get("starttime"));
             resultData.put("workcd",       timeInfo.get("workcd"));
+            resultData.put("remark",       timeInfo.get("remark"));
         }
 
         if (overtimeInfo != null) {
@@ -85,6 +86,7 @@ public class MobileMainController {
             @RequestParam(value = "latitude",   required = false) String  latitude,
             @RequestParam(value = "longitude",  required = false) String  longitude,
             @RequestParam(value = "gpsInfo",    required = false) String  gpsInfo,
+            @RequestParam(value = "remark",     required = false) String  remark,
             @RequestParam(value = "isOvertime", required = false, defaultValue = "false") Boolean isOvertime,
             HttpServletRequest request,
             Authentication auth) {
@@ -139,7 +141,7 @@ public class MobileMainController {
                     spjangcd, perId, workym, workday, nextIdx,
                     weekNum, isHoly, formattedCurrTime, inFlag,
                     finalWorkcd, finalAddress, finalLatitude, finalLongitude,
-                    jitime);
+                    jitime, remark != null ? remark.trim() : "");
             result.success = true;
             result.message = isOvertime ? "추가근무 출근이 등록되었습니다." : "출근등록이 완료되었습니다.";
         } catch (Exception e) {

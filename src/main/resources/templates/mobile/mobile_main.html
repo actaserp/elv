@@ -198,7 +198,14 @@
 
           <div style="font-size: small; color: red;" id="gpsInfo"></div>
 
-          <!-- 버튼 영역 -->
+          <!-- 비고 입력 -->
+          <div style="">
+            <input type="text" id="remarkInput"
+                   placeholder="비고 입력 (25자 이내)"
+                   maxlength="25"
+                   style="width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:8px;
+                          font-size:14px; box-sizing:border-box;">
+          </div>
           <div class="btnArea">
             <!-- 사내 버튼 -->
             <div id="inside" style="display: none; gap: 13%; justify-content: center;">
@@ -325,6 +332,11 @@
           // ✅ 일반 출근시간 (idx=1)
           document.getElementById('officeTime').textContent =
                   result.data.inOfficeTime ? result.data.inOfficeTime : "--:--";
+
+          // ✅ 비고 표시 (출근 후 저장된 remark)
+          if (result.data.remark) {
+            document.getElementById('remarkInput').value = result.data.remark;
+          }
 
           // ✅ 추가근무 출근시간 바인딩 (idx>=2)
           if (result.data.ovStartTime) {
@@ -462,6 +474,7 @@
         latitude:   latitude,
         longitude:  longitude,
         gpsInfo:    document.getElementById('gpsInfo').innerText,
+        remark:     document.getElementById('remarkInput').value.trim(),
         isOvertime: isOvertime  // ✅ 추가근무 여부 전달
       };
 
@@ -493,6 +506,7 @@
         workym:    year + month,
         workday:   date,
         workcd:    document.getElementById('selectWorkcd').value,
+        remark:    document.getElementById('remarkInput').value.trim(),
         gpsInfo:   document.getElementById('gpsInfo').innerText,
         latitude:  latitude,
         longitude: longitude

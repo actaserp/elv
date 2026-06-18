@@ -96,7 +96,8 @@ public class MobileMainService {
 
         String sql = """
                 SELECT t.starttime,
-                       t.workcd
+                       t.workcd,
+                       t.remark
                 FROM auth_user a
                 LEFT JOIN tb_pb201 t
                     ON  t.perid    = a.personid
@@ -221,7 +222,7 @@ public class MobileMainService {
     public void saveCommute(String spjangcd, String perId, String workym, String workday, int idx,
                             Integer weekNum, String holiyn, String starttime, String inFlag,
                             String workcd, String address, String latitude, String longitude,
-                            Integer jitime) {
+                            Integer jitime, String remark) {
         String checkSql = """
                 SELECT COUNT(*) FROM tb_pb201
                 WHERE spjangcd = ? AND perid = ? AND workym = ? AND workday = ? AND idx = ?
@@ -234,12 +235,13 @@ public class MobileMainService {
                     UPDATE tb_pb201
                     SET starttime = ?, inflag = ?, jitime = ?,
                         worknum = ?, holiyn = ?,
-                        address = ?, latitude = ?, longitude = ?
+                        address = ?, latitude = ?, longitude = ?,
+                        remark  = ?
                     WHERE spjangcd = ? AND perid = ? AND workym = ? AND workday = ? AND idx = ?
                     """,
                     starttime, inFlag, jitime,
                     weekNum, holiyn,
-                    address, latitude, longitude,
+                    address, latitude, longitude, remark,
                     spjangcd, perId, workym, workday, idx);
         } else {
             // INSERT (신규 레코드)
@@ -247,12 +249,12 @@ public class MobileMainService {
                     INSERT INTO tb_pb201
                         (spjangcd, workym, workday, perid, idx,
                          worknum, holiyn, starttime, inflag, workcd,
-                         jitime, address, latitude, longitude)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         jitime, address, latitude, longitude, remark)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     spjangcd, workym, workday, perId, idx,
                     weekNum, holiyn, starttime, inFlag, workcd,
-                    jitime, address, latitude, longitude);
+                    jitime, address, latitude, longitude, remark);
         }
     }
 
