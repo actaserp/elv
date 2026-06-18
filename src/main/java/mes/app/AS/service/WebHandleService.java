@@ -190,6 +190,7 @@ public class WebHandleService {
         param.addValue("remark",     remark);
         param.addValue("customer",   customer);
         param.addValue("result",     "1");
+        param.addValue("actperid",   perid != null ? perid : "");
         param.addValue("perid",      perid != null ? perid : "");
         param.addValue("inperid",    perid != null ? perid : "");
         param.addValue("indate",     compdate);
@@ -205,7 +206,7 @@ public class WebHandleService {
                      remocd, faccd, remoremark,
                      resucd, resuremark, resultcd,
                      remark, customer, result,
-                     perid, inperid, indate,
+                     actperid, perid, inperid, indate,
                      filesvnm, filepath)
                 VALUES
                     (:custcd, :spjangcd, :compdate, :compnum, :comptime,
@@ -215,7 +216,7 @@ public class WebHandleService {
                      :remocd, :faccd, :remoremark,
                      :resucd, :resuremark, :resultcd,
                      :remark, :customer, :result,
-                     :perid, :inperid, :indate,
+                     :actperid, :perid, :inperid, :indate,
                      :filesvnm, :filepath)
                 """, param);
 
@@ -238,7 +239,7 @@ public class WebHandleService {
         headParam.addValue("custcd",   custcd);
         headParam.addValue("spjangcd", spjangcd);
         headParam.addValue("rptdate",  compdate);
-        headParam.addValue("perid",    perid);
+        headParam.addValue("perid",    perid);  // actperid = 처리자 기준
 
         namedParameterJdbcTemplate.update("""
                 MERGE INTO TB_E037 AS target
@@ -366,14 +367,39 @@ public class WebHandleService {
         param.addValue("compdate", compdate);
         param.addValue("compnum",  compnum);
 
-        String sql = """
+        // 삭제 전 recedate, recenum 조회 (TB_E401 상태 복원용)
+        Map<String, Object> row = namedParameterJdbcTemplate.queryForList("""
+                SELECT recedate, recenum FROM TB_E411
+                WHERE spjangcd = :spjangcd
+                  AND compdate = :compdate
+                  AND compnum  = :compnum
+                """, param).stream().findFirst().orElse(null);
+
+        namedParameterJdbcTemplate.update("""
                 DELETE FROM TB_E411
                 WHERE spjangcd = :spjangcd
                   AND compdate = :compdate
                   AND compnum  = :compnum
-                """;
+                """, param);
 
-        namedParameterJdbcTemplate.update(sql, param);
+        // TB_E401 resultck 처리전으로 복원
+        if (row != null) {
+            String recedate = row.get("recedate") != null ? row.get("recedate").toString() : null;
+            String recenum  = row.get("recenum")  != null ? row.get("recenum").toString()  : null;
+            if (recedate != null && recenum != null) {
+                MapSqlParameterSource updateParam = new MapSqlParameterSource();
+                updateParam.addValue("spjangcd", spjangcd);
+                updateParam.addValue("recedate",  recedate);
+                updateParam.addValue("recenum",   recenum);
+                namedParameterJdbcTemplate.update("""
+                        UPDATE TB_E401
+                        SET resultck = NULL
+                        WHERE spjangcd = :spjangcd
+                          AND recedate = :recedate
+                          AND recenum  = :recenum
+                        """, updateParam);
+            }
+        }
     }
 
     // ── 팝업: 현장 검색 (TB_E601) ────────────────────────────

@@ -10,7 +10,7 @@
             align-items: flex-start;
         }
         .handle-left  { flex: 0 0 55%; min-width: 0; }
-        .handle-right { flex: 0 0 520px; min-width: 0; padding-left: 14px; }
+        .handle-right { flex: 0 0 45%; min-width: 0; padding-left: 14px; }
 
         /* ── 선택된 접수 정보 배너 ── */
         .selected-banner {
@@ -1037,7 +1037,7 @@
             popPernmGrid.hostElement.addEventListener('dblclick', function () {
                 var item = popPernmGrid.selectedItems[0];
                 if (!item) return;
-                document.getElementById('hidPerid').value = item.perid || '';
+                document.getElementById('hidPerid').value = (item.perid || '').replace(/^p/, '');
                 document.getElementById('regPernm').value = item.pernm || '';
                 popContainer.close();
             });
