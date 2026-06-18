@@ -50,6 +50,7 @@ public class CommuteCurrentService {
                 t.remark,
                 t.fixflag,
                 t.address,
+                t.out_address,
                 a.first_name,
                 STUFF(
                     CASE WHEN t.jitime = 1 THEN ', 지각' ELSE '' END +

@@ -168,22 +168,27 @@
             </div>
           </div>
 
-          <!-- 출근시간 카드 (일반) -->
-          <div class="office-card">
-            <i class="fa-solid fa-stopwatch fa_xl" id="officeIcon"></i>
-            <div>
-              <div class="status">출근</div>
-              <div class="time" id="officeTime" style="font-weight: bold">오전 09:00</div>
-            </div>
-          </div>
+          <!-- 출근/추가근무 카드 가로 배치 -->
+          <div style="display:flex; gap:8px; margin-bottom:5px;">
 
-          <!-- ✅ 추가근무 출근시간 카드 -->
-          <div class="overtime-card" id="overtimeCard" style="display: none;">
-            <i class="fa-solid fa-clock-rotate-left fa_xl" id="overtimeIcon"></i>
-            <div>
-              <div class="status">추가근무</div>
-              <div class="time" id="overtimeStartTime" style="font-weight: bold; color: #ff9500;">--:--</div>
+            <!-- 출근시간 카드 (일반) -->
+            <div class="office-card" style="flex:1; margin-bottom:0;">
+              <i class="fa-solid fa-stopwatch fa_xl" id="officeIcon" style="font-size:1.6em; width:12%; margin-right:6%;"></i>
+              <div>
+                <div class="status" style="font-size:12px;">출근</div>
+                <div class="time" id="officeTime" style="font-weight:bold; font-size:14px;">오전 09:00</div>
+              </div>
             </div>
+
+            <!-- 추가근무 출근시간 카드 -->
+            <div class="overtime-card" id="overtimeCard" style="flex:1; margin-bottom:0; display:none;">
+              <i class="fa-solid fa-clock-rotate-left fa_xl" id="overtimeIcon" style="font-size:1.6em; width:12%; margin-right:6%;"></i>
+              <div>
+                <div class="status" style="font-size:12px;">추가근무</div>
+                <div class="time" id="overtimeStartTime" style="font-weight:bold; font-size:14px; color:#ff9500;">--:--</div>
+              </div>
+            </div>
+
           </div>
 
           <!-- 근태구분 확인 -->
@@ -342,6 +347,13 @@
           if (result.data.ovStartTime) {
             document.getElementById('overtimeStartTime').textContent = result.data.ovStartTime;
             document.getElementById('overtimeCard').style.display = 'flex';
+            // 카드 2개일 때 아이콘 width 22%로 확대
+            document.getElementById('officeIcon').style.width   = '22%';
+            document.getElementById('overtimeIcon').style.width = '22%';
+          } else {
+            document.getElementById('overtimeCard').style.display = 'none';
+            // 카드 1개일 때 아이콘 width 12%로 원복
+            document.getElementById('officeIcon').style.width = '12%';
           }
 
           // 근태구분 바인딩
@@ -489,6 +501,8 @@
             // ✅ 추가근무 출근 성공 시 카드 표시
             if (isOvertime) {
               document.getElementById('overtimeCard').style.display = 'flex';
+              document.getElementById('officeIcon').style.width   = '22%';
+              document.getElementById('overtimeIcon').style.width = '22%';
             }
             Alert.alert('', result.message, reloadWindow);
           } else {

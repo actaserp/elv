@@ -123,7 +123,8 @@ public class MobileMainService {
                 SELECT TOP 1
                     t.starttime,
                     t.endtime,
-                    t.idx
+                    t.idx,
+                    t.remark
                 FROM auth_user a
                 LEFT JOIN tb_pb201 t
                     ON  t.perid    = a.personid

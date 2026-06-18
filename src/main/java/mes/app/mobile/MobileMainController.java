@@ -69,6 +69,8 @@ public class MobileMainController {
 
         if (overtimeInfo != null) {
             resultData.put("ovStartTime", overtimeInfo.get("starttime"));
+            // 추가근무 중일 때는 추가근무 레코드의 remark로 덮어씀
+            resultData.put("remark", overtimeInfo.get("remark"));
         }
 
         result.data = resultData;
