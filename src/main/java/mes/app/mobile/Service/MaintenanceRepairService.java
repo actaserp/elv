@@ -136,6 +136,7 @@ public class MaintenanceRepairService {
                 LEFT JOIN TB_JC002 jc  ON j.divicd   = jc.divicd
                 LEFT JOIN TB_E019 f19  ON f19.faccd   = e.faccd
                 LEFT JOIN TB_E014 eg   ON eg.regicd   = e.regicd
+                                      AND eg.gregicd  = e.gregicd
                 LEFT JOIN TB_E011 em   ON em.remocd   = e.remocd
                 LEFT JOIN TB_E012 es   ON es.resucd   = e.resucd
                 LEFT JOIN TB_E015 er   ON er.resultcd = e.resultcd
