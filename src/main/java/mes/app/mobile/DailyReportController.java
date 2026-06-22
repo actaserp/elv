@@ -367,7 +367,18 @@ public class DailyReportController {
             return result;
         }
         String custcd = (String) tenantInfo.get("custcd");
-        result.data = dailyReportService.getStatusList(custcd, spjangcd, fromDate, toDate, actnm);
+
+        // 본인 perid 도출 (save()와 동일 로직)
+        int personId = ((Number) tenantInfo.get("personid")).intValue();
+        Map<String, Object> userInfo = dailyReportService.getUserInfo(personId);
+        if (userInfo == null) {
+            result.success = false;
+            result.message = "사원 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        String perid = String.valueOf(userInfo.get("perid")).trim().replaceFirst("^p", "");
+
+        result.data = dailyReportService.getStatusList(custcd, spjangcd, fromDate, toDate, actnm, perid);
         return result;
     }
 

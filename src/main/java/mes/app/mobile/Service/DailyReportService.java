@@ -204,12 +204,13 @@ public class DailyReportService {
     }
 
     // ── 업무일지 현황 조회 (TB_E038 + TB_E037) ───────────────
-    public List<Map<String, Object>> getStatusList(String custcd, String spjangcd, String fromDate, String toDate, String actnm) {
+    public List<Map<String, Object>> getStatusList(String custcd, String spjangcd, String fromDate, String toDate, String actnm, String perid) {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("custcd", custcd);
         param.addValue("spjangcd", spjangcd);
         param.addValue("fromDate", fromDate);
         param.addValue("toDate", toDate);
+        param.addValue("perid", perid);
 
         String sql = """
                 SELECT
@@ -236,6 +237,7 @@ public class DailyReportService {
                                      AND eq.custcd = e.custcd
                 WHERE e.custcd   = :custcd
                   AND e.spjangcd = :spjangcd
+                  AND e.perid    = :perid
                   AND e.rptdate  BETWEEN :fromDate AND :toDate
                 """;
 
