@@ -48,6 +48,11 @@
 
     .empty-msg { text-align: center; padding: 60px 20px; color: #bbb; font-size: 14px; }
 
+    /* ── 검색필터 2단 배치 (모바일 세로공간 절약) ── */
+    .srch-row2 { display: flex; gap: 8px; }
+    .srch-row2 > dl { flex: 1; min-width: 0; }
+    .srch-row2 > dl dd input { width: 100%; box-sizing: border-box; }
+
     /* ── 바텀시트 팝업 ── */
     .popup-overlay {
         display: none;
@@ -173,14 +178,26 @@
                         <dt>현장명</dt>
                         <dd><input type="text" id="searchKeyword" placeholder="현장명을 입력하세요"></dd>
                     </dl>
-                    <dl>
-                        <dt>승강기번호</dt>
-                        <dd><input type="text" id="searchEqupcd" placeholder="승강기번호를 입력하세요"></dd>
-                    </dl>
-                    <dl>
-                        <dt>전화번호</dt>
-                        <dd><input type="text" id="searchTel" placeholder="전화번호를 입력하세요"></dd>
-                    </dl>
+                    <div class="srch-row2">
+                        <dl>
+                            <dt>승강기번호</dt>
+                            <dd><input type="text" id="searchEqupcd" placeholder="승강기번호"></dd>
+                        </dl>
+                        <dl>
+                            <dt>전화번호</dt>
+                            <dd><input type="text" id="searchTel" placeholder="전화번호"></dd>
+                        </dl>
+                    </div>
+                    <div class="srch-row2">
+                        <dl>
+                            <dt>프로젝트번호</dt>
+                            <dd><input type="text" id="searchCltnum" placeholder="프로젝트번호"></dd>
+                        </dl>
+                        <dl>
+                            <dt>비상통화장치번호</dt>
+                            <dd><input type="text" id="searchEmtelnum" placeholder="비상통화장치번호"></dd>
+                        </dl>
+                    </div>
                     <dl>
                         <dt>계약구분</dt>
                         <dd>
@@ -240,11 +257,15 @@
         const equpcd    = document.getElementById('searchEqupcd').value.trim();
         const tel       = document.getElementById('searchTel').value.trim();
         const actgubun  = document.getElementById('searchActgubun').value;
+        const cltnum    = document.getElementById('searchCltnum').value.trim();
+        const emtelnum  = document.getElementById('searchEmtelnum').value.trim();
         AjaxUtil.getAsyncData('/api/maintenance_comp/read_site', {
             keyword  : keyword,
             equpcd   : equpcd,
             tel      : tel,
             actgubun : actgubun,
+            cltnum   : cltnum,
+            emtelnum : emtelnum,
             spjangcd : _spjangcd
         }, function (result) {
             if (result != null && result.data != null) {

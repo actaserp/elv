@@ -43,13 +43,12 @@ public class MaintenanceRepairService {
 
     // ── 고장접수 목록 조회 (TB_E401) ─────────────────────────
     public List<Map<String, Object>> getRepairList(
-            String fromDate, String toDate, String actnm, String spjangcd, String perid) {
+            String fromDate, String toDate, String actnm, String spjangcd) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
         param.addValue("fromDate", fromDate);
         param.addValue("toDate",   toDate);
-        param.addValue("perid",    perid);
 
         String sql = """
                 SELECT
@@ -70,7 +69,6 @@ public class MaintenanceRepairService {
                                     AND ct.spjangcd  = e.spjangcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.recedate BETWEEN :fromDate AND :toDate
-                  AND e.reperid  = :perid
                   AND (e.resultck IS NULL OR e.resultck <> '1')
                 """;
 
@@ -144,7 +142,7 @@ public class MaintenanceRepairService {
                                       AND a.recenum   = e.recenum
                                       AND a.spjangcd  = e.spjangcd
                 WHERE e.spjangcd = :spjangcd
-                  AND e.compdate BETWEEN :fromDate AND :toDate
+                  AND e.recedate BETWEEN :fromDate AND :toDate
                 """;
 
         if (actnm != null && !actnm.isBlank()) {
@@ -160,7 +158,7 @@ public class MaintenanceRepairService {
             }
         }
 
-        sql += " ORDER BY e.compdate DESC, e.compnum DESC";
+        sql += " ORDER BY e.recedate DESC, e.recenum DESC";
         return this.sqlRunner.getRows(sql, param);
     }
 

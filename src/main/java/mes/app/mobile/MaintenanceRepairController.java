@@ -44,19 +44,7 @@ public class MaintenanceRepairController {
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
-        User user = (User) auth.getPrincipal();
-
-        Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
-        if (userInfo == null) {
-            result.success = false;
-            result.message = "사용자 정보를 찾을 수 없습니다.";
-            return result;
-        }
-
-        // TB_E401.reperid는 p 없는 형태 (ex: HY010405)
-        String perid = ((String) userInfo.get("perid")).replaceFirst("^p", "");
-
-        result.data = maintenanceRepairService.getRepairList(fromDate, toDate, actnm, spjangcd, perid);
+        result.data = maintenanceRepairService.getRepairList(fromDate, toDate, actnm, spjangcd);
         return result;
     }
 

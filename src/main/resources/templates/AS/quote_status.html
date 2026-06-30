@@ -69,6 +69,24 @@
               </dd>
             </dl>
             <dl>
+              <dt><label>프로젝트번호</label></dt>
+              <dd>
+                <div class="srch-box">
+                  <input type="text" id="srchCltnum" class="form-control2"
+                         placeholder="프로젝트번호" style="width:140px;">
+                </div>
+              </dd>
+            </dl>
+            <dl>
+              <dt><label>비상통화장치번호</label></dt>
+              <dd>
+                <div class="srch-box">
+                  <input type="text" id="srchEmtelnum" class="form-control2"
+                         placeholder="비상통화장치번호" style="width:150px;">
+                </div>
+              </dd>
+            </dl>
+            <dl>
               <dt><span class="eq"></span></dt>
               <dd>
                 <li>
@@ -265,7 +283,7 @@
 
       // ── 버튼 이벤트 ──
       $('#btnSearch').click(function () { searchSiteList(); });
-      $('#srchKeyword').on('keypress', function (e) {
+      $('#srchKeyword, #srchCltnum, #srchEmtelnum').on('keypress', function (e) {
         if (e.keyCode === 13) searchSiteList();
       });
 
@@ -277,12 +295,16 @@
        현장 목록 조회
     ════════════════════════════════════ */
     function searchSiteList() {
-      var keyword = document.getElementById('srchKeyword').value.trim();
+      var keyword  = document.getElementById('srchKeyword').value.trim();
+      var cltnum   = document.getElementById('srchCltnum').value.trim();
+      var emtelnum = document.getElementById('srchEmtelnum').value.trim();
       clearDetail();
 
       AjaxUtil.getAsyncData('/api/AS/web_company/list', {
         spjangcd : _spjangcd,
-        keyword  : keyword
+        keyword  : keyword,
+        cltnum   : cltnum,
+        emtelnum : emtelnum
       }, function (result) {
         var data = (result && result.data) ? result.data : [];
         siteData = new wijmo.collections.CollectionView(data);

@@ -26,9 +26,11 @@ public class WebCompanyController {
             @RequestParam(value = "equpcd",   required = false)  String equpcd,
             @RequestParam(value = "tel",      required = false)  String tel,
             @RequestParam(value = "actgubun", required = false)  String actgubun,
+            @RequestParam(value = "cltnum",   required = false)  String cltnum,
+            @RequestParam(value = "emtelnum", required = false)  String emtelnum,
             HttpServletRequest request) {
         AjaxResult result = new AjaxResult();
-        result.data = webCompanyService.getSiteList(spjangcd, keyword, equpcd, tel, actgubun);
+        result.data = webCompanyService.getSiteList(spjangcd, keyword, equpcd, tel, actgubun, cltnum, emtelnum);
         return result;
     }
 

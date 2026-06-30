@@ -228,7 +228,7 @@
             const isImage = ['jpg','jpeg','png','gif','bmp','webp'].indexOf(ext) >= 0;
             const icon    = isImage ? '🖼️' : getFileIcon(ext);
             const sizeStr = file.fileSize ? formatFileSize(file.fileSize) : '';
-            const dlUrl   = '/api/files/download?file_id=' + file.fileId;
+            const dlUrl   = window.CTX_PATH + '/api/files/download?file_id=' + file.fileId;
 
             if (isImage) {
               html += '<img src="' + dlUrl + '" class="img-preview" alt="' + esc(file.fileNm) + '" onerror="this.style.display=\'none\'">';

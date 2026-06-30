@@ -16,7 +16,8 @@ public class WebCompanyService {
 
     // ── 현장 목록 조회 (TB_E601) ──────────────────────────────
     public List<Map<String, Object>> getSiteList(
-            String spjangcd, String keyword, String equpcd, String tel, String actgubun) {
+            String spjangcd, String keyword, String equpcd, String tel, String actgubun,
+            String cltnum, String emtelnum) {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
 
@@ -25,6 +26,7 @@ public class WebCompanyService {
                     e.actcd,
                     e.actnm,
                     e.cltcd,
+                    e.cltnum,
                     e.actgubun,
                     e.bildyd,
                     e.bildlv,
@@ -62,12 +64,24 @@ public class WebCompanyService {
             param.addValue("equpcd", "%" + equpcd.trim() + "%");
         }
         if (tel != null && !tel.trim().isEmpty()) {
-            sql += " AND e.tel LIKE :tel";
-            param.addValue("tel", "%" + tel.trim() + "%");
+            // 전화번호: '-' 포맷 무시하고 숫자만 비교
+            sql += " AND REPLACE(e.tel, '-', '') LIKE :tel";
+            param.addValue("tel", "%" + tel.trim().replace("-", "") + "%");
         }
         if (actgubun != null && !actgubun.trim().isEmpty()) {
             sql += " AND e.actgubun = :actgubun";
             param.addValue("actgubun", actgubun.trim());
+        }
+
+        if (cltnum != null && !cltnum.trim().isEmpty()) {
+            sql += " AND e.cltnum LIKE :cltnum";   // 프로젝트번호
+            param.addValue("cltnum", "%" + cltnum.trim() + "%");
+        }
+
+        if (emtelnum != null && !emtelnum.trim().isEmpty()) {
+            // 비상통화장치번호 (호기 TB_E611)
+            sql += " AND EXISTS (SELECT 1 FROM TB_E611 q2 WHERE q2.spjangcd = e.spjangcd AND q2.actcd = e.actcd AND q2.emtelnum LIKE :emtelnum)";
+            param.addValue("emtelnum", "%" + emtelnum.trim() + "%");
         }
 
         sql += " ORDER BY e.actnm ASC";
@@ -81,7 +95,7 @@ public class WebCompanyService {
         param.addValue("actcd",    actcd);
 
         String sql = """
-                SELECT equpcd, equpnm, actcd
+                SELECT equpcd, equpnm, actcd, emtelnum
                 FROM TB_E611 WITH(NOLOCK)
                 WHERE spjangcd = :spjangcd
                   AND actcd    = :actcd

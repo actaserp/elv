@@ -50,13 +50,25 @@
         text-align: center !important;
     }
 
-    /* FullCalendar 요일 헤더 너비 고정 */
-    #calendar .fc-theme-standard th {
-        width: calc(100% / 7) !important;
+    /* FullCalendar 헤더가 전역 table th(width:160px)에 영향받지 않도록 */
+    .fc th,
+    .fc td {
+        width: auto !important;
     }
-
 </style>
 <th:block layout:fragment="content">
+
+    <style>
+        /* FullCalendar 헤더(요일) 셀이 전역 table th(width:160px)에 끌려가
+           날짜칸(td)과 폭이 어긋나는 문제 해결 — 반드시 content fragment 안에 있어야 적용됨 */
+        #calendar .fc th,
+        #calendar .fc td,
+        .fc th, .fc td { width: auto !important; }
+        .fc .fc-col-header,
+        .fc .fc-daygrid-body,
+        .fc .fc-scrollgrid-sync-table { width: 100% !important; }
+        .fc .fc-scrollgrid-sync-inner { width: auto !important; }
+    </style>
 
     <!--- (레이아웃) Contents 영역 -->
     <div class="layout-contents">
@@ -94,7 +106,7 @@
                     <div class="row" style="display: flex;">
                         <!-- 왼쪽 섹션: 50% 차지 -->
                         <section
-                                style="width: 48%; box-sizing: border-box; height: 794px; margin-right: 10px; border-radius: 10px; ">
+                                style="width: 48%; box-sizing: border-box; height: 798px; margin-right: 10px; border-radius: 10px; ">
                             <div class="title-wrap">
                                 <h3>근태현황</h3>
                                 <div class="btn-wrap">
@@ -881,6 +893,7 @@
                     initialView: 'dayGridMonth',
                     height: 700,
                     expandRows: true,
+                    stickyHeaderDates: false,
                     dayHeaderFormat: { weekday: 'short' },
                     views: {
                         dayGridMonth: {

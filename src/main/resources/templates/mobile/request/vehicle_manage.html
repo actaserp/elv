@@ -232,11 +232,11 @@
                         <div style="display: flex; gap: 5px">
                             <div>
                                 <div>연비</div>
-                                <div style="width: 100%"><input type="text" id="liter" readonly></div>
+                                <div style="width: 100%"><input type="text" id="liter" readonly inputmode="decimal" oninput="calcTotal()"></div>
                             </div>
                             <div>
                                 <div>단가</div>
-                                <div style="width: 100%"><input type="text" id="unitAmt" readonly></div>
+                                <div style="width: 100%"><input type="text" id="unitAmt" readonly inputmode="decimal" oninput="calcTotal()"></div>
                             </div>
                         </div>
                         <div>
@@ -332,6 +332,8 @@
                     document.getElementById('liter').value = result.data.samt ?? '';
                     if (result.data.fuelcd) {
                         waitAndSetFuel(result.data.fuelcd, result.data.samt, 0);
+                    } else {
+                        setFuelFieldsEditable(true);
                     }
                 } else {
                     hasMyVehicle = false;
@@ -356,6 +358,7 @@
         if (!fuelcd) {
             document.getElementById('unitAmt').value = '';
             document.getElementById('liter').value   = '';
+            setFuelFieldsEditable(true);
             calcTotal();
             return;
         }
@@ -367,9 +370,14 @@
                 } else {
                     document.getElementById('liter').value = result.data.kmliter ?? '';
                 }
+                // 유종에 연비/단가 데이터가 없으면 직접입력 허용
+                const noData = !document.getElementById('unitAmt').value && !document.getElementById('liter').value;
+                setFuelFieldsEditable(noData);
             } else {
+                // 유종 정보 자체가 없음 → 직접입력 허용
                 document.getElementById('unitAmt').value = '';
                 document.getElementById('liter').value   = '';
+                setFuelFieldsEditable(true);
             }
             calcTotal();
         });
@@ -381,6 +389,27 @@
         const unitAmt = parseFloat(document.getElementById('unitAmt').value) || 0;
         const total = liter > 0 ? (totalKM / liter * unitAmt) : 0;
         document.getElementById('total').value = total > 0 ? total.toFixed(0) : '';
+    }
+
+    // 유종 정보가 없을 때(연비/단가 미존재) 직접 입력할 수 있도록 readonly 토글
+    function setFuelFieldsEditable(editable) {
+        const liter = document.getElementById('liter');
+        const unit  = document.getElementById('unitAmt');
+        if (editable) {
+            liter.removeAttribute('readonly');
+            unit.removeAttribute('readonly');
+            liter.style.backgroundColor = '#fffef2';
+            unit.style.backgroundColor  = '#fffef2';
+            liter.placeholder = '연비 직접 입력';
+            unit.placeholder  = '단가 직접 입력';
+        } else {
+            liter.setAttribute('readonly', 'readonly');
+            unit.setAttribute('readonly', 'readonly');
+            liter.style.backgroundColor = '';
+            unit.style.backgroundColor  = '';
+            liter.placeholder = '';
+            unit.placeholder  = '';
+        }
     }
 
     function calcDistance() {
@@ -530,6 +559,8 @@
         document.getElementById('liter').value = samt;
         if (fuelcd) {
             waitAndSetFuel(fuelcd, samt, 0);
+        } else {
+            setFuelFieldsEditable(true);
         }
         closeVehiclePopup();
     }

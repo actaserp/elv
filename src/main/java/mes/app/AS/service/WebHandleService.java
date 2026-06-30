@@ -137,7 +137,7 @@ public class WebHandleService {
                 LEFT JOIN TB_JA001 ap ON ap.perid    = e.actperid
                                      AND ap.spjangcd = e.spjangcd
                 WHERE e.spjangcd = :spjangcd
-                  AND e.compdate BETWEEN :fromDate AND :toDate
+                  AND e.recedate BETWEEN :fromDate AND :toDate
                 """;
 
         if (actnm != null && !actnm.isBlank()) {
@@ -145,7 +145,7 @@ public class WebHandleService {
             param.addValue("actnm", "%" + actnm.trim() + "%");
         }
 
-        sql += " ORDER BY e.compdate DESC, e.compnum DESC";
+        sql += " ORDER BY e.recedate DESC, e.recenum DESC";
         return this.sqlRunner.getRows(sql, param);
     }
 

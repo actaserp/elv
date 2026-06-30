@@ -28,7 +28,8 @@ public class DailyManageService {
             String year,
             String month,
             String pernm,
-            String spjangcd) {
+            String spjangcd,
+            String perid) {
 
         String startDate = year + month + "01";
         String endDate   = year + month
@@ -69,6 +70,12 @@ public class DailyManageService {
         if (pernm != null && !pernm.isBlank()) {
             sql += " AND j.pernm LIKE :pernm";
             param.addValue("pernm", "%" + pernm.trim() + "%");
+        }
+
+        // 사용자(User) 그룹: 본인이 작성한 건만 조회
+        if (perid != null && !perid.isBlank()) {
+            sql += " AND h.perid = :perid";
+            param.addValue("perid", perid);
         }
 
         sql += """

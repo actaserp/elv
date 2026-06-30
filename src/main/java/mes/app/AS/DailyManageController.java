@@ -2,6 +2,7 @@ package mes.app.AS;
 
 import lombok.extern.slf4j.Slf4j;
 import mes.app.AS.service.DailyManageService;
+import mes.app.common.TenantUserService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +10,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -18,6 +20,26 @@ public class DailyManageController {
     @Autowired
     DailyManageService dailyManageService;
 
+    @Autowired
+    TenantUserService tenantUserService;
+
+    // 로그인 사용자가 사용자(User) 그룹이면 본인 perid(p 제거) 반환, 아니면 null
+    private String getOwnPeridIfUserGroup(User user) {
+        try {
+            String groupCode = user.getUserProfile().getUserGroup().getCode();
+            if (!"User".equals(groupCode)) {
+                return null;
+            }
+        } catch (Exception e) {
+            return null;
+        }
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (userInfo == null || userInfo.get("perid") == null) {
+            return null;
+        }
+        return ((String) userInfo.get("perid")).replaceFirst("^p", "");
+    }
+
     // ── 헤드 목록 조회 (TB_E037 기준) ────────────────────────
     @GetMapping("/read/head")
     public AjaxResult readHead(
@@ -25,10 +47,16 @@ public class DailyManageController {
             @RequestParam(value = "month")                      String month,
             @RequestParam(value = "pernm",    required = false) String pernm,
             @RequestParam(value = "spjangcd", required = false) String spjangcd,
-            HttpServletRequest request) {
+            HttpServletRequest request,
+            Authentication auth) {
 
         AjaxResult result = new AjaxResult();
-        result.data = dailyManageService.getHeadList(year, month, pernm, spjangcd);
+        User user = (User) auth.getPrincipal();
+
+        // 사용자(User) 그룹이면 본인 작성건만 조회, 그 외(관리자 등)는 전체
+        String ownPerid = getOwnPeridIfUserGroup(user);
+
+        result.data = dailyManageService.getHeadList(year, month, pernm, spjangcd, ownPerid);
         return result;
     }
 
@@ -81,6 +109,14 @@ public class DailyManageController {
 
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
+
+        // 사용자(User) 그룹은 본인이 작성한 업무일지만 삭제 가능
+        String ownPerid = getOwnPeridIfUserGroup(user);
+        if (ownPerid != null && !ownPerid.equals(perid)) {
+            result.success = false;
+            result.message = "본인이 작성한 업무일지만 삭제할 수 있습니다.";
+            return result;
+        }
 
         try {
             dailyManageService.deleteDailyReport(
