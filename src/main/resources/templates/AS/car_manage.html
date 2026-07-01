@@ -64,6 +64,42 @@
                             </li>
                         </dd>
                     </dl>
+                    <!-- 등록버튼 -->
+                    <dl>
+                        <dt><span class="eq"></span></dt>
+                        <dd>
+                            <li>
+                                <button type="button" class="btn btn-excell" id="btnCarReg"
+                                        title="운행기록등록" style="height:36px;">
+                                    ➕ 운행기록 등록
+                                </button>
+                            </li>
+                        </dd>
+                    </dl>
+                    <!-- 수정버튼 -->
+                    <dl>
+                        <dt><span class="eq"></span></dt>
+                        <dd>
+                            <li>
+                                <button type="button" class="btn btn-excell" id="btnCarEdit"
+                                        title="수정" style="height:36px;">
+                                    ✏️ 수정
+                                </button>
+                            </li>
+                        </dd>
+                    </dl>
+                    <!-- 삭제버튼 -->
+                    <dl>
+                        <dt><span class="eq"></span></dt>
+                        <dd>
+                            <li>
+                                <button type="button" class="btn-delete btn-danger" id="btnCarDel"
+                                        title="삭제" style="height:36px; width:110px;">
+                                    <i class="fas fa-trash"></i> 삭제
+                                </button>
+                            </li>
+                        </dd>
+                    </dl>
                 </div>
             </div>
 
@@ -72,6 +108,54 @@
                 <div id="theGrid" style="height: 600px;"></div>
             </div>
         </section>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         운행기록 등록 모달
+    ══════════════════════════════════════ -->
+    <div id="carRegModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+         background:rgba(0,0,0,0.45); z-index:9000; align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:10px; padding:24px 28px; width:460px; max-height:90vh; overflow-y:auto; box-shadow:0 4px 20px rgba(0,0,0,0.25);">
+            <h3 id="carModalTitle" style="margin:0 0 18px; font-size:16px; color:#222;">운행기록 등록</h3>
+            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                <tr>
+                    <td style="padding:6px 0; color:#666; width:90px;">운행일자</td>
+                    <td><input type="date" id="carDate" style="width:100%; padding:5px 8px; border:1px solid #ddd; border-radius:5px;"></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666;">차량</td>
+                    <td><select id="carVehicle" style="width:100%; border:1px solid #ddd; border-radius:5px;"><option value="">-- 선택 --</option></select></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666;">유종</td>
+                    <td><input type="text" id="carFuelnm" readonly style="width:100%; padding:5px 8px; border:1px solid #eee; border-radius:5px; background:#f7f7f7;"></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666;">현장</td>
+                    <td><select id="carSite" style="width:100%; border:1px solid #ddd; border-radius:5px;"><option value="">-- 선택 --</option></select></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666;">총운행km</td>
+                    <td><input type="text" id="carKm" inputmode="decimal" placeholder="숫자 입력" style="width:100%; padding:5px 8px; border:1px solid #ddd; border-radius:5px;"></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666;">연비</td>
+                    <td><input type="text" id="carLiter" inputmode="decimal" style="width:100%; padding:5px 8px; border:1px solid #ddd; border-radius:5px;"></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666;">단가</td>
+                    <td><input type="text" id="carUamt" inputmode="decimal" style="width:100%; padding:5px 8px; border:1px solid #ddd; border-radius:5px;"></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666;">합계금액</td>
+                    <td><input type="text" id="carTotal" readonly style="width:100%; padding:5px 8px; border:1px solid #eee; border-radius:5px; background:#f7f7f7;"></td>
+                </tr>
+            </table>
+            <div style="display:flex; gap:8px; margin-top:20px; justify-content:flex-end;">
+                <button onclick="closeCarModal()" style="padding:7px 18px; border:1px solid #ccc; border-radius:5px; background:#fff; cursor:pointer;">닫기</button>
+                <button onclick="saveRun()" id="carSaveBtn" style="padding:7px 18px; border:none; border-radius:5px; background:#4472c4; color:#fff; cursor:pointer;">저장</button>
+            </div>
+        </div>
     </div>
 
     <footer style="margin-top: 24px;">
@@ -84,20 +168,44 @@
 
         var theGrid;
         var viewdata;
+        var selectedCarRow = null;   // 그리드에서 선택된 행
+        var _carEditKey    = null;   // null=등록, {kcdate,kcnum}=수정
+        var _carEditGubun  = null;   // 수정 시 기존 유종(gubun) 유지
+        var _vehicleLoaded = false;  // 차량/현장 목록 캐시 여부
 
         let columns = [
-            {binding: 'kcdate',  header: '운행일자',   width: 120, align: 'center'},
-            {binding: 'pernm',   header: '사원명',     width: 120, align: 'center'},
-            {binding: 'carnum',  header: '차량번호',   width: 150, align: 'center'},
-            {binding: 'km',      header: '총운행거리', width: 120, align: 'right'},
-            {binding: 'fuelnm',  header: '유종',       width: 100, align: 'center'},
-            {binding: 'samt',    header: '합계금액',   width: 130, align: 'right',
+            {binding: 'kcdate',  header: '운행일자',   width: 110, align: 'center',
+                cellTemplate: function(ctx) {
+                    const v = ctx.value == null ? '' : String(ctx.value);
+                    return v.length === 8 ? `${v.substring(0,4)}.${v.substring(4,6)}.${v.substring(6,8)}` : v;
+                }
+            },
+            {binding: 'pernm',   header: '사원명',     width: 100, align: 'center'},
+            {binding: 'carnum',  header: '차량번호',   width: 130, align: 'center'},
+            {binding: 'actnm',   header: '현장',       width: '*', align: 'left'},
+            {binding: 'fuelnm',  header: '유종',       width:  90, align: 'center'},
+            {binding: 'km',      header: '총운행km',   width: 100, align: 'right',
+                cellTemplate: function(ctx) {
+                    return ctx.value == null ? '' : Number(ctx.value).toLocaleString();
+                }
+            },
+            {binding: 'liter',   header: '소비량(L)',  width:  90, align: 'right',
+                cellTemplate: function(ctx) {
+                    if (ctx.value == null) return '';
+                    return Number(ctx.value).toLocaleString(undefined, {maximumFractionDigits: 1});
+                }
+            },
+            {binding: 'uamt',    header: '단가',       width: 100, align: 'right',
+                cellTemplate: function(ctx) {
+                    return ctx.value == null ? '' : Number(ctx.value).toLocaleString();
+                }
+            },
+            {binding: 'samt',    header: '합계금액',   width: 120, align: 'right',
                 cellTemplate: function(ctx) {
                     if (ctx.value == null) return '';
                     return Number(ctx.value).toLocaleString();
                 }
             },
-            {binding: '', header: '', width: '*', align: 'center'}
         ];
 
         document.readyState === 'complete' ? init() : window.onload = init;
@@ -122,8 +230,48 @@
             });
             theGrid.rowHeaders.columns.splice(0, 1);
 
+            theGrid.selectionChanged.addHandler(function (s, e) {
+                const row = s.selectedRows[0];
+                selectedCarRow = (row && row.dataItem) ? row.dataItem : null;
+            });
+
+            // 행 더블클릭 → 수정 팝업
+            theGrid.hostElement.addEventListener('dblclick', function (e) {
+                const ht = theGrid.hitTest(e);
+                if (ht.cellType === wijmo.grid.CellType.Cell && ht.row >= 0) {
+                    const item = theGrid.rows[ht.row].dataItem;
+                    if (item) {
+                        selectedCarRow = item;
+                        openCarEditModal();
+                    }
+                }
+            });
+
             // 초기 조회
             searchMainData();
+
+            // 차량/현장 목록 1회 로드 → 팝업에서 즉시 사용 (매번 재조회 방지)
+            preloadCarSelects();
+        }
+
+        // 차량/현장 select 를 페이지 로드 시 1회만 채워두고 캐시
+        function preloadCarSelects() {
+            const sp = getSpjangcd();
+            AjaxUtil.getAsyncData('/api/AS/car_manage/read_vehicle', { spjangcd: sp }, function (r) {
+                const sel = document.getElementById('carVehicle');
+                sel.innerHTML = '<option value="">-- 선택 --</option>';
+                (r && r.data ? r.data : []).forEach(function (v) {
+                    sel.innerHTML += `<option value="${escv(v.carcd)}" data-fuelcd="${escv(v.fuelcd)}" data-fuelnm="${escv(v.fuelnm)}" data-samt="${escv(v.samt)}">${escv(v.carnum)}</option>`;
+                });
+            });
+            AjaxUtil.getAsyncData('/api/AS/car_manage/read_site', { spjangcd: sp }, function (r) {
+                const sel = document.getElementById('carSite');
+                sel.innerHTML = '<option value="">-- 선택 --</option>';
+                (r && r.data ? r.data : []).forEach(function (s) {
+                    sel.innerHTML += `<option value="${escv(s.actcd)}">${escv(s.actnm)}</option>`;
+                });
+                _vehicleLoaded = true;
+            });
         }
 
         function searchMainData() {
@@ -155,6 +303,7 @@
         }
 
         function gridBinding(data) {
+            selectedCarRow = null;
             theGrid.columns.clear();
             theGrid.autoGenerateColumns = false;
             columns.forEach(function(colDef) {
@@ -163,6 +312,202 @@
             viewdata = new wijmo.collections.CollectionView(data || []);
             theGrid.itemsSource = viewdata;
             theGrid.refresh();
+        }
+
+        /* ═══════════════════════════════════════════
+           운행기록 등록 팝업
+        ═══════════════════════════════════════════ */
+        function getSpjangcd() { return sessionStorage.getItem('spjangcd'); }
+
+        $(function () {
+            $('#btnCarReg').click(openCarModal);
+            $('#btnCarEdit').click(openCarEditModal);
+            $('#btnCarDel').click(deleteCarRun);
+            $('#carVehicle').on('change', onCarVehicleChange);
+            $('#carKm, #carLiter, #carUamt').on('input', calcCarTotal);
+            document.getElementById('carRegModal').addEventListener('click', function (e) {
+                if (e.target === this) closeCarModal();
+            });
+        });
+
+        function openCarModal() {
+            _carEditKey   = null;
+            _carEditGubun = null;
+            document.getElementById('carModalTitle').textContent = '운행기록 등록';
+            document.getElementById('carVehicle').disabled = false;
+
+            const today = new Date();
+            document.getElementById('carDate').value =
+                today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+
+            // 캐시된 목록 사용 — 선택값만 초기화
+            document.getElementById('carVehicle').value = '';
+            document.getElementById('carSite').value    = '';
+            document.getElementById('carFuelnm').value = '';
+            document.getElementById('carKm').value     = '';
+            document.getElementById('carLiter').value  = '';
+            document.getElementById('carUamt').value   = '';
+            document.getElementById('carTotal').value  = '';
+
+            document.getElementById('carRegModal').style.display = 'flex';
+        }
+
+        function closeCarModal() {
+            document.getElementById('carRegModal').style.display = 'none';
+        }
+
+        function openCarEditModal() {
+            if (!selectedCarRow) { Alert.alert('', '수정할 행을 선택해주세요.'); return; }
+            const row = selectedCarRow;
+
+            _carEditKey   = { kcdate: String(row.kcdate), kcnum: String(row.kcnum) };
+            _carEditGubun = row.gubun != null ? String(row.gubun) : '';
+            document.getElementById('carModalTitle').textContent = '운행기록 수정';
+
+            // 운행일자 (yyyymmdd → yyyy-mm-dd)
+            const kd = String(row.kcdate || '');
+            document.getElementById('carDate').value = kd.length === 8
+                ? `${kd.substring(0,4)}-${kd.substring(4,6)}-${kd.substring(6,8)}` : '';
+
+            document.getElementById('carFuelnm').value = row.fuelnm || '';
+
+            // km / 단가 / 연비(=km÷소비량 역산) / 합계
+            const km    = Number(row.km)    || 0;
+            const liter = Number(row.liter) || 0;   // 저장된 소비량
+            const uamt  = Number(row.uamt)  || 0;
+            const yeonbi = (liter > 0 && km > 0) ? (Math.round((km / liter) * 100) / 100) : '';
+            document.getElementById('carKm').value    = km || '';
+            document.getElementById('carLiter').value = yeonbi;
+            document.getElementById('carUamt').value  = uamt || '';
+            document.getElementById('carTotal').value = row.samt != null ? Number(row.samt).toLocaleString() : '';
+
+            // 캐시된 목록 그대로 사용 — value만 즉시 세팅 (재조회 없음)
+            const vsel = document.getElementById('carVehicle');
+            vsel.value = row.carcd != null ? String(row.carcd) : '';
+            vsel.disabled = true;   // 수정 시 차량 변경 불가
+
+            const ssel = document.getElementById('carSite');
+            ssel.value = row.actcd != null ? String(row.actcd) : '';
+
+            document.getElementById('carRegModal').style.display = 'flex';
+        }
+
+        function deleteCarRun() {
+            if (!selectedCarRow) { Alert.alert('', '삭제할 행을 선택해주세요.'); return; }
+            const row = selectedCarRow;
+            Alert.confirm('', '선택한 운행기록을 삭제하시겠습니까?', function () {
+                AjaxUtil.postAsyncData('/api/AS/car_manage/delete', {
+                    kcdate : String(row.kcdate),
+                    kcnum  : String(row.kcnum)
+                }, function (result) {
+                    if (result && result.success) {
+                        Alert.alert('', result.message, function () { searchMainData(); });
+                    } else {
+                        Alert.alert('', (result && result.message) || '삭제 중 오류가 발생하였습니다.');
+                    }
+                });
+            });
+        }
+
+        function onCarVehicleChange() {
+            const opt = this.selectedOptions[0];
+            if (!opt || !this.value) {
+                document.getElementById('carFuelnm').value = '';
+                document.getElementById('carUamt').value   = '';
+                document.getElementById('carLiter').value  = '';
+                calcCarTotal();
+                return;
+            }
+            const fuelcd = opt.getAttribute('data-fuelcd') || '';
+            const fuelnm = opt.getAttribute('data-fuelnm') || '';
+            const samt   = opt.getAttribute('data-samt')   || '';
+            document.getElementById('carFuelnm').value = fuelnm;
+            if (samt) document.getElementById('carLiter').value = samt;   // 차량 기본 연비
+
+            if (fuelcd) {
+                AjaxUtil.getAsyncData('/api/AS/car_manage/read_fuel', { spjangcd: getSpjangcd(), fuelcd: fuelcd }, function (r) {
+                    if (r && r.data) {
+                        document.getElementById('carUamt').value = r.data.uamt != null ? r.data.uamt : '';
+                        if (!document.getElementById('carLiter').value && r.data.kmliter != null) {
+                            document.getElementById('carLiter').value = r.data.kmliter;
+                        }
+                    }
+                    calcCarTotal();
+                });
+            } else {
+                calcCarTotal();
+            }
+        }
+
+        function calcCarTotal() {
+            const km    = parseFloat(document.getElementById('carKm').value)    || 0;
+            const liter = parseFloat(document.getElementById('carLiter').value) || 0;
+            const uamt  = parseFloat(document.getElementById('carUamt').value)  || 0;
+            const total = liter > 0 ? (km / liter * uamt) : 0;
+            document.getElementById('carTotal').value = total > 0 ? Math.round(total).toLocaleString() : '';
+        }
+
+        function saveRun() {
+            const startDate = document.getElementById('carDate').value;
+            const vehicleCd = document.getElementById('carVehicle').value;
+            const opt       = document.getElementById('carVehicle').selectedOptions[0];
+            const siteCd    = document.getElementById('carSite').value;
+            const totalKM   = document.getElementById('carKm').value.trim();
+            const liter     = document.getElementById('carLiter').value.trim();
+            const unitAmt   = document.getElementById('carUamt').value.trim();
+            const total     = (document.getElementById('carTotal').value || '').replace(/,/g, '');
+
+            if (!startDate) { Alert.alert('', '운행일자를 선택해주세요.'); return; }
+            if (!vehicleCd) { Alert.alert('', '차량을 선택해주세요.'); return; }
+            if (!totalKM)   { Alert.alert('', '총운행km를 입력해주세요.'); return; }
+
+            const btn = document.getElementById('carSaveBtn');
+            btn.disabled = true;
+
+            const done = function (result) {
+                btn.disabled = false;
+                if (result && result.success) {
+                    Alert.alert('', result.message, function () {
+                        closeCarModal();
+                        searchMainData();
+                    });
+                } else {
+                    Alert.alert('', (result && result.message) || '처리 중 오류가 발생하였습니다.');
+                }
+            };
+
+            if (_carEditKey) {
+                // 수정
+                AjaxUtil.postAsyncData('/api/AS/car_manage/update', {
+                    kcdate    : _carEditKey.kcdate,
+                    kcnum     : _carEditKey.kcnum,
+                    newKcdate : startDate,
+                    siteCd    : siteCd,
+                    fuelKind  : (_carEditGubun != null ? _carEditGubun : (opt ? (opt.getAttribute('data-fuelcd') || '') : '')),
+                    totalKM   : totalKM,
+                    liter     : liter,
+                    unitAmt   : unitAmt,
+                    total     : total
+                }, done);
+            } else {
+                // 등록
+                const fuelKind = opt ? (opt.getAttribute('data-fuelcd') || '') : '';
+                AjaxUtil.postAsyncData('/api/AS/car_manage/save', {
+                    startDate : startDate,
+                    vehicleCd : vehicleCd,
+                    fuelKind  : fuelKind,
+                    siteCd    : siteCd,
+                    totalKM   : totalKM,
+                    liter     : liter,
+                    unitAmt   : unitAmt,
+                    total     : total
+                }, done);
+            }
+        }
+
+        function escv(v) {
+            if (v == null) return '';
+            return String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
 
         $(document.body).ready(function () {

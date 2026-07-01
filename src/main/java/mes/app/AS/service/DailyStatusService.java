@@ -27,7 +27,8 @@ public class DailyStatusService {
             String month,
             String dept,
             String retire,
-            String spjangcd) {
+            String spjangcd,
+            String ownPerid) {
 
         String yyyyMM    = year + month;
         String startDate = yyyyMM + "01";
@@ -66,6 +67,12 @@ public class DailyStatusService {
         if (retire != null && !retire.isBlank()) {
             sql += " AND j.rtclafi = :retire";
             param.addValue("retire", retire);
+        }
+
+        // 사용자(User) 그룹: 본인 행만 (TB_JA001.perid = 'p' + ownPerid)
+        if (ownPerid != null && !ownPerid.isBlank()) {
+            sql += " AND j.perid = 'p' + :ownPerid";
+            param.addValue("ownPerid", ownPerid);
         }
 
         sql += " ORDER BY jc.divinm ASC, j.pernm ASC, e.rptdate ASC";

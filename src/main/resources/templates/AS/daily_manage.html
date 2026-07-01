@@ -163,6 +163,28 @@
                                     <dt><span class="eq"></span></dt>
                                     <dd>
                                         <li>
+                                            <button type="button" class="btn btn-excell" id="btnReg"
+                                                    title="업무일지등록" style="height:36px;">
+                                                ➕ 업무일지 등록
+                                            </button>
+                                        </li>
+                                    </dd>
+                                </dl>
+                                <dl>
+                                    <dt><span class="eq"></span></dt>
+                                    <dd>
+                                        <li>
+                                            <button type="button" class="btn btn-excell" id="btnEdit"
+                                                    title="수정" style="height:36px;">
+                                                ✏️ 수정
+                                            </button>
+                                        </li>
+                                    </dd>
+                                </dl>
+                                <dl>
+                                    <dt><span class="eq"></span></dt>
+                                    <dd>
+                                        <li>
                                             <button type="button" class="btn-delete btn-danger" id="btnDel"
                                                     title="삭제" style="height:36px; width:115px;">
                                                 <i class="fas fa-trash"></i> 삭제
@@ -285,6 +307,57 @@
     </footer>
 
     <!-- ══════════════════════════════════════
+         업무일지 등록 모달
+    ══════════════════════════════════════ -->
+    <div id="regModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+         background:rgba(0,0,0,0.45); z-index:9000; align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:10px; padding:24px 28px; width:480px; max-height:90vh; overflow-y:auto; box-shadow:0 4px 20px rgba(0,0,0,0.25);">
+            <h3 id="regModalTitle" style="margin:0 0 18px; font-size:16px; color:#222;">업무일지 등록</h3>
+            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                <tr>
+                    <td style="padding:6px 0; color:#666; width:90px;">작성일자</td>
+                    <td><input type="date" id="regDate" style="width:100%; padding:5px 8px; border:1px solid #ddd; border-radius:5px;"></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666;">구분</td>
+                    <td><select id="regGubun" style="width:100%; border:1px solid #ddd; border-radius:5px;"><option value="">-- 선택 --</option></select></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666;">행선지</td>
+                    <td><select id="regDest" style="width:100%; border:1px solid #ddd; border-radius:5px;"><option value="">-- 선택 --</option></select></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666;">호기</td>
+                    <td><select id="regEqup" style="width:100%; border:1px solid #ddd; border-radius:5px;"><option value="">-- 선택 --</option></select></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666;">도착시간</td>
+                    <td><input type="time" id="regFrtime" style="width:100%; padding:5px 8px; border:1px solid #ddd; border-radius:5px;"></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666;">완료시간</td>
+                    <td><input type="time" id="regTotime" style="width:100%; padding:5px 8px; border:1px solid #ddd; border-radius:5px;"></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666; vertical-align:top;">세부내용</td>
+                    <td><textarea id="regRemark" rows="3" style="width:100%; padding:5px 8px; border:1px solid #ddd; border-radius:5px; resize:vertical;"></textarea></td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 0; color:#666;">첨부파일</td>
+                    <td>
+                        <input type="file" id="regFile" style="width:100%; font-size:12px;">
+                        <div id="regFileInfo" style="font-size:12px; color:#2c7d3a; margin-top:3px;"></div>
+                    </td>
+                </tr>
+            </table>
+            <div style="display:flex; gap:8px; margin-top:20px; justify-content:flex-end;">
+                <button onclick="closeRegModal()" style="padding:7px 18px; border:1px solid #ccc; border-radius:5px; background:#fff; cursor:pointer;">닫기</button>
+                <button onclick="saveReport()" id="regSaveBtn" style="padding:7px 18px; border:none; border-radius:5px; background:#4472c4; color:#fff; cursor:pointer;">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
          부서별업무보고 — 부서/날짜 선택 모달
     ══════════════════════════════════════ -->
     <div id="deptReportModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
@@ -342,6 +415,17 @@
         function init() {
             initTab1();
             initTab2();
+            applyUserGroupUi();
+        }
+
+        // User 그룹이면 관리자 전용 UI(부서별업무보고 버튼) 숨김
+        function applyUserGroupUi() {
+            AjaxUtil.getAsyncData('/api/AS/daily_manage/user_group', {}, function (result) {
+                if (result && result.data && result.data.isUserGroup) {
+                    const btn = document.getElementById('btnDeptReport');
+                    if (btn) btn.closest('dl').style.display = 'none';
+                }
+            });
         }
 
         /* ═══════════════════════════════════════════
@@ -878,6 +962,234 @@
         document.getElementById('deptReportPreview').addEventListener('click', function(e) {
             if (e.target === this) closeDeptPreview();
         });
+
+        /* ═══════════════════════════════════════════
+           업무일지 등록 팝업
+        ═══════════════════════════════════════════ */
+        var _regFile = null;  // { filesvnm, filepath }
+        var _regEditKey = null;  // null=등록, {custcd,spjangcd,rptdate,perid,rptnum}=수정
+
+        $(function () {
+            $('#btnReg').click(openRegModal);
+            $('#btnEdit').click(openEditModal);
+            $('#regDest').on('change', function () { loadRegEqup(this.value); });
+            $('#regFile').on('change', uploadRegFile);
+            document.getElementById('regModal').addEventListener('click', function (e) {
+                if (e.target === this) closeRegModal();
+            });
+        });
+
+        function openRegModal() {
+            _regEditKey = null;
+            document.getElementById('regModalTitle').textContent = '업무일지 등록';
+            document.getElementById('regDate').disabled = false;
+
+            const today = new Date();
+            document.getElementById('regDate').value =
+                today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+            document.getElementById('regGubun').value = '';
+            document.getElementById('regDest').value  = '';
+            document.getElementById('regEqup').innerHTML = '<option value="">-- 선택 --</option>';
+            document.getElementById('regFrtime').value = '';
+            document.getElementById('regTotime').value = '';
+            document.getElementById('regRemark').value = '';
+            document.getElementById('regFile').value   = '';
+            document.getElementById('regFileInfo').textContent = '';
+            _regFile = null;
+
+            AjaxUtil.getAsyncData('/api/AS/daily_manage/read_gubun', {}, function (r) {
+                const sel = document.getElementById('regGubun');
+                sel.innerHTML = '<option value="">-- 선택 --</option>';
+                (r && r.data ? r.data : []).forEach(function (g) {
+                    sel.innerHTML += `<option value="${esc(g.busicd)}">${esc(g.businm)}</option>`;
+                });
+            });
+            AjaxUtil.getAsyncData('/api/AS/daily_manage/read_dest', {}, function (r) {
+                const sel = document.getElementById('regDest');
+                sel.innerHTML = '<option value="">-- 선택 --</option>';
+                (r && r.data ? r.data : []).forEach(function (d) {
+                    sel.innerHTML += `<option value="${esc(d.actcd)}" data-actnm="${esc(d.actnm)}">${esc(d.actnm)}</option>`;
+                });
+            });
+
+            document.getElementById('regModal').style.display = 'flex';
+        }
+
+        function closeRegModal() {
+            document.getElementById('regModal').style.display = 'none';
+        }
+
+        function fmtTime(v) {
+            if (!v) return '';
+            const s = String(v).replace(':', '');
+            if (s.length >= 4) return s.substring(0,2) + ':' + s.substring(2,4);
+            return '';
+        }
+
+        function loadRegEqupThenSelect(actcd, equpcd) {
+            const sel = document.getElementById('regEqup');
+            sel.innerHTML = '<option value="">-- 선택 --</option>';
+            if (!actcd) return;
+            AjaxUtil.getAsyncData('/api/AS/daily_manage/read_equp', { actcd: actcd }, function (r) {
+                (r && r.data ? r.data : []).forEach(function (e) {
+                    sel.innerHTML += `<option value="${esc(e.equpcd)}">${esc(e.equpnm)}</option>`;
+                });
+                sel.value = equpcd != null ? String(equpcd) : '';
+            });
+        }
+
+        function openEditModal() {
+            if (!selectedDetail) { Alert.alert('', '수정할 상세 항목을 선택해주세요.'); return; }
+            const d = selectedDetail;
+
+            _regEditKey = {
+                custcd:   d.custcd,
+                spjangcd: d.spjangcd,
+                rptdate:  String(d.rptdate),
+                perid:    d.perid,
+                rptnum:   d.rptnum
+            };
+            document.getElementById('regModalTitle').textContent = '업무일지 수정';
+
+            // 작성일자 (키 → 수정 불가)
+            const rd = String(d.rptdate || '');
+            document.getElementById('regDate').value = rd.length === 8
+                ? `${rd.substring(0,4)}-${rd.substring(4,6)}-${rd.substring(6,8)}` : '';
+            document.getElementById('regDate').disabled = true;
+
+            document.getElementById('regFrtime').value = fmtTime(d.frtime);
+            document.getElementById('regTotime').value = fmtTime(d.totime);
+            document.getElementById('regRemark').value = d.remark || '';
+
+            // 첨부는 수정에서 변경하지 않음
+            document.getElementById('regFile').value = '';
+            document.getElementById('regFileInfo').textContent = '';
+            _regFile = null;
+
+            AjaxUtil.getAsyncData('/api/AS/daily_manage/read_gubun', {}, function (r) {
+                const sel = document.getElementById('regGubun');
+                sel.innerHTML = '<option value="">-- 선택 --</option>';
+                (r && r.data ? r.data : []).forEach(function (g) {
+                    sel.innerHTML += `<option value="${esc(g.busicd)}">${esc(g.businm)}</option>`;
+                });
+                sel.value = d.wkcd != null ? String(d.wkcd) : '';
+            });
+            AjaxUtil.getAsyncData('/api/AS/daily_manage/read_dest', {}, function (r) {
+                const sel = document.getElementById('regDest');
+                sel.innerHTML = '<option value="">-- 선택 --</option>';
+                (r && r.data ? r.data : []).forEach(function (dd) {
+                    sel.innerHTML += `<option value="${esc(dd.actcd)}" data-actnm="${esc(dd.actnm)}">${esc(dd.actnm)}</option>`;
+                });
+                sel.value = d.actcd != null ? String(d.actcd) : '';
+                loadRegEqupThenSelect(d.actcd, d.equpcd);
+            });
+
+            document.getElementById('regModal').style.display = 'flex';
+        }
+
+        function loadRegEqup(actcd) {
+            const sel = document.getElementById('regEqup');
+            sel.innerHTML = '<option value="">-- 선택 --</option>';
+            if (!actcd) return;
+            AjaxUtil.getAsyncData('/api/AS/daily_manage/read_equp', { actcd: actcd }, function (r) {
+                (r && r.data ? r.data : []).forEach(function (e) {
+                    sel.innerHTML += `<option value="${esc(e.equpcd)}">${esc(e.equpnm)}</option>`;
+                });
+            });
+        }
+
+        function uploadRegFile() {
+            const fileInput = document.getElementById('regFile');
+            if (!fileInput.files || fileInput.files.length === 0) { _regFile = null; return; }
+            const fd = new FormData();
+            fd.append('file', fileInput.files[0]);
+            document.getElementById('regFileInfo').textContent = '업로드 중...';
+            $.ajax({
+                url: withCtx('/api/AS/daily_manage/upload_file'),
+                type: 'POST',
+                data: fd,
+                processData: false,
+                contentType: false,
+                headers: { 'X-CSRF-Token': $('[name=_csrf]').val() },
+                success: function (res) {
+                    if (res && res.success && res.data) {
+                        _regFile = { filesvnm: res.data.filesvnm, filepath: res.data.filepath };
+                        document.getElementById('regFileInfo').textContent = '첨부됨: ' + (res.data.fileornm || '');
+                    } else {
+                        _regFile = null;
+                        document.getElementById('regFileInfo').textContent = '';
+                        Alert.alert('', (res && res.message) || '파일 업로드 실패');
+                    }
+                },
+                error: function () {
+                    _regFile = null;
+                    document.getElementById('regFileInfo').textContent = '';
+                    Alert.alert('', '파일 업로드 중 오류가 발생하였습니다.');
+                }
+            });
+        }
+
+        function saveReport() {
+            const writeDate = document.getElementById('regDate').value;
+            const wkcd      = document.getElementById('regGubun').value;
+            const destSel   = document.getElementById('regDest');
+            const actcd     = destSel.value;
+            const actnm     = destSel.selectedOptions[0] ? (destSel.selectedOptions[0].getAttribute('data-actnm') || '') : '';
+            const equpcd    = document.getElementById('regEqup').value;
+            const frtime    = document.getElementById('regFrtime').value.replace(':', '');
+            const totime    = document.getElementById('regTotime').value.replace(':', '');
+            const remark    = document.getElementById('regRemark').value;
+
+            if (!writeDate) { Alert.alert('', '작성일자를 선택해주세요.'); return; }
+            if (!actcd)     { Alert.alert('', '행선지를 선택해주세요.'); return; }
+
+            const btn = document.getElementById('regSaveBtn');
+            btn.disabled = true;
+
+            const done = function (result) {
+                btn.disabled = false;
+                if (result && result.success) {
+                    Alert.alert('', result.message, function () {
+                        closeRegModal();
+                        searchManageData();
+                    });
+                } else {
+                    Alert.alert('', (result && result.message) || '처리 중 오류가 발생하였습니다.');
+                }
+            };
+
+            if (_regEditKey) {
+                // 수정
+                AjaxUtil.postAsyncData('/api/AS/daily_manage/update_status', {
+                    custcd   : _regEditKey.custcd,
+                    spjangcd : _regEditKey.spjangcd,
+                    rptdate  : _regEditKey.rptdate,
+                    perid    : _regEditKey.perid,
+                    rptnum   : _regEditKey.rptnum,
+                    wkcd     : wkcd,
+                    actcd    : actcd,
+                    actnm    : actnm,
+                    equpcd   : equpcd,
+                    frtime   : frtime,
+                    totime   : totime,
+                    remark   : remark
+                }, done);
+            } else {
+                // 등록
+                AjaxUtil.postAsyncData('/api/AS/daily_manage/save', {
+                    writeDate : writeDate,
+                    wkcd      : wkcd,
+                    actcd     : actcd,
+                    actnm     : actnm,
+                    equpcd    : equpcd,
+                    frtime    : frtime,
+                    totime    : totime,
+                    remark    : remark,
+                    filesvnm  : _regFile ? _regFile.filesvnm : '',
+                    filepath  : _regFile ? _regFile.filepath : ''
+                }, done);
+            }
+        }
 
         function esc(str) {
             if (!str) return '';

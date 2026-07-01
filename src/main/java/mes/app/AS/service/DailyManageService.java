@@ -68,21 +68,21 @@ public class DailyManageService {
                 """;
 
         if (pernm != null && !pernm.isBlank()) {
-            sql += " AND j.pernm LIKE :pernm";
+            sql += " AND j.pernm LIKE :pernm ";
             param.addValue("pernm", "%" + pernm.trim() + "%");
         }
 
         // 사용자(User) 그룹: 본인이 작성한 건만 조회
         if (perid != null && !perid.isBlank()) {
-            sql += " AND h.perid = :perid";
+            sql += " AND h.perid = :perid ";
             param.addValue("perid", perid);
         }
 
         sql += """
-                GROUP BY
+                 GROUP BY
                     h.custcd, h.spjangcd, h.rptdate, h.perid,
                     j.pernm, pz.RSPNM, jc.divinm
-                ORDER BY h.rptdate DESC, j.pernm ASC
+                 ORDER BY h.rptdate DESC, j.pernm ASC
                 """;
 
         return sqlRunner.getRows(sql, param);
@@ -109,10 +109,13 @@ public class DailyManageService {
                     e.rptdate,
                     e.perid,
                     e.rptnum,
+                    e.wkcd,
                     b.businm,
+                    e.actcd,
                     e.actnm,
                     e.frtime,
                     e.totime,
+                    e.equpcd,
                     m.equpnm,
                     e.remark,
                     e.filesvnm,
@@ -261,5 +264,163 @@ public class DailyManageService {
                     """;
             namedParameterJdbcTemplate.update(deleteHeadSql, headParam);
         }
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  업무일지 등록 (웹) — 모바일 daily_report 로직 이식
+    // ════════════════════════════════════════════════════════
+
+    // ── 구분 목록 (TB_E021) ──────────────────────────────────
+    public List<Map<String, Object>> getGubunList(String custcd, String spjangcd) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("custcd", custcd);
+        param.addValue("spjangcd", spjangcd);
+        String sql = """
+                SELECT busicd, businm
+                FROM TB_E021
+                WHERE custcd   = :custcd
+                  AND spjangcd = :spjangcd
+                ORDER BY busicd
+                """;
+        return sqlRunner.getRows(sql, param);
+    }
+
+    // ── 행선지/현장 목록 (TB_E601) ───────────────────────────
+    public List<Map<String, Object>> getDestList(String custcd, String spjangcd) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("custcd", custcd);
+        param.addValue("spjangcd", spjangcd);
+        String sql = """
+                SELECT actcd, actnm
+                FROM TB_E601
+                WHERE custcd   = :custcd
+                  AND spjangcd = :spjangcd
+                ORDER BY actcd
+                """;
+        return sqlRunner.getRows(sql, param);
+    }
+
+    // ── 호기 목록 (TB_E611) ──────────────────────────────────
+    public List<Map<String, Object>> getEqupList(String custcd, String spjangcd, String actcd) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("custcd", custcd);
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("actcd", actcd);
+        String sql = """
+                SELECT a.equpcd, a.equpnm
+                FROM TB_E611 a WITH(NOLOCK)
+                WHERE a.custcd   = :custcd
+                  AND a.spjangcd = :spjangcd
+                  AND a.actcd    = :actcd
+                ORDER BY a.equpcd
+                """;
+        return sqlRunner.getRows(sql, param);
+    }
+
+    // ── 업무일지 등록 (TB_E037 MERGE + TB_E038 INSERT) ───────
+    public void saveDailyReport(
+            String custcd, String spjangcd, String rptdate, String perid,
+            String wkcd, String actcd, String actnm,
+            String frtime, String totime, String equpcd, String remark,
+            String filesvnm, String filepath) {
+
+        // 1) TB_E037 HEAD MERGE (없으면 INSERT)
+        MapSqlParameterSource headParam = new MapSqlParameterSource();
+        headParam.addValue("custcd", custcd);
+        headParam.addValue("spjangcd", spjangcd);
+        headParam.addValue("rptdate", rptdate);
+        headParam.addValue("perid", perid);
+        String mergeSql = """
+                MERGE INTO TB_E037 AS target
+                USING (SELECT :custcd AS custcd, :spjangcd AS spjangcd,
+                              :rptdate AS rptdate, :perid AS perid) AS source
+                ON (    target.custcd   = source.custcd
+                    AND target.spjangcd = source.spjangcd
+                    AND target.rptdate  = source.rptdate
+                    AND target.perid    = source.perid )
+                WHEN NOT MATCHED THEN
+                    INSERT (custcd, spjangcd, rptdate, perid)
+                    VALUES (:custcd, :spjangcd, :rptdate, :perid);
+                """;
+        namedParameterJdbcTemplate.update(mergeSql, headParam);
+
+        // 2) rptnum 채번 (001~)
+        String nextSql = """
+                SELECT ISNULL(MAX(CAST(rptnum AS INT)), 0) + 1
+                FROM TB_E038
+                WHERE custcd   = :custcd
+                  AND spjangcd = :spjangcd
+                  AND rptdate  = :rptdate
+                  AND perid    = :perid
+                """;
+        Integer next = namedParameterJdbcTemplate.queryForObject(nextSql, headParam, Integer.class);
+        if (next == null) next = 1;
+        String rptnum = String.format("%03d", next);
+
+        // 3) TB_E038 상세 INSERT
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("custcd", custcd);
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("rptdate", rptdate);
+        param.addValue("perid", perid);
+        param.addValue("rptnum", rptnum);
+        param.addValue("actcd", actcd);
+        param.addValue("actnm", actnm);
+        param.addValue("wkcd", wkcd);
+        param.addValue("frtime", frtime);
+        param.addValue("totime", totime);
+        param.addValue("equpcd", equpcd);
+        param.addValue("remark", remark);
+        param.addValue("filesvnm", filesvnm);
+        param.addValue("filepath", filepath);
+        String insertSql = """
+                INSERT INTO TB_E038
+                    (custcd, spjangcd, rptdate, perid, rptnum,
+                     actcd, actnm, wkcd, frtime, totime, equpcd, remark,
+                     filesvnm, filepath)
+                VALUES
+                    (:custcd, :spjangcd, :rptdate, :perid, :rptnum,
+                     :actcd, :actnm, :wkcd, :frtime, :totime, :equpcd, :remark,
+                     :filesvnm, :filepath)
+                """;
+        namedParameterJdbcTemplate.update(insertSql, param);
+    }
+
+    // ── 업무일지 수정 (TB_E038 UPDATE) ───────────────────────
+    public void updateDailyReport(
+            String custcd, String spjangcd, String rptdate, String perid, String rptnum,
+            String wkcd, String actcd, String actnm, String equpcd,
+            String frtime, String totime, String remark) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("custcd",   custcd);
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("rptdate",  rptdate);
+        param.addValue("perid",    perid);
+        param.addValue("rptnum",   rptnum);
+        param.addValue("wkcd",     wkcd);
+        param.addValue("actcd",    actcd);
+        param.addValue("actnm",    actnm);
+        param.addValue("equpcd",   equpcd);
+        param.addValue("frtime",   frtime);
+        param.addValue("totime",   totime);
+        param.addValue("remark",   remark);
+
+        String sql = """
+                UPDATE TB_E038 SET
+                    wkcd   = :wkcd,
+                    actcd  = :actcd,
+                    actnm  = :actnm,
+                    equpcd = :equpcd,
+                    frtime = :frtime,
+                    totime = :totime,
+                    remark = :remark
+                WHERE custcd   = :custcd
+                  AND spjangcd = :spjangcd
+                  AND rptdate  = :rptdate
+                  AND perid    = :perid
+                  AND rptnum   = :rptnum
+                """;
+        namedParameterJdbcTemplate.update(sql, param);
     }
 }
