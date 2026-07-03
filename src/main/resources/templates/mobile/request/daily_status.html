@@ -55,7 +55,7 @@
   <div class="mobile-layout-header">
     <header>
       <div class="left"><a href="#" title="전체메뉴" class="logo"></a></div>
-      <div class="left" style="margin-left:35px; font-size:25px;"><h2>업무일지 현황ㅁ</h2></div>
+      <div class="left" style="margin-left:35px; font-size:25px;"><h2>업무일지 현황</h2></div>
       <div class="right">
         <a href="#" title="전체메뉴" class="btn-menu">
           <img th:src="@{/assets_mobile/images/icon/btn-menu.svg}" alt="전체메뉴 아이콘">
@@ -142,11 +142,13 @@
       </div>
       <div class="edit-row">
         <label class="edit-label">시작시간</label>
-        <input type="time" id="editFrtime" class="edit-input">
+        <input type="text" id="editFrtime" class="edit-input" inputmode="numeric"
+               maxlength="5" placeholder="HH:mm" oninput="formatTimeInput(this)">
       </div>
       <div class="edit-row">
         <label class="edit-label">종료시간</label>
-        <input type="time" id="editTotime" class="edit-input">
+        <input type="text" id="editTotime" class="edit-input" inputmode="numeric"
+               maxlength="5" placeholder="HH:mm" oninput="formatTimeInput(this)">
       </div>
       <div class="edit-row">
         <label class="edit-label">내용</label>
@@ -436,6 +438,16 @@
         Alert.alert('', result.message || '수정 중 오류가 발생하였습니다.');
       }
     });
+  }
+
+  // 시간 입력 간소화: 숫자만 입력 → 자동 HH:mm (시계 다이얼 대신 키패드)
+  function formatTimeInput(el) {
+    const e = window.event;
+    const deleting = e && e.inputType && e.inputType.indexOf('delete') === 0;
+    let d = el.value.replace(/[^0-9]/g, '').slice(0, 4);
+    if (d.length === 0)      el.value = '';
+    else if (d.length <= 2)  el.value = deleting ? d : d + ':';
+    else                     el.value = d.slice(0, 2) + ':' + d.slice(2);
   }
 
   function openPopup(id)  { document.getElementById(id).classList.add('active');    }

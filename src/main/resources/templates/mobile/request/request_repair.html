@@ -117,15 +117,17 @@
                 <div class="form-row">
                     <label>접수일자 / 접수시간</label>
                     <div class="row-2col">
-                        <input type="date" id="regRecedate">
-                        <input type="time" id="regRecetime">
+                        <input type="date" id="regRecedate" onchange="syncHitchFromRece()">
+                        <input type="text" id="regRecetime" inputmode="numeric" maxlength="5"
+                               placeholder="HH:mm" oninput="formatTimeInput(this)" onchange="syncHitchFromRece()">
                     </div>
                 </div>
                 <div class="form-row">
                     <label>고장일자 / 고장시간</label>
                     <div class="row-2col">
                         <input type="date" id="regHitchdate">
-                        <input type="time" id="regHitchhour">
+                        <input type="text" id="regHitchhour" inputmode="numeric" maxlength="5"
+                               placeholder="HH:mm" oninput="formatTimeInput(this)">
                     </div>
                 </div>
                 <div class="form-row">
@@ -440,6 +442,22 @@
         document.getElementById('regContcd').value   = item.contcd || '';
         document.getElementById('regContents').value = item.contnm || '';
         closePopup('contnmPopup');
+    }
+
+    /* ── 시간 입력 간소화: 숫자만 입력 → 자동 HH:mm ── */
+    function formatTimeInput(el) {
+        const e = window.event;
+        const deleting = e && e.inputType && e.inputType.indexOf('delete') === 0;
+        let d = el.value.replace(/[^0-9]/g, '').slice(0, 4);
+        if (d.length === 0)      el.value = '';
+        else if (d.length <= 2)  el.value = deleting ? d : d + ':';
+        else                     el.value = d.slice(0, 2) + ':' + d.slice(2);
+    }
+
+    /* ── 접수일시 → 고장일시 자동 바인드 (이후 수정 가능) ── */
+    function syncHitchFromRece() {
+        document.getElementById('regHitchdate').value = document.getElementById('regRecedate').value;
+        document.getElementById('regHitchhour').value = document.getElementById('regRecetime').value;
     }
 
     function esc(str) {

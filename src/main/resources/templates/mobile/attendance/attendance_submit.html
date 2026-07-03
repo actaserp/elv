@@ -91,14 +91,16 @@
             <div style="display: flex; flex-direction: column; gap: 5px;">
               <div style="display: flex; gap: 10px;">
                 <input type="date" id="startDate" style="width: 140px;">
-                <input type="time" id="startTime" style="width: 140px;">
+                <input type="text" id="startTime" style="width: 140px;" inputmode="numeric"
+                       maxlength="5" placeholder="HH:mm" oninput="formatTimeInput(this)">
               </div>
             </div>
             <span style="font-weight: bold;">~</span>
             <div style="display: flex; flex-direction: column; gap: 5px;">
               <div style="display: flex; gap: 10px;">
                 <input type="date" id="endDate" style="width: 140px;">
-                <input type="time" id="endTime" style="width: 140px;">
+                <input type="text" id="endTime" style="width: 140px;" inputmode="numeric"
+                       maxlength="5" placeholder="HH:mm" oninput="formatTimeInput(this)">
               </div>
             </div>
           </dd>
@@ -130,6 +132,16 @@
 </div>
 
 <script type="text/javascript">
+
+  // 시간 입력 간소화: 숫자만 입력 → 자동 HH:mm (시계 다이얼 대신 키패드)
+  function formatTimeInput(el) {
+    const e = window.event;
+    const deleting = e && e.inputType && e.inputType.indexOf('delete') === 0;
+    let d = el.value.replace(/[^0-9]/g, '').slice(0, 4);
+    if (d.length === 0)      el.value = '';
+    else if (d.length <= 2)  el.value = deleting ? d : d + ':';
+    else                     el.value = d.slice(0, 2) + ':' + d.slice(2);
+  }
 
   $(document).ready(function (e) {
     searchMainData();

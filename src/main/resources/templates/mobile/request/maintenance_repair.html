@@ -300,14 +300,16 @@
                     <label>도착일자 / 도착시간</label>
                     <div class="row-2col">
                         <input type="date" id="regArrivdate">
-                        <input type="time" id="regArrivtime">
+                        <input type="text" id="regArrivtime" inputmode="numeric" maxlength="5"
+                               placeholder="HH:mm" oninput="formatTimeInput(this)">
                     </div>
                 </div>
                 <div class="form-row">
                     <label>완료일자 / 완료시간</label>
                     <div class="row-2col">
                         <input type="date" id="regCompdate">
-                        <input type="time" id="regComptime">
+                        <input type="text" id="regComptime" inputmode="numeric" maxlength="5"
+                               placeholder="HH:mm" oninput="formatTimeInput(this)">
                     </div>
                 </div>
                 <div class="form-row">
@@ -1057,6 +1059,16 @@
         if (!t) return '';
         const s = String(t).replace(':','').padStart(4,'0');
         return `${s.substring(0,2)}:${s.substring(2,4)}`;
+    }
+
+    // 시간 입력 간소화: 숫자만 입력 → 자동 HH:mm (시계 다이얼 대신 키패드)
+    function formatTimeInput(el) {
+        const e = window.event;
+        const deleting = e && e.inputType && e.inputType.indexOf('delete') === 0;
+        let d = el.value.replace(/[^0-9]/g, '').slice(0, 4);
+        if (d.length === 0)      el.value = '';
+        else if (d.length <= 2)  el.value = deleting ? d : d + ':';
+        else                     el.value = d.slice(0, 2) + ':' + d.slice(2);
     }
 
     function esc(str) {

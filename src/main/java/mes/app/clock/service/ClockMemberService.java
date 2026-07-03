@@ -137,17 +137,17 @@ public class ClockMemberService {
             int count = jdbcTemplate.queryForObject(checkSql, Integer.class, spjangcd, workym, workday, perid);
 
             if (count > 0) {
-                // UPDATE
+                // 행 존재 → 휴가 구분값만 UPDATE (remark 는 건드리지 않음)
                 jdbcTemplate.update("""
                         UPDATE tb_pb201
-                        SET workcd = ?, remark = '연차 자동반영'
+                        SET workcd = ?
                         WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
                         """, workcd, spjangcd, workym, workday, perid);
             } else {
-                // INSERT
+                // 행 없음 → INSERT (remark 미입력)
                 jdbcTemplate.update("""
-                        INSERT INTO tb_pb201 (spjangcd, workym, workday, perid, workcd, remark)
-                        VALUES (?, ?, ?, ?, ?, '연차 자동반영')
+                        INSERT INTO tb_pb201 (spjangcd, workym, workday, perid, workcd)
+                        VALUES (?, ?, ?, ?, ?)
                         """, spjangcd, workym, workday, perid, workcd);
             }
         }
@@ -251,10 +251,66 @@ public class ClockMemberService {
     }
 
     // =========================================================
-    // 휴가 승인 취소 (TB_PB204 fixflag=0)
+    // 휴가 승인 취소 (TB_PB204 fixflag=0 + TB_PB201 원복)
+    //  - 해당 일자에 출퇴근정보(starttime/endtime) 존재 → workcd='01'(정상)
+    //  - 출퇴근정보 없음 → 행 삭제
     // =========================================================
     @Transactional
     public void cancelMember(int id) {
-        jdbcTemplate.update("UPDATE tb_pb204 SET fixflag = '0', appdate = NULL, appperid = NULL, appuserid = NULL WHERE id = ?", id);
+        // 1) 대상 휴가 기간/사원 조회
+        String selectSql = """
+                SELECT spjangcd, frdate, todate, perid
+                FROM tb_pb204
+                WHERE id = ?
+                """;
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(selectSql, id);
+
+        // 2) fixflag 원복
+        jdbcTemplate.update(
+                "UPDATE tb_pb204 SET fixflag = '0', appdate = NULL, appperid = NULL, appuserid = NULL WHERE id = ?", id);
+
+        if (rows.isEmpty()) return;
+
+        Map<String, Object> pb204 = rows.get(0);
+        String spjangcd  = String.valueOf(pb204.get("spjangcd"));
+        String frdateStr = String.valueOf(pb204.get("frdate"));
+        String todateStr = String.valueOf(pb204.get("todate"));
+        String perid     = String.valueOf(pb204.get("perid"));
+
+        LocalDate frdate = LocalDate.parse(frdateStr, DateTimeFormatter.ofPattern("yyyyMMdd"));
+        LocalDate todate = LocalDate.parse(todateStr, DateTimeFormatter.ofPattern("yyyyMMdd"));
+
+        // 3) 기간 날짜별로 TB_PB201 원복
+        for (LocalDate date = frdate; !date.isAfter(todate); date = date.plusDays(1)) {
+            String workym  = date.format(DateTimeFormatter.ofPattern("yyyyMM"));
+            String workday = date.format(DateTimeFormatter.ofPattern("dd"));
+
+            // 출퇴근 정보(starttime/endtime) 존재 여부 확인
+            String checkSql = """
+                    SELECT COUNT(*) FROM tb_pb201
+                    WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
+                      AND (
+                            (starttime IS NOT NULL AND starttime <> '')
+                         OR (endtime   IS NOT NULL AND endtime   <> '')
+                      )
+                    """;
+            int hasCommute = jdbcTemplate.queryForObject(
+                    checkSql, Integer.class, spjangcd, workym, workday, perid);
+
+            if (hasCommute > 0) {
+                // 출퇴근 정보 있음 → 구분값을 '정상(01)'으로 (remark 는 건드리지 않음)
+                jdbcTemplate.update("""
+                        UPDATE tb_pb201
+                        SET workcd = '01'
+                        WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
+                        """, spjangcd, workym, workday, perid);
+            } else {
+                // 출퇴근 정보 없음 → 행 삭제
+                jdbcTemplate.update("""
+                        DELETE FROM tb_pb201
+                        WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
+                        """, spjangcd, workym, workday, perid);
+            }
+        }
     }
 }

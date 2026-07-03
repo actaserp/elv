@@ -193,19 +193,22 @@
                 <label>접수일자 / 접수시간</label>
                 <div class="row-2col">
                     <input type="date" id="editRecedate">
-                    <input type="time" id="editRecetime">
+                    <input type="text" id="editRecetime" inputmode="numeric" maxlength="5"
+                           placeholder="HH:mm" oninput="formatTimeInput(this)">
                 </div>
             </div>
             <div class="form-row">
                 <label>도착일자 / 도착시간</label>
                 <div class="row-2col">
                     <input type="date" id="editArrivdate">
-                    <input type="time" id="editArrivtime">
+                    <input type="text" id="editArrivtime" inputmode="numeric" maxlength="5"
+                           placeholder="HH:mm" oninput="formatTimeInput(this)">
                 </div>
             </div>
             <div class="form-row">
                 <label>완료시간</label>
-                <input type="time" id="editComptime">
+                <input type="text" id="editComptime" inputmode="numeric" maxlength="5"
+                       placeholder="HH:mm" oninput="formatTimeInput(this)">
             </div>
             <div class="form-row">
                 <label>고장부위</label>
@@ -813,6 +816,16 @@
                 <span class="detail-value">${esc(String(r.value))}</span>
             </div>`;
         }).join('');
+    }
+
+    // 시간 입력 간소화: 숫자만 입력 → 자동 HH:mm (시계 다이얼 대신 키패드)
+    function formatTimeInput(el) {
+        const e = window.event;
+        const deleting = e && e.inputType && e.inputType.indexOf('delete') === 0;
+        let d = el.value.replace(/[^0-9]/g, '').slice(0, 4);
+        if (d.length === 0)      el.value = '';
+        else if (d.length <= 2)  el.value = deleting ? d : d + ':';
+        else                     el.value = d.slice(0, 2) + ':' + d.slice(2);
     }
 
     function esc(str) {

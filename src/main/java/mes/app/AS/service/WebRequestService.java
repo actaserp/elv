@@ -389,6 +389,7 @@ public class WebRequestService {
                 SELECT perid, pernm, handphone
                 FROM TB_JA001
                 WHERE spjangcd = :spjangcd
+                  AND rtclafi  = '001'
                   AND pernm    LIKE :pernm
                 ORDER BY pernm ASC
                 """;

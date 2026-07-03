@@ -450,7 +450,7 @@ public class WebHandleService {
                 LEFT JOIN TB_JC002 jc ON j.divicd   = jc.divicd
                                      AND j.spjangcd  = jc.spjangcd
                 WHERE j.spjangcd = :spjangcd
-                  AND j.retiredate IS NULL
+                  AND j.rtclafi  = '001'
                 """;
 
         if (pernm != null && !pernm.isBlank()) {

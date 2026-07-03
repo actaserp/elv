@@ -465,6 +465,13 @@
         return;
       }
 
+      // ✅ 위치정보(GPS) 조회 전 출근 시도 차단
+      if (latitude == null || longitude == null) {
+        Alert.alert('', '위치정보를 불러오는 중입니다.\n위치 확인 후 다시 시도해주세요.');
+        getGPSLocation();   // 즉시 재조회 시도
+        return;
+      }
+
       // ✅ 다른 유저 출근 여부 체크 (이름 대신 ID로 비교)
       const savedUser = localStorage.getItem('commuteUser');
 
