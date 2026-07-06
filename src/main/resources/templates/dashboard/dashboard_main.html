@@ -142,9 +142,9 @@
                                                     -<span class="small-unit" style=" font-size: 0.5em; opacity: 0.5;"> 건</span>
                                                 </div>
                                             </section>
-                                            <section style="background-color: #C7DFF4; color: #031B4B; flex: 0.5; margin-right: 5px; cursor: pointer; padding: 10px 10px;" class="fetchCard" data-search-type="13">
+                                            <section style="background-color: #C7DFF4; color: #031B4B; flex: 0.5; margin-right: 5px; cursor: pointer; padding: 10px 10px;" class="fetchCard" data-search-type="09">
                                                 <div class="title">
-                                                    <h3>유연근무</h3>
+                                                    <h3>훈련</h3>
                                                 </div>
                                                 <div class="produceCnt" style="font-size: 32px; font-weight: 700; text-align: right; margin: 9px 0;">
                                                     -<span class="small-unit" style=" font-size: 0.5em; opacity: 0.5;"> 건</span>
@@ -1479,7 +1479,7 @@
             $('.checkCnt').html(0 + '<span class="small-unit" style="font-size: 0.5em; opacity: 0.5;"> 건</span>');
             // 반차
             $('.estimateCnt').html(0 + '<span class="small-unit" style="font-size: 0.5em; opacity: 0.5;"> 건</span>');
-            // 유연근무
+            // 훈련
             $('.produceCnt').html(0 + '<span class="small-unit" style="font-size: 0.5em; opacity: 0.5;"> 건</span>');
             $.ajax({
                 url: withCtx('/api/dash_summary/initDatas'),
@@ -1500,8 +1500,8 @@
                             case "04":
                                 $('.estimateCnt').html(item.workcd_count + '<span class="small-unit" style="font-size: 0.5em; opacity: 0.5;"> 건</span>');
                                 break;
-                            // 유연근무
-                            case "13":
+                            // 훈련
+                            case "09":
                                 $('.produceCnt').html(item.workcd_count + '<span class="small-unit" style="font-size: 0.5em; opacity: 0.5;"> 건</span>');
                                 break;
                             // 병가

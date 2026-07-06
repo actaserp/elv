@@ -285,14 +285,11 @@ public class ClockMemberService {
             String workym  = date.format(DateTimeFormatter.ofPattern("yyyyMM"));
             String workday = date.format(DateTimeFormatter.ofPattern("dd"));
 
-            // 출퇴근 정보(starttime/endtime) 존재 여부 확인
+            // 출근 정보(starttime) 존재 여부 확인 (퇴근 전일 수 있어 endtime 은 보지 않음)
             String checkSql = """
                     SELECT COUNT(*) FROM tb_pb201
                     WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
-                      AND (
-                            (starttime IS NOT NULL AND starttime <> '')
-                         OR (endtime   IS NOT NULL AND endtime   <> '')
-                      )
+                      AND starttime IS NOT NULL AND starttime <> ''
                     """;
             int hasCommute = jdbcTemplate.queryForObject(
                     checkSql, Integer.class, spjangcd, workym, workday, perid);
