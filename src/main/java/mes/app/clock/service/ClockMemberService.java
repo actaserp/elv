@@ -79,7 +79,7 @@ public class ClockMemberService {
                LEFT JOIN person app_p    ON app_p.id = TRY_CAST(app_au.personid AS INT)
             WHERE t.reqdate between :start_date and :end_date
             AND t.spjangcd = :spjangcd
-            AND (:person_name = '' OR CAST(t.perid AS VARCHAR(50)) = :person_name)
+            AND (:person_name = '' OR p.Code = :person_name)
             order by reqdate
         """;
 

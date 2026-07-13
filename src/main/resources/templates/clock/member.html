@@ -50,7 +50,11 @@
                             <label>사원명</label>
                         </dt>
                         <dd>
-                            <select style="width: 150px;" id="person_name" name="person_name"></select>
+                            <input type="hidden" id="person_name" name="person_name">
+                            <input type="text" id="person_name_disp" placeholder="사원 선택"
+                                   readonly style="width: 150px; cursor:pointer; background:#fff;"
+                                   onclick="openPersonPopupForSearch()">
+                            <button type="button" class="btn-default" onclick="clearPersonSearch()">전체</button>
                         </dd>
                     </dl>
 
@@ -606,6 +610,92 @@
             });
         }
 
+        // 상단 검색용 사번찾기 팝업 (선택 시 검색조건에 반영)
+        function openPersonPopupForSearch() {
+            let selectedItem = null;
+            let theGridS;
+            let viewdataS;
+
+            let content = tmpl('getPersonTemplate', {});
+            let $content = $(content);
+
+            let popContainer = new PopupDraggable('사원 검색');
+            popContainer.open({ width: 800, height: 500, $content });
+
+            let $searchName = $content.find('#searchName');
+            let $searchCode = $content.find('#searchCode');
+            let $btnSearch  = $content.find('#btnSubjectSearch');
+
+            function fetchPersonList() {
+                $.ajax({
+                    url: withCtx('/api/system/user/getPerson'),
+                    type: 'GET',
+                    data: {
+                        searchCode: $searchCode.val(),
+                        searchName: $searchName.val(),
+                        spjangcd: sessionStorage.getItem('spjangcd'),
+                    },
+                    async: false,
+                    success: function (res) {
+                        let data2 = res.data || [];
+                        viewdataS = new wijmo.collections.CollectionView(data2);
+                        if (theGridS) theGridS.itemsSource = viewdataS;
+                    }
+                });
+            }
+
+            theGridS = new wijmo.grid.FlexGrid('#person-grid', {
+                autoGenerateColumns: false,
+                showMarquee: true,
+                isReadOnly: true,
+                columns: [
+                    { binding: 'code',      header: '사번',   width: 120, align: 'center' },
+                    { binding: 'name',      header: '이름',   width: 150, align: 'center' },
+                    { binding: 'dept_name', header: '부서',   width: 150, align: 'center' },
+                    { binding: 'handphone', header: '전화번호', width: 150, align: 'center' },
+                    { binding: '', header: '', width: '*' },
+                ],
+                itemsSource: null
+            });
+            theGridS.rowHeaders.columns.splice(0, 1);
+            fetchPersonList();
+
+            $btnSearch.click(() => fetchPersonList());
+            $searchCode.add($searchName).on('keydown', function (e) {
+                if (e.keyCode === 13) fetchPersonList();
+            });
+
+            theGridS.selectionChanged.addHandler((s) => {
+                selectedItem = s.collectionView.currentItem;
+            });
+
+            function applySelection(item) {
+                // person.Code(= 'p'+사번 = 팝업 code) 로 검색 → hidden 에 code 그대로 저장
+                $('#person_name').val(item.code || '');
+                $('#person_name_disp').val(item.name || '');
+                popContainer.close();
+                page.searchMainData();
+            }
+
+            $content.find('#btnAccountSave').click(() => {
+                if (selectedItem) applySelection(selectedItem);
+                else Alert.alert('', '사원을 선택해주세요.');
+            });
+
+            theGridS.hostElement.addEventListener('dblclick', function (e) {
+                let items = theGridS.selectedItems;
+                if (items.length === 0) return;
+                applySelection(items[0]);
+            });
+        }
+
+        // 사원 검색조건 초기화 (전체)
+        function clearPersonSearch() {
+            $('#person_name').val('');
+            $('#person_name_disp').val('');
+            page.searchMainData();
+        }
+
         function onModalWorkcdChange() {
             let workcd = $('#modalWorkcd').val();
             $.ajax({
@@ -841,7 +931,6 @@
             yullinAuth.removeWriteButton();
             page = new MemberPage();
 
-            AjaxUtil.fillSelectOptions($('#person_name'), 'person', 'choose', false);
             const now = new Date();
             const year = now.getFullYear();
             const month = String(now.getMonth() + 1).padStart(2, '0');
