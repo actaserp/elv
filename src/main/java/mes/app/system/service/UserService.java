@@ -128,7 +128,7 @@ public class UserService {
 			personParam.addValue("personid", Integer.valueOf(personIdObj.toString()));
 
 			String personSql = """
-            SELECT id, "Code", "Name" AS person_name
+            SELECT id, "Code", "Name" AS person_name, [PersonGroup_id]
             FROM person
             WHERE id = :personid
             AND spjangcd = :spjangcd
@@ -144,6 +144,7 @@ public class UserService {
 
 				item.put("person_code", personCode);
 				item.put("person_name", personInfo.get("person_name"));
+				item.put("PersonGroup_id", personInfo.get("PersonGroup_id"));
 
 				// ── 2단계: person.Code → tb_ja001.perid 로 테넌트 조회 ──
 				if (personCode != null) {

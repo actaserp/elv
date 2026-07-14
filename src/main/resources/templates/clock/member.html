@@ -29,7 +29,7 @@
                 <div class="search-wrap">
                     <dl>
                         <dt>
-                            <label>신청일</label>
+                            <label>휴가기간</label>
                         </dt>
                         <dd>
                             <ul class="date-box">
@@ -266,6 +266,16 @@
                                 let formatted = val.substring(0, 4) + '-' + val.substring(4, 6) + '-' + val.substring(6, 8);
                                 e.cell.textContent = formatted;
                             }
+                            // 승인일자: 날짜 + 시간(apptime) 함께 표시
+                            if (col.binding === 'appdate' && val && val.length === 8) {
+                                let d = val.substring(0, 4) + '-' + val.substring(4, 6) + '-' + val.substring(6, 8);
+                                let item = sender.rows[e.row].dataItem;
+                                let at = item && item.apptime ? String(item.apptime) : '';
+                                if (at.length >= 4) {
+                                    d += ' ' + at.substring(0, 2) + ':' + at.substring(2, 4);
+                                }
+                                e.cell.textContent = d;
+                            }
                         }
                         if (e.panel.cellType === wijmo.grid.CellType.Cell) {
                             let col = sender.columns[e.col];
@@ -310,8 +320,9 @@
                         {binding: 'remark', header: '사유', width: '*', align: 'left'},
                         // {binding: 'appgubunnm', header: '결재상태', width: 100, align: 'left'},
                         {binding: 'fixflag', header: '승인상태', width: 100, align: 'center'},
+                        {binding: 'indpernm', header: '등록자', width: 120, align: 'center'},
                         {binding: 'appernm', header: '승인자', width: 120, align: 'center'},
-                        {binding: 'appdate', header: '승인일자', width: 120, align: 'center'},
+                        {binding: 'appdate', header: '승인일자', width: 150, align: 'center'},
                     ],
                     itemsSource: this.viewData, // 데이터를 설정할 배열
                 });

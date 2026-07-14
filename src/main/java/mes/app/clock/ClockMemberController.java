@@ -73,7 +73,12 @@ public class ClockMemberController {
 
         try {
             for (Map<String, Object> item : dataList) {
-                clockMemberService.saveMember(item, spjangcd, appperid, appuserid);
+                String msg = clockMemberService.saveMember(item, spjangcd, appperid, appuserid);
+                if (msg != null) {
+                    result.success = false;
+                    result.message = msg;
+                    return result;   // 하나라도 실패(이미 승인됨 등)면 중단
+                }
             }
             result.success = true;
         } catch (Exception e) {
@@ -129,7 +134,11 @@ public class ClockMemberController {
                 return result;
             }
 
-            clockMemberService.bulkInsertMember(list, spjangcd);
+            // 등록자 = 로그인 사용자 (일괄등록도 로그인한 사람)
+            User user = (User) auth.getPrincipal();
+            String induserid = user.getUsername();
+            String inperid   = induserid.replaceFirst("^p", "");
+            clockMemberService.bulkInsertMember(list, spjangcd, induserid, inperid);
             result.success = true;
             result.message = list.size() + "건이 등록되었습니다.";
         } catch (Exception e) {
@@ -150,7 +159,11 @@ public class ClockMemberController {
         AjaxResult result = new AjaxResult();
         try {
             String spjangcd = (String) requestData.get("spjangcd");
-            clockMemberService.insertMember(requestData, spjangcd);
+            // 등록자 = 로그인 사용자
+            User user = (User) auth.getPrincipal();
+            String induserid = user.getUsername();                 // 로그인 ID
+            String inperid   = induserid.replaceFirst("^p", "");   // p 제거한 perid
+            clockMemberService.insertMember(requestData, spjangcd, induserid, inperid);
             result.success = true;
             result.message = "등록되었습니다.";
         } catch (Exception e) {
@@ -170,7 +183,12 @@ public class ClockMemberController {
 
         AjaxResult result = new AjaxResult();
         try {
-            clockMemberService.updateMember(requestData);
+            String msg = clockMemberService.updateMember(requestData);
+            if (msg != null) {
+                result.success = false;
+                result.message = msg;
+                return result;
+            }
             result.success = true;
             result.message = "수정되었습니다.";
         } catch (Exception e) {
@@ -191,7 +209,12 @@ public class ClockMemberController {
         AjaxResult result = new AjaxResult();
         try {
             int id = ((Number) requestData.get("id")).intValue();
-            clockMemberService.deleteMember(id);
+            String msg = clockMemberService.deleteMember(id);
+            if (msg != null) {
+                result.success = false;
+                result.message = msg;
+                return result;
+            }
             result.success = true;
             result.message = "삭제되었습니다.";
         } catch (Exception e) {

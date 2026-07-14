@@ -272,7 +272,7 @@ public class MobileMainService {
         jdbcTemplate.update("""
                 UPDATE tb_pb201
                 SET endtime       = ?,
-                    remark        = ?,
+                    out_remark    = ?,
                     inflag        = ?,
                     workyn        = ?,
                     jotime        = ?,

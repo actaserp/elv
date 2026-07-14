@@ -132,6 +132,7 @@ public class UserController {
 		@RequestParam(value="person_code", required = false) String person_code,
 		@RequestParam(value="tel", required = false) String tel,
 		@RequestParam(value="spjangcd", required = false) String selectedSpjangcd,
+		@RequestParam(value="PersonGroup_id", required = false) Integer PersonGroup_id,
 		HttpServletRequest request,
 		Authentication auth
 	) {
@@ -140,6 +141,9 @@ public class UserController {
 		String dbKey = TenantContext.getDbKey();
 		String spjangcd = TenantContext.get();
 		String effectiveSpjangcd = (selectedSpjangcd != null && !selectedSpjangcd.isEmpty()) ? selectedSpjangcd : spjangcd;
+
+		// 근무조 기본값 주간(1)
+		int personGroupId = (PersonGroup_id != null) ? PersonGroup_id : 1;
 
 		String sql = null;
 		User user = null;
@@ -249,10 +253,18 @@ public class UserController {
 				Integer resolvedPersonId = null;
 
 				if (!existPersonList.isEmpty()) {
-					// 이미 person 존재 → id 재활용
+					// 이미 person 존재 → id 재활용 + 근무조 갱신
 					resolvedPersonId = ((Number) existPersonList.get(0).get("id")).intValue();
 					user.setPersonid(resolvedPersonId);
 					this.userRepository.save(user);
+
+					MapSqlParameterSource pgUpdParam = new MapSqlParameterSource();
+					pgUpdParam.addValue("PersonGroup_id", personGroupId);
+					pgUpdParam.addValue("id", resolvedPersonId);
+					pgUpdParam.addValue("spjangcd", effectiveSpjangcd);
+					this.tenantSqlRunner.execute(
+						"UPDATE person SET [PersonGroup_id] = :PersonGroup_id WHERE id = :id AND spjangcd = :spjangcd",
+						pgUpdParam);
 
 				} else if (person_code != null && !person_code.isEmpty()) {
 					// person 없음 → INSERT
@@ -275,7 +287,7 @@ public class UserController {
 						INSERT INTO person
 						([Name], [Code], [Depart_id], [Factory_id], spjangcd, rtflag, [PersonGroup_id], rtdate, _created, _creater_id)
 						OUTPUT INSERTED.id
-						VALUES (:Name, :Code, :Depart_id, :Factory_id, :spjangcd, '0', 1, :rtdate, SYSDATETIMEOFFSET(), :creater_id)
+						VALUES (:Name, :Code, :Depart_id, :Factory_id, :spjangcd, '0', :PersonGroup_id, :rtdate, SYSDATETIMEOFFSET(), :creater_id)
 					""";
 					MapSqlParameterSource personParam = new MapSqlParameterSource();
 					personParam.addValue("Name", Name);
@@ -284,6 +296,7 @@ public class UserController {
 					personParam.addValue("Factory_id", Factory_id);
 					personParam.addValue("spjangcd", effectiveSpjangcd);
 					personParam.addValue("rtdate", rtdate);
+					personParam.addValue("PersonGroup_id", personGroupId);
 					personParam.addValue("creater_id", loginUser.getId());
 
 					Map<String, Object> insertedRow = this.tenantSqlRunner.getRow(personInsertSql, personParam);
@@ -389,7 +402,7 @@ public class UserController {
 						String personInsertSql = """
 							INSERT INTO person
 							([Name], [Code], [Depart_id], [Factory_id], spjangcd, rtflag, [PersonGroup_id], rtdate, _created, _creater_id)
-							VALUES (:Name, :Code, :Depart_id, :Factory_id, :spjangcd, '0', 1, :rtdate, SYSDATETIMEOFFSET(), :creater_id)
+							VALUES (:Name, :Code, :Depart_id, :Factory_id, :spjangcd, '0', :PersonGroup_id, :rtdate, SYSDATETIMEOFFSET(), :creater_id)
 						""";
 						MapSqlParameterSource personParam = new MapSqlParameterSource();
 						personParam.addValue("Name",      Name);
@@ -398,8 +411,18 @@ public class UserController {
 						personParam.addValue("Factory_id", Factory_id);
 						personParam.addValue("spjangcd",  effectiveSpjangcd);
 						personParam.addValue("rtdate",    rtdate);
+						personParam.addValue("PersonGroup_id", personGroupId);
 						personParam.addValue("creater_id", loginUser.getId());
 						this.tenantSqlRunner.execute(personInsertSql, personParam);
+					} else {
+						// person 존재 → 근무조(PersonGroup_id) 갱신
+						MapSqlParameterSource pgUpdParam = new MapSqlParameterSource();
+						pgUpdParam.addValue("PersonGroup_id", personGroupId);
+						pgUpdParam.addValue("id", Integer.valueOf(personid));
+						pgUpdParam.addValue("spjangcd", effectiveSpjangcd);
+						this.tenantSqlRunner.execute(
+							"UPDATE person SET [PersonGroup_id] = :PersonGroup_id WHERE id = :id AND spjangcd = :spjangcd",
+							pgUpdParam);
 					}
 
 					// 사업체 auth_user personid 누락 확인 및 보완

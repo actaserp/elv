@@ -19,8 +19,9 @@ public class WebHandleService {
     NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     // ── 고장접수 목록 조회 (TB_E401) ─────────────────────────
+    // myPerid 가 null 이면 전체, 값이 있으면 통보자(e.perid)=본인 건만
     public List<Map<String, Object>> getRequestList(
-            String spjangcd, String fromDate, String toDate, String actnm) {
+            String spjangcd, String fromDate, String toDate, String actnm, String myPerid) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
@@ -40,13 +41,25 @@ public class WebHandleService {
                     ct.contnm,
                     e.contents,
                     e.remark,
-                    e.resultck
+                    e.resultck,
+                    e.perid,
+                    j.pernm   AS pernm,
+                    jc.divinm AS divinm
                 FROM TB_E401 e
                 LEFT JOIN TB_E010 ct ON ct.contcd  = e.contcd
                                     AND ct.spjangcd = e.spjangcd
+                LEFT JOIN TB_JA001 j  ON j.perid    = 'p' + e.perid
+                                     AND j.spjangcd  = e.spjangcd
+                LEFT JOIN TB_JC002 jc ON jc.divicd  = j.divicd
+                                     AND jc.spjangcd = j.spjangcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.recedate BETWEEN :fromDate AND :toDate
                 """;
+
+        if (myPerid != null && !myPerid.isBlank()) {
+            sql += " AND e.perid = :myPerid";
+            param.addValue("myPerid", myPerid);
+        }
 
         if (actnm != null && !actnm.isBlank()) {
             sql += " AND e.actnm LIKE :actnm";

@@ -1,0 +1,175 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<head>
+  <style>
+    .wj-header { text-align: center !important; }
+  </style>
+</head>
+
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <!-- Page Title -->
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>고장처리현황</h2>
+        <a title="북마크" class="bookmark toggle">내메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img src="/images/icon/ico-nav-home.svg" alt="홈아이콘"></li>
+        <li>고장관리</li>
+        <li>고장처리현황</li>
+      </ul>
+    </div>
+
+    <section class="section">
+      <div class="section-top">
+        <div class="search-wrap">
+          <!-- 조회기간 -->
+          <dl>
+            <dt><label>조회기간</label></dt>
+            <dd>
+              <div class="srch-box" style="display: flex; align-items: center; gap: 5px;">
+                <input type="date" id="startDate" class="form-control2" style="width: 140px;">
+                <span>~</span>
+                <input type="date" id="endDate" class="form-control2" style="width: 140px;">
+              </div>
+            </dd>
+          </dl>
+          <!-- 현장명 -->
+          <dl>
+            <dt><label>현장명</label></dt>
+            <dd>
+              <div class="srch-box">
+                <input type="text" id="txtActnm" class="form-control2" placeholder="현장명 검색"/>
+              </div>
+            </dd>
+          </dl>
+          <!-- 검색버튼 -->
+          <dl>
+            <dt><span class="eq"></span></dt>
+            <dd>
+              <li>
+                <a class="btn btn-delete" title="검색" id="btnSearch">
+                  <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                  검색
+                </a>
+              </li>
+            </dd>
+          </dl>
+        </div>
+      </div>
+
+      <!-- 그리드 -->
+      <div class="container-fluid">
+        <div id="theGrid" style="height: 600px;"></div>
+      </div>
+    </section>
+  </div>
+
+  <footer style="margin-top: 24px;">
+    <p>Copyrightⓒ 0000 corp. All rights reserved.</p>
+  </footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <th:block th:replace="common/columns_setting :: columns_setting"></th:block>
+  <script type="text/javascript">
+
+    var theGrid;
+    var viewdata;
+
+    let columns = [
+      {binding: 'compdate',   header: '완료일자', width: 110, align: 'center',
+        cellTemplate: function(ctx) {
+          const v = ctx.value == null ? '' : String(ctx.value);
+          return v.length === 8 ? `${v.substring(0,4)}.${v.substring(4,6)}.${v.substring(6,8)}` : v;
+        }
+      },
+      {binding: 'comptime',   header: '완료시간', width: 90, align: 'center',
+        cellTemplate: function(ctx) {
+          const v = ctx.value == null ? '' : String(ctx.value).replace(/:/g,'');
+          return v.length >= 4 ? `${v.substring(0,2)}:${v.substring(2,4)}` : v;
+        }
+      },
+      {binding: 'actpernm',   header: '처리자',       width: 90,  align: 'center'},
+      {binding: 'actnm',      header: '현장명',       width: 160, align: 'left'},
+      {binding: 'equpnm',     header: '호기명',       width: 110, align: 'left'},
+      {binding: 'contremark', header: '고장부위',     width: 120, align: 'left'},
+      {binding: 'customer',   header: '처리내용',     width: '*', align: 'left'},
+      {binding: 'remark',     header: '처리결과',     width: 120, align: 'left'},
+    ];
+
+    document.readyState === 'complete' ? init() : window.onload = init;
+
+    function init() {
+      // 기본 조회기간: 이번 달 1일 ~ 오늘
+      const today = new Date();
+      const yyyy  = today.getFullYear();
+      const mm    = String(today.getMonth() + 1).padStart(2, '0');
+      const dd    = String(today.getDate()).padStart(2, '0');
+      document.getElementById('startDate').value = `${yyyy}-${mm}-01`;
+      document.getElementById('endDate').value   = `${yyyy}-${mm}-${dd}`;
+
+      // 그리드 초기화
+      viewdata = new wijmo.collections.CollectionView([]);
+      theGrid  = new wijmo.grid.FlexGrid('#theGrid', {
+        autoGenerateColumns: false,
+        showMarquee: true,
+        columns: columns,
+        isReadOnly: true,
+        itemsSource: viewdata
+      });
+      theGrid.rowHeaders.columns.splice(0, 1);
+      new FlexGridContextMenu(theGrid);
+      theGrid.downloadFileName = '고장처리현황';
+
+      searchMainData();
+    }
+
+    function searchMainData() {
+      const startDate = document.getElementById('startDate').value.replaceAll('-', '');
+      const endDate   = document.getElementById('endDate').value.replaceAll('-', '');
+      const actnm     = document.getElementById('txtActnm').value.trim();
+
+      if (!startDate || !endDate) {
+        Alert.alert('', '조회기간을 입력해주세요.');
+        return;
+      }
+
+      const data = {
+        fromDate : startDate,
+        toDate   : endDate,
+        actnm    : actnm,
+        spjangcd : sessionStorage.getItem('spjangcd')
+      };
+
+      AjaxUtil.getAsyncData('/api/AS/web_handle/comp_list', data, function (result) {
+        if (result != null) {
+          gridBinding(result.data);
+        } else {
+          Alert.alert('', '조회 중 오류가 발생하였습니다.');
+        }
+      });
+    }
+
+    function gridBinding(data) {
+      theGrid.columns.clear();
+      theGrid.autoGenerateColumns = false;
+      columns.forEach(function(colDef) {
+        theGrid.columns.push(new wijmo.grid.Column(colDef));
+      });
+      viewdata = new wijmo.collections.CollectionView(data || []);
+      theGrid.itemsSource = viewdata;
+      theGrid.refresh();
+    }
+
+    $(document.body).ready(function () {
+      $('#btnSearch').click(function () { searchMainData(); });
+      $('#txtActnm').on('keypress', function (e) {
+        if (e.keyCode === 13) searchMainData();
+      });
+    });
+
+  </script>
+</th:block>
+
+</html>

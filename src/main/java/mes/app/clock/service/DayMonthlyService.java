@@ -70,6 +70,7 @@ public class DayMonthlyService {
                         t.abtime,
                         t.bantime,
                         t.remark,
+                        t.out_remark,
                         t.fixflag,
                         t.address,
                         t.latitude,
@@ -86,6 +87,7 @@ public class DayMonthlyService {
                         s.Value as jik_id,
                         tp210.worknm as worknm,
                         p.Name as first_name,
+                        au.username as username,
                         pz.RSPNM,
                         t.spjangcd as spjangcd
                     FROM person p

@@ -520,13 +520,28 @@
 
     } else {
       // 퇴근 API
+      // ✅ 위치정보(GPS 좌표) 바인드 전 퇴근 차단
+      if (latitude == null || longitude == null) {
+        Alert.alert('', '위치정보를 불러오는 중입니다.\n위치 확인 후 다시 시도해주세요.');
+        getGPSLocation();   // 즉시 재조회 시도
+        return;
+      }
+
+      // ✅ 주소(gpsInfo) 바인드 전 퇴근 차단 (좌표는 있어도 주소 역지오코딩이 늦어 out_address 가 비는 문제 방지)
+      const outAddress = document.getElementById('gpsInfo').innerText.trim();
+      if (!outAddress) {
+        Alert.alert('', '주소정보를 불러오는 중입니다.\n잠시 후 다시 시도해주세요.');
+        getGPSLocation();   // 즉시 재조회 시도
+        return;
+      }
+
       let data = {
         office:    office,
         workym:    year + month,
         workday:   date,
         workcd:    document.getElementById('selectWorkcd').value,
         remark:    document.getElementById('remarkInput').value.trim(),
-        gpsInfo:   document.getElementById('gpsInfo').innerText,
+        gpsInfo:   outAddress,
         latitude:  latitude,
         longitude: longitude
       };

@@ -303,8 +303,7 @@
                     },
                     columns: [
                         {binding: 'fixflag',header: '마감', width: 70, align: 'center',visible: false},
-                        {binding: 'perid', visible: false},  // ✅ 추가
-                        {binding: 'row_num', header: '순번', width: 60, align: 'center'},
+                        {binding: 'username', header: '사번', width: 90, align: 'center'},
                         {binding: 'workymd', header: '일자', width: 100, align: 'center', isReadOnly: true },
                         {binding: 'first_name', header: '사원명', width: 100, align: 'center' },
                         {binding: 'RSPNM', header: '직위', width: 100, align: 'center' },
@@ -324,7 +323,8 @@
                         },
                         {binding: 'address',     header: '\ucd9c\uadfc\uc704\uce58', width: 200, align: 'left'},
                         {binding: 'out_address', header: '\ud1f4\uadfc\uc704\uce58', width: 200, align: 'left'},
-                        {binding: 'remark',      header: '비고',                     width: 150, align: 'left', isReadOnly: true},
+                        {binding: 'remark',      header: '출근비고',                 width: 130, align: 'left', isReadOnly: true},
+                        {binding: 'out_remark',  header: '퇴근비고',                 width: 130, align: 'left', isReadOnly: true},
                         {binding: 'nomaltime', header: '근무시간', width: 100, align: 'center'},
                         {binding: 'worktime', header: '총근무시간', width: 100, align: 'center'},
                         {binding: 'jitime', header: '지각', width: 50, align: 'center'},

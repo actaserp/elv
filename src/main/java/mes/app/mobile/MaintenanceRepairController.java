@@ -35,16 +35,31 @@ public class MaintenanceRepairController {
     }
 
     // ── 고장접수 목록 조회 (TB_E401) ─────────────────────────
+    // showAll='1' 이면 전체, 아니면 로그인 사용자가 통보자(perid)인 건만 조회
     @GetMapping("/read_repair_list")
     public AjaxResult getRepairList(
             @RequestParam(value = "fromDate", required = false) String fromDate,
             @RequestParam(value = "toDate",   required = false) String toDate,
             @RequestParam(value = "actnm",    required = false) String actnm,
+            @RequestParam(value = "showAll",  required = false, defaultValue = "0") String showAll,
             @RequestParam(value = "spjangcd", required = false) String spjangcd,
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
-        result.data = maintenanceRepairService.getRepairList(fromDate, toDate, actnm, spjangcd);
+
+        String myPerid = null;
+        if (!"1".equals(showAll)) {
+            // 로그인 사용자의 통보자 perid (TB_JA001.perid 에서 'p' 제거 → TB_E401.perid 형식)
+            User user = (User) auth.getPrincipal();
+            Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
+            if (userInfo != null && userInfo.get("perid") != null) {
+                myPerid = String.valueOf(userInfo.get("perid")).replaceFirst("^p", "");
+            } else {
+                myPerid = "__none__";
+            }
+        }
+
+        result.data = maintenanceRepairService.getRepairList(fromDate, toDate, actnm, spjangcd, myPerid);
         return result;
     }
 

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +57,10 @@ public class ClockMemberService {
                 sc.[Value] as appgubunnm,
                 t.appperid as appperid,
                 app_p.[Name] as appernm,
-                t.appdate  as appdate
+                t.appdate  as appdate,
+                t.apptime  as apptime,
+                t.induserid as induserid,
+                ind_j.pernm as indpernm
             from tb_pb204 t
                LEFT JOIN person p ON p.id = TRY_CAST(t.perid AS INT)
               LEFT JOIN (
@@ -77,10 +81,11 @@ public class ClockMemberService {
                LEFT JOIN tb_pz001 pz  ON j.rspcd = pz.RSPCD
                LEFT JOIN auth_user app_au ON app_au.username = t.appuserid
                LEFT JOIN person app_p    ON app_p.id = TRY_CAST(app_au.personid AS INT)
-            WHERE t.reqdate between :start_date and :end_date
+               LEFT JOIN tb_ja001 ind_j  ON ind_j.perid = CONCAT('p', t.inperid) AND ind_j.spjangcd = t.spjangcd
+            WHERE t.frdate <= :end_date AND t.todate >= :start_date
             AND t.spjangcd = :spjangcd
             AND (:person_name = '' OR p.Code = :person_name)
-            order by reqdate
+            order by t.frdate
         """;
 
         return this.sqlRunner.getRows(sql, paramMap);
@@ -90,36 +95,45 @@ public class ClockMemberService {
     // 휴가 승인 저장 (TB_PB204 fixflag=1 + TB_PB201 upsert)
     // =========================================================
     @Transactional
-    public void saveMember(Map<String, Object> item, String spjangcd, String appperid, String appuserid) {
+    public String saveMember(Map<String, Object> item, String spjangcd, String appperid, String appuserid) {
         int id = ((Number) item.get("id")).intValue();
 
-        // TB_PB204 조회
+        // TB_PB204 조회 (fixflag 포함 — 동시성 검증)
         String selectSql = """
-                SELECT frdate, todate, workcd, perid
+                SELECT frdate, todate, workcd, perid, fixflag
                 FROM tb_pb204
                 WHERE id = ?
                 """;
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(selectSql, id);
-        if (rows.isEmpty()) return;
+        if (rows.isEmpty()) return "대상 휴가내역을 찾을 수 없습니다.";
 
         Map<String, Object> pb204 = rows.get(0);
+
+        // ★ 백엔드 상태 재확인: 이미 다른 관리자가 승인한 건이면 거부
+        String curFixflag = pb204.get("fixflag") != null ? String.valueOf(pb204.get("fixflag")) : "0";
+        if ("1".equals(curFixflag)) {
+            return "이미 승인(확인) 처리된 휴가내역입니다. 화면을 새로고침 해주세요.";
+        }
+
         String frdateStr = String.valueOf(pb204.get("frdate"));
         String todateStr = String.valueOf(pb204.get("todate"));
         String workcd    = String.valueOf(pb204.get("workcd"));
         String perid     = String.valueOf(pb204.get("perid"));
 
-        // 오늘 날짜 yyyyMMdd
-        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        // 오늘 날짜 yyyyMMdd + 현재 시각 HHmmss
+        String today   = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String apptime = LocalTime.now().format(DateTimeFormatter.ofPattern("HHmmss"));
 
-        // TB_PB204 fixflag = '1' + 승인자 정보 업데이트
+        // TB_PB204 fixflag = '1' + 승인자 정보 + 승인시간 업데이트
         jdbcTemplate.update("""
                 UPDATE tb_pb204
                 SET fixflag   = '1',
                     appdate   = ?,
+                    apptime   = ?,
                     appperid  = ?,
                     appuserid = ?
                 WHERE id = ?
-                """, today, appperid, appuserid, id);
+                """, today, apptime, appperid, appuserid, id);
 
         // 날짜 범위만큼 TB_PB201 upsert
         LocalDate frdate = LocalDate.parse(frdateStr, DateTimeFormatter.ofPattern("yyyyMMdd"));
@@ -151,6 +165,7 @@ public class ClockMemberService {
                         """, spjangcd, workym, workday, perid, workcd);
             }
         }
+        return null;   // 성공
     }
 
     // =========================================================
@@ -170,18 +185,19 @@ public class ClockMemberService {
     // 휴가 일괄 등록 (Excel Upload)
     // =========================================================
     @Transactional
-    public void bulkInsertMember(List<Map<String, Object>> list, String spjangcd) {
+    public void bulkInsertMember(List<Map<String, Object>> list, String spjangcd, String induserid, String inperid) {
         for (Map<String, Object> item : list) {
             item.put("spjangcd", spjangcd);
-            insertMember(item, spjangcd);
+            insertMember(item, spjangcd, induserid, inperid);
         }
     }
 
     // =========================================================
     // 휴가 임의 등록 (INSERT)
+    //   신청자(perid) = 화면에서 선택된 사원, 등록자(induserid/inperid) = 로그인 사용자
     // =========================================================
     @Transactional
-    public void insertMember(Map<String, Object> item, String spjangcd) {
+    public void insertMember(Map<String, Object> item, String spjangcd, String induserid, String inperid) {
         String peridRaw  = String.valueOf(item.get("perid")).replace("/^p/", "").trim();
         String workcd    = String.valueOf(item.get("workcd"));
         String frdate    = String.valueOf(item.get("frdate")).replace("-", "");
@@ -208,17 +224,27 @@ public class ClockMemberService {
 
         jdbcTemplate.update("""
                 INSERT INTO tb_pb204
-                    (spjangcd, reqdate, perid, frdate, todate, sttime, edtime, daynum, workcd, remark, yearflag, fixflag, appgubun)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0', '001')
-                """, spjangcd, reqdate, perid, frdate, todate, sttime, edtime, daynum, workcd, remark, yearflag);
+                    (spjangcd, reqdate, perid, frdate, todate, sttime, edtime, daynum, workcd, remark, yearflag, fixflag, appgubun, induserid, inperid)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0', '001', ?, ?)
+                """, spjangcd, reqdate, perid, frdate, todate, sttime, edtime, daynum, workcd, remark, yearflag, induserid, inperid);
     }
 
     // =========================================================
     // 휴가 수정 (UPDATE)
     // =========================================================
     @Transactional
-    public void updateMember(Map<String, Object> item) {
+    public String updateMember(Map<String, Object> item) {
         int id       = ((Number) item.get("id")).intValue();
+
+        // ★ 백엔드 상태 재확인: 승인(확인) 완료 건은 확인취소 선행 필요
+        List<Map<String, Object>> chk = jdbcTemplate.queryForList(
+                "SELECT fixflag FROM tb_pb204 WHERE id = ?", id);
+        if (chk.isEmpty()) return "대상 휴가내역을 찾을 수 없습니다.";
+        String curFixflag = chk.get(0).get("fixflag") != null ? String.valueOf(chk.get(0).get("fixflag")) : "0";
+        if ("1".equals(curFixflag)) {
+            return "승인(확인)된 휴가내역입니다. '확인취소' 후 수정할 수 있습니다.";
+        }
+
         String workcd   = String.valueOf(item.get("workcd"));
         String frdate   = String.valueOf(item.get("frdate")).replace("-", "");
         String todate   = String.valueOf(item.get("todate")).replace("-", "");
@@ -240,14 +266,25 @@ public class ClockMemberService {
                     yearflag = ?
                 WHERE id = ?
                 """, workcd, frdate, todate, sttime, edtime, daynum, remark, yearflag, id);
+        return null;   // 성공
     }
 
     // =========================================================
     // 휴가 삭제 (DELETE)
     // =========================================================
     @Transactional
-    public void deleteMember(int id) {
+    public String deleteMember(int id) {
+        // ★ 백엔드 상태 재확인: 승인(확인) 완료 건은 확인취소 선행 필요
+        List<Map<String, Object>> chk = jdbcTemplate.queryForList(
+                "SELECT fixflag FROM tb_pb204 WHERE id = ?", id);
+        if (chk.isEmpty()) return "대상 휴가내역을 찾을 수 없습니다.";
+        String curFixflag = chk.get(0).get("fixflag") != null ? String.valueOf(chk.get(0).get("fixflag")) : "0";
+        if ("1".equals(curFixflag)) {
+            return "승인(확인)된 휴가내역입니다. '확인취소' 후 삭제할 수 있습니다.";
+        }
+
         jdbcTemplate.update("DELETE FROM tb_pb204 WHERE id = ?", id);
+        return null;   // 성공
     }
 
     // =========================================================
@@ -267,7 +304,7 @@ public class ClockMemberService {
 
         // 2) fixflag 원복
         jdbcTemplate.update(
-                "UPDATE tb_pb204 SET fixflag = '0', appdate = NULL, appperid = NULL, appuserid = NULL WHERE id = ?", id);
+                "UPDATE tb_pb204 SET fixflag = '0', appdate = NULL, apptime = NULL, appperid = NULL, appuserid = NULL WHERE id = ?", id);
 
         if (rows.isEmpty()) return;
 

@@ -26,15 +26,30 @@ public class WebHandleController {
     TenantUserService tenantUserService;
 
     // ── 고장접수 목록 (왼쪽 그리드, TB_E401) ─────────────────
+    // showAll='1' 이면 전체, 아니면 로그인 사용자가 통보자(perid)인 건만 조회
     @GetMapping("/list")
     public AjaxResult getList(
             @RequestParam(value = "fromDate", required = false) String fromDate,
             @RequestParam(value = "toDate",   required = false) String toDate,
             @RequestParam(value = "actnm",    required = false) String actnm,
+            @RequestParam(value = "showAll",  required = false, defaultValue = "0") String showAll,
             @RequestParam(value = "spjangcd") String spjangcd,
-            HttpServletRequest request) {
+            HttpServletRequest request, Authentication auth) {
         AjaxResult result = new AjaxResult();
-        result.data = webHandleService.getRequestList(spjangcd, fromDate, toDate, actnm);
+
+        String myPerid = null;
+        if (!"1".equals(showAll)) {
+            // 로그인 사용자의 통보자 perid (TB_JA001.perid 에서 'p' 제거 → TB_E401.perid 형식)
+            User user = (User) auth.getPrincipal();
+            Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
+            if (userInfo != null && userInfo.get("perid") != null) {
+                myPerid = String.valueOf(userInfo.get("perid")).replaceFirst("^p", "");
+            } else {
+                myPerid = "__none__";   // 사용자 정보 없으면 본인건 0건 처리
+            }
+        }
+
+        result.data = webHandleService.getRequestList(spjangcd, fromDate, toDate, actnm, myPerid);
         return result;
     }
 

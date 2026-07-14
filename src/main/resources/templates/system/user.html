@@ -259,8 +259,18 @@
                                                 <label for="spjangcd">사업장</label>
                                             </th>
 
-                                            <td colspan="2">
+                                            <td colspan="3">
                                                 <select style="width: 100%;" id="spjangcd" name="spjangcd"></select>
+                                            </td>
+                                            <th>
+                                                <label for="PersonGroup_id">근무조</label>
+                                            </th>
+                                            <td>
+                                                <select style="width: 100%;" id="PersonGroup_id" name="PersonGroup_id">
+                                                    <option value="1">주간</option>
+                                                    <option value="2">야간</option>
+                                                    <option value="3">기타</option>
+                                                </select>
                                             </td>
 <!--                                            <th style="display:none;">-->
 <!--                                                <label for="lang_code">언어</label>-->
@@ -694,6 +704,9 @@
                 setSelectValue('UserGroup_id', data.group_name || '사용자');
                 setSelectValueByValue('Depart_id', data.divicd);
                 // setSelectValue('lang_code', data.lang_code);
+
+                // 근무조 (person.PersonGroup_id) — 없으면 기본 주간(1)
+                setSelectValueByValue('PersonGroup_id', data.PersonGroup_id != null ? String(data.PersonGroup_id) : '1');
 
                 if (data.spjangcd) {
                     setSelectValueByValue('spjangcd', data.spjangcd);

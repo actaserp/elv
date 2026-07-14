@@ -407,6 +407,10 @@
             <input type="date" id="repairToDate" style="flex:1; padding:6px 8px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
             <button type="button" onclick="searchRepairList()" style="padding:6px 12px; background:#4472c4; color:#fff; border:none; border-radius:6px; font-size:13px; cursor:pointer;">조회</button>
         </div>
+        <label style="display:flex; align-items:center; gap:6px; padding:8px 16px; border-bottom:1px solid #eee; font-size:13px; color:#666; flex-shrink:0;">
+            <input type="checkbox" id="repairShowAll" onchange="searchRepairList()" style="width:16px; height:16px;">
+            전체 통보자 접수건 보기 (기본: 본인 통보건만)
+        </label>
         <input type="text" class="popup-search-input" id="repairActnmSearch"
                placeholder="현장명 검색" oninput="filterRepairList(this.value)">
         <div class="popup-list" id="repairList">
@@ -544,11 +548,13 @@
         const fromDate = document.getElementById('repairFromDate').value.replaceAll('-', '');
         const toDate   = document.getElementById('repairToDate').value.replaceAll('-', '');
         const actnm    = document.getElementById('repairActnmSearch').value.trim();
+        const showAll  = document.getElementById('repairShowAll').checked ? '1' : '0';
 
         AjaxUtil.getAsyncData('/api/maintenance_repair/read_repair_list', {
             fromDate : fromDate,
             toDate   : toDate,
             actnm    : actnm,
+            showAll  : showAll,
             spjangcd : _spjangcd
         }, function (result) {
             if (result && result.data) {
