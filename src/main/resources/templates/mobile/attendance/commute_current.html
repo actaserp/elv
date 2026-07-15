@@ -140,7 +140,7 @@
             <tr>
               <th>일자</th><th>근태</th><th>출근</th>
               <th>퇴근</th><th>근무시간</th><th>구분</th>
-              <th>출근위치</th><th>퇴근위치</th><th>비고</th>
+              <th>출근위치</th><th>퇴근위치</th><th>출근비고</th><th>퇴근비고</th>
             </tr>`;
         items.forEach(item => {
           tableHtml += `
@@ -154,13 +154,14 @@
               <td>${item.address || ''}</td>
               <td>${item.out_address || ''}</td>
               <td>${item.remark || ''}</td>
+              <td>${item.out_remark || ''}</td>
             </tr>`;
         });
         tableHtml += `</table>`;
         document.querySelector('#theGrid').innerHTML = tableHtml;
       } else {
         document.querySelector('#theGrid').innerHTML =
-          `<tr><td colspan="6" style="text-align:center; padding:8px;">조회된 데이터가 없습니다.</td></tr>`;
+          `<tr><td colspan="10" style="text-align:center; padding:8px;">조회된 데이터가 없습니다.</td></tr>`;
       }
     };
     AjaxUtil.getAsyncData(url, data, fnsuccess);

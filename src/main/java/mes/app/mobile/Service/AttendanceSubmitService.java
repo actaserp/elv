@@ -87,10 +87,13 @@ public class AttendanceSubmitService {
      *   appuserid varchar(50)  → String
      *   daynum    decimal(5,2) → BigDecimal
      */
+    // 휴가 "신청" 저장 — 승인 컬럼(appdate/appperid/appuserid)은 넣지 않음
+    //   (승인은 이후 사원별휴가확인 saveMember 에서 fixflag='1' 과 함께 채움)
+    //   induserid/inperid = 등록자(로그인 사용자)
     public long insertTbPb204(String spjangcd, String reqdate, String perid,
                               String frdate, String sttime, String todate, String edtime,
                               BigDecimal daynum, String workcd, String remark,
-                              String appdate, String appperid, String appuserid, String yearflag) {
+                              String induserid, String inperid, String yearflag) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
@@ -103,19 +106,18 @@ public class AttendanceSubmitService {
         param.addValue("daynum", daynum);
         param.addValue("workcd", workcd);
         param.addValue("remark", remark);
-        param.addValue("appdate", appdate);
         param.addValue("appgubun", "001");
-        param.addValue("appperid", appperid);
-        param.addValue("appuserid", appuserid);
+        param.addValue("induserid", induserid);
+        param.addValue("inperid", inperid);
         param.addValue("yearflag", yearflag);
 
         String sql = """
                 INSERT INTO tb_pb204
                     (spjangcd, reqdate, perid, frdate, sttime, todate, edtime,
-                     daynum, workcd, remark, appdate, appgubun, appperid, appuserid, yearflag)
+                     daynum, workcd, remark, appgubun, induserid, inperid, yearflag)
                 VALUES
                     (:spjangcd, :reqdate, :perid, :frdate, :sttime, :todate, :edtime,
-                     :daynum, :workcd, :remark, :appdate, :appgubun, :appperid, :appuserid, :yearflag)
+                     :daynum, :workcd, :remark, :appgubun, :induserid, :inperid, :yearflag)
                 """;
 
         KeyHolder keyHolder = new GeneratedKeyHolder();

@@ -48,6 +48,7 @@ public class CommuteCurrentService {
                 t.abtime,
                 t.bantime,
                 t.remark,
+                t.out_remark,
                 t.fixflag,
                 t.address,
                 t.out_address,

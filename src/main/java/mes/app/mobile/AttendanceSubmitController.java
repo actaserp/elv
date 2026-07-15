@@ -93,11 +93,15 @@ public class AttendanceSubmitController {
         String formattedEndDate   = endDate.replaceAll("-", "");
 
         try {
+            // 등록자 = 로그인 사용자 (모바일 본인 신청)
+            String induserid = user.getUsername();
+            String inperid   = induserid.replaceFirst("^p", "");
+
             long savedId = attendanceSubmitService.insertTbPb204(
                     spjangcd, reqdate, personidStr,
                     formattedStartDate, startTime, formattedEndDate, endTime,
                     useDate, attKind, remark,
-                    reqdate, personidStr, user.getUsername(), isAnnual
+                    induserid, inperid, isAnnual
             );
 
             String savedIdStr = String.format("%08d", savedId);
