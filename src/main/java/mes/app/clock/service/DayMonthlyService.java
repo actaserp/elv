@@ -3,6 +3,7 @@ package mes.app.clock.service;
 import lombok.extern.slf4j.Slf4j;
 import mes.domain.services.SqlRunner;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -22,10 +23,42 @@ public class DayMonthlyService {
     SqlRunner sqlRunner;
 
     @Autowired
+    @Qualifier("mainSqlRunner")
+    SqlRunner mainSqlRunner;   // 본사 DB (auth_user.is_active 기준 활성여부 판단용)
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private NamedParameterJdbcTemplate namedJdbc;
+
+    // =========================================================
+    // 본사 DB(auth_user)에서 비활성(is_active=false) 사용자의 personid 목록 조회
+    //   - is_active 의 실제 값은 본사 DB에만 정확히 반영됨(사업체 DB 복제본은 미동기화)
+    //   - 사업체 DB 근태 조회에서 이 personid 들을 제외하기 위함
+    // =========================================================
+    private List<Integer> getInactivePersonIds(String spjangcd) {
+        MapSqlParameterSource p = new MapSqlParameterSource();
+        p.addValue("spjangcd", spjangcd);
+        String sql = """
+                SELECT personid
+                FROM auth_user
+                WHERE is_active = false
+                  AND personid IS NOT NULL
+                  AND spjangcd = :spjangcd
+                """;
+        try {
+            List<Map<String, Object>> rows = this.mainSqlRunner.getRows(sql, p);
+            return rows.stream()
+                    .map(r -> r.get("personid"))
+                    .filter(java.util.Objects::nonNull)
+                    .map(v -> ((Number) v).intValue())
+                    .toList();
+        } catch (Exception e) {
+            log.warn("getInactivePersonIds 조회 실패 - 활성필터 미적용: {}", e.getMessage());
+            return java.util.Collections.emptyList();
+        }
+    }
 
     // =========================================================
     // 일별 근태 목록 조회
@@ -45,6 +78,11 @@ public class DayMonthlyService {
         paramMap.addValue("workym",  workym);
         paramMap.addValue("workday", workday);
         paramMap.addValue("spjangcd", spjangcd);
+
+        // 본사 DB 기준 비활성 사용자 personid (사업체 DB에서 제외)
+        List<Integer> inactiveIds = getInactivePersonIds(spjangcd);
+        boolean hasInactive = inactiveIds != null && !inactiveIds.isEmpty();
+        paramMap.addValue("inactiveIds", hasInactive ? inactiveIds : java.util.List.of(-1));
 
         String sql = """
                 SELECT 
@@ -107,8 +145,7 @@ public class DayMonthlyService {
                     ) s ON s.Code = p.jik_id
                     LEFT JOIN tb_pb210 tp210 ON tp210.workcd = t.workcd
                     LEFT JOIN auth_user au ON au.personid = p.id
-                    LEFT JOIN tb_xusers u ON u.userid = au.username
-                    LEFT JOIN tb_ja001 j  ON j.perid = CONCAT('p', u.perid)
+                    LEFT JOIN tb_ja001 j  ON j.perid = CONCAT('p', au.username) AND j.spjangcd = p.spjangcd
                     LEFT JOIN tb_jc002 jc ON j.divicd = jc.divicd
                     LEFT JOIN tb_pz001 pz  ON j.rspcd = pz.[RSPCD]
                     WHERE (
@@ -120,19 +157,7 @@ public class DayMonthlyService {
                         OR jc.divicd = :depart_id
                     )
                     AND p.spjangcd = :spjangcd
-                    AND (
-                        p.rtflag = '0'
-                        OR (
-                            p.rtflag != '0'
-                            AND EXISTS (
-                                SELECT 1
-                                FROM tb_pb201 t2
-                                WHERE t2.perid = p.id
-                                    AND t2.workym = :workym
-                                    AND t2.workday = :workday
-                            )
-                        )
-                    )
+                    AND p.id NOT IN (:inactiveIds)
                 """;
 
         long start = System.currentTimeMillis();
@@ -326,6 +351,11 @@ public class DayMonthlyService {
         paramMap.addValue("startdate",   startdate);
         paramMap.addValue("spjangcd",    spjangcd);
 
+        // 본사 DB 기준 비활성 사용자 personid (사업체 DB에서 제외)
+        List<Integer> inactiveIds = getInactivePersonIds(spjangcd);
+        boolean hasInactive = inactiveIds != null && !inactiveIds.isEmpty();
+        paramMap.addValue("inactiveIds", hasInactive ? inactiveIds : java.util.List.of(-1));
+
         String sql = """
             SELECT
                 t.workym,
@@ -354,8 +384,7 @@ public class DayMonthlyService {
                 WHERE CodeType = 'jik_type'
             ) s ON s.Code = p.jik_id
             LEFT JOIN auth_user au ON au.personid = p.id
-            left join tb_xusers u on u.userid = au.username and au.last_name = u.pernm
-            LEFT JOIN tb_ja001 j  ON j.perid = CONCAT('p', u.perid)
+            LEFT JOIN tb_ja001 j  ON j.perid = CONCAT('p', au.username) AND j.spjangcd = p.spjangcd
             LEFT JOIN tb_jc002 jc ON j.divicd = jc.divicd
             LEFT JOIN tb_pz001 pz  ON j.rspcd = pz.RSPCD
             WHERE
@@ -363,7 +392,7 @@ public class DayMonthlyService {
                 AND (:depart_id = '' OR jc.divicd = :depart_id)
                 AND t.spjangcd = :spjangcd
                 AND t.workym = :startdate
-                AND p.rtflag = '0'
+                AND p.id NOT IN (:inactiveIds)
         """;
 
         return this.sqlRunner.getRows(sql, paramMap);

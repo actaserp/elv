@@ -65,14 +65,15 @@ public class TenantUserService {
                     p.id              AS personid,
                     p.PersonGroup_id,
                     j.custcd,
-                    j.spjangcd,
+                    COALESCE(j.spjangcd, p.spjangcd) AS spjangcd,
                     j.perid,
                     j.pernm,
                     jc.divinm,
                     pz.RSPNM          AS rspnm,
                     u.username        AS username
                 FROM person p
-                JOIN TB_JA001 j       ON j.perid    = p.Code
+                LEFT JOIN TB_JA001 j  ON j.perid    = p.Code
+                                     AND j.spjangcd = p.spjangcd
                 LEFT JOIN TB_JC002 jc ON jc.divicd  = j.divicd
                                      AND jc.spjangcd = j.spjangcd
                 LEFT JOIN TB_PZ001 pz ON pz.RSPCD   = j.rspcd

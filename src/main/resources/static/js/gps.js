@@ -30,12 +30,17 @@ const getGPSLocation = () => {
         (position) => {
             latitude = position.coords.latitude;
             longitude = position.coords.longitude;
-            console.log(`GPS Coordinates: Lat ${latitude}, Lon ${longitude}`);
+            console.log(`GPS Coordinates: Lat ${latitude}, Lon ${longitude}, 정확도 ${position.coords.accuracy}m`);
             getAddressFromKakao(latitude, longitude);
         },
         (error) => {
             console.warn('GPS 접근 실패', error.message);
             document.getElementById('gpsInfo').innerText = '위치정보를 조회할 수 없습니다.';
+        },
+        {
+            enableHighAccuracy: true,   // GPS 우선 사용 (WiFi/네트워크 측위 대신)
+            timeout: 15000,             // 최대 15초까지 GPS 측위 대기
+            maximumAge: 0               // 캐시된 이전 위치 사용 안 함
         }
     );
 };
@@ -75,12 +80,17 @@ const getGPSLocationSub = () => {
         (position) => {
             latitude = position.coords.latitude;
             longitude = position.coords.longitude;
-            console.log(`GPS Coordinates: Lat ${latitude}, Lon ${longitude}`);
+            console.log(`GPS Coordinates: Lat ${latitude}, Lon ${longitude}, 정확도 ${position.coords.accuracy}m`);
             getAddressFromVWorld(latitude, longitude);
         },
         (error) => {
             console.warn('GPS 접근 실패', error.message);
             document.getElementById('gpsInfo').innerText = '위치정보를 조회할 수 없습니다.';
+        },
+        {
+            enableHighAccuracy: true,   // GPS 우선 사용
+            timeout: 15000,
+            maximumAge: 0
         }
     );
 };
