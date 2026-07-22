@@ -231,13 +231,18 @@ public class AccountController {
 			HttpSession session = request.getSession(true);
 			session.setAttribute("SPRING_SECURITY_CONTEXT", sc);
 
-			String spjangcd = auth.getPrincipal() instanceof User
-					? ((User) auth.getPrincipal()).getSpjangcd() : null;
+			User loginUser = auth.getPrincipal() instanceof User ? (User) auth.getPrincipal() : null;
+			if (loginUser != null) {
+				String userSpjangcd = loginUser.getSpjangcd();   // 사업체 spjangcd (예: ZZ)
+				String userDbKey    = loginUser.getDbKey();      // DB 라우팅 키 (예: IX) — spjangcd 와 다른 값!
 
-			if (spjangcd != null && !spjangcd.isBlank()) {
-				// 테넌트 로그인: db_key + spjangcd 세션 세팅 (Main DB 인증이므로 ID 일관성 보장)
-				session.setAttribute("db_key", spjangcd);
-				session.setAttribute("spjangcd", spjangcd);
+				// db_key 에는 반드시 진짜 dbKey 를 저장 (spjangcd 를 넣으면 DB 라우팅이 깨져 테넌트가 섞임)
+				if (userDbKey != null && !userDbKey.isBlank()) {
+					session.setAttribute("db_key", userDbKey);
+				}
+				if (userSpjangcd != null && !userSpjangcd.isBlank()) {
+					session.setAttribute("spjangcd", userSpjangcd);
+				}
 			}
 		}
 		return result;
