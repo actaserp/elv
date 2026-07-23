@@ -98,12 +98,12 @@ public class WebHandleService {
                     er.resultnm,
                     e.customer,
                     e.remark,
-                    e.actperid,
+                    e.perid  AS actperid,
                     ap.pernm AS actpernm,
                     e.filesvnm,
                     e.filepath
                 FROM TB_E411 e
-                LEFT JOIN TB_JA001 ap ON ap.perid    = e.actperid
+                LEFT JOIN TB_JA001 ap ON ap.perid    = 'p' + e.perid
                                      AND ap.spjangcd = e.spjangcd
                 LEFT JOIN TB_E014 eg  ON eg.regicd   = e.regicd
                 LEFT JOIN TB_E011 em  ON em.remocd   = e.remocd
@@ -144,10 +144,10 @@ public class WebHandleService {
                     e.resuremark,
                     e.customer,
                     e.remark,
-                    e.actperid,
+                    e.perid  AS actperid,
                     ap.pernm AS actpernm
                 FROM TB_E411 e
-                LEFT JOIN TB_JA001 ap ON ap.perid    = e.actperid
+                LEFT JOIN TB_JA001 ap ON ap.perid    = 'p' + e.perid
                                      AND ap.spjangcd = e.spjangcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.recedate BETWEEN :fromDate AND :toDate
@@ -176,6 +176,10 @@ public class WebHandleService {
 
         String compnum = getNextCompnum(spjangcd, compdate);
 
+        // ★ 처리자 perid 는 'p' 없는 사번으로 저장 (파워빌더 / elv 모바일과 동일 규칙)
+        //   TB_JA001.perid = 'p'+사번, 자식테이블(TB_E411/E037/E038) = 'p' 없이 저장
+        String peridRaw = (perid != null) ? perid.replaceFirst("^p", "") : "";
+
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("custcd",     custcd);
         param.addValue("spjangcd",   spjangcd);
@@ -203,9 +207,9 @@ public class WebHandleService {
         param.addValue("remark",     remark);
         param.addValue("customer",   customer);
         param.addValue("result",     "1");
-        param.addValue("actperid",   perid != null ? perid : "");
-        param.addValue("perid",      perid != null ? perid : "");
-        param.addValue("inperid",    perid != null ? perid : "");
+        param.addValue("actperid",   peridRaw);
+        param.addValue("perid",      peridRaw);
+        param.addValue("inperid",    peridRaw);
         param.addValue("indate",     compdate);
         param.addValue("filesvnm",   filesvnm != null ? filesvnm : "");
         param.addValue("filepath",   filepath  != null ? filepath  : "");
@@ -252,7 +256,7 @@ public class WebHandleService {
         headParam.addValue("custcd",   custcd);
         headParam.addValue("spjangcd", spjangcd);
         headParam.addValue("rptdate",  compdate);
-        headParam.addValue("perid",    perid);  // actperid = 처리자 기준
+        headParam.addValue("perid",    peridRaw);  // 처리자 기준 ('p' 제거)
 
         namedParameterJdbcTemplate.update("""
                 MERGE INTO TB_E037 AS target
@@ -281,7 +285,7 @@ public class WebHandleService {
         detailParam.addValue("custcd",   custcd);
         detailParam.addValue("spjangcd", spjangcd);
         detailParam.addValue("rptdate",  compdate);
-        detailParam.addValue("perid",    perid);
+        detailParam.addValue("perid",    peridRaw);
         detailParam.addValue("rptnum",   rptnum);
         detailParam.addValue("actcd",    actcd);
         detailParam.addValue("actnm",    actnm);
@@ -341,7 +345,8 @@ public class WebHandleService {
         param.addValue("resultcd",   resultcd);
         param.addValue("remark",     remark);
         param.addValue("customer",   customer);
-        param.addValue("actperid",   perid);
+        // ★ 'p' 없는 사번으로 통일 (파워빌더 / 모바일 호환)
+        param.addValue("actperid",   (perid != null) ? perid.replaceFirst("^p", "") : "");
 
         namedParameterJdbcTemplate.update("""
                 UPDATE TB_E411 SET
@@ -366,7 +371,8 @@ public class WebHandleService {
                     resultcd   = :resultcd,
                     remark     = :remark,
                     customer   = :customer,
-                    actperid   = :actperid
+                    actperid   = :actperid,
+                    perid      = :actperid
                 WHERE spjangcd = :spjangcd
                   AND compdate = :compdate
                   AND compnum  = :compnum
