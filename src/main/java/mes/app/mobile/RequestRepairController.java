@@ -117,7 +117,7 @@ public class RequestRepairController {
             @RequestParam(value = "contents",  required = false) String contents,
             @RequestParam(value = "contcd",    required = false) String contcd,
             @RequestParam(value = "remark",    required = false) String remark,
-            @RequestParam(value = "reperid",   required = false) String reperid,
+            @RequestParam(value = "perid",     required = false) String perid,
             @RequestParam(value = "bigo",      required = false) String bigo,
             HttpServletRequest request,
             Authentication auth) {
@@ -136,11 +136,12 @@ public class RequestRepairController {
         String custcd   = (String) userInfo.get("custcd");
 
         try {
+            // ★ perid = 화면에서 선택한 통보자, username = 로그인 사용자(접수자)
             requestRepairService.saveRepair(
                     custcd, spjangcd, recedate, recetime,
                     hitchdate, hitchhour,
                     actcd, actnm, equpcd, equpnm,
-                    contcd, contents, remark, reperid, bigo, username
+                    contcd, contents, remark, perid, bigo, username
             );
             result.success = true;
             result.message = "고장접수가 등록되었습니다.";
@@ -169,7 +170,7 @@ public class RequestRepairController {
             @RequestParam(value = "contcd",    required = false) String contcd,
             @RequestParam(value = "contents",  required = false) String contents,
             @RequestParam(value = "remark",    required = false) String remark,
-            @RequestParam(value = "reperid",   required = false) String reperid,
+            @RequestParam(value = "perid",     required = false) String perid,
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
@@ -178,7 +179,7 @@ public class RequestRepairController {
                     spjangcd, recedate, recenum,
                     recetime, hitchdate, hitchhour,
                     actcd, actnm, equpcd, equpnm,
-                    contcd, contents, remark, reperid);
+                    contcd, contents, remark, perid);
             result.success = true;
             result.message = "수정되었습니다.";
         } catch (Exception e) {

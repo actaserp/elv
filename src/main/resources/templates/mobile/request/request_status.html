@@ -211,7 +211,7 @@
             <div class="form-row">
                 <label>통보(전달)자</label>
                 <input type="text" id="editRepernm" placeholder="통보자 선택" readonly onclick="openPerPopup()">
-                <input type="hidden" id="editReperid">
+                <input type="hidden" id="editPerid">
             </div>
             <button class="form-save-btn" onclick="updateRepair()">수정 저장</button>
         </div>
@@ -367,9 +367,9 @@
         ]);
         html += `<div class="detail-section-title">담당자 정보</div>`;
         html += buildDetailRows([
-            { label: '통보자', value: item.repernm || item.reperid },
+            { label: '통보자', value: item.pernm   || item.perid },
             { label: '부서명', value: item.divinm  },
-            { label: '접수자', value: item.pernm   },
+            { label: '접수자', value: item.repernm || item.reperid },
         ]);
 
         document.getElementById('detailBody').innerHTML = html;
@@ -425,8 +425,8 @@
         document.getElementById('editContnm').value       = item.contnm   || '';
         document.getElementById('editContents').value     = item.contents  || '';
         document.getElementById('editRemark').value       = item.remark    || '';
-        document.getElementById('editReperid').value      = item.reperid   || '';
-        document.getElementById('editRepernm').value      = item.repernm   || item.reperid || '';
+        document.getElementById('editPerid').value        = item.perid    || '';
+        document.getElementById('editRepernm').value      = item.pernm    || item.perid || '';
 
         closePopup('detailPopup');
         openPopup('editPopup');
@@ -453,7 +453,7 @@
             contcd    : document.getElementById('editContcd').value,
             contents  : document.getElementById('editContents').value,
             remark    : document.getElementById('editRemark').value,
-            reperid   : document.getElementById('editReperid').value,
+            perid     : document.getElementById('editPerid').value,   // 통보자(화면 선택)
         };
 
         AjaxUtil.postAsyncData('/api/request_repair/update', data, function (result) {
@@ -623,7 +623,7 @@
     }
 
     function setPerData(item) {
-        document.getElementById('editReperid').value = (item.code || '').replace(/^p/, '');
+        document.getElementById('editPerid').value   = (item.code || '').replace(/^p/, '');
         document.getElementById('editRepernm').value = item.name || '';
         closePopup('perPopup');
     }

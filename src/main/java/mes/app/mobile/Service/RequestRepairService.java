@@ -179,9 +179,9 @@ public class RequestRepairService {
             String contcd,
             String contents,
             String remark,
-            String reperid,
+            String perid,      // ★ 화면에서 선택한 통보(전달)자 → TB_E401.perid
             String bigo,
-            String perid) {
+            String reperid) {  // ★ 로그인 사용자(접수자)        → TB_E401.reperid
 
         String recenum = getNextRecenum(spjangcd, recedate);
 
@@ -200,9 +200,10 @@ public class RequestRepairService {
         param.addValue("contcd",    contcd);
         param.addValue("contents",  contents);
         param.addValue("remark",    remark);
-        param.addValue("reperid",   reperid);
+        // ★ PB 규격: perid = 통보자(화면 선택), reperid = 접수자(로그인 사용자)
         param.addValue("perid",     perid);
-        param.addValue("inperid",   perid);
+        param.addValue("reperid",   reperid);
+        param.addValue("inperid",   reperid);
         param.addValue("indate",    recedate);
 
         // datetime  : 접수일자+시간 (yyyyMMdd + HHmm → datetime)
@@ -212,6 +213,11 @@ public class RequestRepairService {
         param.addValue("datetime",  receDt);
         param.addValue("datetime2", hitchDt);
 
+        // ── PB 규격 부가 컬럼 ────────────────────────────────
+        param.addValue("divicd",   getPeridDivicd(spjangcd, perid));   // 통보자 부서
+        param.addValue("cltcd",    getActCltcd(spjangcd, actcd));      // 현장 거래처
+        param.addValue("resultck", "0");                                // PB는 접수 시 '0'
+
         String sql = """
                 INSERT INTO TB_E401
                     (custcd, spjangcd, recedate, recenum, recetime,
@@ -219,14 +225,16 @@ public class RequestRepairService {
                      actcd, actnm, equpcd, equpnm,
                      contcd, contents, remark, reperid,
                      perid, inperid, indate,
-                     [datetime], [datetime2])
+                     [datetime], [datetime2],
+                     divicd, cltcd, resultck)
                 VALUES
                     (:custcd, :spjangcd, :recedate, :recenum, :recetime,
                      :hitchdate, :hitchhour,
                      :actcd, :actnm, :equpcd, :equpnm,
                      :contcd, :contents, :remark, :reperid,
                      :perid, :inperid, :indate,
-                     :datetime, :datetime2)
+                     :datetime, :datetime2,
+                     :divicd, :cltcd, :resultck)
                 """;
 
         namedParameterJdbcTemplate.update(sql, param);
@@ -237,7 +245,7 @@ public class RequestRepairService {
             String spjangcd, String recedate, String recenum,
             String recetime, String hitchdate, String hitchhour,
             String actcd, String actnm, String equpcd, String equpnm,
-            String contcd, String contents, String remark, String reperid) {
+            String contcd, String contents, String remark, String perid) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd",  spjangcd);
@@ -253,7 +261,8 @@ public class RequestRepairService {
         param.addValue("contcd",    contcd);
         param.addValue("contents",  contents);
         param.addValue("remark",    remark);
-        param.addValue("reperid",   reperid);
+        // ★ 통보자(perid)만 갱신. 접수자(reperid)는 등록 시점 값 보존
+        param.addValue("perid",     perid);
 
         java.time.LocalDateTime receDt  = toLocalDateTime(recedate, recetime);
         java.time.LocalDateTime hitchDt = toLocalDateTime(hitchdate, hitchhour);
@@ -272,7 +281,7 @@ public class RequestRepairService {
                     contcd    = :contcd,
                     contents  = :contents,
                     remark    = :remark,
-                    reperid   = :reperid,
+                    perid     = :perid,
                     [datetime]  = :datetime,
                     [datetime2] = :datetime2
                 WHERE spjangcd = :spjangcd
@@ -294,6 +303,32 @@ public class RequestRepairService {
                   AND recedate = :recedate
                   AND recenum  = :recenum
                 """, param);
+    }
+
+    // ── 통보자 부서코드 조회 (TB_JA001.divicd) ─────────────────
+    private String getPeridDivicd(String spjangcd, String peridRaw) {
+        if (peridRaw == null || peridRaw.isBlank()) return null;
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("perid",    "p" + peridRaw.trim().replaceFirst("^p", ""));
+        List<Map<String, Object>> rows = this.sqlRunner.getRows("""
+                SELECT TOP 1 divicd FROM TB_JA001
+                WHERE spjangcd = :spjangcd AND perid = :perid
+                """, param);
+        return rows.isEmpty() ? null : (String) rows.get(0).get("divicd");
+    }
+
+    // ── 현장 거래처코드 조회 (TB_E601.cltcd) ───────────────────
+    private String getActCltcd(String spjangcd, String actcd) {
+        if (actcd == null || actcd.isBlank()) return null;
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("actcd",    actcd);
+        List<Map<String, Object>> rows = this.sqlRunner.getRows("""
+                SELECT TOP 1 cltcd FROM TB_E601
+                WHERE spjangcd = :spjangcd AND actcd = :actcd
+                """, param);
+        return rows.isEmpty() ? null : (String) rows.get(0).get("cltcd");
     }
 
     // ── yyyyMMdd + HHmm → LocalDateTime ─────────────────────

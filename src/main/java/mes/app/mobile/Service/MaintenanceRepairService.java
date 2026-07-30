@@ -140,7 +140,7 @@ public class MaintenanceRepairService {
                 FROM TB_E411 e
                 LEFT JOIN TB_JA001 j   ON j.perid    = 'p' + e.perid
                                       AND j.spjangcd  = e.spjangcd
-                LEFT JOIN TB_JA001 ap  ON ap.perid    = e.actperid
+                LEFT JOIN TB_JA001 ap  ON ap.perid    = 'p' + e.actperid
                                       AND ap.spjangcd = e.spjangcd
                 LEFT JOIN TB_JC002 jc  ON j.divicd   = jc.divicd
                 LEFT JOIN TB_E019 f19  ON f19.faccd   = e.faccd
@@ -152,6 +152,7 @@ public class MaintenanceRepairService {
                 LEFT JOIN TB_E401  a   ON a.recedate  = e.recedate
                                       AND a.recenum   = e.recenum
                                       AND a.spjangcd  = e.spjangcd
+                                      AND a.actcd     = e.actcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.recedate BETWEEN :fromDate AND :toDate
                 """;
@@ -269,13 +270,27 @@ public class MaintenanceRepairService {
         param.addValue("customer",   customer);
         param.addValue("resucd",     resucd);
         param.addValue("remark",     remark);
-        param.addValue("actperid",   actperid);
+        // ★ 컬럼 의미 (PB 규격)
+        //    perid    = 처리자  : 화면에서 선택한 처리자(actperid 파라미터), 'p' 제거
+        //    actperid = 담당자  : 접수건(TB_E401)의 통보자
+        //    inperid  = 등록자  : 로그인 사용자 (기존 유지)
+        String processorRaw = (actperid != null) ? actperid.trim().replaceFirst("^p", "") : "";
+
+        param.addValue("perid",      processorRaw);
+        param.addValue("actperid",   getRecePerid(spjangcd, recedate, recenum, actcd));
         param.addValue("result",     "1");
-        param.addValue("perid",      perid);
         param.addValue("inperid",    perid);
         param.addValue("indate",     compdate);
         param.addValue("filesvnm",   filesvnm != null ? filesvnm : "");
         param.addValue("filepath",   filepath  != null ? filepath  : "");
+
+        // ── PB 규격 부가 컬럼 (의미 확정된 것만) ──────────────
+        //   store / gubun / addgubun / trouble / troublesu 는 의미 미상 + DB별 값이
+        //   다를 수 있어 우선 미입력(NULL)으로 둔다
+        param.addValue("divicd",     getPeridDivicd(spjangcd, processorRaw));
+        param.addValue("cltcd",      getActCltcd(spjangcd, actcd));
+        param.addValue("resutime",   calcMinutes(recedate, recetime, arrivdate, arrivtime));
+        param.addValue("resulttime", calcMinutes(arrivdate, arrivtime, compdate, comptime));
 
         namedParameterJdbcTemplate.update("""
                 INSERT INTO TB_E411
@@ -290,7 +305,8 @@ public class MaintenanceRepairService {
                      customer, resucd,
                      remark, actperid, result,
                      perid, inperid, indate,
-                     filesvnm, filepath)
+                     filesvnm, filepath,
+                     divicd, cltcd, resutime, resulttime)
                 VALUES
                     (:custcd, :spjangcd, :compdate, :compnum, :comptime,
                      :recedate, :recenum, :recetime,
@@ -303,7 +319,8 @@ public class MaintenanceRepairService {
                      :customer, :resucd,
                      :remark, :actperid, :result,
                      :perid, :inperid, :indate,
-                     :filesvnm, :filepath)
+                     :filesvnm, :filepath,
+                     :divicd, :cltcd, :resutime, :resulttime)
                 """, param);
 
         // ── TB_E401 처리완료 상태 업데이트 ──────────────────
@@ -312,11 +329,15 @@ public class MaintenanceRepairService {
             updateParam.addValue("spjangcd", spjangcd);
             updateParam.addValue("recedate",  recedate);
             updateParam.addValue("recenum",   recenum);
+            updateParam.addValue("actcd",     actcd);
+            // ★ actcd 조건 필수: 같은 (recedate,recenum)에 현장이 다른 접수건이 존재할 수 있어
+            //   조건이 없으면 남의 접수건까지 완료 처리됨 (실제 피해 사례 확인됨)
             namedParameterJdbcTemplate.update("""
-                    UPDATE TB_E401 SET resultck = '1'
+                    UPDATE TB_E401 SET resultck = '1', trouble = '0'
                     WHERE spjangcd = :spjangcd
                       AND recedate = :recedate
                       AND recenum  = :recenum
+                      AND actcd    = :actcd
                     """, updateParam);
         }
 
@@ -325,7 +346,7 @@ public class MaintenanceRepairService {
         headParam.addValue("custcd",   custcd);
         headParam.addValue("spjangcd", spjangcd);
         headParam.addValue("rptdate",  compdate);
-        headParam.addValue("perid",    actperid);
+        headParam.addValue("perid",    processorRaw);   // ★ 업무일지 귀속 = 처리자 ('p' 제거)
 
         namedParameterJdbcTemplate.update("""
                 MERGE INTO TB_E037 AS target
@@ -354,13 +375,17 @@ public class MaintenanceRepairService {
         detailParam.addValue("custcd",   custcd);
         detailParam.addValue("spjangcd", spjangcd);
         detailParam.addValue("rptdate",  compdate);
-        detailParam.addValue("perid",    actperid);
+        detailParam.addValue("perid",    processorRaw);   // ★ 업무일지 귀속 = 처리자 ('p' 제거)
         detailParam.addValue("rptnum",   rptnum);
         detailParam.addValue("actcd",    actcd);
         detailParam.addValue("actnm",    actnm);
         detailParam.addValue("equpcd",   equpcd != null ? equpcd : "");
-        detailParam.addValue("wkcd",     "");
-        detailParam.addValue("frtime",   comptime != null ? comptime : "");
+        // ★ wkcd = TB_E021 구분코드 '004'(고장수리)
+        detailParam.addValue("wkcd",     "004");
+        // ★ frtime/totime = 도착~완료 (일일보고가 시작~종료를 넣는 것과 동일한 규칙)
+        //   도착시간이 없으면 완료시간으로 대체
+        detailParam.addValue("frtime",   (arrivtime != null && !arrivtime.isBlank()) ? arrivtime
+                                                                                    : (comptime != null ? comptime : ""));
         detailParam.addValue("totime",   comptime != null ? comptime : "");
         detailParam.addValue("remark",   customer != null ? customer : "");
         detailParam.addValue("filesvnm", filesvnm != null ? filesvnm : "");
@@ -480,7 +505,14 @@ public class MaintenanceRepairService {
         param.addValue("customer",   customer);
         param.addValue("resucd",     resucd);
         param.addValue("remark",     remark);
-        param.addValue("actperid",   actperid);
+        // ★ 처리자(perid)만 갱신. 담당자(actperid)는 PB/등록시점 값 보존을 위해 건드리지 않음
+        String processorRaw = (actperid != null) ? actperid.trim().replaceFirst("^p", "") : "";
+        param.addValue("perid",      processorRaw);
+        // ── PB 규격 부가 컬럼 (일시/처리자 변경 시 재계산) ──
+        param.addValue("divicd",     getPeridDivicd(spjangcd, processorRaw));
+        param.addValue("cltcd",      getActCltcd(spjangcd, actcd));
+        param.addValue("resutime",   calcMinutes(recedate, recetime, arrivdate, arrivtime));
+        param.addValue("resulttime", calcMinutes(arrivdate, arrivtime, compdate, comptime));
 
         namedParameterJdbcTemplate.update("""
                 UPDATE TB_E411 SET
@@ -504,7 +536,11 @@ public class MaintenanceRepairService {
                     customer   = :customer,
                     resucd     = :resucd,
                     remark     = :remark,
-                    actperid   = :actperid
+                    perid      = :perid,
+                    divicd     = :divicd,
+                    cltcd      = :cltcd,
+                    resutime   = :resutime,
+                    resulttime = :resulttime
                 WHERE spjangcd = :spjangcd
                   AND compdate = :compdate
                   AND compnum  = :compnum
@@ -518,9 +554,9 @@ public class MaintenanceRepairService {
         param.addValue("compdate", compdate);
         param.addValue("compnum",  compnum);
 
-        // 삭제 전 recedate, recenum 조회 (TB_E401 상태 복원용)
+        // 삭제 전 recedate, recenum, actcd 조회 (TB_E401 상태 복원용)
         Map<String, Object> row = namedParameterJdbcTemplate.queryForList("""
-                SELECT recedate, recenum FROM TB_E411
+                SELECT recedate, recenum, actcd FROM TB_E411
                 WHERE spjangcd = :spjangcd
                   AND compdate = :compdate
                   AND compnum  = :compnum
@@ -537,20 +573,103 @@ public class MaintenanceRepairService {
         if (row != null) {
             String recedate = row.get("recedate") != null ? row.get("recedate").toString() : null;
             String recenum  = row.get("recenum")  != null ? row.get("recenum").toString()  : null;
-            if (recedate != null && recenum != null) {
+            String actcd    = row.get("actcd")    != null ? row.get("actcd").toString()    : null;
+            if (recedate != null && recenum != null && actcd != null) {
                 MapSqlParameterSource updateParam = new MapSqlParameterSource();
                 updateParam.addValue("spjangcd", spjangcd);
                 updateParam.addValue("recedate",  recedate);
                 updateParam.addValue("recenum",   recenum);
+                updateParam.addValue("actcd",     actcd);
+                // ★ actcd 조건 필수: 없으면 같은 (recedate,recenum)의 남의 접수건까지 미처리로 되돌아감
                 namedParameterJdbcTemplate.update("""
                         UPDATE TB_E401
                         SET resultck = NULL
                         WHERE spjangcd = :spjangcd
                           AND recedate = :recedate
                           AND recenum  = :recenum
+                          AND actcd    = :actcd
                         """, updateParam);
             }
         }
+    }
+
+    // ── 두 일시(yyyyMMdd + HHmm) 사이의 분 차이 ────────────────
+    //   PB 규격: resutime = 접수→도착(대응시간), resulttime = 도착→완료(처리시간)
+    private Integer calcMinutes(String fromDate, String fromTime, String toDate, String toTime) {
+        try {
+            if (fromDate == null || fromDate.isBlank() || toDate == null || toDate.isBlank()) return null;
+            if (fromTime == null || fromTime.length() < 4 || toTime == null || toTime.length() < 4) return null;
+
+            java.time.LocalDateTime from = java.time.LocalDateTime.of(
+                    Integer.parseInt(fromDate.substring(0, 4)),
+                    Integer.parseInt(fromDate.substring(4, 6)),
+                    Integer.parseInt(fromDate.substring(6, 8)),
+                    Integer.parseInt(fromTime.substring(0, 2)),
+                    Integer.parseInt(fromTime.substring(2, 4)));
+            java.time.LocalDateTime to = java.time.LocalDateTime.of(
+                    Integer.parseInt(toDate.substring(0, 4)),
+                    Integer.parseInt(toDate.substring(4, 6)),
+                    Integer.parseInt(toDate.substring(6, 8)),
+                    Integer.parseInt(toTime.substring(0, 2)),
+                    Integer.parseInt(toTime.substring(2, 4)));
+
+            long min = java.time.Duration.between(from, to).toMinutes();
+            return (min < 0) ? null : (int) min;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    // ── 처리자 부서코드 조회 (TB_JA001.divicd) ─────────────────
+    private String getPeridDivicd(String spjangcd, String peridRaw) {
+        if (peridRaw == null || peridRaw.isBlank()) return null;
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("perid",    "p" + peridRaw);
+        List<Map<String, Object>> rows = this.sqlRunner.getRows("""
+                SELECT TOP 1 divicd FROM TB_JA001
+                WHERE spjangcd = :spjangcd AND perid = :perid
+                """, param);
+        return rows.isEmpty() ? null : (String) rows.get(0).get("divicd");
+    }
+
+    // ── 현장 거래처코드 조회 (TB_E601.cltcd) ───────────────────
+    private String getActCltcd(String spjangcd, String actcd) {
+        if (actcd == null || actcd.isBlank()) return null;
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("actcd",    actcd);
+        List<Map<String, Object>> rows = this.sqlRunner.getRows("""
+                SELECT TOP 1 cltcd FROM TB_E601
+                WHERE spjangcd = :spjangcd AND actcd = :actcd
+                """, param);
+        return rows.isEmpty() ? null : (String) rows.get(0).get("cltcd");
+    }
+
+    // ── 접수건 통보자 조회 (담당자 actperid 세팅용) ────────────
+    //   PB: dw_1.SetItem(row, "actperid", str_e401.perid) 과 동일한 규칙
+    //   ★ custcd 는 조건에서 제외: TB_E401 에 custcd 가 빈 행이 존재해
+    //     (spjangcd, recedate, recenum, actcd) 로 특정한다
+    private String getRecePerid(String spjangcd, String recedate, String recenum, String actcd) {
+        if (recedate == null || recedate.isBlank() || recenum == null || recenum.isBlank()) return "";
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("recedate", recedate);
+        param.addValue("recenum",  recenum);
+        param.addValue("actcd",    actcd);
+
+        List<Map<String, Object>> rows = this.sqlRunner.getRows("""
+                SELECT TOP 1 perid
+                FROM TB_E401
+                WHERE spjangcd = :spjangcd
+                  AND recedate = :recedate
+                  AND recenum  = :recenum
+                  AND actcd    = :actcd
+                """, param);
+
+        if (rows.isEmpty() || rows.get(0).get("perid") == null) return "";
+        return String.valueOf(rows.get(0).get("perid")).trim().replaceFirst("^p", "");
     }
 
     // ── compnum 채번 (001 ~ 999) ──────────────────────────────

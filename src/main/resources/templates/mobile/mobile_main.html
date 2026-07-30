@@ -469,6 +469,13 @@
         return;
       }
 
+      // ✅ 주소(gpsInfo) 바인드 전 출근 차단 (좌표는 있어도 역지오코딩이 늦어 address 가 비는 문제 방지)
+      const inAddress = document.getElementById('gpsInfo').innerText.trim();
+      if (!inAddress) {
+        Alert.alert('', '주소정보를 불러오지 못했습니다.\n새로고침을 진행합니다.', reloadWindow);
+        return;
+      }
+
       // ✅ 다른 유저 출근 여부 체크 (이름 대신 ID로 비교)
       const savedUser = localStorage.getItem('commuteUser');
 
@@ -489,7 +496,7 @@
         workcd:     document.getElementById('selectWorkcd').value,
         latitude:   latitude,
         longitude:  longitude,
-        gpsInfo:    document.getElementById('gpsInfo').innerText,
+        gpsInfo:    inAddress,
         remark:     document.getElementById('remarkInput').value.trim(),
         isOvertime: isOvertime  // ✅ 추가근무 여부 전달
       };

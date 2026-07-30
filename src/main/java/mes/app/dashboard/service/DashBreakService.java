@@ -27,7 +27,7 @@ public class DashBreakService {
                 SELECT
                     SUM(CASE WHEN recedate = :today    THEN 1 ELSE 0 END) AS todayCnt,
                     SUM(CASE WHEN recedate >= :monthFr THEN 1 ELSE 0 END) AS monthCnt,
-                    SUM(CASE WHEN resultck IS NULL     THEN 1 ELSE 0 END) AS pendingCnt,
+                    SUM(CASE WHEN resultck IS NULL OR resultck <> '1' THEN 1 ELSE 0 END) AS pendingCnt,
                     SUM(CASE WHEN resultck = '1'       THEN 1 ELSE 0 END) AS doneCnt
                 FROM TB_E401
                 WHERE spjangcd = :spjangcd

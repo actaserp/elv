@@ -29,10 +29,10 @@ public class WebRequestService {
 
         String sql = """
                 SELECT
-                    COUNT(*)                                                 AS callcount,
-                    SUM(CASE WHEN resultck IS NULL THEN 1 ELSE 0 END)       AS rececnt,
-                    0                                                        AS callback,
-                    SUM(CASE WHEN resultck = '1'   THEN 1 ELSE 0 END)       AS compcnt
+                    COUNT(*)                                                                    AS callcount,
+                    SUM(CASE WHEN resultck IS NULL OR resultck <> '1' THEN 1 ELSE 0 END)        AS rececnt,
+                    0                                                                            AS callback,
+                    SUM(CASE WHEN resultck = '1'   THEN 1 ELSE 0 END)                           AS compcnt
                 FROM TB_E401
                 WHERE spjangcd = :spjangcd
                   AND recedate = :today
@@ -105,6 +105,13 @@ public class WebRequestService {
             // 신규 INSERT - recenum 채번
             recenum = getNextRecenum(spjangcd, recedate);
 
+            // ★ perid/reperid 는 'p' 없는 사번으로 통일 (PB / 모바일 규칙)
+            String peridRaw   = (perid   != null) ? perid.replaceFirst("^p", "")   : "";
+            String reperidRaw = (reperid != null) ? reperid.replaceFirst("^p", "") : "";
+
+            // ★ 통보자(perid)의 부서코드 조회 → divicd 저장 (PB 는 통보자 부서를 채움)
+            String divicd = getPeridDivicd(spjangcd, peridRaw);
+
             MapSqlParameterSource param = new MapSqlParameterSource();
             param.addValue("custcd",    custcd);
             param.addValue("spjangcd",  spjangcd);
@@ -117,35 +124,49 @@ public class WebRequestService {
             param.addValue("actnm",     actnm);
             param.addValue("equpcd",    equpcd);
             param.addValue("equpnm",    equpnm);
-            param.addValue("reperid",   reperid);
-            param.addValue("perid",     perid);
+            param.addValue("reperid",   reperidRaw);
+            param.addValue("perid",     peridRaw);
             param.addValue("contcd",    contcd);
             param.addValue("contents",  contents);
             param.addValue("remark",    remark);
-            param.addValue("inperid",   perid);
+            param.addValue("divicd",    divicd);
+            param.addValue("inperid",   peridRaw);
             param.addValue("indate",    today);
+
+            // ── PB 규격 부가 컬럼 ────────────────────────────
+            param.addValue("cltcd",     getActCltcd(spjangcd, actcd));           // 현장 거래처
+            param.addValue("resultck",  "0");                                     // PB는 접수 시 '0'
+            param.addValue("datetime",  toLocalDateTime(recedate,  recetime));    // 접수일시
+            param.addValue("datetime2", toLocalDateTime(hitchdate, hitchhour));   // 고장일시
 
             String sql = """
                     INSERT INTO TB_E401
                         (custcd, spjangcd, recedate, recenum, recetime,
                          hitchdate, hitchhour,
                          actcd, actnm, equpcd, equpnm,
-                         reperid, perid,
+                         reperid, perid, divicd,
                          contcd, contents, remark,
-                         inperid, indate)
+                         inperid, indate,
+                         cltcd, resultck, [datetime], [datetime2])
                     VALUES
                         (:custcd, :spjangcd, :recedate, :recenum, :recetime,
                          :hitchdate, :hitchhour,
                          :actcd, :actnm, :equpcd, :equpnm,
-                         :reperid, :perid,
+                         :reperid, :perid, :divicd,
                          :contcd, :contents, :remark,
-                         :inperid, :indate)
+                         :inperid, :indate,
+                         :cltcd, :resultck, :datetime, :datetime2)
                     """;
 
             namedParameterJdbcTemplate.update(sql, param);
 
         } else {
             // 수정 UPDATE
+            // ★ perid/reperid 'p' 제거 + 통보자 부서(divicd) 재조회
+            String peridRaw   = (perid   != null) ? perid.replaceFirst("^p", "")   : "";
+            String reperidRaw = (reperid != null) ? reperid.replaceFirst("^p", "") : "";
+            String divicd     = getPeridDivicd(spjangcd, peridRaw);
+
             MapSqlParameterSource param = new MapSqlParameterSource();
             param.addValue("spjangcd",  spjangcd);
             param.addValue("recedate",  recedate);
@@ -157,11 +178,15 @@ public class WebRequestService {
             param.addValue("actnm",     actnm);
             param.addValue("equpcd",    equpcd);
             param.addValue("equpnm",    equpnm);
-            param.addValue("reperid",   reperid);
-            param.addValue("perid",     perid);
+            param.addValue("reperid",   reperidRaw);
+            param.addValue("perid",     peridRaw);
+            param.addValue("divicd",    divicd);
             param.addValue("contcd",    contcd);
             param.addValue("contents",  contents);
             param.addValue("remark",    remark);
+            param.addValue("cltcd",     getActCltcd(spjangcd, actcd));
+            param.addValue("datetime",  toLocalDateTime(recedate,  recetime));
+            param.addValue("datetime2", toLocalDateTime(hitchdate, hitchhour));
 
             String sql = """
                     UPDATE TB_E401 SET
@@ -174,9 +199,13 @@ public class WebRequestService {
                         equpnm    = :equpnm,
                         reperid   = :reperid,
                         perid     = :perid,
+                        divicd    = :divicd,
                         contcd    = :contcd,
                         contents  = :contents,
-                        remark    = :remark
+                        remark    = :remark,
+                        cltcd     = :cltcd,
+                        [datetime]  = :datetime,
+                        [datetime2] = :datetime2
                     WHERE spjangcd = :spjangcd
                       AND recedate = :recedate
                       AND recenum  = :recenum
@@ -465,6 +494,64 @@ public class WebRequestService {
 
 //        log.info("[getElvInfo] 응답내용: {}", sb.toString());
         return sb.toString();
+    }
+
+    // ── 통보자(perid) 부서코드 조회 (TB_JA001.divicd) ────────
+    //   TB_E401.divicd 에 통보자 부서를 저장하기 위함 (PB 규칙)
+    private String getPeridDivicd(String spjangcd, String peridRaw) {
+        if (peridRaw == null || peridRaw.isBlank()) return null;
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("perid", "p" + peridRaw);   // TB_JA001.perid = 'p'+사번
+        String sql = """
+                SELECT TOP 1 divicd
+                FROM TB_JA001
+                WHERE spjangcd = :spjangcd
+                  AND perid    = :perid
+                """;
+        try {
+            Map<String, Object> row = sqlRunner.getRow(sql, param);
+            return (row != null) ? (String) row.get("divicd") : null;
+        } catch (Exception e) {
+            log.warn("getPeridDivicd 조회 실패 perid={}: {}", peridRaw, e.getMessage());
+            return null;
+        }
+    }
+
+    // ── 현장 거래처코드 조회 (TB_E601.cltcd) ─────────────────
+    private String getActCltcd(String spjangcd, String actcd) {
+        if (actcd == null || actcd.isBlank()) return null;
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("actcd",    actcd);
+        try {
+            Map<String, Object> row = sqlRunner.getRow("""
+                    SELECT TOP 1 cltcd
+                    FROM TB_E601
+                    WHERE spjangcd = :spjangcd
+                      AND actcd    = :actcd
+                    """, param);
+            return (row != null) ? (String) row.get("cltcd") : null;
+        } catch (Exception e) {
+            log.warn("getActCltcd 조회 실패 actcd={}: {}", actcd, e.getMessage());
+            return null;
+        }
+    }
+
+    // ── yyyyMMdd + HHmm → LocalDateTime ─────────────────────
+    private java.time.LocalDateTime toLocalDateTime(String date, String time) {
+        try {
+            if (date == null || date.isBlank()) return null;
+            String t = (time != null && time.length() >= 4) ? time.substring(0, 4) : "0000";
+            return java.time.LocalDateTime.of(
+                    Integer.parseInt(date.substring(0, 4)),
+                    Integer.parseInt(date.substring(4, 6)),
+                    Integer.parseInt(date.substring(6, 8)),
+                    Integer.parseInt(t.substring(0, 2)),
+                    Integer.parseInt(t.substring(2, 4)));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // ── recenum 채번 ──────────────────────────────────────────

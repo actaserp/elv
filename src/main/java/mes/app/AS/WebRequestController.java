@@ -77,10 +77,21 @@ public class WebRequestController {
             @RequestParam(value = "contcd",   required = false) String contcd,
             @RequestParam(value = "contents", required = false) String contents,
             @RequestParam(value = "remark",   required = false) String remark,
-            HttpServletRequest request) {
+            HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
         try {
+            // ★ custcd 보정: 프론트가 user_info 비동기 조회 전에 저장하면 빈 값으로 전송됨.
+            //   빈 값 그대로 INSERT 되면 PB 조회(a.custcd = b.custcd)에서 처리내역이 안 붙음.
+            if (custcd == null || custcd.isBlank()) {
+                User user = (User) auth.getPrincipal();
+                Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
+                if (userInfo != null && userInfo.get("custcd") != null) {
+                    custcd = userInfo.get("custcd").toString();
+                }
+                log.warn("[고장접수] custcd 미전달 → 서버 보정: {}", custcd);
+            }
+
             webRequestService.save(spjangcd, custcd,
                     recedate, recenum, recetime,
                     hitchdate, hitchhour,

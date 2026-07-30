@@ -59,9 +59,10 @@ public class WebHandleController {
             @RequestParam(value = "spjangcd") String spjangcd,
             @RequestParam(value = "recedate") String recedate,
             @RequestParam(value = "recenum")  String recenum,
+            @RequestParam(value = "actcd", required = false) String actcd,
             HttpServletRequest request) {
         AjaxResult result = new AjaxResult();
-        result.data = webHandleService.getCompByReceive(spjangcd, recedate, recenum);
+        result.data = webHandleService.getCompByReceive(spjangcd, recedate, recenum, actcd);
         return result;
     }
 

@@ -154,7 +154,7 @@
                 <div class="form-row">
                     <label>통보(전달)자</label>
                     <input type="text" id="regRepernm" placeholder="통보자 선택" readonly onclick="openPerPopup()">
-                    <input type="hidden" id="regReperid">
+                    <input type="hidden" id="regPerid">
                 </div>
                 <div class="form-row">
                     <input type="hidden" id="regBigo">
@@ -327,7 +327,7 @@
             contents  : document.getElementById('regContentsDetail').value,
             contcd    : document.getElementById('regContcd').value,
             remark    : document.getElementById('regRemark').value,
-            reperid   : document.getElementById('regReperid').value,
+            perid     : document.getElementById('regPerid').value,   // 통보자(화면 선택)
             bigo      : document.getElementById('regBigo').value,
         };
 
@@ -393,7 +393,7 @@
     }
 
     function setPerData(item) {
-        document.getElementById('regReperid').value  = (item.code || '').replace(/^p/, '');
+        document.getElementById('regPerid').value    = (item.code || '').replace(/^p/, '');
         document.getElementById('regRepernm').value  = item.name || '';
         closePopup('perPopup');
     }

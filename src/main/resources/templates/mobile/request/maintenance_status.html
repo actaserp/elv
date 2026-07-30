@@ -420,7 +420,7 @@
                 </div>
                 ${item.equpnm     ? `<div class="card-row"><span class="card-label">호기명</span><span class="card-value">${esc(item.equpnm)}</span></div>` : ''}
                 ${item.contremark ? `<div class="card-row"><span class="card-label">고장내용</span><span class="card-value">${esc(item.contremark)}</span></div>` : ''}
-                ${item.actpernm ? `<div class="card-row"><span class="card-label">처리자</span><span class="card-value">${esc(item.actpernm)}</span></div>` : ''}
+                ${item.pernm ? `<div class="card-row"><span class="card-label">처리자</span><span class="card-value">${esc(item.pernm)}</span></div>` : ''}
             </div>`;
         });
         container.innerHTML = html;
@@ -445,8 +445,8 @@
         html += buildDetailRows([
             { label: '현장명', value: item.actnm     },
             { label: '호기명', value: item.equpnm    },
-            { label: '처리자', value: item.actpernm  },
-            { label: '등록자', value: item.pernm     },
+            { label: '처리자', value: item.pernm     },
+            { label: '담당자', value: item.actpernm  },
             { label: '부서명', value: item.divinm    },
         ]);
         html += `<div class="detail-section-title">고장/처리 내용</div>`;
@@ -507,8 +507,8 @@
         document.getElementById('editResultnm').value       = item.remark      || '';
         document.getElementById('editResultcd').value       = item.resultcd    || '';
         document.getElementById('editCustomer').value       = item.customer    || '';
-        document.getElementById('editActperid').value       = item.actperid    || '';
-        document.getElementById('editProcessorNm').value    = item.actpernm    || '';
+        document.getElementById('editActperid').value       = item.perid      || '';
+        document.getElementById('editProcessorNm').value    = item.pernm      || '';
 
         closePopup('detailPopup');
         openPopup('editPopup');
