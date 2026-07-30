@@ -41,17 +41,18 @@
             flex-direction: column;
         }
 
-        /* 높이: 화면이 작아지면 같이 줄어듦 (최소 높이 보장) */
+        /* 높이: JS(fitLayoutHeight)가 실제 여백을 측정해 인라인으로 지정.
+           아래 값은 JS 실행 전/실패 시의 폴백이므로 !important 를 쓰지 않음 */
         #grid,
         #day-grid {
-            height: clamp(300px, calc(100vh - 400px), 650px) !important;
+            height: 500px;
             max-height: none !important;
         }
         #map {
-            height: clamp(240px, calc(100vh - 470px), 508px) !important;
+            height: 460px;
         }
         #monthly-grid {
-            height: clamp(300px, calc(100vh - 330px), 650px) !important;
+            height: 500px;
             max-height: none !important;
         }
 
@@ -1075,6 +1076,56 @@
 
         let page = null;
 
+        /* ═══════════════════════════════════════════════════
+           그리드/지도 높이를 화면에 맞춤
+           - 검색영역이 2줄로 접히는 등 상단 높이가 변해도
+             실제 위치를 측정하므로 항상 정확
+           - 하단 가로 스크롤바가 화면 밖으로 나가지 않게 함
+        ═══════════════════════════════════════════════════ */
+        function fitLayoutHeight() {
+            const BOTTOM_GAP = 56;   // footer + 여백
+            const MIN_H      = 280;
+
+            const setH = function (el, h) {
+                if (el) el.style.height = Math.max(MIN_H, h) + 'px';
+            };
+            // 화면에 보이는 요소인지 (숨은 탭 제외)
+            const visible = function (el) {
+                return el && el.offsetParent !== null;
+            };
+
+            // ── 일별 탭 ──
+            const dayGrid = document.getElementById('day-grid');
+            if (visible(dayGrid)) {
+                const top = dayGrid.getBoundingClientRect().top;
+                const h   = window.innerHeight - top - BOTTOM_GAP;
+
+                setH(dayGrid, h);
+                setH(document.getElementById('grid'), h);
+                // 지도는 아래 gpsInfo 영역만큼 뺌
+                setH(document.getElementById('map'), h - 36);
+            }
+
+            // ── 월별 탭 ──
+            const monthlyGrid = document.getElementById('monthly-grid');
+            if (visible(monthlyGrid)) {
+                const top = monthlyGrid.getBoundingClientRect().top;
+                setH(monthlyGrid, window.innerHeight - top - BOTTOM_GAP);
+            }
+
+            // wijmo / kakao 내부 크기 갱신
+            if (page) {
+                if (page.grid)  page.grid.invalidate();
+                if (page.grid2) page.grid2.invalidate();
+                if (page.grid3) page.grid3.invalidate();
+            }
+            if (map && typeof map.relayout === 'function') {
+                const center = map.getCenter();
+                map.relayout();
+                if (center) map.setCenter(center);
+            }
+        }
+
         $(document).ready(function (e) {
             //yullinAuth.inspection();
             yullinAuth.removeWriteButton();
@@ -1183,25 +1234,21 @@
                 page.searchMainData();
             });
 
-            // ── 창 크기 변경 시 지도/그리드 재배치 ──────────────
-            //   CSS 로 높이가 줄어들어도 wijmo/kakao 는 내부 크기를
-            //   자동 갱신하지 않는 경우가 있어 명시적으로 호출
+            // ── 창 크기 변경 시 높이 재계산 ────────────────────
             let _resizeTimer = null;
             $(window).on('resize', function () {
                 clearTimeout(_resizeTimer);
-                _resizeTimer = setTimeout(function () {
-                    if (map && typeof map.relayout === 'function') {
-                        const center = map.getCenter();
-                        map.relayout();
-                        map.setCenter(center);
-                    }
-                    if (page) {
-                        if (page.grid)  page.grid.invalidate();
-                        if (page.grid2) page.grid2.invalidate();
-                        if (page.grid3) page.grid3.invalidate();
-                    }
-                }, 200);
+                _resizeTimer = setTimeout(fitLayoutHeight, 150);
             });
+
+            // ── 탭 전환 시에도 재계산 (숨어있던 탭은 측정 불가) ──
+            $('.tab-links a').on('click', function () {
+                setTimeout(fitLayoutHeight, 50);
+            });
+
+            // ── 최초 진입 ─────────────────────────────────────
+            //   그리드/지도 렌더링이 끝난 뒤 측정해야 정확
+            setTimeout(fitLayoutHeight, 300);
 
         });
         function bindSelectFromAPI(selectElement, list, includeAll = true){
