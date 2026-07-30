@@ -8,6 +8,59 @@
         .wj-cell.no-uncheck input[type=checkbox] {
             pointer-events: none;
         }
+
+        /* ═══════════════════════════════════════════════════
+           일/월별 근태현황 반응형 (이 화면 전용 - 공통 CSS 미변경)
+           - 그리드/지도 높이를 뷰포트 기준으로 축소시켜
+             하단 가로 스크롤바가 화면 밖으로 밀리지 않게 함
+        ═══════════════════════════════════════════════════ */
+        .att-row {
+            display: flex;
+            align-items: stretch;
+            gap: 8px;
+            flex-wrap: nowrap;
+        }
+        /* 좌측 일자 목록 */
+        .att-row > .att-col-date {
+            width: 15%;
+            min-width: 120px;
+            flex: 0 0 auto;
+        }
+        /* 가운데 근태 그리드
+           min-width:0 이 없으면 flex 항목이 내용 크기만큼 버텨서 우측으로 넘침 */
+        .att-row > .att-col-grid {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+        /* 우측 지도 */
+        .att-row > .att-col-map {
+            width: 25%;
+            min-width: 200px;
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 높이: 화면이 작아지면 같이 줄어듦 (최소 높이 보장) */
+        #grid,
+        #day-grid {
+            height: clamp(300px, calc(100vh - 400px), 650px) !important;
+            max-height: none !important;
+        }
+        #map {
+            height: clamp(240px, calc(100vh - 470px), 508px) !important;
+        }
+        #monthly-grid {
+            height: clamp(300px, calc(100vh - 330px), 650px) !important;
+            max-height: none !important;
+        }
+
+        /* 폭이 좁아지면 검색영역·버튼영역이 줄바꿈되도록 */
+        #tab1 .section-top,
+        #tab2 .section-top {
+            flex-wrap: wrap;
+            row-gap: 8px;
+        }
     </style>
 </head>
 
@@ -125,24 +178,24 @@
                         </div>
                     </div> <!--//section-top end -->
 
-                    <div class="row">
-                        <div class="col wp15">
+                    <div class="row att-row">
+                        <div class="col wp15 att-col-date">
                             <div class="container-fluid">
-                                <div id="grid" style="height: 570px; max-height: 650px;"></div>
+                                <div id="grid"></div>
                             </div>
                         </div>
 
-                        <div class="wp60">
+                        <div class="wp60 att-col-grid">
                             <div class="container-fluid">
                                 <p id="selectedItem"></p>
-                                <div id="day-grid" style="height: 570px; max-height: 650px;"></div>
+                                <div id="day-grid"></div>
                             </div>
                         </div>
-                        <div style="display: flex; flex-direction: column; width: 25%;">
+                        <div class="att-col-map">
                             <section style="flex: 1; box-sizing: border-box;">
                                 <!-- 지도 영역 -->
                                 <div style="">
-                                    <div id="map" style="width:100%; height:508px;"></div>
+                                    <div id="map" style="width:100%;"></div>
                                     <div id="gpsInfo" style="margin-top:10px; font-weight:bold;"></div>
                                 </div>
 
@@ -232,7 +285,7 @@
                     </div>
                     <div class="container-fluid">
                         <p id="selectedItem"></p>
-                        <div id="monthly-grid" style="height: 650px; max-height: 650px;"></div>
+                        <div id="monthly-grid"></div>
                     </div>
 
                 </section>
@@ -1128,6 +1181,26 @@
             $('#work_division, #depart').change(function () {
                 // 값이 변경되었을 때 searchData 함수를 호출
                 page.searchMainData();
+            });
+
+            // ── 창 크기 변경 시 지도/그리드 재배치 ──────────────
+            //   CSS 로 높이가 줄어들어도 wijmo/kakao 는 내부 크기를
+            //   자동 갱신하지 않는 경우가 있어 명시적으로 호출
+            let _resizeTimer = null;
+            $(window).on('resize', function () {
+                clearTimeout(_resizeTimer);
+                _resizeTimer = setTimeout(function () {
+                    if (map && typeof map.relayout === 'function') {
+                        const center = map.getCenter();
+                        map.relayout();
+                        map.setCenter(center);
+                    }
+                    if (page) {
+                        if (page.grid)  page.grid.invalidate();
+                        if (page.grid2) page.grid2.invalidate();
+                        if (page.grid3) page.grid3.invalidate();
+                    }
+                }, 200);
             });
 
         });
