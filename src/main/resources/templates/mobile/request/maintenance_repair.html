@@ -579,8 +579,11 @@
             const div = document.createElement('div');
             div.className = 'repair-list-item';
 
-            const statusText  = item.resultck ? '처리완료' : '미처리';
-            const statusClass = item.resultck ? 'done' : '';
+            // ★ resultck: '1' = 처리완료, 그 외('0'/''/null/공백) = 미처리
+            //   문자열 '0' 은 JS 에서 truthy 라 단순 조건식이면 완료로 잘못 표시됨
+            const isDone      = String(item.resultck || '').trim() === '1';
+            const statusText  = isDone ? '처리완료' : '미처리';
+            const statusClass = isDone ? 'done' : '';
             const dateStr     = formatDate(item.recedate) + (item.recetime ? ' ' + formatTime(item.recetime) : '');
 
             div.innerHTML = `

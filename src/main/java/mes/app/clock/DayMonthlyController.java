@@ -206,6 +206,7 @@ public class DayMonthlyController {
 
     // =========================================================
     // 월정산 실행
+    //   - 월마감된 인원이 있으면 중단하고 마감취소 안내
     // =========================================================
     @GetMapping("/getMonthlyList")
     public AjaxResult getMonthlyList(
@@ -218,17 +219,23 @@ public class DayMonthlyController {
             startdate = startdate.replaceAll("-", "");
         }
 
-        int insertCount = this.dayMonthlyService.insertWorkSummary(spjangcd, startdate);
+        Map<String, Object> summary = this.dayMonthlyService.insertWorkSummary(spjangcd, startdate);
 
-        Map<String, Object> responseData = new HashMap<>();
-        responseData.put("insertCount", insertCount);
-        result.data = responseData;
+        int fixedCount  = ((Number) summary.get("fixedCount")).intValue();
+        int insertCount = ((Number) summary.get("insertCount")).intValue();
 
-        if (insertCount == 0) {
+        result.data = summary;
+
+        if (fixedCount > 0) {
+            result.success = false;
+            result.message = "이미 월 마감된 인원이 " + fixedCount + "명 있습니다.\n"
+                           + "월 마감 취소 후 다시 정산해주세요.";
+        } else if (insertCount == 0) {
             result.success = false;
             result.message = "일별마감 데이터가 없습니다.";
         } else {
             result.success = true;
+            result.message = insertCount + "명 정산되었습니다.";
         }
 
         return result;

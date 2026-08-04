@@ -399,38 +399,71 @@ public class DayMonthlyService {
     }
 
     // =========================================================
-    // 월정산 실행
+    // 월정산 실행 (재정산 가능)
+    //   - 이미 월마감(fixflag='1')된 인원이 한 명이라도 있으면 중단
+    //     → 월 마감 취소 후 재정산하도록 안내
+    //   - 미마감(fixflag='0') 행만 삭제 후 재집계하므로 중복 누적 없음
+    //   반환: { fixedCount : 월마감 인원수, insertCount : 재집계 건수 }
     // =========================================================
-    public int insertWorkSummary(String spjangcd, String workym) {
-        String sql = """
-        INSERT INTO tb_pb203 (
-            workym, workday, personid, fixflag,
-            worktime, nomaltime, overtime, nighttime, holitime,
-            jitime, jotime, yuntime, abtime, bantime, spjangcd
-        )
-        SELECT
-            ? AS workym,
-            COUNT(*) AS workday,
-            t.perid,
-            0 AS fixflag,
-            SUM(t.worktime),
-            SUM(t.nomaltime),
-            SUM(t.overtime),
-            SUM(t.nighttime),
-            SUM(t.holitime),
-            SUM(t.jitime),
-            SUM(t.jotime),
-            SUM(t.yuntime),
-            SUM(t.abtime),
-            SUM(t.bantime),
-            t.spjangcd
-        FROM tb_pb201 t
-        WHERE t.spjangcd = ?
-          AND t.workym = ?
-          AND t.fixflag = '1'
-        GROUP BY t.perid, t.workym, t.spjangcd
-        """;
-        return jdbcTemplate.update(sql, workym, spjangcd, workym);
+    @Transactional
+    public Map<String, Object> insertWorkSummary(String spjangcd, String workym) {
+        Map<String, Object> ret = new HashMap<>();
+
+        // 1) 월마감 인원 확인
+        String fixedSql = """
+                SELECT COUNT(*) FROM tb_pb203
+                WHERE spjangcd = ? AND workym = ? AND fixflag = '1'
+                """;
+        int fixedCount = jdbcTemplate.queryForObject(fixedSql, Integer.class, spjangcd, workym);
+
+        if (fixedCount > 0) {
+            ret.put("fixedCount",  fixedCount);
+            ret.put("insertCount", 0);
+            return ret;   // 재정산 중단
+        }
+
+        // 2) 미마감 행 삭제 (재정산 시 중복 방지)
+        String deleteSql = """
+                DELETE FROM tb_pb203
+                WHERE spjangcd = ? AND workym = ?
+                  AND (fixflag = '0' OR fixflag IS NULL)
+                """;
+        jdbcTemplate.update(deleteSql, spjangcd, workym);
+
+        // 3) 일별 마감(fixflag='1') 데이터로 재집계
+        String insertSql = """
+                INSERT INTO tb_pb203 (
+                    workym, workday, personid, fixflag,
+                    worktime, nomaltime, overtime, nighttime, holitime,
+                    jitime, jotime, yuntime, abtime, bantime, spjangcd
+                )
+                SELECT
+                    ? AS workym,
+                    COUNT(DISTINCT t.workday) AS workday,
+                    t.perid,
+                    '0' AS fixflag,
+                    SUM(t.worktime),
+                    SUM(t.nomaltime),
+                    SUM(t.overtime),
+                    SUM(t.nighttime),
+                    SUM(t.holitime),
+                    SUM(t.jitime),
+                    SUM(t.jotime),
+                    SUM(t.yuntime),
+                    SUM(t.abtime),
+                    SUM(t.bantime),
+                    t.spjangcd
+                FROM tb_pb201 t
+                WHERE t.spjangcd = ?
+                  AND t.workym = ?
+                  AND t.fixflag = '1'
+                GROUP BY t.perid, t.workym, t.spjangcd
+                """;
+        int insertCount = jdbcTemplate.update(insertSql, workym, spjangcd, workym);
+
+        ret.put("fixedCount",  0);
+        ret.put("insertCount", insertCount);
+        return ret;
     }
 
     // =========================================================
