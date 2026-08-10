@@ -1,6 +1,7 @@
 package mes.app.system;
 
 import lombok.extern.slf4j.Slf4j;
+import mes.app.common.TenantContext;
 import mes.app.common.TenantUserService;
 import mes.app.system.service.TenantUsageService;
 import mes.app.util.RedisService;
@@ -58,13 +59,27 @@ public class TenantUsageController {
         AjaxResult result = new AjaxResult();
 
         // ── 로그인 사용자의 사업장 (파라미터로 받지 않음) ──
+        //   1) TenantContext.get()  : 세션의 spjangcd (SQL 필터용 사업장코드)
+        //   2) user.getDbKey()      : 로그인 시 선택한 테넌트
+        //   3) TenantUserService    : 사업체DB 사원정보 경유 (본사계정은 조회 안 될 수 있음)
         User user = (User) auth.getPrincipal();
-        String spjangcd = tenantUserService.getSpjangcd(user.getUsername());
+
+        String spjangcd = TenantContext.get();
+
         if (spjangcd == null || spjangcd.isBlank()) {
+            spjangcd = user.getDbKey();
+        }
+        if (spjangcd == null || spjangcd.isBlank()) {
+            spjangcd = tenantUserService.getSpjangcd(user.getUsername());
+        }
+
+        if (spjangcd == null || spjangcd.isBlank()) {
+            log.warn("[TenantUsage] 사업장 확인 불가 username={}", user.getUsername());
             result.success = false;
             result.message = "사업장 정보를 확인할 수 없습니다.";
             return result;
         }
+        log.debug("[TenantUsage] spjangcd={}", spjangcd);
 
         String currentYm = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
         boolean isCurrentMonth = (yearMonth == null || yearMonth.isBlank() || yearMonth.equals(currentYm));
