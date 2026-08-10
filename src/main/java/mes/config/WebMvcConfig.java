@@ -1,6 +1,7 @@
 package mes.config;
 
 
+import mes.app.filter.ApiUsageInterceptor;
 import mes.app.interceptor.SpjangSecurityInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
@@ -15,8 +16,15 @@ public class WebMvcConfig implements WebMvcConfigurer{
     @Autowired
     private SpjangSecurityInterceptor spjangSecurityInterceptor;
 
+    @Autowired
+    private ApiUsageInterceptor apiUsageInterceptor;
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // 상품별 API 사용량 집계 (@ApiProduct 부착된 컨트롤러만 카운트)
+        registry.addInterceptor(apiUsageInterceptor)
+                .addPathPatterns("/api/**");
+
         registry.addInterceptor(spjangSecurityInterceptor)
                 .addPathPatterns("/**")
                 .excludePathPatterns(

@@ -1,5 +1,6 @@
 package mes.app.clock;
 
+import mes.app.annotation.ApiProduct;
 import mes.app.clock.service.ClockSystemService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
@@ -13,6 +14,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+@ApiProduct(ApiProduct.P02)
 @RestController
 @RequestMapping("/api/clock/System")
 public class ClockSystemController {

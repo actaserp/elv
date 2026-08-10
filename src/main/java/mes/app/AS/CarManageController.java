@@ -2,6 +2,7 @@ package mes.app.AS;
 
 import lombok.extern.slf4j.Slf4j;
 import mes.app.AS.service.CarManageService;
+import mes.app.annotation.ApiProduct;
 import mes.app.common.TenantUserService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
+@ApiProduct(ApiProduct.P03)
 @RestController
 @Transactional
 @RequestMapping("/api/AS/car_manage")

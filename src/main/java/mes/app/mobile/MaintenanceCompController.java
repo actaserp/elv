@@ -1,6 +1,7 @@
 package mes.app.mobile;
 
 import lombok.extern.slf4j.Slf4j;
+import mes.app.annotation.ApiProduct;
 import mes.app.mobile.Service.MaintenanceCompService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
+@ApiProduct(ApiProduct.P01)
 @RestController
 @Transactional
 @RequestMapping("/api/maintenance_comp")

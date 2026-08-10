@@ -3,6 +3,7 @@ package mes.app.mobile;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import mes.app.annotation.ApiProduct;
 import mes.app.common.TenantUserService;
 import mes.app.mobile.Service.MobileMainService;
 import mes.domain.entity.User;
@@ -22,6 +23,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Slf4j
+@ApiProduct(ApiProduct.P02)
 @RestController
 @RequestMapping("/api/mobile_main")
 public class MobileMainController {

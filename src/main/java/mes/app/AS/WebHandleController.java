@@ -2,6 +2,7 @@ package mes.app.AS;
 
 import lombok.extern.slf4j.Slf4j;
 import mes.app.AS.service.WebHandleService;
+import mes.app.annotation.ApiProduct;
 import mes.app.common.TenantUserService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
@@ -14,6 +15,7 @@ import javax.servlet.http.HttpServletRequest;
 import java.util.Map;
 
 @Slf4j
+@ApiProduct(ApiProduct.P01)
 @RestController
 @Transactional
 @RequestMapping("/api/AS/web_handle")

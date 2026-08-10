@@ -1,6 +1,7 @@
 package mes.app.mobile;
 
 import lombok.extern.slf4j.Slf4j;
+import mes.app.annotation.ApiProduct;
 import mes.app.common.TenantUserService;
 import mes.app.mobile.Service.RequestRepairService;
 import mes.domain.entity.User;
@@ -14,6 +15,7 @@ import javax.servlet.http.HttpServletRequest;
 import java.util.Map;
 
 @Slf4j
+@ApiProduct(ApiProduct.P01)
 @RestController
 @Transactional
 @RequestMapping("/api/request_repair")

@@ -47,14 +47,18 @@ public class ControllerExecutionTimeAspect implements Filter {
         long start = System.currentTimeMillis();
         String method = req.getMethod();
 
-        String spjangcd = request.getParameter("spjangcd");
-        if(spjangcd != null && !spjangcd.isEmpty()){
-            String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-
-            String redisKey = "MES:" + spjangcd + ":" + today;
-
-            redisService.incrementValue(redisKey);
-        }
+        // ── API 사용량 집계는 ApiUsageInterceptor 로 이관 ────────────────
+        //   Filter 는 실행 시점상 "어느 컨트롤러로 갈 요청인지"를 알 수 없어
+        //   @ApiProduct 어노테이션을 읽지 못한다.
+        //   → 상품별 집계가 가능한 HandlerInterceptor 로 옮김.
+        //   이 필터는 실행시간 로깅 역할만 유지한다.
+        //
+        //   [이전 코드]
+        //   String spjangcd = request.getParameter("spjangcd");
+        //   if (spjangcd != null && !spjangcd.isEmpty()) {
+        //       String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        //       redisService.incrementValue("MES:" + spjangcd + ":" + today);
+        //   }
 
         try {
             chain.doFilter(request, response);

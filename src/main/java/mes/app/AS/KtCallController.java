@@ -2,6 +2,7 @@ package mes.app.AS;
 
 import lombok.RequiredArgsConstructor;
 import mes.app.AS.service.KtCallService;
+import mes.app.annotation.ApiProduct;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +13,7 @@ import java.util.Map;
  * KT 통화매니저 API 연동 컨트롤러
  * 프론트에서 로그인/로그아웃 요청을 받아 KtCallService에 위임
  */
+@ApiProduct(ApiProduct.P01)
 @RestController
 @RequestMapping("/api/kt-call")
 @RequiredArgsConstructor

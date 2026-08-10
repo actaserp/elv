@@ -1,6 +1,7 @@
 package mes.app.mobile;
 
 import lombok.extern.slf4j.Slf4j;
+import mes.app.annotation.ApiProduct;
 import mes.app.common.TenantUserService;
 import mes.app.mobile.Service.AttendanceSubmitService;
 import mes.domain.entity.User;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
+@ApiProduct(ApiProduct.P02)
 @RestController
 @Transactional
 @RequestMapping("/api/attendance_submit")

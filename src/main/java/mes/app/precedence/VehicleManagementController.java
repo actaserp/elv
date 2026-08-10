@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import mes.app.annotation.ApiProduct;
 import mes.app.common.service.FileService;
 import mes.app.precedence.service.VehicleManagementService;
 import mes.domain.entity.BundleHead;
@@ -34,6 +35,7 @@ import mes.domain.repository.DocResultRepository;
 import mes.domain.services.CommonUtil;
 import mes.domain.services.SqlRunner;
 
+@ApiProduct(ApiProduct.P03)
 @RestController
 @RequestMapping("/api/precedence/vehicle_management")
 public class VehicleManagementController {

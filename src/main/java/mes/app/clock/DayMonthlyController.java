@@ -1,6 +1,7 @@
 package mes.app.clock;
 
 import lombok.extern.slf4j.Slf4j;
+import mes.app.annotation.ApiProduct;
 import mes.app.clock.service.DayMonthlyService;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,7 @@ import javax.transaction.Transactional;
 import java.util.*;
 
 @Slf4j
+@ApiProduct(ApiProduct.P02)
 @RestController
 @RequestMapping("/api/clock/DayMonthly")
 public class DayMonthlyController {

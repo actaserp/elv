@@ -1,5 +1,6 @@
 package mes.app.dashboard;
 
+import mes.app.annotation.ApiProduct;
 import mes.app.dashboard.service.DashCompService;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 
+@ApiProduct(ApiProduct.P01)
 @RestController
 @RequestMapping("/api/dash_comp")
 public class DashCompController {

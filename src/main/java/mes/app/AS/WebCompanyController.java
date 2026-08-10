@@ -2,6 +2,7 @@ package mes.app.AS;
 
 import lombok.extern.slf4j.Slf4j;
 import mes.app.AS.service.WebCompanyService;
+import mes.app.annotation.ApiProduct;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.servlet.http.HttpServletRequest;
 
 @Slf4j
+@ApiProduct(ApiProduct.P01)
 @RestController
 @Transactional
 @RequestMapping("/api/AS/web_company")

@@ -1,6 +1,7 @@
 package mes.app.clock;
 
 import lombok.extern.slf4j.Slf4j;
+import mes.app.annotation.ApiProduct;
 import mes.app.clock.service.ClockYearlyService;
 import mes.domain.entity.Tb_pb209;
 import mes.domain.entity.User;
@@ -19,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
+@ApiProduct(ApiProduct.P02)
 @RestController
 @RequestMapping("/api/clock/Yearly")
 public class YearlyController {

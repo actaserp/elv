@@ -1,6 +1,7 @@
 package mes.app.mobile;
 
 import lombok.extern.slf4j.Slf4j;
+import mes.app.annotation.ApiProduct;
 import mes.app.common.TenantUserService;
 import mes.app.files.NcpObjectStorageService;
 import mes.app.mobile.Service.DailyReportService;
@@ -19,6 +20,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
+@ApiProduct(ApiProduct.P02)
 @RestController
 @Transactional
 @RequestMapping("/api/daily_report")

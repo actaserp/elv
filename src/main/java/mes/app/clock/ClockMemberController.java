@@ -1,5 +1,6 @@
 package mes.app.clock;
 
+import mes.app.annotation.ApiProduct;
 import mes.app.clock.service.ClockMemberService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
@@ -12,6 +13,7 @@ import javax.transaction.Transactional;
 import java.util.List;
 import java.util.Map;
 
+@ApiProduct(ApiProduct.P02)
 @RestController
 @RequestMapping("/api/clock/member")
 public class ClockMemberController {

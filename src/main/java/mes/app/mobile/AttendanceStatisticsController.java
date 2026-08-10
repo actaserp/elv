@@ -1,5 +1,6 @@
 package mes.app.mobile;
 
+import mes.app.annotation.ApiProduct;
 import mes.app.common.TenantUserService;
 import mes.app.mobile.Service.AttendanceStatisticsService;
 import mes.domain.entity.User;
@@ -15,6 +16,7 @@ import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 
+@ApiProduct(ApiProduct.P02)
 @RestController
 @RequestMapping("/api/attendance_statistics")
 public class AttendanceStatisticsController {

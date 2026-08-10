@@ -1,0 +1,391 @@
+<html layout:decorate="~{layout_page}">
+
+<head>
+    <style>
+        /* ── 상단 요약 카드 ─────────────────────────────── */
+        .settlement-summary-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .summary-card-blue {
+            flex: 1;
+            min-width: 280px;
+            background: #00A1FF;
+            color: white;
+            border-radius: 15px;
+            padding: 32px 40px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .summary-card-blue h3 {
+            font-size: 18px;
+            font-weight: 500;
+            margin: 0;
+        }
+
+        .summary-card-blue .amount-wrap {
+            text-align: center;
+            margin-top: 16px;
+        }
+
+        .summary-card-blue .amount-wrap .month-label {
+            font-size: 15px;
+            opacity: 0.9;
+            margin: 0;
+        }
+
+        .summary-card-blue .amount-wrap .main-amount {
+            font-size: 42px;
+            font-weight: 700;
+            margin: 8px 0;
+        }
+
+        .summary-card-blue .amount-wrap .unit {
+            font-size: 18px;
+        }
+
+        .summary-card-blue::after {
+            content: '';
+            position: absolute;
+            right: -20px;
+            top: -20px;
+            width: 150px;
+            height: 150px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+
+        .summary-card-white {
+            flex: 1.5;
+            min-width: 340px;
+            background: white;
+            border-radius: 15px;
+            border: 1px solid #EAEAEA;
+            padding: 24px 30px;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .summary-table thead {
+            border-bottom: 1px solid #F0F0F0;
+        }
+
+        .summary-table th {
+            color: #999;
+            font-size: 14px;
+            text-align: left;
+            padding-bottom: 12px;
+        }
+
+        .summary-table td {
+            padding: 10px 0;
+            font-size: 15px;
+        }
+
+        .summary-table .text-right {
+            text-align: right;
+        }
+
+        .summary-table .total-row {
+            border-top: 1px solid #F0F0F0;
+            color: #00A1FF;
+        }
+
+        .summary-table .total-row td {
+            padding-top: 16px;
+            font-weight: bold;
+        }
+
+        .summary-table .total-amount {
+            font-size: 19px;
+        }
+
+        /* ── 상세 영역 ──────────────────────────────────── */
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            row-gap: 8px;
+        }
+
+        .detail-header h3 {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .detail-header .right-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .detail-header .unit-info {
+            color: #999;
+            font-size: 12px;
+        }
+
+        .chk-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        #usage-grid {
+            height: 320px;
+            border-top: 2px solid #333;
+        }
+
+        /* 미계약 행은 흐리게 */
+        .row-not-contracted {
+            color: #AAA !important;
+            background: #FAFAFA !important;
+        }
+
+        .text-danger { color: #FF0000 !important; }
+    </style>
+</head>
+
+<th:block layout:fragment="content">
+    <div class="layout-contents">
+        <div class="page-title-wrap">
+            <div class="left">
+                <h2>서비스 사용량 및 정산 내역</h2>
+                <a title="북마크" class="bookmark toggle">내 메뉴</a>
+            </div>
+            <ul class="page-navi">
+                <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+                <li>설정</li>
+                <li>사용량 조회</li>
+            </ul>
+        </div>
+
+        <div class="tab-wrap" style="height: 100%;">
+            <div class="tab-contents" style="height: 100%;">
+                <div class="row" style="margin-bottom: 0;">
+                    <section class="wp100" style="border-radius:15px; display:flex; flex-direction:column;">
+
+                        <!-- 조회 조건 -->
+                        <div class="section-top" style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+                            <label style="font-weight:600;">조회월</label>
+                            <input type="month" id="searchMonth" class="form-control" style="width:180px;">
+                            <button type="button" class="btn btn-search" id="btnSearch">
+                                <span>조회</span>
+                            </button>
+                            <span id="realtimeBadge"
+                                  style="margin-left:8px; font-size:13px; color:#00A1FF; font-weight:600;"></span>
+                        </div>
+
+                        <!-- 요약 카드 -->
+                        <div class="settlement-summary-container">
+                            <div class="summary-card-blue">
+                                <h3>결제 예정 금액</h3>
+                                <div class="amount-wrap">
+                                    <p class="month-label" id="monthLabel">이번 달 예정금액</p>
+                                    <h1 class="main-amount" id="realTimeBill">-<span class="unit"> 원/월</span></h1>
+                                </div>
+                            </div>
+
+                            <div class="summary-card-white">
+                                <table class="summary-table">
+                                    <thead>
+                                    <tr>
+                                        <th>요금 구분</th>
+                                        <th class="text-right">금액</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr>
+                                        <td>총 서비스 요금</td>
+                                        <td class="text-right" style="font-weight:600;" id="service_amt">- 원</td>
+                                    </tr>
+                                    <tr>
+                                        <td>초과분 (API 호출)</td>
+                                        <td class="text-right" style="font-weight:600;" id="over_cnt">- 회</td>
+                                    </tr>
+                                    <tr>
+                                        <td>초과 금액</td>
+                                        <td class="text-right" style="font-weight:600;" id="over_amt">- 원</td>
+                                    </tr>
+                                    <tr class="total-row">
+                                        <td>합계 (VAT 포함)</td>
+                                        <td class="text-right total-amount" id="total_amt">- 원</td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- 상세 -->
+                        <div class="detail-section">
+                            <div class="detail-header">
+                                <h3>서비스별 사용 내역</h3>
+                                <div class="right-area">
+                                    <label class="chk-wrap">
+                                        <input type="checkbox" id="chkShowAll">
+                                        <span>미계약 서비스도 표시</span>
+                                    </label>
+                                    <span class="unit-info">(VAT 별도, 원단위 기준)</span>
+                                </div>
+                            </div>
+                            <div id="usage-grid"></div>
+                        </div>
+
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+</th:block>
+
+<th:block layout:fragment="scripts">
+    <script type="text/javascript">
+
+        class TenantUsage {
+            constructor() {
+                this.url = '/api/tenant_usage';
+                this.allItems = [];                 // 서버에서 받은 전체(5개 상품)
+                this.viewData = new wijmo.collections.CollectionView();
+                this.grid = null;
+                this.init();
+            }
+
+            init() {
+                this.grid = new wijmo.grid.FlexGrid('#usage-grid', {
+                    autoGenerateColumns: false,
+                    headersVisibility: wijmo.grid.HeadersVisibility.Column,
+                    selectionMode: wijmo.grid.SelectionMode.None,
+                    isReadOnly: true,
+                    allowSorting: false,
+                    itemsSource: this.viewData,
+                    columns: [
+                        { header: '서비스명',      binding: 'product_nm',     width: '*',  minWidth: 220 },
+                        { header: '계약',          binding: 'contract_nm',    width: 80,   align: 'center' },
+                        { header: '기본요금',      binding: 'price',          width: 120,  align: 'right', format: 'n0' },
+                        { header: '기본제공(API)', binding: 'api_call_limit', width: 120,  align: 'right', format: 'n0' },
+                        { header: '사용량',        binding: 'usage_cnt',      width: 110,  align: 'right', format: 'n0' },
+                        { header: '초과분',        binding: 'over_cnt',       width: 100,  align: 'right', format: 'n0' },
+                        { header: '초과금액',      binding: 'over_amt',       width: 110,  align: 'right', format: 'n0' },
+                        { header: '청구금액',      binding: 'bill',           width: 130,  align: 'right', format: 'n0' }
+                    ],
+                    formatItem: (s, e) => {
+                        if (e.panel === s.cells) {
+                            const item = s.rows[e.row].dataItem;
+                            if (!item) return;
+
+                            // 미계약 행 흐리게
+                            if (item.contract_yn !== '1') {
+                                wijmo.addClass(e.cell, 'row-not-contracted');
+                            } else {
+                                wijmo.removeClass(e.cell, 'row-not-contracted');
+                            }
+
+                            // 초과분 강조
+                            const col = s.columns[e.col].binding;
+                            if (item.is_excess && (col === 'over_cnt' || col === 'over_amt')) {
+                                e.cell.style.color = '#FF0000';
+                                e.cell.style.fontWeight = 'bold';
+                            }
+
+                            // 한도 없는 상품은 '-' 표시
+                            if (col === 'api_call_limit' && !item.api_call_limit) {
+                                e.cell.textContent = '-';
+                            }
+                        }
+                        if (e.panel === s.columnHeaders) {
+                            e.cell.style.background = '#F9FAFB';
+                            e.cell.style.fontWeight = 'bold';
+                        }
+                    }
+                });
+            }
+
+            searchData() {
+                const monthVal = document.getElementById('searchMonth').value;   // yyyy-MM
+                const param = {};
+                if (monthVal) {
+                    param.yearMonth = monthVal.replace('-', '');
+                }
+
+                const result = AjaxUtil.getSyncData(this.url + '/read', param);
+
+                if (!result || !result.success) {
+                    Alert.alert('', (result && result.message) ? result.message : '조회에 실패했습니다.');
+                    return;
+                }
+
+                this.allItems = result.data.items || [];
+                this.renderSummary(result.data.summary || {});
+                this.applyFilter();
+            }
+
+            /** 미계약 표시 토글 반영 */
+            applyFilter() {
+                const showAll = document.getElementById('chkShowAll').checked;
+                this.viewData.sourceCollection = showAll
+                    ? this.allItems
+                    : this.allItems.filter(it => it.contract_yn === '1');
+            }
+
+            renderSummary(s) {
+                const comma = (v) => {
+                    const n = parseFloat(String(v ?? 0).replace(/[^0-9.-]/g, ''));
+                    return isNaN(n) ? '0' : Math.round(n).toLocaleString();
+                };
+
+                document.getElementById('realTimeBill').innerHTML =
+                    comma(s.total_bill) + '<span class="unit"> 원/월</span>';
+                document.getElementById('service_amt').textContent = comma(s.base_price) + ' 원';
+                document.getElementById('over_cnt').textContent    = comma(s.over_cnt) + ' 회';
+                document.getElementById('over_amt').textContent    = comma(s.over_amt) + ' 원';
+                document.getElementById('total_amt').textContent   = comma(s.total_vat) + ' 원';
+
+                // 월 라벨
+                const ym = String(s.year_month || '');
+                const mm = ym.length === 6 ? parseInt(ym.substring(4, 6), 10) : null;
+                document.getElementById('monthLabel').textContent =
+                    mm ? (mm + '월 예정금액') : '예정금액';
+
+                // 실시간 여부 표시
+                document.getElementById('realtimeBadge').textContent =
+                    s.is_realtime ? '· 실시간 집계 중 (당월)' : '· 확정 내역';
+            }
+        }
+
+        let page = null;
+
+        $(document).ready(function () {
+            // 이번 달 기본 세팅
+            const now = new Date();
+            const ym = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+            document.getElementById('searchMonth').value = ym;
+
+            page = new TenantUsage();
+            page.searchData();
+
+            $('#btnSearch').on('click', function () {
+                page.searchData();
+            });
+
+            $('#chkShowAll').on('change', function () {
+                page.applyFilter();
+            });
+        });
+    </script>
+</th:block>
+</html>
