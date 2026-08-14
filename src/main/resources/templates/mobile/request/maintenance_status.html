@@ -257,6 +257,11 @@
                 <input type="text" id="editProcessorNm" placeholder="처리자 선택" readonly onclick="openEditProcessorPopup()">
                 <input type="hidden" id="editActperid">
             </div>
+            <div class="form-row">
+                <label>담당자</label>
+                <input type="text" id="editMgrPernm" placeholder="담당자 선택" readonly onclick="openEditMgrPopup()">
+                <input type="hidden" id="editMgrPerid">
+            </div>
             <button class="form-save-btn" onclick="updateComp()">수정 저장</button>
         </div>
     </div>
@@ -346,6 +351,15 @@
         <div class="popup-header"><span>처리자 선택</span><button class="popup-close" onclick="closePopup('editProcessorPopup')">×</button></div>
         <input type="text" class="popup-search-input" id="editProcessorKeyword" placeholder="이름 검색" oninput="filterEditProcessorList(this.value)">
         <div class="popup-list"><ul id="editProcessorList"></ul></div>
+    </div>
+</div>
+
+<!-- 담당자 팝업 -->
+<div class="popup-overlay" id="editMgrPopup">
+    <div class="popup-sheet">
+        <div class="popup-header"><span>담당자 선택</span><button class="popup-close" onclick="closePopup('editMgrPopup')">×</button></div>
+        <input type="text" class="popup-search-input" id="editMgrKeyword" placeholder="이름 검색" oninput="filterEditMgrList(this.value)">
+        <div class="popup-list"><ul id="editMgrList"></ul></div>
     </div>
 </div>
 
@@ -445,6 +459,8 @@
         html += buildDetailRows([
             { label: '현장명', value: item.actnm     },
             { label: '호기명', value: item.equpnm    },
+            { label: '접수자', value: item.recpernm },
+            { label: '전달자', value: item.delpernm },
             { label: '처리자', value: item.pernm     },
             { label: '담당자', value: item.actpernm  },
             { label: '부서명', value: item.divinm    },
@@ -509,6 +525,8 @@
         document.getElementById('editCustomer').value       = item.customer    || '';
         document.getElementById('editActperid').value       = item.perid      || '';
         document.getElementById('editProcessorNm').value    = item.pernm      || '';
+        document.getElementById('editMgrPerid').value       = item.actperid   || '';
+        document.getElementById('editMgrPernm').value       = item.actpernm   || '';
 
         closePopup('detailPopup');
         openPopup('editPopup');
@@ -654,6 +672,44 @@
         }));
     }
 
+    /* ── 담당자 선택 팝업 ── */
+    function openEditMgrPopup() {
+        document.getElementById('editMgrKeyword').value = '';
+        if (_editProcessorCache.length > 0) {
+            renderEditMgrList(_editProcessorCache);
+            openPopup('editMgrPopup');
+            return;
+        }
+        AjaxUtil.getAsyncData('/api/system/user/getPerson', { searchCode: '', searchName: '' }, function (result) {
+            if (result && result.data) {
+                _editProcessorCache = result.data;
+                renderEditMgrList(_editProcessorCache);
+                openPopup('editMgrPopup');
+            }
+        });
+    }
+
+    function renderEditMgrList(list) {
+        const ul = document.getElementById('editMgrList');
+        ul.innerHTML = '';
+        list.forEach(function (item) {
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="item-code">${esc(item.code || '')}</span>${esc(item.name || '')}`;
+            li.onclick = function () {
+                document.getElementById('editMgrPerid').value = (item.code || '').replace(/^p/, '');
+                document.getElementById('editMgrPernm').value = item.name || '';
+                closePopup('editMgrPopup');
+            };
+            ul.appendChild(li);
+        });
+    }
+
+    function filterEditMgrList(keyword) {
+        renderEditMgrList(_editProcessorCache.filter(function (item) {
+            return (item.name || '').includes(keyword);
+        }));
+    }
+
     /* ── 현장 선택 팝업 ── */
     function openActPopup() {
         document.getElementById('actSearchInput').value = '';
@@ -760,6 +816,7 @@
             remark     : document.getElementById('editResultnm').value,     // 처리결과명
             customer   : document.getElementById('editCustomer').value,     // 사후관리사항 직접입력
             actperid   : document.getElementById('editActperid').value,
+            mgrperid   : document.getElementById('editMgrPerid').value,
         };
 
         AjaxUtil.postAsyncData('/api/maintenance_repair/update_comp', data, function (result) {
@@ -801,7 +858,7 @@
 
     ['detailPopup', 'editPopup', 'actPopup', 'equpPopup',
      'editGreginmPopup', 'editReginmPopup', 'editRemonmPopup',
-     'editFacnmPopup', 'editResunmPopup', 'editResultnmPopup', 'editProcessorPopup'
+     'editFacnmPopup', 'editResunmPopup', 'editResultnmPopup', 'editProcessorPopup', 'editMgrPopup'
     ].forEach(function (id) {
         document.getElementById(id).addEventListener('click', function (e) {
             if (e.target === this) closePopup(id);

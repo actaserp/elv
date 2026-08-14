@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -34,6 +35,7 @@ public class WebHandleController {
             @RequestParam(value = "fromDate", required = false) String fromDate,
             @RequestParam(value = "toDate",   required = false) String toDate,
             @RequestParam(value = "actnm",    required = false) String actnm,
+            @RequestParam(value = "repernm",  required = false) String repernm,
             @RequestParam(value = "showAll",  required = false, defaultValue = "0") String showAll,
             @RequestParam(value = "spjangcd") String spjangcd,
             HttpServletRequest request, Authentication auth) {
@@ -41,7 +43,7 @@ public class WebHandleController {
 
         String myPerid = null;
         if (!"1".equals(showAll)) {
-            // 로그인 사용자의 통보자 perid (TB_JA001.perid 에서 'p' 제거 → TB_E401.perid 형식)
+            // 로그인 사용자의 통보자 perid (TB_JA001.perid 에서 'p' 제거 → TB_E401.reperid 형식)
             User user = (User) auth.getPrincipal();
             Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
             if (userInfo != null && userInfo.get("perid") != null) {
@@ -51,7 +53,25 @@ public class WebHandleController {
             }
         }
 
-        result.data = webHandleService.getRequestList(spjangcd, fromDate, toDate, actnm, myPerid);
+        result.data = webHandleService.getRequestList(spjangcd, fromDate, toDate, actnm, myPerid, repernm);
+        return result;
+    }
+
+    // ── 현장 담당자 조회 (접수건/현장 선택 시 담당자 자동 바인드용) ──
+    @GetMapping("/act_manager")
+    public AjaxResult getActManager(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "actcd")    String actcd) {
+
+        AjaxResult result = new AjaxResult();
+        Map<String, Object> data = new HashMap<>();
+
+        String mgrPerid = webHandleService.getActManagerId(spjangcd, actcd);
+        data.put("perid", mgrPerid);
+        data.put("pernm", webHandleService.getPernmByPerid(spjangcd, mgrPerid));
+
+        result.data = data;
+        result.success = true;
         return result;
     }
 
@@ -108,6 +128,7 @@ public class WebHandleController {
             @RequestParam(value = "remark",    required = false) String remark,
             @RequestParam(value = "customer",  required = false) String customer,
             @RequestParam(value = "perid",     required = false) String perid,
+            @RequestParam(value = "actperid",  required = false) String actperid,
             @RequestParam(value = "filesvnm",  required = false) String filesvnm,
             @RequestParam(value = "filepath",  required = false) String filepath,
             HttpServletRequest request, Authentication auth) {
@@ -133,6 +154,7 @@ public class WebHandleController {
                     remocd, faccd, remoremark,
                     resucd, resuremark, resultcd,
                     remark, customer, perid,
+                    actperid,
                     filesvnm, filepath);
             result.success = true;
             result.message = "고장처리가 등록되었습니다.";
@@ -172,6 +194,7 @@ public class WebHandleController {
             @RequestParam(value = "remark",    required = false) String remark,
             @RequestParam(value = "customer",  required = false) String customer,
             @RequestParam(value = "perid",     required = false) String perid,
+            @RequestParam(value = "actperid",  required = false) String actperid,
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
@@ -184,7 +207,7 @@ public class WebHandleController {
                     contremark, gregicd, regicd,
                     remocd, faccd, remoremark,
                     resucd, resuremark, resultcd,
-                    remark, customer, perid);
+                    remark, customer, perid, actperid);
             result.success = true;
             result.message = "수정되었습니다.";
         } catch (Exception e) {

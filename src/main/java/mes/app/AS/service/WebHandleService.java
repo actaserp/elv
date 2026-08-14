@@ -19,9 +19,10 @@ public class WebHandleService {
     NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     // ── 고장접수 목록 조회 (TB_E401) ─────────────────────────
-    // myPerid 가 null 이면 전체, 값이 있으면 통보자(e.perid)=본인 건만
+    // myPerid 가 null 이면 전체, 값이 있으면 통보자(e.reperid)=본인 건만
+    // ※ 통보자 = 현장으로 가는 사람. 고장처리는 통보자가 수행하므로 통보자 기준으로 필터
     public List<Map<String, Object>> getRequestList(
-            String spjangcd, String fromDate, String toDate, String actnm, String myPerid) {
+            String spjangcd, String fromDate, String toDate, String actnm, String myPerid, String repernm) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
@@ -44,12 +45,16 @@ public class WebHandleService {
                     e.resultck,
                     e.perid,
                     j.pernm   AS pernm,
+                    e.reperid,
+                    rj.pernm  AS repernm,
                     jc.divinm AS divinm
                 FROM TB_E401 e
                 LEFT JOIN TB_E010 ct ON ct.contcd  = e.contcd
                                     AND ct.spjangcd = e.spjangcd
                 LEFT JOIN TB_JA001 j  ON j.perid    = 'p' + e.perid
                                      AND j.spjangcd  = e.spjangcd
+                LEFT JOIN TB_JA001 rj ON rj.perid   = 'p' + e.reperid
+                                     AND rj.spjangcd = e.spjangcd
                 LEFT JOIN TB_JC002 jc ON jc.divicd  = j.divicd
                                      AND jc.spjangcd = j.spjangcd
                 WHERE e.spjangcd = :spjangcd
@@ -57,13 +62,19 @@ public class WebHandleService {
                 """;
 
         if (myPerid != null && !myPerid.isBlank()) {
-            sql += " AND e.perid = :myPerid";
+            sql += " AND e.reperid = :myPerid";
             param.addValue("myPerid", myPerid);
         }
 
         if (actnm != null && !actnm.isBlank()) {
             sql += " AND e.actnm LIKE :actnm";
             param.addValue("actnm", "%" + actnm.trim() + "%");
+        }
+
+        // 통보자명 검색
+        if (repernm != null && !repernm.isBlank()) {
+            sql += " AND rj.pernm LIKE :repernm";
+            param.addValue("repernm", "%" + repernm.trim() + "%");
         }
 
         sql += " ORDER BY e.recedate DESC, e.recenum DESC";
@@ -106,11 +117,15 @@ public class WebHandleService {
                     e.remark,
                     e.perid  AS actperid,
                     ap.pernm AS actpernm,
+                    e.actperid AS mgrperid,
+                    mp.pernm   AS mgrpernm,
                     e.filesvnm,
                     e.filepath
                 FROM TB_E411 e
                 LEFT JOIN TB_JA001 ap ON ap.perid    = 'p' + e.perid
                                      AND ap.spjangcd = e.spjangcd
+                LEFT JOIN TB_JA001 mp ON mp.perid    = 'p' + e.actperid
+                                     AND mp.spjangcd = e.spjangcd
                 LEFT JOIN TB_E013 gr  ON gr.spjangcd = e.spjangcd
                                      AND gr.gregicd  = e.gregicd
                 LEFT JOIN TB_E014 eg  ON eg.spjangcd = e.spjangcd
@@ -164,10 +179,26 @@ public class WebHandleService {
                     e.customer,
                     e.remark,
                     e.perid  AS actperid,
-                    ap.pernm AS actpernm
+                    ap.pernm AS actpernm,
+                    e.actperid AS mgrperid,
+                    mp.pernm   AS mgrpernm,
+                    a.perid    AS recperid,
+                    rp.pernm   AS recpernm,
+                    a.reperid  AS delperid,
+                    dp.pernm   AS delpernm
                 FROM TB_E411 e
                 LEFT JOIN TB_JA001 ap ON ap.perid    = 'p' + e.perid
                                      AND ap.spjangcd = e.spjangcd
+                LEFT JOIN TB_JA001 mp ON mp.perid    = 'p' + e.actperid
+                                     AND mp.spjangcd = e.spjangcd
+                LEFT JOIN TB_E401  a  ON a.spjangcd  = e.spjangcd
+                                     AND a.recedate  = e.recedate
+                                     AND a.recenum   = e.recenum
+                                     AND a.actcd     = e.actcd
+                LEFT JOIN TB_JA001 rp ON rp.perid    = 'p' + a.perid
+                                     AND rp.spjangcd = e.spjangcd
+                LEFT JOIN TB_JA001 dp ON dp.perid    = 'p' + a.reperid
+                                     AND dp.spjangcd = e.spjangcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.recedate BETWEEN :fromDate AND :toDate
                 """;
@@ -191,6 +222,7 @@ public class WebHandleService {
             String remocd, String faccd, String remoremark,
             String resucd, String resuremark, String resultcd,
             String remark, String customer, String perid,
+            String actperid,
             String filesvnm, String filepath) {
 
         String compnum = getNextCompnum(spjangcd, compdate);
@@ -226,8 +258,12 @@ public class WebHandleService {
         param.addValue("remark",     remark);
         param.addValue("customer",   customer);
         param.addValue("result",     "1");
-        // ★ 담당자(actperid) = 접수건(TB_E401)의 통보자 — PB 로직과 동일. 없으면 빈값
-        param.addValue("actperid",   getRecePerid(spjangcd, recedate, recenum, actcd));
+        // ★ 담당자(actperid) = 현장 마스터(TB_E601)의 점검자(정)
+        //   화면에서 선택/수정한 값이 오면 그 값을 우선 사용 (PB 와 동일하게 수동 변경 허용)
+        String actperidVal = (actperid != null && !actperid.isBlank())
+                ? actperid.trim().replaceFirst("^p", "")
+                : getActManagerId(spjangcd, actcd);
+        param.addValue("actperid",   actperidVal);
         param.addValue("perid",      peridRaw);
         param.addValue("inperid",    peridRaw);
         param.addValue("indate",     compdate);
@@ -356,7 +392,7 @@ public class WebHandleService {
             String contremark, String gregicd, String regicd,
             String remocd, String faccd, String remoremark,
             String resucd, String resuremark, String resultcd,
-            String remark, String customer, String perid) {
+            String remark, String customer, String perid, String actperid) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd",   spjangcd);
@@ -383,9 +419,13 @@ public class WebHandleService {
         param.addValue("resultcd",   resultcd);
         param.addValue("remark",     remark);
         param.addValue("customer",   customer);
-        // ★ 처리자(perid)만 갱신. 담당자(actperid)는 PB/등록시점 값 보존을 위해 건드리지 않음
+        // ★ 처리자(perid) 갱신
         String peridRaw = (perid != null) ? perid.replaceFirst("^p", "") : "";
         param.addValue("perid",      peridRaw);
+        // ★ 담당자(actperid) - 화면에서 변경 가능 (PB 와 동일)
+        param.addValue("actperid",   (actperid != null && !actperid.isBlank())
+                ? actperid.trim().replaceFirst("^p", "")
+                : getActManagerId(spjangcd, actcd));
         // ── PB 규격 부가 컬럼 (일시/처리자 변경 시 재계산) ──
         param.addValue("divicd",     getPeridDivicd(spjangcd, peridRaw));
         param.addValue("cltcd",      getActCltcd(spjangcd, actcd));
@@ -416,6 +456,7 @@ public class WebHandleService {
                     remark     = :remark,
                     customer   = :customer,
                     perid      = :perid,
+                    actperid   = :actperid,
                     divicd     = :divicd,
                     cltcd      = :cltcd,
                     resutime   = :resutime,
@@ -584,6 +625,45 @@ public class WebHandleService {
                 WHERE spjangcd = :spjangcd AND actcd = :actcd
                 """, param);
         return rows.isEmpty() ? null : (String) rows.get(0).get("cltcd");
+    }
+
+    // ── 현장 담당자 조회 (TB_E601.perid = 점검자(정)) ──────────
+    //   PB 규격: 고장처리의 담당자(actperid)는 현장 마스터의 점검자(정)에서 유래.
+    //   2025년 실데이터 검증: TB_E601.perid 일치 8,140 / 접수 perid 일치 6,119
+    //   → 자동 바인드 후 화면에서 수동 변경 가능 (PB와 동일)
+    public String getActManagerId(String spjangcd, String actcd) {
+        if (actcd == null || actcd.isBlank()) return "";
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("actcd",    actcd);
+
+        List<Map<String, Object>> rows = this.sqlRunner.getRows("""
+                SELECT TOP 1 perid
+                FROM TB_E601
+                WHERE spjangcd = :spjangcd
+                  AND actcd    = :actcd
+                """, param);
+
+        if (rows == null || rows.isEmpty() || rows.get(0).get("perid") == null) return "";
+        return String.valueOf(rows.get(0).get("perid")).trim().replaceFirst("^p", "");
+    }
+
+    // ── 사번으로 사원명 조회 ───────────────────────────────────
+    public String getPernmByPerid(String spjangcd, String peridRaw) {
+        if (peridRaw == null || peridRaw.isBlank()) return "";
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("perid",    "p" + peridRaw.trim().replaceFirst("^p", ""));
+
+        List<Map<String, Object>> rows = this.sqlRunner.getRows("""
+                SELECT TOP 1 pernm FROM TB_JA001
+                WHERE spjangcd = :spjangcd AND perid = :perid
+                """, param);
+
+        if (rows == null || rows.isEmpty() || rows.get(0).get("pernm") == null) return "";
+        return String.valueOf(rows.get(0).get("pernm"));
     }
 
     // ── 접수건 통보자 조회 (담당자 actperid 세팅용) ────────────

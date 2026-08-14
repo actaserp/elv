@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -43,6 +44,7 @@ public class MaintenanceRepairController {
             @RequestParam(value = "fromDate", required = false) String fromDate,
             @RequestParam(value = "toDate",   required = false) String toDate,
             @RequestParam(value = "actnm",    required = false) String actnm,
+            @RequestParam(value = "repernm",  required = false) String repernm,
             @RequestParam(value = "showAll",  required = false, defaultValue = "0") String showAll,
             @RequestParam(value = "spjangcd", required = false) String spjangcd,
             HttpServletRequest request, Authentication auth) {
@@ -51,7 +53,7 @@ public class MaintenanceRepairController {
 
         String myPerid = null;
         if (!"1".equals(showAll)) {
-            // 로그인 사용자의 통보자 perid (TB_JA001.perid 에서 'p' 제거 → TB_E401.perid 형식)
+            // 로그인 사용자의 통보자 perid (TB_JA001.perid 에서 'p' 제거 → TB_E401.reperid 형식)
             User user = (User) auth.getPrincipal();
             Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
             if (userInfo != null && userInfo.get("perid") != null) {
@@ -61,7 +63,7 @@ public class MaintenanceRepairController {
             }
         }
 
-        result.data = maintenanceRepairService.getRepairList(fromDate, toDate, actnm, spjangcd, myPerid);
+        result.data = maintenanceRepairService.getRepairList(fromDate, toDate, actnm, spjangcd, myPerid, repernm);
         return result;
     }
 
@@ -165,6 +167,35 @@ public class MaintenanceRepairController {
         return result;
     }
 
+    // ── 현장 담당자 조회 (현장 선택 시 담당자 자동 바인드용) ──
+    //   PB 규격: 고장처리 담당자(actperid)는 현장 마스터(TB_E601)의 점검자(정)
+    @GetMapping("/read_act_manager")
+    public AjaxResult getActManager(
+            @RequestParam(value = "actcd") String actcd,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        User user = (User) auth.getPrincipal();
+
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (userInfo == null) {
+            result.success = false;
+            result.message = "사용자 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        String spjangcd = (String) userInfo.get("spjangcd");
+
+        String mgrPerid = maintenanceRepairService.getActManagerId(spjangcd, actcd);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("perid", mgrPerid);
+        data.put("pernm", maintenanceRepairService.getPernmByPerid(spjangcd, mgrPerid));
+
+        result.data = data;
+        result.success = true;
+        return result;
+    }
+
     // ── 고장처리결과 등록 (TB_E411 INSERT) ───────────────────
     @PostMapping("/save_comp")
     public AjaxResult saveComp(
@@ -191,6 +222,7 @@ public class MaintenanceRepairController {
             @RequestParam(value = "resucd",     required = false) String resucd,
             @RequestParam(value = "remark",     required = false) String remark,
             @RequestParam(value = "actperid",   required = false) String actperid,
+            @RequestParam(value = "mgrperid",   required = false) String mgrperid,
             @RequestParam(value = "filesvnm",   required = false) String filesvnm,
             @RequestParam(value = "filepath",   required = false) String filepath,
             HttpServletRequest request, Authentication auth) {
@@ -219,7 +251,7 @@ public class MaintenanceRepairController {
                     resuremark, remocd,
                     resultcd, faccd,
                     customer, resucd,
-                    remark, actperid, perid,
+                    remark, actperid, mgrperid, perid,
                     filesvnm, filepath
             );
             result.success = true;
@@ -259,6 +291,7 @@ public class MaintenanceRepairController {
             @RequestParam(value = "resucd",    required = false) String resucd,
             @RequestParam(value = "remark",    required = false) String remark,
             @RequestParam(value = "actperid",  required = false) String actperid,
+            @RequestParam(value = "mgrperid",  required = false) String mgrperid,
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
@@ -269,7 +302,7 @@ public class MaintenanceRepairController {
                     actcd, actnm, equpcd, equpnm,
                     contremark, gregicd, remoremark, regicd,
                     resuremark, remocd, resultcd, faccd,
-                    customer, resucd, remark, actperid);
+                    customer, resucd, remark, actperid, mgrperid);
             result.success = true;
             result.message = "수정되었습니다.";
         } catch (Exception e) {

@@ -387,6 +387,13 @@
                     <input type="hidden" id="regProcessorId">
                 </div>
 
+                <div class="form-row">
+                    <label>담당자</label>
+                    <input type="text" id="regMgrPernm" placeholder="현장 선택 시 자동 (터치하여 변경)"
+                           readonly onclick="openMgrPopup()">
+                    <input type="hidden" id="regMgrPerid">
+                </div>
+
                 <button class="form-save-btn" onclick="saveComp()">등록</button>
             </div>
         </div>
@@ -411,8 +418,14 @@
             <input type="checkbox" id="repairShowAll" onchange="searchRepairList()" style="width:16px; height:16px;">
             전체 통보자 접수건 보기 (기본: 본인 통보건만)
         </label>
-        <input type="text" class="popup-search-input" id="repairActnmSearch"
-               placeholder="현장명 검색" oninput="filterRepairList(this.value)">
+        <div style="display:flex; gap:0; border-bottom:1px solid #eee; flex-shrink:0;">
+            <input type="text" class="popup-search-input" id="repairActnmSearch"
+                   style="flex:1; border-bottom:none;"
+                   placeholder="현장명 검색" oninput="filterRepairList()">
+            <input type="text" class="popup-search-input" id="repairRepernmSearch"
+                   style="flex:1; border-bottom:none; border-left:1px solid #eee;"
+                   placeholder="통보자 검색" oninput="filterRepairList()">
+        </div>
         <div class="popup-list" id="repairList">
             <div style="padding:40px 20px; text-align:center; color:#bbb; font-size:13px;">조회 버튼을 눌러주세요.</div>
         </div>
@@ -506,6 +519,15 @@
     </div>
 </div>
 
+<!-- 담당자 팝업 -->
+<div class="popup-overlay" id="mgrPopup">
+    <div class="popup-sheet">
+        <div class="popup-header"><span>담당자 선택</span><button class="popup-close" onclick="closePopup('mgrPopup')">×</button></div>
+        <input type="text" class="popup-search-input" id="mgrKeyword" placeholder="이름 검색" oninput="filterMgrList(this.value)">
+        <div class="popup-list"><ul id="mgrList"></ul></div>
+    </div>
+</div>
+
 <script type="text/javascript">
 
     var _actListCache  = [];
@@ -548,12 +570,14 @@
         const fromDate = document.getElementById('repairFromDate').value.replaceAll('-', '');
         const toDate   = document.getElementById('repairToDate').value.replaceAll('-', '');
         const actnm    = document.getElementById('repairActnmSearch').value.trim();
+        const repernm  = document.getElementById('repairRepernmSearch').value.trim();
         const showAll  = document.getElementById('repairShowAll').checked ? '1' : '0';
 
         AjaxUtil.getAsyncData('/api/maintenance_repair/read_repair_list', {
             fromDate : fromDate,
             toDate   : toDate,
             actnm    : actnm,
+            repernm  : repernm,
             showAll  : showAll,
             spjangcd : _spjangcd
         }, function (result) {
@@ -593,6 +617,7 @@
                 </div>
                 <div class="item-actnm">${esc(item.actnm || '-')}</div>
                 <div class="item-contents">${esc(item.equpnm || '')} ${item.contents ? '· ' + esc(item.contents) : ''}</div>
+                ${item.repernm ? `<div class="item-contents" style="color:#4472c4; margin-top:2px;">통보자 · ${esc(item.repernm)}</div>` : ''}
             `;
 
             div.addEventListener('click', function () {
@@ -604,9 +629,14 @@
         });
     }
 
-    function filterRepairList(keyword) {
+    function filterRepairList() {
+        const actKwd = document.getElementById('repairActnmSearch').value;
+        const perKwd = document.getElementById('repairRepernmSearch').value;
+
         const filtered = _repairListCache.filter(function (item) {
-            return (item.actnm || '').includes(keyword);
+            const okAct = !actKwd || (item.actnm   || '').includes(actKwd);
+            const okPer = !perKwd || (item.repernm || '').includes(perKwd);
+            return okAct && okPer;
         });
         renderRepairList(filtered);
     }
@@ -637,6 +667,9 @@
         document.getElementById('selectedContents').textContent = item.contents || '';
         document.getElementById('selectedEqupnm').textContent   = item.equpnm  || '';
         document.getElementById('selectedRepairCard').style.display = 'block';
+
+        // ★ 현장 담당자 자동 바인드 (TB_E601.perid)
+        bindActManager(item.actcd);
     }
 
     // 고장접수에서 불러온 필드 readonly 스타일 적용
@@ -700,6 +733,7 @@
         document.getElementById('regActnm').value  = item.actnm || '';
         document.getElementById('regEqupcd').value = '';
         document.getElementById('regEqupnm').value = '';
+        bindActManager(item.actcd);   // ★ 담당자 자동 바인드
         closePopup('actPopup');
     }
 
@@ -774,6 +808,67 @@
         renderProcessorList(_processorCache.filter(function (item) {
             return (item.name || '').includes(keyword);
         }));
+    }
+
+    /* ── 담당자 선택 팝업 (현장 담당자, 수동 변경용) ── */
+    function openMgrPopup() {
+        document.getElementById('mgrKeyword').value = '';
+        if (_processorCache.length > 0) {
+            renderMgrList(_processorCache);
+            openPopup('mgrPopup');
+            return;
+        }
+        AjaxUtil.getAsyncData('/api/system/user/getPerson', { searchCode: '', searchName: '' }, function (result) {
+            if (result && result.data) {
+                _processorCache = result.data;
+                renderMgrList(_processorCache);
+                openPopup('mgrPopup');
+            }
+        });
+    }
+
+    function renderMgrList(list) {
+        const ul = document.getElementById('mgrList');
+        ul.innerHTML = '';
+        if (!list || list.length === 0) {
+            ul.innerHTML = '<li style="color:#999; cursor:default;">조회된 사원이 없습니다.</li>';
+            return;
+        }
+        list.forEach(function (item) {
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="item-code">${esc(item.code || '')}</span>${esc(item.name || '')}`;
+            li.onclick = function () {
+                document.getElementById('regMgrPerid').value = (item.code || '').replace(/^p/, '');
+                document.getElementById('regMgrPernm').value = item.name || '';
+                closePopup('mgrPopup');
+            };
+            ul.appendChild(li);
+        });
+    }
+
+    function filterMgrList(keyword) {
+        renderMgrList(_processorCache.filter(function (item) {
+            return (item.name || '').includes(keyword);
+        }));
+    }
+
+    /* ── 현장 선택 시 담당자 자동 바인드 (TB_E601.perid) ──
+       PB 규격: 고장처리 담당자는 현장 마스터의 점검자(정)에서 유래.
+       자동 세팅 후 사용자가 팝업으로 변경 가능 */
+    function bindActManager(actcd) {
+        if (!actcd) {
+            document.getElementById('regMgrPerid').value = '';
+            document.getElementById('regMgrPernm').value = '';
+            return;
+        }
+        AjaxUtil.getAsyncData('/api/maintenance_repair/read_act_manager', {
+            actcd: actcd
+        }, function (result) {
+            if (result && result.data) {
+                document.getElementById('regMgrPerid').value = result.data.perid || '';
+                document.getElementById('regMgrPernm').value = result.data.pernm || '';
+            }
+        });
     }
 
     /* ── 코드 팝업 공통 ── */
@@ -973,6 +1068,7 @@
             remark     : document.getElementById('regResultnm').value,     // 처리결과명
             customer   : document.getElementById('regCustomer').value,     // 사후관리사항 직접입력
             actperid   : document.getElementById('regProcessorId').value,
+            mgrperid   : document.getElementById('regMgrPerid').value,
             filesvnm   : document.getElementById('regFilesvnm').value,
             filepath   : document.getElementById('regFilepath').value,
         };
@@ -1026,6 +1122,8 @@
         document.getElementById('regResultnm').value   = '';
         document.getElementById('regResultcd').value   = '';
         document.getElementById('regCustomer').value   = '';
+        document.getElementById('regMgrPerid').value   = '';
+        document.getElementById('regMgrPernm').value   = '';
         document.getElementById('selectedRepairCard').style.display = 'none';
         removeRepairFile();
 

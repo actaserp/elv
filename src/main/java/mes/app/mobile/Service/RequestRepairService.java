@@ -179,9 +179,9 @@ public class RequestRepairService {
             String contcd,
             String contents,
             String remark,
-            String perid,      // ★ 화면에서 선택한 담당기사(접수자) → TB_E401.perid
+            String perid,      // ★ 화면에서 선택한 접수자(전화 받은 사람) → TB_E401.perid
             String bigo,
-            String reperid) {  // ★ 로그인 사용자(통보자)           → TB_E401.reperid
+            String reperid) {  // ★ 통보자(현장으로 가는 사람)           → TB_E401.reperid
 
         String recenum = getNextRecenum(spjangcd, recedate);
 
@@ -200,9 +200,10 @@ public class RequestRepairService {
         param.addValue("contcd",    contcd);
         param.addValue("contents",  contents);
         param.addValue("remark",    remark);
-        // ★ PB 규격: perid = 담당기사(접수자, 화면 선택), reperid = 통보자(로그인 사용자)
+        // ★ PB 규격: perid = 접수자(전화 받은 사람), reperid = 통보자(현장 가는 사람)
         //   PB 실데이터 검증: inperid(등록자)와 perid 일치 5,278건 vs reperid 일치 2,110건
-        //                    TB_E411.actperid(담당자)도 perid 에서 유래 (6,119 vs 1,173)
+        //   ※ 고장처리의 담당자(TB_E411.actperid)는 접수건이 아니라
+        //     현장 마스터(TB_E601.perid = 점검자(정))에서 유래 — 8,140 vs 6,119
         param.addValue("perid",     perid);
         param.addValue("reperid",   reperid);
         param.addValue("inperid",   reperid);
@@ -216,7 +217,7 @@ public class RequestRepairService {
         param.addValue("datetime2", hitchDt);
 
         // ── PB 규격 부가 컬럼 ────────────────────────────────
-        param.addValue("divicd",   getPeridDivicd(spjangcd, perid));   // 담당기사 부서 (PB 규격)
+        param.addValue("divicd",   getPeridDivicd(spjangcd, perid));   // 접수자 부서 (PB 규격)
         param.addValue("cltcd",    getActCltcd(spjangcd, actcd));      // 현장 거래처
         param.addValue("resultck", "0");                                // PB는 접수 시 '0'
 

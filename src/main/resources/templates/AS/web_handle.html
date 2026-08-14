@@ -97,11 +97,20 @@
                             </dd>
                         </dl>
                         <dl>
+                            <dt><label>통보자</label></dt>
+                            <dd>
+                                <div class="srch-box">
+                                    <input type="text" id="srchRepernm" class="form-control2"
+                                           placeholder="통보자명" style="width:90px;">
+                                </div>
+                            </dd>
+                        </dl>
+                        <dl>
                             <dt><label>전체조회</label></dt>
                             <dd>
                                 <div class="srch-box" style="display:flex; align-items:center; height:100%;">
                                     <input type="checkbox" id="chkShowAll" style="width:18px; height:18px; cursor:pointer;">
-                                    <label for="chkShowAll" style="margin-left:4px; font-size:12px; color:#666; cursor:pointer;">전체 통보자</label>
+                                    <label for="chkShowAll" style="margin-left:4px; font-size:12px; color:#666; cursor:pointer;">전체 접수자</label>
                                 </div>
                             </dd>
                         </dl>
@@ -174,6 +183,7 @@
                     <input type="hidden" id="hidActcd">
                     <input type="hidden" id="hidEqupcd">
                     <input type="hidden" id="hidPerid">
+                    <input type="hidden" id="hidMgrPerid">
 
                     <div class="table-wrap" style="overflow-x:auto; margin-top:6px;">
                         <table class="write-table" style="width:100%; border-collapse:collapse; table-layout:fixed;">
@@ -270,9 +280,14 @@
 
                             <tr>
                                 <th><label>처리자</label></th>
-                                <td colspan="3">
+                                <td colspan="1">
                                     <input type="text" id="regPernm" placeholder="처리자 선택 (팝업)"
                                            readonly onclick="openPernmPopup()">
+                                </td>
+                                <th><label>담당자</label></th>
+                                <td colspan="1">
+                                    <input type="text" id="regMgrPernm" placeholder="현장 선택 시 자동 (클릭하여 변경)"
+                                           readonly onclick="openMgrPernmPopup()">
                                 </td>
                             </tr>
 
@@ -374,7 +389,8 @@
                 isReadOnly: true,
                 columns: [
                     {binding: 'recedate', header: '접수일자', width:  92, align: 'center'},
-                    {binding: 'pernm',    header: '통보자',   width:  80, align: 'center'},
+                    {binding: 'pernm',    header: '접수자',   width:  70, align: 'center'},
+                    {binding: 'repernm',  header: '통보자',   width:  70, align: 'center'},
                     {binding: 'actnm',    header: '현장명',   width: 120, align: 'left'},
                     {binding: 'equpnm',   header: '호기명',   width: 100, align: 'left'},
                     {binding: 'contnm',   header: '고장내용', width: 100, align: 'left'},
@@ -426,6 +442,9 @@
                 searchCompList();
             });
             $('#srchActnm').on('keypress', function (e) {
+                if (e.keyCode === 13) searchRequestList();
+            });
+            $('#srchRepernm').on('keypress', function (e) {
                 if (e.keyCode === 13) searchRequestList();
             });
             $('#chkShowAll').on('change', function () { searchRequestList(); });
@@ -503,12 +522,14 @@
             var fromDate = document.getElementById('fromDate').value.replaceAll('-', '');
             var toDate   = document.getElementById('toDate').value.replaceAll('-', '');
             var actnm    = document.getElementById('srchActnm').value.trim();
+            var repernm  = document.getElementById('srchRepernm').value.trim();
             var showAll  = document.getElementById('chkShowAll').checked ? '1' : '0';
 
             AjaxUtil.getAsyncData('/api/AS/web_handle/list', {
                 fromDate : fromDate,
                 toDate   : toDate,
                 actnm    : actnm,
+                repernm  : repernm,
                 showAll  : showAll,
                 spjangcd : _spjangcd
             }, function (result) {
@@ -577,6 +598,14 @@
             document.getElementById('regResultcd').value  = item.resultcd || '';
             document.getElementById('regCustomer').value  = item.customer || '';
             document.getElementById('regPernm').value     = item.actpernm || '';
+
+            // 담당자 — 저장된 값이 있으면 그대로, 없으면 현장 담당자로 자동
+            if (item.mgrperid) {
+                document.getElementById('hidMgrPerid').value = item.mgrperid || '';
+                document.getElementById('regMgrPernm').value = item.mgrpernm || '';
+            } else {
+                bindActManager(item.actcd);
+            }
 
             // 배너 표시
             document.getElementById('bannerActnm').textContent    = item.actnm    || '-';
@@ -649,6 +678,9 @@
             document.getElementById('regCustomer').value   = '';
             document.getElementById('hidPerid').value      = '';
             document.getElementById('regPernm').value      = '';
+
+            // ★ 현장 담당자 자동 바인드 (TB_E601.perid)
+            bindActManager(item.actcd);
         }
 
         /* ════════════════════════════════════
@@ -849,6 +881,7 @@
                 remark     : document.getElementById('regResultnm').value,
                 customer   : document.getElementById('regCustomer').value,
                 perid      : document.getElementById('hidPerid').value,
+                actperid   : document.getElementById('hidMgrPerid').value,
                 filesvnm   : document.getElementById('regFilesvnm').value,
                 filepath   : document.getElementById('regFilepath').value
             };
@@ -925,6 +958,8 @@
             document.getElementById('regResultcd').value   = '';
             document.getElementById('regCustomer').value   = '';
             document.getElementById('regPernm').value      = '';
+            document.getElementById('hidMgrPerid').value   = '';
+            document.getElementById('regMgrPernm').value   = '';
             document.getElementById('selectedBanner').style.display = 'none';
             removeHandleFile();
         }
@@ -986,6 +1021,7 @@
                 document.getElementById('regActnm').value  = item.actnm || '';
                 document.getElementById('hidEqupcd').value = '';
                 document.getElementById('regEqupnm').value = '';
+                bindActManager(item.actcd);   // ★ 담당자 자동 바인드
                 popContainer.close();
             });
 
@@ -1085,6 +1121,74 @@
             });
 
             fetchPernm();
+        }
+
+        /* ════════════════════════════════════
+           팝업 — 담당자 (현장 담당자, 수동 변경용)
+        ════════════════════════════════════ */
+        function openMgrPernmPopup() {
+            var content = tmpl('pernmPopupTemplate', {});
+            var $c      = $(content);
+            var popContainer = new PopupDraggable('담당자 선택');
+            popContainer.open({ width: 480, height: 440, $content: $c });
+
+            var grid = new wijmo.grid.FlexGrid('#popPernmGrid', {
+                autoGenerateColumns: false,
+                showMarquee: true,
+                isReadOnly: true,
+                columns: [
+                    {binding: 'perid',  header: '사번',   width: 100, align: 'center'},
+                    {binding: 'pernm',  header: '사원명', width: 120, align: 'center'},
+                    {binding: 'divinm', header: '부서',   width: '*',  align: 'left'}
+                ],
+                itemsSource: new wijmo.collections.CollectionView([])
+            });
+            grid.rowHeaders.columns.splice(0, 1);
+
+            function fetchMgr() {
+                AjaxUtil.getAsyncData('/api/AS/web_handle/popup/pernm', {
+                    spjangcd : _spjangcd,
+                    pernm    : $c.find('#popPernmKeyword').val()
+                }, function (res) {
+                    grid.itemsSource = new wijmo.collections.CollectionView(res.data || []);
+                    grid.refresh();
+                });
+            }
+
+            $c.find('#popPernmSearch').click(function () { fetchMgr(); });
+            $c.find('#popPernmKeyword').on('keypress', function (e) {
+                if (e.keyCode === 13) fetchMgr();
+            });
+
+            grid.hostElement.addEventListener('dblclick', function () {
+                var item = grid.selectedItems[0];
+                if (!item) return;
+                document.getElementById('hidMgrPerid').value  = (item.perid || '').replace(/^p/, '');
+                document.getElementById('regMgrPernm').value  = item.pernm || '';
+                popContainer.close();
+            });
+
+            fetchMgr();
+        }
+
+        /* ── 현장 선택 시 담당자 자동 바인드 (TB_E601.perid) ──
+           PB 규격: 고장처리 담당자는 현장 마스터의 점검자(정)에서 유래.
+           자동 세팅 후 사용자가 팝업으로 변경 가능 */
+        function bindActManager(actcd) {
+            if (!actcd) {
+                document.getElementById('hidMgrPerid').value = '';
+                document.getElementById('regMgrPernm').value = '';
+                return;
+            }
+            AjaxUtil.getAsyncData('/api/AS/web_handle/act_manager', {
+                spjangcd : _spjangcd,
+                actcd    : actcd
+            }, function (res) {
+                if (res && res.data) {
+                    document.getElementById('hidMgrPerid').value = res.data.perid || '';
+                    document.getElementById('regMgrPernm').value = res.data.pernm || '';
+                }
+            });
         }
 
         /* ════════════════════════════════════

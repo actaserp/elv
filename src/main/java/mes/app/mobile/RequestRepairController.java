@@ -120,6 +120,7 @@ public class RequestRepairController {
             @RequestParam(value = "contcd",    required = false) String contcd,
             @RequestParam(value = "remark",    required = false) String remark,
             @RequestParam(value = "perid",     required = false) String perid,
+            @RequestParam(value = "reperid",   required = false) String reperid,
             @RequestParam(value = "bigo",      required = false) String bigo,
             HttpServletRequest request,
             Authentication auth) {
@@ -138,12 +139,15 @@ public class RequestRepairController {
         String custcd   = (String) userInfo.get("custcd");
 
         try {
-            // ★ perid = 화면에서 선택한 통보자, username = 로그인 사용자(접수자)
+            // ★ perid = 접수자(담당기사, 화면 선택)
+            //   reperid = 통보자(화면 선택). 미선택 시 로그인 사용자로 대체
+            String repIdVal = (reperid != null && !reperid.isBlank()) ? reperid : username;
+
             requestRepairService.saveRepair(
                     custcd, spjangcd, recedate, recetime,
                     hitchdate, hitchhour,
                     actcd, actnm, equpcd, equpnm,
-                    contcd, contents, remark, perid, bigo, username
+                    contcd, contents, remark, perid, bigo, repIdVal
             );
             result.success = true;
             result.message = "고장접수가 등록되었습니다.";

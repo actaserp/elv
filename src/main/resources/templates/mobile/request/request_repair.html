@@ -152,9 +152,14 @@
                     <textarea id="regRemark" placeholder="비고 입력"></textarea>
                 </div>
                 <div class="form-row">
-                    <label>담당기사</label>
-                    <input type="text" id="regRepernm" placeholder="담당기사 선택" readonly onclick="openPerPopup()">
+                    <label>접수자</label>
+                    <input type="text" id="regPernm" placeholder="접수자 선택" readonly onclick="openPerPopup('perid')">
                     <input type="hidden" id="regPerid">
+                </div>
+                <div class="form-row">
+                    <label>통보자</label>
+                    <input type="text" id="regRepernm" placeholder="통보자 선택" readonly onclick="openPerPopup('reperid')">
+                    <input type="hidden" id="regReperid">
                 </div>
                 <div class="form-row">
                     <input type="hidden" id="regBigo">
@@ -202,11 +207,11 @@
     </div>
 </div>
 
-<!-- 통보자 선택 팝업 -->
+<!-- 사원 선택 팝업 (접수자/통보자 공통) -->
 <div class="popup-overlay" id="perPopup">
     <div class="popup-sheet">
         <div class="popup-header">
-            <span>통보자 선택</span>
+            <span id="perPopupTitle">사원 선택</span>
             <button class="popup-close" onclick="closePopup('perPopup')">×</button>
         </div>
         <input type="text" class="popup-search-input" id="perSearchInput" placeholder="이름 검색"
@@ -312,8 +317,10 @@
     function saveRepair() {
         const recedate = document.getElementById('regRecedate').value;
         const actcd    = document.getElementById('regActcd').value;
+        const perid    = document.getElementById('regPerid').value;
         if (!recedate) { Alert.alert('', '접수일자를 입력해주세요.'); return; }
         if (!actcd)    { Alert.alert('', '현장을 선택해주세요.');     return; }
+        if (!perid)    { Alert.alert('', '접수자를 선택해주세요.');   return; }
 
         const data = {
             recedate  : recedate.replaceAll('-', ''),
@@ -327,7 +334,8 @@
             contents  : document.getElementById('regContentsDetail').value,
             contcd    : document.getElementById('regContcd').value,
             remark    : document.getElementById('regRemark').value,
-            perid     : document.getElementById('regPerid').value,   // 담당기사(화면 선택)
+            perid     : perid,                                        // 접수자(담당기사)
+            reperid   : document.getElementById('regReperid').value,  // 통보자
             bigo      : document.getElementById('regBigo').value,
         };
 
@@ -352,11 +360,16 @@
         });
     });
 
-    /* ── 통보자 선택 팝업 ── */
+    /* ── 사원 선택 팝업 (접수자/통보자 공통) ── */
     var _perListCache = [];
+    var _perTarget    = 'perid';   // 'perid'(접수자/담당기사) | 'reperid'(통보자)
 
-    function openPerPopup() {
+    function openPerPopup(target) {
+        _perTarget = target || 'perid';
+        document.getElementById('perPopupTitle').textContent =
+            (_perTarget === 'reperid') ? '통보자 선택' : '접수자 선택';
         document.getElementById('perSearchInput').value = '';
+
         if (_perListCache.length > 0) {
             renderPerList(_perListCache);
             openPopup('perPopup');
@@ -393,8 +406,16 @@
     }
 
     function setPerData(item) {
-        document.getElementById('regPerid').value    = (item.code || '').replace(/^p/, '');
-        document.getElementById('regRepernm').value  = item.name || '';
+        const code = (item.code || '').replace(/^p/, '');
+        const name = item.name || '';
+
+        if (_perTarget === 'reperid') {
+            document.getElementById('regReperid').value = code;
+            document.getElementById('regRepernm').value = name;
+        } else {
+            document.getElementById('regPerid').value = code;
+            document.getElementById('regPernm').value = name;
+        }
         closePopup('perPopup');
     }
 
