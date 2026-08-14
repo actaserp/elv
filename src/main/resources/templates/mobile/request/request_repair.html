@@ -152,8 +152,8 @@
                     <textarea id="regRemark" placeholder="비고 입력"></textarea>
                 </div>
                 <div class="form-row">
-                    <label>통보(전달)자</label>
-                    <input type="text" id="regRepernm" placeholder="통보자 선택" readonly onclick="openPerPopup()">
+                    <label>담당기사</label>
+                    <input type="text" id="regRepernm" placeholder="담당기사 선택" readonly onclick="openPerPopup()">
                     <input type="hidden" id="regPerid">
                 </div>
                 <div class="form-row">
@@ -327,7 +327,7 @@
             contents  : document.getElementById('regContentsDetail').value,
             contcd    : document.getElementById('regContcd').value,
             remark    : document.getElementById('regRemark').value,
-            perid     : document.getElementById('regPerid').value,   // 통보자(화면 선택)
+            perid     : document.getElementById('regPerid').value,   // 담당기사(화면 선택)
             bigo      : document.getElementById('regBigo').value,
         };
 

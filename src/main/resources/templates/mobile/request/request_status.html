@@ -209,7 +209,7 @@
                 <textarea id="editRemark" placeholder="비고 입력"></textarea>
             </div>
             <div class="form-row">
-                <label>통보(전달)자</label>
+                <label>담당기사</label>
                 <input type="text" id="editRepernm" placeholder="통보자 선택" readonly onclick="openPerPopup()">
                 <input type="hidden" id="editPerid">
             </div>
@@ -367,9 +367,9 @@
         ]);
         html += `<div class="detail-section-title">담당자 정보</div>`;
         html += buildDetailRows([
-            { label: '통보자', value: item.pernm   || item.perid },
-            { label: '부서명', value: item.divinm  },
-            { label: '접수자', value: item.repernm || item.reperid },
+            { label: '담당기사', value: item.pernm   || item.perid },
+            { label: '부서명',   value: item.divinm  },
+            { label: '통보자',   value: item.repernm || item.reperid },
         ]);
 
         document.getElementById('detailBody').innerHTML = html;
