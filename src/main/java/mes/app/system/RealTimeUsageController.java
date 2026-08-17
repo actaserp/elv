@@ -37,15 +37,14 @@ public class RealTimeUsageController {
         String currentMonth = LocalDate.now(ZoneId.of("Asia/Seoul")).format(DateTimeFormatter.ofPattern("yyyyMM"));
 
         DecimalFormat df = new DecimalFormat("###,###");
-        String myPattern = "MES:" + spjangcd + ":" + currentMonth + "*";
-
         /// [A] 이번 달 (실시간)
-        //redis 데이터
-        Map<String, Integer> redisData = redisService.getValuesByPattern(myPattern);
+        // Redis 데이터 — 신 패턴: MES:{사업장}:{상품}:{yyyyMMdd}
+        String myPattern = "MES:" + spjangcd + ":*:" + currentMonth + "??";
+        Map<String, Long> redisData = redisService.getValuesByPattern(myPattern);
         //RDB 데이터
         List<Map<String, Object>> currentUsage = realTimeUsageService.getUsageList(spjangcd);
         //이번 달 총 사용량 합산
-        int totalRealTimeCnt = redisData.values().stream().mapToInt(Integer::intValue).sum();
+        long totalRealTimeCnt = redisData.values().stream().mapToLong(Long::longValue).sum();
         // 결과 조립
         for (Map<String, Object> item : currentUsage) {
             processBillingRow(item, totalRealTimeCnt, df);
@@ -54,8 +53,8 @@ public class RealTimeUsageController {
         //// [B] 과거 이력 (RDB)
         List<Map<String, Object>> historyUsage = realTimeUsageService.getApiUsageHistory(spjangcd);
         for(Map<String, Object> item : historyUsage){
-            int historyTotal = ((Number) item.get("total_count")).intValue();
-            processBillingRow(item, historyTotal, df); // 똑같은 공통 함수 호출!
+            long historyTotal = ((Number) item.get("total_count")).longValue();
+            processBillingRow(item, historyTotal, df);
         }
         currentUsage.addAll(historyUsage);
 
@@ -74,23 +73,23 @@ public class RealTimeUsageController {
     }
 
 
-    private void processBillingRow(Map<String, Object> item, int totalUsage, DecimalFormat df) {
+    private void processBillingRow(Map<String, Object> item, long totalUsage, DecimalFormat df) {
         // 1. 원본 데이터 추출 (타입 안정성 확보)
-        int apiCallLimit = (int) Double.parseDouble(String.valueOf(item.getOrDefault("api_call_limit", 0)));
-        int basePrice = (int) Double.parseDouble(String.valueOf(item.getOrDefault("price", 0)));
-        int extraUnitPrice = (int) Double.parseDouble(String.valueOf(item.getOrDefault("extra_api_unit_price", 0)));
+        long apiCallLimit = (long) Double.parseDouble(String.valueOf(item.getOrDefault("api_call_limit", 0)));
+        long basePrice    = (long) Double.parseDouble(String.valueOf(item.getOrDefault("price", 0)));
+        long extraUnitPrice = (long) Double.parseDouble(String.valueOf(item.getOrDefault("extra_api_unit_price", 0)));
 
         // 2. 비즈니스 로직 계산
-        int overApiCnt = Math.max(0, totalUsage - apiCallLimit);
-        int overApiAmt = overApiCnt * extraUnitPrice;
-        int totalBill = basePrice + overApiAmt;
+        long overApiCnt = Math.max(0, totalUsage - apiCallLimit);
+        long overApiAmt = overApiCnt * extraUnitPrice;
+        long totalBill  = basePrice + overApiAmt;
 
-        // 3. 포맷팅 및 결과 조립 (Key 이름을 완전히 통일)
+        // 3. 포맷팅 및 결과 조립
         item.put("totalRealTimeCnt", totalUsage + "건");
-        item.put("api_call_limit", apiCallLimit + "건");
-        item.put("over_api_cnt", overApiCnt + "건");
-        item.put("over_api_amt", overApiAmt);
-        item.put("bill", df.format(totalBill) + "원");
-        item.put("bill_raw", totalBill);
+        item.put("api_call_limit",   apiCallLimit + "건");
+        item.put("over_api_cnt",     overApiCnt + "건");
+        item.put("over_api_amt",     overApiAmt);
+        item.put("bill",             df.format(totalBill) + "원");
+        item.put("bill_raw",         totalBill);
     }
 }

@@ -120,6 +120,42 @@ public class AccountService {
 		 return results;
 	 }
 
+	 /**
+	  * 구독 팝업용 상품 목록 조회 (product 테이블 기준).
+	  * login.html 구독 정보 팝업에서 사용자가 상품을 선택할 때 사용.
+	  */
+	 public List<Map<String, Object>> getProducts() {
+		 MapSqlParameterSource dicParam = new MapSqlParameterSource();
+		 String sql = """
+                SELECT product_cd,
+                       product_nm,
+                       price,
+                       api_call_limit,
+                       extra_unit_price,
+                       remark,
+                       sort_order
+                FROM product
+                WHERE useyn = '1'
+                ORDER BY sort_order
+            """;
+		 return this.sqlRunner.getRows(sql, dicParam);
+	 }
+
+	 /**
+	  * 등급(bill_plans) 목록 조회 — 확장성 보존용.
+	  * 현재 UI에서는 숨김 처리되며 기본값 Standard(id=1)가 자동 적용됨.
+	  */
+	 public List<Map<String, Object>> getGrades() {
+		 MapSqlParameterSource dicParam = new MapSqlParameterSource();
+		 String sql = """
+                SELECT id, name, price, api_call_limit, extra_api_unit_price, remark
+                FROM bill_plans
+                WHERE is_active = true
+                ORDER BY id
+            """;
+		 return this.sqlRunner.getRows(sql, dicParam);
+	 }
+
 
 
 }

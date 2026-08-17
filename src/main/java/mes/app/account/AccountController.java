@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.Arrays;
 
 import javax.annotation.Resource;
 import javax.servlet.http.Cookie;
@@ -445,12 +446,17 @@ public class AccountController {
 		try {
 			// 1. 데이터 추출
 			String bizName = (String) params.get("bizName");
-			String bizNo = (String) params.get("bizNo"); // 000-00-00000 형식
+			String bizNo = (String) params.get("bizNo");
 			String bizType = (String) params.get("bizType");
 			String bizItem = (String) params.get("bizItem");
 			String bizAddr = (String) params.get("bizAddr");
-			String billPlanId = (String) params.get("bill_plan_id");
-			String corpNum = bizNo.replaceAll("-", ""); // 하이픈 제거
+			// 등급: 현재 UI 숨김 — 기본값 Standard(id=1) 고정. 추후 프론트 선택값 연동 시 활성화
+			String billPlanId = params.containsKey("bill_plan_id") && params.get("bill_plan_id") != null
+					? String.valueOf(params.get("bill_plan_id")) : "1";
+			// 선택된 상품 코드 목록 (콤마 구분 문자열, 예: "P01,P02,P03")
+			String selectedProductCds = params.containsKey("product_cds") && params.get("product_cds") != null
+					? String.valueOf(params.get("product_cds")) : "";
+			String corpNum = bizNo.replaceAll("-", "");
 
 			// 2. 휴/폐업 및 유효성 체크
 			// salesInvoiceService를 사용하여 국세청 기준 유효성 검사
@@ -501,7 +507,29 @@ public class AccountController {
 
 			this.sqlRunner.execute(sql, dicParam);
 
-			// 6. 성공 시 반환 (유저 저장 시 spjangcd 연결)
+			// 6. tenant_product 행 생성 (선택된 상품 각각)
+			//    selectedProductCds 가 비어있으면 전체 상품(P01~P05) 기본 등록
+			String startYm = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
+			List<String> productCdList;
+			if (selectedProductCds.isBlank()) {
+				productCdList = List.of("P01", "P02", "P03", "P04", "P05");
+			} else {
+				productCdList = Arrays.asList(selectedProductCds.split(","));
+			}
+			for (String productCd : productCdList) {
+				String tpSql = """
+						INSERT INTO tenant_product (spjangcd, product_cd, start_ym)
+						VALUES (:spjangcd, :product_cd, :start_ym)
+						ON CONFLICT (spjangcd, product_cd) DO NOTHING
+						""";
+				MapSqlParameterSource tpParam = new MapSqlParameterSource();
+				tpParam.addValue("spjangcd",   spjangcd);
+				tpParam.addValue("product_cd", productCd.trim());
+				tpParam.addValue("start_ym",   startYm);
+				this.sqlRunner.execute(tpSql, tpParam);
+			}
+
+			// 7. 성공 시 반환
 			result.success = true;
 			result.data = spjangcd;
 
@@ -755,16 +783,49 @@ public class AccountController {
 		return result;
 	}
 
-	@GetMapping("/bill_plan_read") // Post로 통일
+	@GetMapping("/bill_plan_read")
 	public AjaxResult getBillPlans(){
 		AjaxResult result = new AjaxResult();
 		try {
 			List<Map<String, Object>> list = accountService.getBillPlans();
 			result.data = list;
-			result.success = true; // 성공 플래그 명시
+			result.success = true;
 		} catch (Exception e) {
 			result.success = false;
 			result.message = "요금제 정보를 불러오는데 실패했습니다.";
+		}
+		return result;
+	}
+
+	/**
+	 * 구독 팝업용 상품 목록 (product 테이블 기준).
+	 * login.html 에서 사용자가 계약할 상품을 선택할 때 호출.
+	 */
+	@GetMapping("/product_read")
+	public AjaxResult getProducts() {
+		AjaxResult result = new AjaxResult();
+		try {
+			result.data = accountService.getProducts();
+			result.success = true;
+		} catch (Exception e) {
+			result.success = false;
+			result.message = "상품 정보를 불러오는데 실패했습니다.";
+		}
+		return result;
+	}
+
+	/**
+	 * 등급 목록 (bill_plans 기준) — 확장성 보존용, 현재 UI에서는 숨김.
+	 */
+	@GetMapping("/grade_read")
+	public AjaxResult getGrades() {
+		AjaxResult result = new AjaxResult();
+		try {
+			result.data = accountService.getGrades();
+			result.success = true;
+		} catch (Exception e) {
+			result.success = false;
+			result.message = "등급 정보를 불러오는데 실패했습니다.";
 		}
 		return result;
 	}

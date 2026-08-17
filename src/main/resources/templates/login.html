@@ -238,6 +238,55 @@
             font-size: 0.85em;
         }
 
+        .product-card {
+            flex: 1 1 calc(33% - 12px);
+            min-width: 180px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 14px;
+            cursor: pointer;
+            position: relative;
+            opacity: 0.5;
+            transition: border-color 0.2s, opacity 0.2s;
+        }
+        .product-card.selected {
+            border-color: #03428E;
+            opacity: 1;
+        }
+        .product-card .product-check {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            color: #03428E;
+            font-weight: bold;
+            font-size: 1.1em;
+            display: none;
+        }
+        .product-card.selected .product-check {
+            display: block;
+        }
+        .product-card h3 {
+            font-size: 0.9em;
+            font-weight: bold;
+            margin-bottom: 6px;
+            color: #222;
+            line-height: 1.3;
+        }
+        .product-card .price {
+            font-size: 0.95em;
+            color: #03428E;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+        .product-card ul {
+            padding-left: 14px;
+            font-size: 0.82em;
+            color: #555;
+        }
+        .product-card ul li {
+            margin-bottom: 2px;
+        }
+
         @media (max-width: 768px) {
             .login-wrap .left {
                 display: none;
@@ -516,24 +565,33 @@
     <!-- [구독정보] 팝업  -->
     <div class="dashboard-layout-popup">
         <div class="popup-overlay" id="popup2"></div>
-        <div class="popup-wrapper" id="wrapper2">
+        <div class="popup-wrapper" id="wrapper2" style="max-width:780px;">
             <div class="popup-title">
-                <h3>구독 플랜 안내</h3>
+                <h3>구독 상품 안내</h3>
                 <a onclick="subscriptionModalClose()" title="팝업닫기" class="btn-popup-close">
                     <img th:src="@{/images/icon/btn-popup-close.svg}" alt="닫기">
                 </a>
             </div>
             <div class="popup-contents">
+                <p style="margin-bottom:12px; color:#555; font-size:0.9em;">
+                    원하시는 상품을 선택하세요. (기본 전체 선택, 클릭하여 해제 가능)
+                </p>
 
-                <div class="plan-container">
+                <!-- 상품 카드 목록 -->
+                <div class="plan-container" style="display:flex; flex-wrap:wrap; gap:12px;"></div>
 
+                <!-- 등급 선택 — 확장성 보존, 현재 UI 숨김 -->
+                <div id="gradeSection" style="display:none; margin-top:20px;">
+                    <p style="font-weight:bold; margin-bottom:8px;">등급 선택</p>
+                    <div id="gradeContainer" style="display:flex; gap:12px;"></div>
                 </div>
-
             </div>
 
             <div style="text-align: center; margin-top: 25px;">
-                <button type="button" onclick="subscriptionModalClose()" style="width: 100px; padding: 10px; background: white; border: 1px solid #ccc; border-radius: 5px; cursor:pointer;">닫기</button>
-                <button type="button" id="btnRequestSub" style="width: 150px; padding: 10px; border: none; border-radius: 5px; color: white; background: #03428E; cursor:pointer; font-weight: bold;">구독 신청하기</button>
+                <button type="button" onclick="subscriptionModalClose()"
+                        style="width:100px; padding:10px; background:white; border:1px solid #ccc; border-radius:5px; cursor:pointer;">닫기</button>
+                <button type="button" id="btnRequestSub"
+                        style="width:150px; padding:10px; border:none; border-radius:5px; color:white; background:#03428E; cursor:pointer; font-weight:bold;">구독 신청하기</button>
             </div>
         </div>
     </div> <!-- //dashboard-layout-popup end -->
@@ -668,105 +726,76 @@
         wrapper.style.display = 'none';
     }
 
+    // ── 선택된 상품 코드 목록 (전역) ─────────────────────────
+    let selectedProductCds = [];
+
     function subscriptionModalOpen() {
         let popup = document.getElementById('popup2');
         let wrapper = document.getElementById('wrapper2');
 
-        let fnSuccess = function (res) {
-            if (res.success) {
-                let list = res.data;
-                let html = "";
+        AjaxUtil.getAsyncData("/product_read", {}, function(res) {
+            if (!res.success) { Alert.alert('', res.message); return; }
 
-                list.forEach((plan, index) => {
-                    // 첫 번째 요금제나 특정 조건에 active 클래스 부여
-                    let activeClass = index === 0 ? "active" : "";
+            let products = res.data;
+            // 기본 전체 선택
+            selectedProductCds = products.map(p => p.product_cd);
 
-                    // 금액 포맷팅 (200000 -> 200,000)
-                    let formattedPrice = Number(plan.price).toLocaleString();
-                    let formattedLimit = Number(plan.api_call_limit).toLocaleString();
+            let html = '';
+            products.forEach(p => {
+                let price     = Number(p.price).toLocaleString();
+                let limitText = p.api_call_limit
+                    ? Number(p.api_call_limit).toLocaleString() + '건 무료'
+                    : '무제한';
+                let extraText = p.extra_unit_price
+                    ? '초과 시 건당 ' + p.extra_unit_price + '원'
+                    : '';
 
-                    html += `
-                    <div class="plan-box ${activeClass}" onclick="selectPlan(this, ${plan.id})">
-                        <h3>${plan.name}</h3>
-                        <p class="price">월 ${formattedPrice}원</p>
-                        <ul>
-                            <li>사용자 ${plan.user_limit}인 포함</li>
-                            <li>Api호출 ${formattedLimit}건 무료</li>
-                            <li class="extra-charge">초과 호출 시 건당 ${plan.extra_api_unit_price}원 (종량제)</li>
-                        </ul>
-                    </div>
-                `;
-                });
+                html += `
+                <div class="product-card selected" data-cd="${p.product_cd}" onclick="toggleProduct(this)">
+                    <div class="product-check">✓</div>
+                    <h3>${p.product_nm}</h3>
+                    <p class="price">월 ${price}원</p>
+                    <ul>
+                        <li>API ${limitText}</li>
+                        ${extraText ? '<li class="extra-charge">' + extraText + '</li>' : ''}
+                        <li style="color:#888;font-size:0.85em;">${p.remark || ''}</li>
+                    </ul>
+                </div>`;
+            });
+            document.querySelector('.plan-container').innerHTML = html;
 
-                document.querySelector('.plan-container').innerHTML = html;
-
-                popup.style.display = 'block';
-                wrapper.style.display = 'block';
-            } else {
-                Alert.alert('', res.message);
-            }
-        }
-        // 데이터 조회 시 보낼 파라미터가 없다면 빈 객체 {} 전달
-        AjaxUtil.getAsyncData("/bill_plan_read", {}, fnSuccess);
+            popup.style.display = 'block';
+            wrapper.style.display = 'block';
+        });
     }
 
-    // 요금제 박스 클릭 시 시각적 효과를 주는 함수
-    function selectPlan(element, planId) {
-        document.querySelectorAll('.plan-box').forEach(box => box.classList.remove('active'));
-        element.classList.add('active');
-        // 선택된 planId를 전역변수나 버튼의 data 속성에 저장해두면 '구독 신청' 시 편리합니다.
-        document.getElementById('btnRequestSub').dataset.selectedPlanId = planId;
+    // 상품 카드 토글 (선택/해제)
+    function toggleProduct(el) {
+        let cd = el.dataset.cd;
+        if (el.classList.contains('selected')) {
+            el.classList.remove('selected');
+            selectedProductCds = selectedProductCds.filter(c => c !== cd);
+        } else {
+            el.classList.add('selected');
+            if (!selectedProductCds.includes(cd)) selectedProductCds.push(cd);
+        }
     }
 
     function subscriptionModalClose() {
         let popup = document.getElementById('popup2');
         let wrapper = document.getElementById('wrapper2');
-
         popup.style.display = 'none';
         wrapper.style.display = 'none';
     }
 
-    // 요금제 카드 클릭 이벤트
-    $('.plan-box').click(function() {
-        // 1. 모든 카드의 active 제거 후 클릭한 것만 추가
-        $('.plan-box').removeClass('active');
-        $(this).addClass('active');
-
-        // 2. 카드 내의 타이틀 텍스트를 읽어서 select box 변경
-        const planName = $(this).find('h3').text().toLowerCase();
-        $('#selectedPlan').val(planName);
-    });
-
-    // select box 변경 시 카드 active 변경
-    $('#selectedPlan').change(function() {
-        const selected = $(this).val();
-        $('.plan-box').removeClass('active');
-
-        $('.plan-box').each(function() {
-            if ($(this).find('h3').text().toLowerCase() === selected) {
-                $(this).addClass('active');
-            }
-        });
-    });
-
-    // 1. 구독 모달에서 [구독 신청하기] 버튼 클릭 시
+    // [구독 신청하기] 버튼
     $('#btnRequestSub').click(function() {
-        // 현재 선택된 플랜 확인 (active 클래스가 붙은 카드)
-        let selectedPlanValue = "";
-        if ($('.plan-box.active h3').text().toLowerCase().indexOf('standard') !== -1) {
-            selectedPlanValue = "1";
-        } else {
-            selectedPlanValue = "2";
+        if (selectedProductCds.length === 0) {
+            Alert.alert('', '최소 1개 이상의 상품을 선택해주세요.');
+            return;
         }
-
-        // 구독 모달 닫기
         subscriptionModalClose();
-
-        // 사업장 신청 모달 열기
         RegisterUserOpen();
-
-        // 신청 모달 내의 select 박스 값을 해당 플랜으로 자동 변경
-        $('#spjangcd').val(selectedPlanValue);
     });
 
     // 2. 사업장 신청 모달 열기 함수 (기존 함수 보완)
@@ -1235,7 +1264,8 @@
                     bizType: data.bizType,
                     bizItem: data.bizItem,
                     bizAddr: data.bizAddr,
-                    bill_plan_id: 2
+                    bill_plan_id: 1,
+                    product_cds: selectedProductCds.join(',')
                 },
                 headers: { 'X-CSRF-TOKEN': $('input[name="_csrf"]').val() },
                 success: function (bizRes) {

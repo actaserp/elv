@@ -5,7 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -115,34 +117,61 @@ public class RedisService {
     }
 
 
-    //패턴으로 조회
-    public Map<String, Integer> getValuesByPattern(String pattern){
-        try{
-            Set<String> keys = redisTemplate.keys(pattern);
-            Map<String, Integer> usageMap = new HashMap<>();
+    /**
+     * 패턴으로 Redis 키를 SCAN 후 값을 일괄 조회한다.
+     *
+     * <p>기존 {@code keys()} 방식은 운영 환경에서 블로킹·누락 문제가 있어
+     * SCAN 커서 방식으로 교체했다. 값은 Long 으로 파싱해 Integer 오버플로우를 방지.
+     */
+    public Map<String, Long> getValuesByPattern(String pattern) {
+        Map<String, Long> usageMap = new HashMap<>();
+        try {
+            org.springframework.data.redis.core.ScanOptions options =
+                    org.springframework.data.redis.core.ScanOptions.scanOptions()
+                            .match(pattern).count(500).build();
 
-            if (keys != null) {
-                for (String key : keys) {
-                    // 2. 각 키에 해당하는 값 조회
-                    Object value = redisTemplate.opsForValue().get(key);
+            List<String> keys = new ArrayList<>();
+            redisTemplate.execute(
+                    (org.springframework.data.redis.core.RedisCallback<Void>) conn -> {
+                        try (org.springframework.data.redis.core.Cursor<byte[]> cursor =
+                                     conn.scan(options)) {
+                            while (cursor.hasNext()) {
+                                keys.add(new String(cursor.next()));
+                            }
+                        } catch (Exception e) {
+                            log.warn("[RedisService] SCAN 중 오류: {}", e.getMessage());
+                        }
+                        return null;
+                    });
 
-                    // 3. 값이 String이면 파싱, 이미 Integer 형태라면 바로 저장 (안전한 형변환)
-                    if (value != null) {
-                        int count = Integer.parseInt(value.toString());
-                        usageMap.put(key, count);
+            if (keys.isEmpty()) return usageMap;
+
+            // 파이프라인으로 값 일괄 조회
+            List<Object> values = redisTemplate.opsForValue().multiGet(keys);
+            if (values != null) {
+                for (int i = 0; i < keys.size(); i++) {
+                    Object val = values.get(i);
+                    if (val != null) {
+                        try {
+                            usageMap.put(keys.get(i), Long.parseLong(val.toString()));
+                        } catch (NumberFormatException ignored) {}
                     }
                 }
             }
-            return usageMap;
-        }catch (Exception e){
-            log.warn("Redis 패턴 조회 실패 - 로컬 메모리에서 패턴 조회 실행");
-            return localCache.entrySet().stream()
-                    .filter(entry -> entry.getKey().contains(pattern.replace("*", "")))
-                    .collect(Collectors.toMap(
-                            Map.Entry::getKey,
-                            entry -> Integer.parseInt(entry.getValue().toString())
-                    ));
+        } catch (Exception e) {
+            log.warn("[RedisService] 패턴 조회 실패 pattern={} : {}", pattern, e.getMessage());
+            // 로컬 캐시 폴백
+            String prefix = pattern.replace("*", "").replace("?", "");
+            localCache.entrySet().stream()
+                    .filter(entry -> entry.getKey().startsWith(prefix))
+                    .forEach(entry -> {
+                        try {
+                            usageMap.put(entry.getKey(),
+                                    Long.parseLong(entry.getValue().toString()));
+                        } catch (NumberFormatException ignored) {}
+                    });
         }
+        return usageMap;
     }
 
     //현재 레디스가 연결된 상태인지 확인

@@ -90,7 +90,7 @@ public class RedisDebugController {
                 return result;
             }
 
-            Map<String, Integer> values = redisService.getValuesByPattern(pattern);
+            Map<String, Long> values = redisService.getValuesByPattern(pattern);
 
             if (values == null || values.isEmpty()) {
                 data.put("키개수", 0);
@@ -101,17 +101,17 @@ public class RedisDebugController {
             }
 
             // 키 이름순 정렬해서 보기 좋게
-            Map<String, Integer> sorted = new TreeMap<>(values);
+            Map<String, Long> sorted = new TreeMap<>(values);
             data.put("키개수", sorted.size());
             data.put("키목록", sorted);
 
             // 상품코드별 합계 (키 형식: MES:{사업장}:{상품}:{yyyyMMdd})
             Map<String, Long> byProduct = new TreeMap<>();
             Map<String, Long> bySpjang  = new TreeMap<>();
-            for (Map.Entry<String, Integer> e : sorted.entrySet()) {
+            for (Map.Entry<String, Long> e : sorted.entrySet()) {
                 String[] parts = e.getKey().split(":");
                 if (e.getValue() == null) continue;
-                long cnt = e.getValue().longValue();
+                long cnt = e.getValue();
 
                 if (parts.length >= 4) {
                     // 신규 형식 (상품 축 포함)

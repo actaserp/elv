@@ -110,6 +110,22 @@ public class CustomerCurrentService {
             xa012.setBillingdate(25);
             xa012Repository.save(xa012);
 
+            // ── tenant_product 행이 없으면 신청 시 선택된 상품으로 활성화 ──
+            // 신청 시 이미 INSERT 됐으면 ON CONFLICT DO NOTHING 으로 중복 방지
+            String startYm = java.time.LocalDate.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM"));
+            String activateTpSql = """
+                    INSERT INTO tenant_product (spjangcd, product_cd, start_ym)
+                    SELECT :spjangcd, product_cd, :start_ym
+                    FROM tenant_product
+                    WHERE spjangcd = :spjangcd
+                    ON CONFLICT (spjangcd, product_cd) DO NOTHING
+                    """;
+            MapSqlParameterSource tpParam = new MapSqlParameterSource();
+            tpParam.addValue("spjangcd", spjangcd);
+            tpParam.addValue("start_ym", startYm);
+            this.sqlRunner.execute(activateTpSql, tpParam);
+
             boolean isNew = userGroupRepository.findBySpjangcd(spjangcd).isEmpty();
             if (isNew) {
                 // 2. auth_user is_active -> true

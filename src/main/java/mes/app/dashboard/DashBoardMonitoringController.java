@@ -32,6 +32,12 @@ public class DashBoardMonitoringController {
     NcpMonitoringService ncpMonitoringService;
 
     @Autowired
+    mes.app.system.service.TenantUsageService tenantUsageService;
+
+    @Autowired
+    mes.app.util.RedisService redisService;
+
+    @Autowired
     @Qualifier("asyncExecutor")
     ThreadPoolTaskExecutor asyncExecutors;
 
@@ -116,6 +122,108 @@ public class DashBoardMonitoringController {
         List<Map<String, Object>> data = ncpMonitoringService.getApiCntListBySpjangcd(pageNumber, pageSize, monthlyStartDate2);
 
         return AjaxResult.success(null, data);
+    }
+
+    /**
+     * 본사 관리자 전용 — 특정 사업장의 상품별 상세 사용량.
+     * adminUsageGrid 더블클릭 시 팝업에서 호출.
+     * spjangcd 를 파라미터로 직접 받는다 (본사 관리자만 접근 가능한 API).
+     */
+    @GetMapping("/detail")
+    public AjaxResult getDetail(
+            @RequestParam String spjangcd,
+            @RequestParam(required = false) String yearMonth
+    ) {
+        try {
+            String currentYm = java.time.LocalDate.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM"));
+            boolean isCurrentMonth = (yearMonth == null || yearMonth.isBlank()
+                    || yearMonth.replace("-", "").equals(currentYm));
+            String targetYm = isCurrentMonth ? currentYm : yearMonth.replace("-", "");
+
+            // 상품별 사용량 집계
+            java.util.Map<String, Long> usageByProduct = new java.util.HashMap<>();
+            if (isCurrentMonth) {
+                String pattern = "MES:" + spjangcd + ":*:" + targetYm + "??";
+                java.util.Map<String, Long> values = redisService.getValuesByPattern(pattern);
+                for (java.util.Map.Entry<String, Long> e : values.entrySet()) {
+                    String[] parts = e.getKey().split(":");
+                    if (parts.length >= 4) usageByProduct.merge(parts[2], e.getValue(), Long::sum);
+                }
+            } else {
+                java.util.List<java.util.Map<String, Object>> rows =
+                        tenantUsageService.getUsageHistory(spjangcd, targetYm);
+                for (java.util.Map<String, Object> row : rows) {
+                    String pcd = String.valueOf(row.get("product_cd"));
+                    Object cnt = row.get("total_count");
+                    if (cnt != null) usageByProduct.merge(pcd, ((Number) cnt).longValue(), Long::sum);
+                }
+            }
+
+            // 상품 목록 + 계약여부
+            java.util.List<java.util.Map<String, Object>> products =
+                    tenantUsageService.getProductListWithContract(spjangcd);
+
+            java.util.List<java.util.Map<String, Object>> items = new java.util.ArrayList<>();
+            java.math.BigDecimal totalBill = java.math.BigDecimal.ZERO;
+
+            for (java.util.Map<String, Object> p : products) {
+                String pcd = String.valueOf(p.get("product_cd"));
+                boolean contracted = "1".equals(String.valueOf(p.get("contract_yn")));
+                long usage = usageByProduct.getOrDefault(pcd, 0L);
+
+                java.math.BigDecimal price = toBD(p.get("price"));
+                Integer limit = toInt(p.get("api_call_limit"));
+                java.math.BigDecimal extraUnit = toBD(p.get("extra_unit_price"));
+
+                long overCnt = 0;
+                java.math.BigDecimal overAmt = java.math.BigDecimal.ZERO;
+                if (limit != null && limit > 0 && usage > limit) {
+                    overCnt = usage - limit;
+                    overAmt = extraUnit.multiply(java.math.BigDecimal.valueOf(overCnt));
+                }
+                java.math.BigDecimal bill = contracted ? price.add(overAmt) : java.math.BigDecimal.ZERO;
+                if (contracted) totalBill = totalBill.add(bill);
+
+                java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+                row.put("product_cd",     pcd);
+                row.put("product_nm",     p.get("product_nm"));
+                row.put("contract_yn",    contracted ? "1" : "0");
+                row.put("contract_nm",    contracted ? "계약" : "미계약");
+                row.put("price",          contracted ? price : java.math.BigDecimal.ZERO);
+                row.put("api_call_limit", limit);
+                row.put("usage_cnt",      usage);
+                row.put("over_cnt",       overCnt);
+                row.put("over_amt",       overAmt);
+                row.put("bill",           bill);
+                items.add(row);
+            }
+
+            java.util.Map<String, Object> data = new java.util.HashMap<>();
+            data.put("items",      items);
+            data.put("total_bill", totalBill);
+            data.put("spjangcd",   spjangcd);
+            data.put("spjangnm",   tenantUsageService.getSpjangNm(spjangcd));
+            data.put("year_month", targetYm);
+
+            return AjaxResult.success(null, data);
+        } catch (Exception e) {
+            AjaxResult err = new AjaxResult();
+            err.success = false;
+            err.message = "상세 조회 실패: " + e.getMessage();
+            return err;
+        }
+    }
+
+    private java.math.BigDecimal toBD(Object v) {
+        if (v == null) return java.math.BigDecimal.ZERO;
+        try { return new java.math.BigDecimal(String.valueOf(v)); }
+        catch (Exception e) { return java.math.BigDecimal.ZERO; }
+    }
+    private Integer toInt(Object v) {
+        if (v == null) return null;
+        try { return Integer.parseInt(String.valueOf(v)); }
+        catch (Exception e) { return null; }
     }
 
     @GetMapping("/local_cache/save")

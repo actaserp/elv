@@ -298,36 +298,44 @@ public class NcpMonitoringService {
 
 
     //redis에서 고객사별로 api 콜 호출 횟수 조회
-    //TODO: 분석필요
+    // ★ 신 키 패턴: MES:{사업장}:{상품}:{yyyyMMdd}
+    //   상품코드(P01~P05)별로 저장되므로 사업장별 전체 합산 시 상품 루프 필요
     private Map<String, Object> getThisMonthData(List<String> codes) {
-        // 1. 현재 날짜 정보 가져오기
         LocalDate today = LocalDate.now();
         String currentYearMonth = today.format(DateTimeFormatter.ofPattern("yyyyMM"));
         int currentDay = today.getDayOfMonth();
 
-        // 2. 파이프라인으로 이번 달 1일부터 오늘까지의 데이터만 '딱 한 번' 통신
+        // 집계 대상 상품코드 — product 테이블과 동일
+        List<String> productCds = List.of("P01", "P02", "P03", "P04", "P05");
+
+        // 파이프라인 키 순서: [code0·P01·day1, code0·P01·day2, ..., code0·P02·day1, ...]
+        // → (사업장 × 상품 × 일수) 순으로 한번에 조회
         List<Object> rawResults = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             for (String code : codes) {
-                for (int day = 1; day <= currentDay; day++) {
-                    String key = "MES:" + code + ":" + currentYearMonth + String.format("%02d", day);
-                    connection.stringCommands().get(key.getBytes());
+                for (String pcd : productCds) {
+                    for (int day = 1; day <= currentDay; day++) {
+                        String key = "MES:" + code + ":" + pcd + ":"
+                                + currentYearMonth + String.format("%02d", day);
+                        connection.stringCommands().get(key.getBytes());
+                    }
                 }
             }
             return null;
         });
 
-        // 3. 결과 가공 (사업장별로 1일~오늘치 합산)
+        // 결과 가공: 사업장별로 전 상품·전 일수 합산
         List<Map<String, Object>> finalData = new ArrayList<>();
         int resultIdx = 0;
         for (String code : codes) {
             long monthlySum = 0;
-            for (int j = 0; j < currentDay; j++) {
-                Object val = rawResults.get(resultIdx++);
-                if (val != null) {
-                    try {
-                        // Redis에서 꺼낸 값(byte[] 또는 String)을 숫자로 변환
-                        monthlySum += Long.parseLong(val.toString());
-                    } catch (Exception e) { /* 숫자가 아니면 무시 */ }
+            for (String pcd : productCds) {
+                for (int j = 0; j < currentDay; j++) {
+                    Object val = rawResults.get(resultIdx++);
+                    if (val != null) {
+                        try {
+                            monthlySum += Long.parseLong(val.toString());
+                        } catch (Exception ignored) {}
+                    }
                 }
             }
             Map<String, Object> row = new HashMap<>();
@@ -344,16 +352,18 @@ public class NcpMonitoringService {
 
 
     // 이번 달 키가 존재하는 사업장만 찾는 스캔 메서드
+    // ★ 신 키 패턴: MES:{사업장}:{상품}:{yyyyMMdd} → parts.length == 4
     private Set<String> getSpjangCodesByScan(String yearMonth) {
         return redisTemplate.execute((RedisCallback<Set<String>>) connection -> {
             Set<String> codes = new HashSet<>();
-            // 패턴을 "MES:*:202602*" 로 주면 이번 달 데이터가 있는 사업장만 필터링됩니다.
-            ScanOptions options = ScanOptions.scanOptions().match("MES:*:" + yearMonth + "*").count(1000).build();
+            ScanOptions options = ScanOptions.scanOptions()
+                    .match("MES:*:*:" + yearMonth + "*").count(1000).build();
             try (Cursor<byte[]> cursor = connection.scan(options)) {
                 while (cursor.hasNext()) {
                     String key = new String(cursor.next());
                     String[] parts = key.split(":");
-                    if (parts.length >= 2) codes.add(parts[1]);
+                    // MES : 사업장 : 상품 : 날짜 → index 1 이 사업장코드
+                    if (parts.length == 4) codes.add(parts[1]);
                 }
             }
             return codes;
@@ -450,35 +460,32 @@ public class NcpMonitoringService {
         String yearMonth = today.format(DateTimeFormatter.ofPattern("yyyyMM"));
         int currentDay = today.getDayOfMonth();
 
+        // 집계 대상 상품코드
+        List<String> productCds = List.of("P01", "P02", "P03");
 
-        // 3. 파이프라인으로 한번에 삽입
+        // 3. 파이프라인으로 한번에 삽입 — 신 패턴: MES:{사업장}:{상품}:{yyyyMMdd}
         redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             int rna = 1;
-
             for (Map<String, Object> spjang : spjangList) {
-
                 rna++;
-
                 String code = String.valueOf(spjang.get("spjangcd"));
-                for (int day = 1; day <= currentDay; day++) {
-                    String key = "MES:" + code + ":" + yearMonth + String.format("%02d", day);
-
-                    int randomValue;
-                    if(rna % 2 == 0){
-                        randomValue = (int)(Math.random() * 5001);
-                    }else{
-                        randomValue = (int)(Math.random() * 50);
+                for (String pcd : productCds) {
+                    for (int day = 1; day <= currentDay; day++) {
+                        String key = "MES:" + code + ":" + pcd + ":"
+                                + yearMonth + String.format("%02d", day);
+                        int randomValue = (rna % 2 == 0)
+                                ? (int)(Math.random() * 5001)
+                                : (int)(Math.random() * 50);
+                        connection.stringCommands().set(
+                                key.getBytes(),
+                                String.valueOf(randomValue).getBytes()
+                        );
                     }
-
-                    connection.stringCommands().set(
-                            key.getBytes(),
-                            String.valueOf(randomValue).getBytes()
-                    );
                 }
             }
             return null;
         });
 
-        System.out.println("Redis 목데이터 삽입 완료");
+        System.out.println("Redis 목데이터 삽입 완료 (신 패턴: MES:{사업장}:{상품}:{날짜})");
     }
 }

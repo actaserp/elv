@@ -64,10 +64,14 @@ public class TenantUsageController {
         //   3) TenantUserService    : 사업체DB 사원정보 경유 (본사계정은 조회 안 될 수 있음)
         User user = (User) auth.getPrincipal();
 
-        String spjangcd = TenantContext.get();
+        // ── 사업장코드 취득 ──────────────────────────────────────
+        // auth_user.spjangcd 는 본사 DB 소속을 나타내며 항상 'ZZ' 로 저장됨.
+        // 실제 사업체 구분은 dbKey(=테넌트 사업장코드)를 사용해야 한다.
+        // 우선순위: dbKey → TenantContext → tenantUserService
+        String spjangcd = user.getDbKey();
 
         if (spjangcd == null || spjangcd.isBlank()) {
-            spjangcd = user.getDbKey();
+            spjangcd = TenantContext.get();
         }
         if (spjangcd == null || spjangcd.isBlank()) {
             spjangcd = tenantUserService.getSpjangcd(user.getUsername());
@@ -173,25 +177,22 @@ public class TenantUsageController {
         }
 
         // 신형식: MES:{사업장}:{상품}:{yyyyMMdd}
-        String pattern = KEY_PREFIX + ":" + spjangcd + ":*:" + yearMonth + "*";
-        Map<String, Integer> values = redisService.getValuesByPattern(pattern);
-        if (values != null) {
-            for (Map.Entry<String, Integer> e : values.entrySet()) {
-                String[] parts = e.getKey().split(":");
-                if (parts.length < 4 || e.getValue() == null) continue;
-                map.merge(parts[2], e.getValue().longValue(), Long::sum);
-            }
+        // yyyyMM + ?? 로 날짜 8자리를 정확히 매칭 (MES:DJ:P01:20260801 ~ 20260831)
+        String pattern = KEY_PREFIX + ":" + spjangcd + ":*:" + yearMonth + "??";
+        Map<String, Long> values = redisService.getValuesByPattern(pattern);
+        for (Map.Entry<String, Long> e : values.entrySet()) {
+            String[] parts = e.getKey().split(":");
+            if (parts.length < 4 || e.getValue() == null) continue;
+            map.merge(parts[2], e.getValue(), Long::sum);
         }
 
         // 구형식: MES:{사업장}:{yyyyMMdd} → 상품 도입 이전 데이터이므로 P01 로 간주
-        String legacyPattern = KEY_PREFIX + ":" + spjangcd + ":" + yearMonth + "*";
-        Map<String, Integer> legacy = redisService.getValuesByPattern(legacyPattern);
-        if (legacy != null) {
-            for (Map.Entry<String, Integer> e : legacy.entrySet()) {
-                String[] parts = e.getKey().split(":");
-                if (parts.length != 3 || e.getValue() == null) continue;
-                map.merge("P01", e.getValue().longValue(), Long::sum);
-            }
+        String legacyPattern = KEY_PREFIX + ":" + spjangcd + ":" + yearMonth + "??";
+        Map<String, Long> legacy = redisService.getValuesByPattern(legacyPattern);
+        for (Map.Entry<String, Long> e : legacy.entrySet()) {
+            String[] parts = e.getKey().split(":");
+            if (parts.length != 3 || e.getValue() == null) continue;
+            map.merge("P01", e.getValue(), Long::sum);
         }
         return map;
     }
