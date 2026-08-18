@@ -380,27 +380,32 @@ public class NcpMonitoringService {
         param.addValue("limit", pageSize);
         param.addValue("offset", offset);
 
-
         String sql = """
-                select
-                a.spjangnm,
-                a.spjangcd,
-                b.name, -- 서비스이름
-                b.price, --기본요금
-                b.api_call_limit, --기본제공 api 호출량
-                b.extra_api_unit_price, --1회 호출당 가격
-                COUNT(*) OVER() AS total_count
-                from
-                tb_xa012 a
-                left join bill_plans b
-                on a.bill_plans_id = b.id
-                where "state" = 'O'
-                order by subscriptiondate, spjangcd desc
-                limit :limit offset :offset
+                SELECT
+                    a.spjangnm,
+                    a.spjangcd,
+                    b.name,
+                    b.price,
+                    b.api_call_limit,
+                    b.extra_api_unit_price,
+                    COUNT(tp.product_cd)              AS contract_product_cnt,
+                    STRING_AGG(tp.product_cd, ', '
+                        ORDER BY tp.product_cd)       AS contract_products,
+                    COUNT(*) OVER()                   AS total_count
+                FROM tb_xa012 a
+                LEFT JOIN bill_plans b
+                    ON a.bill_plans_id = b.id
+                LEFT JOIN tenant_product tp
+                    ON tp.spjangcd = a.spjangcd
+                    AND tp.end_ym IS NULL
+                WHERE a.state = 'O'
+                GROUP BY a.spjangnm, a.spjangcd, b.name, b.price,
+                         b.api_call_limit, b.extra_api_unit_price
+                ORDER BY a.subscriptiondate, a.spjangcd DESC
+                LIMIT :limit OFFSET :offset
                 """;
-        List<Map<String, Object>> items = this.sqlRunner.getRows(sql, param);
 
-        return items;
+        return this.sqlRunner.getRows(sql, param);
     }
     //endregion
 

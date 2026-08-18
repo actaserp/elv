@@ -89,74 +89,73 @@ public class TenantUsageController {
         boolean isCurrentMonth = (yearMonth == null || yearMonth.isBlank() || yearMonth.equals(currentYm));
         String targetYm = isCurrentMonth ? currentYm : yearMonth;
 
+        // ── 등급(bill_plans) 한도 조회 ──
+        Map<String, Object> billPlan = tenantUsageService.getBillPlanBySpjangcd(spjangcd);
+        long   planApiLimit  = billPlan != null && billPlan.get("api_call_limit") != null
+                ? ((Number) billPlan.get("api_call_limit")).longValue() : 0L;
+        BigDecimal extraUnit = billPlan != null && billPlan.get("extra_api_unit_price") != null
+                ? new BigDecimal(String.valueOf(billPlan.get("extra_api_unit_price"))) : BigDecimal.ZERO;
+        String planName = billPlan != null ? String.valueOf(billPlan.getOrDefault("plan_name", "")) : "";
+
         // ── 상품별 사용량 ──
         Map<String, Long> usageByProduct = isCurrentMonth
                 ? getRealtimeUsage(spjangcd, targetYm)
                 : getHistoryUsage(spjangcd, targetYm);
 
+        // ── 전체 사용량 합산 (초과 판단용) ──
+        long totalUsageCnt = usageByProduct.values().stream().mapToLong(Long::longValue).sum();
+
+        // ── 등급 기준 초과 계산 ──
+        long totalOverCnt = planApiLimit > 0 ? Math.max(0L, totalUsageCnt - planApiLimit) : 0L;
+        BigDecimal totalOverAmt = extraUnit.multiply(BigDecimal.valueOf(totalOverCnt));
+
         // ── 상품 목록 + 계약여부 ──
         List<Map<String, Object>> products = tenantUsageService.getProductListWithContract(spjangcd);
 
         List<Map<String, Object>> rows = new ArrayList<>();
-        BigDecimal totalBill      = BigDecimal.ZERO;   // 청구 합계 (계약분만)
-        BigDecimal totalBasePrice = BigDecimal.ZERO;   // 기본료 합계
-        BigDecimal totalExtraAmt  = BigDecimal.ZERO;   // 초과금액 합계
-        long       totalExtraCnt  = 0;                 // 초과 호출 합계
+        BigDecimal totalBill      = BigDecimal.ZERO;
+        BigDecimal totalBasePrice = BigDecimal.ZERO;
 
         for (Map<String, Object> p : products) {
-            String productCd  = String.valueOf(p.get("product_cd"));
+            String  productCd  = String.valueOf(p.get("product_cd"));
             boolean contracted = "1".equals(String.valueOf(p.get("contract_yn")));
-
-            long usage = usageByProduct.getOrDefault(productCd, 0L);
-
-            BigDecimal price     = toDecimal(p.get("price"));
-            Integer    callLimit = toInteger(p.get("api_call_limit"));
-            BigDecimal extraUnit = toDecimal(p.get("extra_unit_price"));
-
-            // 초과 계산 — 한도가 설정된 상품만 (현재 P01)
-            long       overCnt = 0;
-            BigDecimal overAmt = BigDecimal.ZERO;
-            if (callLimit != null && callLimit > 0 && usage > callLimit) {
-                overCnt = usage - callLimit;
-                overAmt = extraUnit.multiply(BigDecimal.valueOf(overCnt));
-            }
-
-            // 미계약 상품은 사용량만 보여주고 금액은 0
-            BigDecimal bill = contracted ? price.add(overAmt) : BigDecimal.ZERO;
+            long    usage      = usageByProduct.getOrDefault(productCd, 0L);
+            BigDecimal price   = toDecimal(p.get("price"));
+            BigDecimal bill    = contracted ? price : BigDecimal.ZERO;
 
             if (contracted) {
                 totalBill      = totalBill.add(bill);
                 totalBasePrice = totalBasePrice.add(price);
-                totalExtraAmt  = totalExtraAmt.add(overAmt);
-                totalExtraCnt += overCnt;
             }
 
             Map<String, Object> row = new LinkedHashMap<>();
-            row.put("product_cd",     productCd);
-            row.put("product_nm",     p.get("product_nm"));
-            row.put("remark",         p.get("remark"));
-            row.put("contract_yn",    contracted ? "1" : "0");
-            row.put("contract_nm",    contracted ? "계약" : "미계약");
-            row.put("price",          contracted ? price : BigDecimal.ZERO);
-            row.put("api_call_limit", callLimit);
-            row.put("usage_cnt",      usage);
-            row.put("over_cnt",       overCnt);
-            row.put("over_amt",       overAmt);
-            row.put("bill",           bill);
-            row.put("is_excess",      overCnt > 0);
+            row.put("product_cd",  productCd);
+            row.put("product_nm",  p.get("product_nm"));
+            row.put("remark",      p.get("remark"));
+            row.put("contract_yn", contracted ? "1" : "0");
+            row.put("contract_nm", contracted ? "계약" : "미계약");
+            row.put("price",       contracted ? price : BigDecimal.ZERO);
+            row.put("usage_cnt",   usage);
+            row.put("bill",        bill);
             rows.add(row);
         }
 
+        // 초과 금액은 전체 합산 기준으로 별도 청구
+        BigDecimal finalBill = totalBill.add(totalOverAmt);
+
         Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("spjangcd",    spjangcd);
-        summary.put("spjangnm",    tenantUsageService.getSpjangNm(spjangcd));
-        summary.put("year_month",  targetYm);
-        summary.put("is_realtime", isCurrentMonth);
-        summary.put("base_price",  totalBasePrice);
-        summary.put("over_cnt",    totalExtraCnt);
-        summary.put("over_amt",    totalExtraAmt);
-        summary.put("total_bill",  totalBill);
-        summary.put("total_vat",   totalBill.multiply(new BigDecimal("1.1")));
+        summary.put("spjangcd",       spjangcd);
+        summary.put("spjangnm",       tenantUsageService.getSpjangNm(spjangcd));
+        summary.put("year_month",     targetYm);
+        summary.put("is_realtime",    isCurrentMonth);
+        summary.put("plan_name",      planName);
+        summary.put("plan_api_limit", planApiLimit);
+        summary.put("total_usage",    totalUsageCnt);
+        summary.put("base_price",     totalBasePrice);
+        summary.put("over_cnt",       totalOverCnt);
+        summary.put("over_amt",       totalOverAmt);
+        summary.put("total_bill",     finalBill);
+        summary.put("total_vat",      finalBill.multiply(new BigDecimal("1.1")));
 
         Map<String, Object> data = new HashMap<>();
         data.put("summary", summary);

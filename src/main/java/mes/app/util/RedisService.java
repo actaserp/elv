@@ -185,4 +185,8 @@ public class RedisService {
         }
     }
 
+    /** RedisTemplate 직접 접근 (삭제 등 고수준 작업용) */
+    public RedisTemplate<String, Object> getRedisTemplate() {
+        return redisTemplate;
+    }
 }

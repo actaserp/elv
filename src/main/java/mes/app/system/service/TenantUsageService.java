@@ -104,4 +104,29 @@ public class TenantUsageService {
             return "";
         }
     }
+
+    /**
+     * 사업장의 등급(bill_plans) 정보 조회.
+     * api_call_limit, extra_api_unit_price 는 등급 단위로만 관리한다.
+     */
+    public Map<String, Object> getBillPlanBySpjangcd(String spjangcd) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        String sql = """
+                SELECT b.id,
+                       b.name          AS plan_name,
+                       b.api_call_limit,
+                       b.extra_api_unit_price,
+                       b.price         AS plan_price
+                  FROM tb_xa012 a
+                  LEFT JOIN bill_plans b ON a.bill_plans_id = b.id
+                 WHERE a.spjangcd = :spjangcd
+                """;
+        try {
+            return mainSqlRunner.getRow(sql, param);
+        } catch (Exception e) {
+            log.warn("[TenantUsage] 등급 조회 실패 spjangcd={}", spjangcd);
+            return null;
+        }
+    }
 }

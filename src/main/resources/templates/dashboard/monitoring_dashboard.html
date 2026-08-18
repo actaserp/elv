@@ -370,6 +370,8 @@
                     <div><span>사업장명</span><strong id="detailSpjangnm">-</strong></div>
                     <div><span>이용플랜</span><strong id="detailPlanName">-</strong></div>
                     <div><span>조회월</span><strong id="detailYearMonth">-</strong></div>
+                    <div><span>API 사용량</span><strong id="detailApiUsage">-</strong></div>
+                    <div><span>초과분</span><strong id="detailOverCnt" style="color:#E24B4A;">-</strong></div>
                 </div>
                 <div id="detailProductGrid"></div>
             </div>
@@ -574,15 +576,15 @@
                         allowSorting: true,
                         itemsSource: this.adminUsageGrid_viewData,
                         columns: [
-                            { header: '사업장코드', binding: 'spjangcd', width: 100, align: 'center' },
-                            { header: '사업장명', binding: 'spjangnm', width: 150, align: 'left' },
-                            { header: '이용서비스플랜', binding: 'name', width: '*', align: 'left' },
-                            { header: '기본요금', binding: 'price', width: '*', align: 'right' },
-                            
-                            { header: '기본제공 api 호출량', binding: 'api_call_limit', width: '*', align: 'right' },
-                            { header: 'api 호출량', binding: 'apiCallCount', width: 150, align: 'right' },
-                            { header: 'api 초과호출량', binding: 'overCall', width: 150, align: 'right' },
-                            { header: '이용료', binding: 'overCallFee', width: 120, align: 'right', format: 'n0' }
+                            { header: '사업장코드',        binding: 'spjangcd',            width: 100,  align: 'center' },
+                            { header: '사업장명',          binding: 'spjangnm',            width: 150,  align: 'left'   },
+                            { header: '이용서비스플랜',    binding: 'name',                width: 100,  align: 'left'   },
+                            { header: '계약상품',          binding: 'contract_products',   width: '*',  align: 'left'   },
+                            { header: '기본요금',          binding: 'price',               width: 110,  align: 'right'  },
+                            { header: '기본제공 api 호출량', binding: 'api_call_limit',    width: 150,  align: 'right'  },
+                            { header: 'api 호출량',        binding: 'apiCallCount',        width: 120,  align: 'right'  },
+                            { header: 'api 초과호출량',    binding: 'overCall',            width: 120,  align: 'right'  },
+                            { header: '이용료',            binding: 'overCallFee',         width: 120,  align: 'right', format: 'n0' }
                         ],
                         formatItem: (s, e) => {
                             if (e.panel === s.cells) {
@@ -779,7 +781,7 @@
                     isReadOnly: true,
                     itemsSource: detailGridData,
                     columns: [
-                        { header: '상품명',       binding: 'product_nm',    width: '*',  align: 'left'  },
+                        { header: '상품명',       binding: 'product_nm',    width: 300,  align: 'left'  },
                         { header: '계약',          binding: 'contract_nm',   width: 70,   align: 'center'},
                         { header: '기본요금',      binding: 'price',         width: 110,  align: 'right', format: 'n0' },
                         { header: '기본제공(API)', binding: 'api_call_limit',width: 120,  align: 'right', format: 'n0' },
@@ -812,8 +814,22 @@
             if (yearMonth) params.yearMonth = yearMonth.replace('-', '');
 
             AjaxUtil.getAsyncData('/api/monitoring/detail', params, function(res) {
-                if (res.success && res.data && res.data.items) {
-                    detailGridData.sourceCollection = res.data.items;
+                if (res.success && res.data) {
+                    let d = res.data;
+                    const comma = v => Math.round(parseFloat(String(v||0).replace(/[^0-9.-]/g,''))).toLocaleString();
+
+                    // API 사용량 / 한도 표시
+                    let limitTxt = d.plan_api_limit > 0
+                        ? comma(d.total_usage) + '건 / ' + comma(d.plan_api_limit) + '건 (' + (d.plan_name||'') + ')'
+                        : comma(d.total_usage) + '건';
+                    $('#detailApiUsage').text(limitTxt);
+
+                    // 초과분
+                    let overCnt = d.over_cnt || 0;
+                    $('#detailOverCnt').text(overCnt > 0 ? comma(overCnt) + '건 초과' : '없음');
+                    $('#detailOverCnt').css('color', overCnt > 0 ? '#E24B4A' : '#333');
+
+                    detailGridData.sourceCollection = d.items || [];
                     detailGridData.refresh();
                 } else {
                     detailGridData.sourceCollection = [];

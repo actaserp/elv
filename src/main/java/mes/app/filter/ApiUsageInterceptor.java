@@ -60,6 +60,10 @@ public class ApiUsageInterceptor implements HandlerInterceptor {
 
             String key = KEY_PREFIX + ":" + spjangcd + ":" + productCd + ":"
                        + LocalDate.now().format(YMD);
+            log.info("[ApiUsage] uri={} spjangcd={} product={} param_spjangcd={} session_dbkey={}",
+                    request.getRequestURI(), spjangcd, productCd,
+                    request.getParameter("spjangcd"),
+                    request.getSession(false) != null ? request.getSession(false).getAttribute("db_key") : "NO_SESSION");
             redisService.incrementValue(key);
 
         } catch (Exception e) {
@@ -82,27 +86,36 @@ public class ApiUsageInterceptor implements HandlerInterceptor {
     /**
      * 사업장코드 취득.
      *
-     * <p>파라미터(쿼리스트링/폼) → 헤더 → 세션 순으로 시도한다.
-     * 기존 필터는 {@code request.getParameter()} 만 사용해
-     * <b>POST JSON 바디로만 사업장을 보내는 요청이 집계에서 누락</b>됐다.
+     * 세션의 db_key(실제 테넌트 사업장코드)만 사용한다.
+     *
+     * 파라미터의 spjangcd 는 SpjangSecurityInterceptor 보안 검증용으로
+     * 항상 세션의 spjangcd(=ZZ)와 동일하게 전송되므로 집계에 사용하면 안 된다.
+     * 헤더(X-Spjangcd)는 명시적으로 사업장을 지정하는 경우에만 fallback으로 사용.
      */
     private String resolveSpjangcd(HttpServletRequest request) {
-        String spjangcd = request.getParameter("spjangcd");
-        if (spjangcd != null && !spjangcd.isBlank()) {
-            return spjangcd.trim();
-        }
-
-        spjangcd = request.getHeader("X-Spjangcd");
-        if (spjangcd != null && !spjangcd.isBlank()) {
-            return spjangcd.trim();
-        }
-
-        if (request.getSession(false) != null) {
-            Object sessionVal = request.getSession(false).getAttribute("spjangcd");
-            if (sessionVal != null && !String.valueOf(sessionVal).isBlank()) {
-                return String.valueOf(sessionVal).trim();
+        // 1. 세션 db_key 우선 — 실제 테넌트 사업장코드
+        javax.servlet.http.HttpSession session = request.getSession(false);
+        if (session != null) {
+            Object dbKey = session.getAttribute("db_key");
+            if (dbKey != null && !String.valueOf(dbKey).isBlank()) {
+                return String.valueOf(dbKey).trim();
             }
         }
+
+        // 2. 커스텀 헤더 (비세션 API 등 특수 케이스)
+        String spjangcd = request.getHeader("X-Spjangcd");
+        if (spjangcd != null && !spjangcd.isBlank()) {
+            return spjangcd.trim();
+        }
+
+        // 3. 세션 spjangcd fallback (본사 계정 등 db_key 없는 경우)
+        if (session != null) {
+            Object sessionSpjangcd = session.getAttribute("spjangcd");
+            if (sessionSpjangcd != null && !String.valueOf(sessionSpjangcd).isBlank()) {
+                return String.valueOf(sessionSpjangcd).trim();
+            }
+        }
+
         return null;
     }
 }

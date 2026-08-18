@@ -215,6 +215,10 @@
                                         <td class="text-right" style="font-weight:600;" id="service_amt">- 원</td>
                                     </tr>
                                     <tr>
+                                        <td>API 사용량 <span id="api_usage_label" style="color:#888; font-size:12px;"></span></td>
+                                        <td class="text-right" style="font-weight:600;" id="api_usage_cnt">- 회</td>
+                                    </tr>
+                                    <tr>
                                         <td>초과분 (API 호출)</td>
                                         <td class="text-right" style="font-weight:600;" id="over_cnt">- 회</td>
                                     </tr>
@@ -274,37 +278,20 @@
                     allowSorting: false,
                     itemsSource: this.viewData,
                     columns: [
-                        { header: '서비스명',      binding: 'product_nm',     width: '*',  minWidth: 220 },
-                        { header: '계약',          binding: 'contract_nm',    width: 80,   align: 'center' },
-                        { header: '기본요금',      binding: 'price',          width: 120,  align: 'right', format: 'n0' },
-                        { header: '기본제공(API)', binding: 'api_call_limit', width: 120,  align: 'right', format: 'n0' },
-                        { header: '사용량',        binding: 'usage_cnt',      width: 110,  align: 'right', format: 'n0' },
-                        { header: '초과분',        binding: 'over_cnt',       width: 100,  align: 'right', format: 'n0' },
-                        { header: '초과금액',      binding: 'over_amt',       width: 110,  align: 'right', format: 'n0' },
-                        { header: '청구금액',      binding: 'bill',           width: 130,  align: 'right', format: 'n0' }
+                        { header: '서비스명',  binding: 'product_nm',  width: '*', minWidth: 220 },
+                        { header: '계약',      binding: 'contract_nm', width: 80,  align: 'center' },
+                        { header: '기본요금',  binding: 'price',       width: 120, align: 'right', format: 'n0' },
+                        { header: '사용량',    binding: 'usage_cnt',   width: 110, align: 'right', format: 'n0' },
+                        { header: '청구금액',  binding: 'bill',        width: 130, align: 'right', format: 'n0' }
                     ],
                     formatItem: (s, e) => {
                         if (e.panel === s.cells) {
                             const item = s.rows[e.row].dataItem;
                             if (!item) return;
-
-                            // 미계약 행 흐리게
                             if (item.contract_yn !== '1') {
                                 wijmo.addClass(e.cell, 'row-not-contracted');
                             } else {
                                 wijmo.removeClass(e.cell, 'row-not-contracted');
-                            }
-
-                            // 초과분 강조
-                            const col = s.columns[e.col].binding;
-                            if (item.is_excess && (col === 'over_cnt' || col === 'over_amt')) {
-                                e.cell.style.color = '#FF0000';
-                                e.cell.style.fontWeight = 'bold';
-                            }
-
-                            // 한도 없는 상품은 '-' 표시
-                            if (col === 'api_call_limit' && !item.api_call_limit) {
-                                e.cell.textContent = '-';
                             }
                         }
                         if (e.panel === s.columnHeaders) {
@@ -351,17 +338,27 @@
                 document.getElementById('realTimeBill').innerHTML =
                     comma(s.total_bill) + '<span class="unit"> 원/월</span>';
                 document.getElementById('service_amt').textContent = comma(s.base_price) + ' 원';
-                document.getElementById('over_cnt').textContent    = comma(s.over_cnt) + ' 회';
-                document.getElementById('over_amt').textContent    = comma(s.over_amt) + ' 원';
-                document.getElementById('total_amt').textContent   = comma(s.total_vat) + ' 원';
 
-                // 월 라벨
+                // API 사용량 + 한도 (등급 기준)
+                const limitTxt = s.plan_api_limit > 0
+                    ? ' / ' + comma(s.plan_api_limit) + '건 (' + (s.plan_name || '') + ')'
+                    : '';
+                document.getElementById('api_usage_label').textContent = limitTxt;
+                document.getElementById('api_usage_cnt').textContent   = comma(s.total_usage) + ' 회';
+
+                // 초과
+                const isExcess = (s.over_cnt || 0) > 0;
+                const overEl = document.getElementById('over_cnt');
+                overEl.textContent   = comma(s.over_cnt) + ' 회';
+                overEl.style.color   = isExcess ? '#FF0000' : '';
+                overEl.style.fontWeight = isExcess ? 'bold' : '';
+                document.getElementById('over_amt').textContent = comma(s.over_amt) + ' 원';
+                document.getElementById('total_amt').textContent = comma(s.total_vat) + ' 원';
+
                 const ym = String(s.year_month || '');
                 const mm = ym.length === 6 ? parseInt(ym.substring(4, 6), 10) : null;
                 document.getElementById('monthLabel').textContent =
                     mm ? (mm + '월 예정금액') : '예정금액';
-
-                // 실시간 여부 표시
                 document.getElementById('realtimeBadge').textContent =
                     s.is_realtime ? '· 실시간 집계 중 (당월)' : '· 확정 내역';
             }

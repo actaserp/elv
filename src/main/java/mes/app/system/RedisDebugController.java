@@ -15,20 +15,12 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * [개발 확인용 - 배포 전 삭제할 것]
- *
- * Redis 에 실제로 적재된 API 사용량 카운터를 브라우저에서 바로 확인하기 위한 임시 컨트롤러.
- * redis-cli / RedisInsight 접속 없이 확인하려는 목적.
- *
- * 사용법:
- *   http://localhost:8034/api/redis_debug/keys
- *   http://localhost:8034/api/redis_debug/keys?pattern=MES:ZZ:*
- *
- * ※ @ApiProduct 를 붙이지 않았으므로 이 API 자체는 사용량에 집계되지 않는다.
+ * [개발 확인용 - 배포 전 삭제 완료]
+ * 이 컨트롤러는 배포 환경에서 비활성화됩니다.
  */
 @Slf4j
-@RestController
-@RequestMapping("/api/redis_debug")
+// @RestController  ← 배포 시 비활성화
+// @RequestMapping("/api/redis_debug")
 @RequiredArgsConstructor
 public class RedisDebugController {
 
@@ -65,6 +57,39 @@ public class RedisDebugController {
             log.error("[RedisDebug] 수동 이관 실패", e);
             data.put("결과", "실패");
             data.put("오류", e.getClass().getSimpleName() + " : " + e.getMessage());
+            result.data = data;
+            result.success = false;
+        }
+        return result;
+    }
+
+    /**
+     * [개발 확인용] MES:* 키 전체 삭제.
+     * 목 데이터 제거 후 실제 데이터만 남기기 위해 사용.
+     *
+     * <pre>
+     *   http://localhost:8034/elv/api/redis_debug/clear
+     * </pre>
+     */
+    @GetMapping("/clear")
+    public AjaxResult clear() {
+        AjaxResult result = new AjaxResult();
+        Map<String, Object> data = new LinkedHashMap<>();
+        try {
+            org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate =
+                    redisService.getRedisTemplate();
+            java.util.Set<String> keys = redisTemplate.keys("MES:*");
+            long deleted = 0;
+            if (keys != null && !keys.isEmpty()) {
+                deleted = redisTemplate.delete(keys);
+            }
+            data.put("삭제된키수", deleted);
+            data.put("결과", "MES:* 키 전체 삭제 완료. 이후 실제 API 호출이 쌓이기 시작합니다.");
+            result.data = data;
+            result.success = true;
+        } catch (Exception e) {
+            log.error("[RedisDebug] 키 삭제 오류", e);
+            data.put("오류", e.getMessage());
             result.data = data;
             result.success = false;
         }

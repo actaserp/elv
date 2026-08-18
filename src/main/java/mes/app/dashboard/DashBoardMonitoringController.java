@@ -141,7 +141,17 @@ public class DashBoardMonitoringController {
                     || yearMonth.replace("-", "").equals(currentYm));
             String targetYm = isCurrentMonth ? currentYm : yearMonth.replace("-", "");
 
-            // 상품별 사용량 집계
+            // ── 등급(bill_plans) 한도 조회 ──
+            java.util.Map<String, Object> billPlan = tenantUsageService.getBillPlanBySpjangcd(spjangcd);
+            long planApiLimit = billPlan != null && billPlan.get("api_call_limit") != null
+                    ? ((Number) billPlan.get("api_call_limit")).longValue() : 0L;
+            java.math.BigDecimal extraUnit = billPlan != null && billPlan.get("extra_api_unit_price") != null
+                    ? new java.math.BigDecimal(String.valueOf(billPlan.get("extra_api_unit_price")))
+                    : java.math.BigDecimal.ZERO;
+            String planName = billPlan != null
+                    ? String.valueOf(billPlan.getOrDefault("plan_name", "")) : "";
+
+            // ── 상품별 사용량 집계 ──
             java.util.Map<String, Long> usageByProduct = new java.util.HashMap<>();
             if (isCurrentMonth) {
                 String pattern = "MES:" + spjangcd + ":*:" + targetYm + "??";
@@ -160,7 +170,12 @@ public class DashBoardMonitoringController {
                 }
             }
 
-            // 상품 목록 + 계약여부
+            // ── 전체 사용량 합산 + 등급 기준 초과 계산 ──
+            long totalUsage = usageByProduct.values().stream().mapToLong(Long::longValue).sum();
+            long totalOverCnt = planApiLimit > 0 ? Math.max(0L, totalUsage - planApiLimit) : 0L;
+            java.math.BigDecimal totalOverAmt = extraUnit.multiply(java.math.BigDecimal.valueOf(totalOverCnt));
+
+            // ── 상품 목록 + 계약여부 ──
             java.util.List<java.util.Map<String, Object>> products =
                     tenantUsageService.getProductListWithContract(spjangcd);
 
@@ -171,40 +186,34 @@ public class DashBoardMonitoringController {
                 String pcd = String.valueOf(p.get("product_cd"));
                 boolean contracted = "1".equals(String.valueOf(p.get("contract_yn")));
                 long usage = usageByProduct.getOrDefault(pcd, 0L);
-
                 java.math.BigDecimal price = toBD(p.get("price"));
-                Integer limit = toInt(p.get("api_call_limit"));
-                java.math.BigDecimal extraUnit = toBD(p.get("extra_unit_price"));
-
-                long overCnt = 0;
-                java.math.BigDecimal overAmt = java.math.BigDecimal.ZERO;
-                if (limit != null && limit > 0 && usage > limit) {
-                    overCnt = usage - limit;
-                    overAmt = extraUnit.multiply(java.math.BigDecimal.valueOf(overCnt));
-                }
-                java.math.BigDecimal bill = contracted ? price.add(overAmt) : java.math.BigDecimal.ZERO;
+                java.math.BigDecimal bill  = contracted ? price : java.math.BigDecimal.ZERO;
                 if (contracted) totalBill = totalBill.add(bill);
 
                 java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
-                row.put("product_cd",     pcd);
-                row.put("product_nm",     p.get("product_nm"));
-                row.put("contract_yn",    contracted ? "1" : "0");
-                row.put("contract_nm",    contracted ? "계약" : "미계약");
-                row.put("price",          contracted ? price : java.math.BigDecimal.ZERO);
-                row.put("api_call_limit", limit);
-                row.put("usage_cnt",      usage);
-                row.put("over_cnt",       overCnt);
-                row.put("over_amt",       overAmt);
-                row.put("bill",           bill);
+                row.put("product_cd",  pcd);
+                row.put("product_nm",  p.get("product_nm"));
+                row.put("contract_yn", contracted ? "1" : "0");
+                row.put("contract_nm", contracted ? "계약" : "미계약");
+                row.put("price",       contracted ? price : java.math.BigDecimal.ZERO);
+                row.put("usage_cnt",   usage);
+                row.put("bill",        bill);
                 items.add(row);
             }
 
+            java.math.BigDecimal finalBill = totalBill.add(totalOverAmt);
+
             java.util.Map<String, Object> data = new java.util.HashMap<>();
-            data.put("items",      items);
-            data.put("total_bill", totalBill);
-            data.put("spjangcd",   spjangcd);
-            data.put("spjangnm",   tenantUsageService.getSpjangNm(spjangcd));
-            data.put("year_month", targetYm);
+            data.put("items",           items);
+            data.put("plan_name",       planName);
+            data.put("plan_api_limit",  planApiLimit);
+            data.put("total_usage",     totalUsage);
+            data.put("over_cnt",        totalOverCnt);
+            data.put("over_amt",        totalOverAmt);
+            data.put("total_bill",      finalBill);
+            data.put("spjangcd",        spjangcd);
+            data.put("spjangnm",        tenantUsageService.getSpjangNm(spjangcd));
+            data.put("year_month",      targetYm);
 
             return AjaxResult.success(null, data);
         } catch (Exception e) {
@@ -226,12 +235,10 @@ public class DashBoardMonitoringController {
         catch (Exception e) { return null; }
     }
 
-    @GetMapping("/local_cache/save")
-    public AjaxResult localCacheSetRDB(){
-
-        ncpMonitoringService.redisDataSync();
-        //ncpMonitoringService.syncCacheToDb();
-
-        return AjaxResult.success(null, null);
-    }
+    // [배포 시 비활성화] 목 데이터 생성 엔드포인트 — 운영 환경에서 호출 시 실제 데이터 손실
+    // @GetMapping("/local_cache/save")
+    // public AjaxResult localCacheSetRDB(){
+    //     ncpMonitoringService.redisDataSync();
+    //     return AjaxResult.success(null, null);
+    // }
 }

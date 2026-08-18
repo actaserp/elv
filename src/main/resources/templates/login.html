@@ -580,6 +580,12 @@
                 <!-- 상품 카드 목록 -->
                 <div class="plan-container" style="display:flex; flex-wrap:wrap; gap:12px;"></div>
 
+                <!-- API 한도 안내 -->
+                <div class="grade-api-notice" style="margin-top:14px; padding:10px 14px; background:#f1f3f5; border-radius:6px; font-size:0.84em; color:#555; line-height:1.7;">
+                    * API 기본제공량은 선택하신 등급에 따라 결정됩니다.<br>
+                    Standard: 월 50,000건 / Premium: 월 250,000건 (초과 시 건당 4원)
+                </div>
+
                 <!-- 등급 선택 — 확장성 보존, 현재 UI 숨김 -->
                 <div id="gradeSection" style="display:none; margin-top:20px;">
                     <p style="font-weight:bold; margin-bottom:8px;">등급 선택</p>
@@ -737,32 +743,28 @@
             if (!res.success) { Alert.alert('', res.message); return; }
 
             let products = res.data;
-            // 기본 전체 선택
             selectedProductCds = products.map(p => p.product_cd);
 
             let html = '';
             products.forEach(p => {
-                let price     = Number(p.price).toLocaleString();
-                let limitText = p.api_call_limit
-                    ? Number(p.api_call_limit).toLocaleString() + '건 무료'
-                    : '무제한';
-                let extraText = p.extra_unit_price
-                    ? '초과 시 건당 ' + p.extra_unit_price + '원'
-                    : '';
+                let price = Number(p.price).toLocaleString();
 
                 html += `
                 <div class="product-card selected" data-cd="${p.product_cd}" onclick="toggleProduct(this)">
                     <div class="product-check">✓</div>
                     <h3>${p.product_nm}</h3>
                     <p class="price">월 ${price}원</p>
-                    <ul>
-                        <li>API ${limitText}</li>
-                        ${extraText ? '<li class="extra-charge">' + extraText + '</li>' : ''}
-                        <li style="color:#888;font-size:0.85em;">${p.remark || ''}</li>
-                    </ul>
+                    <p style="color:#888;font-size:0.82em;margin-top:4px;">${p.remark || ''}</p>
                 </div>`;
             });
             document.querySelector('.plan-container').innerHTML = html;
+
+            // 등급별 API 한도 안내 문구
+            document.querySelector('.grade-api-notice') && (
+                document.querySelector('.grade-api-notice').innerHTML =
+                    '* API 기본제공량은 선택하신 등급에 따라 결정됩니다.<br>' +
+                    'Standard: 월 50,000건 / Premium: 월 250,000건 (초과 시 건당 4원)'
+            );
 
             popup.style.display = 'block';
             wrapper.style.display = 'block';
