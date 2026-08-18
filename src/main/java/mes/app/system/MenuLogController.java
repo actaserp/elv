@@ -25,9 +25,10 @@ public class MenuLogController {
 			@RequestParam("date_from") String dateFrom,
 			@RequestParam("date_to") String dateTo,
 			@RequestParam("cboMenu") String menuCode,
-			@RequestParam("cboUser") String userPk){
+			@RequestParam("cboUser") String userPk,
+			@RequestParam(value = "cboProduct", required = false, defaultValue = "") String productCd){
 		String spjangcd = TenantContext.getDbKey();
-		List<Map<String, Object>> items = this.menuLogService.getLogCount(dateFrom,dateTo,menuCode,userPk, spjangcd);
+		List<Map<String, Object>> items = this.menuLogService.getLogCount(dateFrom, dateTo, menuCode, userPk, spjangcd, productCd);
 		
 		AjaxResult result = new AjaxResult();
 		result.data = items;
@@ -40,9 +41,10 @@ public class MenuLogController {
 			@RequestParam("date_from") String dateFrom,
 			@RequestParam("date_to") String dateTo,
 			@RequestParam("cboMenu") String menuCode,
-			@RequestParam("cboUser") String userPk){
+			@RequestParam("cboUser") String userPk,
+			@RequestParam(value = "cboProduct", required = false, defaultValue = "") String productCd){
 		String spjangcd = TenantContext.getDbKey();
-		List<Map<String, Object>> items = this.menuLogService.getLogList(dateFrom,dateTo,menuCode,userPk, spjangcd);
+		List<Map<String, Object>> items = this.menuLogService.getLogList(dateFrom, dateTo, menuCode, userPk, spjangcd, productCd);
 		
 		AjaxResult result = new AjaxResult();
 		result.data = items;

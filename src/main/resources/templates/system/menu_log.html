@@ -55,7 +55,27 @@
                                     </dd>
                                 </dl>
 
-                                <dl>
+                            <dl>
+                                    <dt>
+                                        <label for="cboProduct1">
+                                            서비스<span class="eq"></span>
+                                        </label>
+                                    </dt>
+                                    <dd>
+                                        <div class="srch-box">
+                                            <select class="form-control2" id="cboProduct1" name="cboProduct" style="border-radius: 5px; width: 200px;">
+                                                <option value="">전체</option>
+                                                <option value="P01">엘리베이터 유지보수</option>
+                                                <option value="P02">모바일 현장업무</option>
+                                                <option value="P03">차량운행 관리</option>
+                                                <option value="P04">AI 기반 고장분석</option>
+                                                <option value="P05">계산서·은행·미수관리</option>
+                                            </select>
+                                        </div>
+                                    </dd>
+                                </dl>
+
+                            <dl>
                                     <dt>
                                         <label for="cboMenu">
                                             메뉴<span class="eq"></span>
@@ -122,6 +142,24 @@
                                             <label for="date_to" class="hide">종료일</label>
                                         </li>
                                     </ul>
+                                </dd>
+                            </dl>
+
+                            <dl>
+                                <dt>
+                                    <label for="cboProduct2">
+                                        서비스<span class="eq"></span>
+                                    </label>
+                                </dt>
+                                <dd>
+                                    <select class="form-control2" id="cboProduct2" name="cboProduct" style="border-radius: 5px; width: 200px;">
+                                        <option value="">전체</option>
+                                        <option value="P01">엘리베이터 유지보수</option>
+                                        <option value="P02">모바일 현장업무</option>
+                                        <option value="P03">차량운행 관리</option>
+                                        <option value="P04">AI 기반 고장분석</option>
+                                        <option value="P05">계산서·은행·미수관리</option>
+                                    </select>
                                 </dd>
                             </dl>
 
@@ -202,12 +240,12 @@
         ];
 
         var columns2 = [
-            /*{binding: 'row_number', header: 'No', width: 160, align: 'center'},*/
-            {binding: 'folder_name', header: '메뉴폴더', width: 200, align: 'left'},
-            {binding: 'menu_name', header: '메뉴', width: 260, align: 'left'},
-            {binding: 'username', header: '아이디', width: 160, align: 'center'},
-            {binding: 'user_name', header: '이름', width: 160, align: 'center'},
-            {binding: 'click_date', header: '일시', width: 260, align: 'center'},
+            {binding: 'product_nm',  header: '서비스명',   width: 160, align: 'left'},
+            {binding: 'folder_name', header: '메뉴폴더',   width: 200, align: 'left'},
+            {binding: 'menu_name',   header: '메뉴',       width: 260, align: 'left'},
+            {binding: 'username',    header: '아이디',     width: 160, align: 'center'},
+            {binding: 'user_name',   header: '이름',       width: 160, align: 'center'},
+            {binding: 'click_date',  header: '일시',       width: 260, align: 'center'},
             {binding: '', header: '', width: "*", align: 'center'},
         ];
 
@@ -229,6 +267,7 @@
             let date_to = $('#date_to').val();
             let cboMenu = $('#cboMenu').val();
             let cboUser = $('#cboUser').val();
+            let cboProduct = $('#cboProduct1').val();
 
             $.ajax({
                 url: '/api/system/menulog/log_count',
@@ -237,7 +276,8 @@
                     'date_from': date_from,
                     'date_to': date_to,
                     'cboMenu': cboMenu,
-                    'cboUser': cboUser
+                    'cboUser': cboUser,
+                    'cboProduct': cboProduct
                 },
                 async: false,
                 success: function (data) {
@@ -272,6 +312,7 @@
             let date_from = $('#date_from').val();
             let date_to = $('#date_to').val();
             let cboUser = $('#cboUser').val();
+            let cboProduct = $('#cboProduct1').val();
 
             $.ajax({
                 url: '/api/system/menulog/log_count',
@@ -280,7 +321,8 @@
                     'cboMenu': cboMenu,
                     'date_from': date_from,
                     'date_to': date_to,
-                    'cboUser': cboUser
+                    'cboUser': cboUser,
+                    'cboProduct': cboProduct
                 },
                 async: false,
                 success: function (result) {
@@ -345,6 +387,7 @@
             let date_to = $('#date_to2').val();
             let cboMenu = $('#cboMenu2').val();
             let cboUser = $('#cboUser2').val();
+            let cboProduct = $('#cboProduct2').val();
 
             $.ajax({
                 url: '/api/system/menulog/log_list',
@@ -353,7 +396,8 @@
                     'date_from': date_from,
                     'date_to': date_to,
                     'cboMenu': cboMenu,
-                    'cboUser': cboUser
+                    'cboUser': cboUser,
+                    'cboProduct': cboProduct
                 },
                 async: false,
                 success: function (data) {
@@ -388,6 +432,7 @@
         function searchData2() {
             let cboMenu = $('#cboMenu2').val();
             let cboUser = $('#cboUser2').val();
+            let cboProduct = $('#cboProduct2').val();
             let date_from = $('#date_from2').val();
             let date_to = $('#date_to2').val();
 
@@ -397,6 +442,7 @@
                 data: {
                     'cboMenu': cboMenu,
                     'cboUser': cboUser,
+                    'cboProduct': cboProduct,
                     'date_from': date_from,
                     'date_to': date_to
                 },
@@ -422,11 +468,12 @@
             }
 
             var menulogData = data.map(item => ({
+                product_nm:  item.product_nm || '-',
                 folder_name: item.folder_name,
-                menu_name: item.menu_name,
-                username: item.username,
-                user_name: item.user_name,
-                click_date: item.click_date
+                menu_name:   item.menu_name,
+                username:    item.username,
+                user_name:   item.user_name,
+                click_date:  item.click_date
             }));
 
             // theGrid와 viewdata가 접근 가능하고 올바르게 초기화되었는지 확인

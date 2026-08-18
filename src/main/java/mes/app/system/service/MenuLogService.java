@@ -18,7 +18,7 @@ public class MenuLogService {
 	@Qualifier("mainSqlRunner")
 	SqlRunner sqlRunner;
 	
-	public List<Map<String, Object>> getLogCount(String dateFrom, String dateTo, String menuCode, String userPk, String spjangcd) {
+	public List<Map<String, Object>> getLogCount(String dateFrom, String dateTo, String menuCode, String userPk, String spjangcd, String productCd) {
 		
 		MapSqlParameterSource paramMap = new MapSqlParameterSource();
 		paramMap.addValue("dateFrom", dateFrom + " 00:00:00");
@@ -26,6 +26,7 @@ public class MenuLogService {
 		paramMap.addValue("menuCode", menuCode);
 		paramMap.addValue("userPk", userPk);
 		paramMap.addValue("spjangcd", spjangcd);
+		paramMap.addValue("productCd", productCd);
 		
         String sql = """   		
 	        select mf."FolderName" as folder_name
@@ -44,6 +45,7 @@ public class MenuLogService {
 	        """;
         if (StringUtils.isEmpty(menuCode)==false)  sql += "and g.\"MenuCode\" = :menuCode ";
         if (StringUtils.isEmpty(userPk)==false)  sql += "and g.\"User_id\" = cast(:userPk as Integer) ";
+        if (StringUtils.isEmpty(productCd)==false)  sql += "and m.product_cd = :productCd ";
         
         sql += "group by mf.\"FolderName\", g.\"MenuCode\", m.\"MenuName\", m.product_cd, p.product_nm";
 		
@@ -52,7 +54,7 @@ public class MenuLogService {
 		return items;
 	}
 
-	public List<Map<String, Object>> getLogList(String dateFrom, String dateTo, String menuCode, String userPk, String spjangcd) {
+	public List<Map<String, Object>> getLogList(String dateFrom, String dateTo, String menuCode, String userPk, String spjangcd, String productCd) {
 		
 		MapSqlParameterSource paramMap = new MapSqlParameterSource();
 		paramMap.addValue("dateFrom", dateFrom + " 00:00:00");
@@ -60,23 +62,30 @@ public class MenuLogService {
 		paramMap.addValue("menuCode", menuCode);
 		paramMap.addValue("userPk", userPk);
 		paramMap.addValue("spjangcd", spjangcd);
+		paramMap.addValue("productCd", productCd);
 		
         String sql = """   		
-    			select g.id, mf."FolderName" as folder_name, g."MenuCode" as menu_code, m."MenuName" as menu_name
+    			select g.id
+    			, mf."FolderName" as folder_name
+    			, g."MenuCode" as menu_code
+    			, m."MenuName" as menu_name
+    			, m.product_cd
+    			, p2.product_nm
                 , u.username
-	            --, u.last_name ||u.first_name as user_name
-                , p."Name" as user_name
+	            , p."Name" as user_name
 	            , to_char(g._created, 'yyyy-mm-dd hh24:mi:ss') as click_date
 	            from menu_use_log g 
 	            inner join menu_item m on m."MenuCode" = g."MenuCode" 
 	            left join menu_folder mf on mf.id = m."MenuFolder_id" 
 	            left join auth_user u on u.id = g."User_id" 
-                left join user_profile p on p."User_id" = g."User_id" 
+                left join user_profile p on p."User_id" = g."User_id"
+                left join product p2 on p2.product_cd = m.product_cd
 	            where g._created between cast(:dateFrom as timestamp) and cast(:dateTo as timestamp)
 	            and g.spjangcd = :spjangcd
     	        """;
         if (StringUtils.isEmpty(menuCode)==false)  sql += " and g.\"MenuCode\" = :menuCode ";
         if (StringUtils.isEmpty(userPk)==false)  sql += " and g.\"User_id\" = cast(:userPk as Integer) ";
+        if (StringUtils.isEmpty(productCd)==false)  sql += " and m.product_cd = :productCd ";
         sql += " order by g._created ";
         
         List<Map<String,Object>> items = this.sqlRunner.getRows(sql, paramMap);
