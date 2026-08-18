@@ -46,17 +46,24 @@ public class MaintenanceRepairController {
             @RequestParam(value = "actnm",    required = false) String actnm,
             @RequestParam(value = "repernm",  required = false) String repernm,
             @RequestParam(value = "showAll",  required = false, defaultValue = "0") String showAll,
-            @RequestParam(value = "spjangcd", required = false) String spjangcd,
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
+        User user = (User) auth.getPrincipal();
+
+        // spjangcd는 프론트 파라미터가 아닌 세션 기반으로 가져옴
+        // (프론트의 sessionStorage.spjangcd = 'ZZ' 로 넘어오면 사업체 DB 조회 불가)
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (userInfo == null) {
+            result.success = false;
+            result.message = "사용자 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        String spjangcd = (String) userInfo.get("spjangcd");
 
         String myPerid = null;
         if (!"1".equals(showAll)) {
-            // 로그인 사용자의 통보자 perid (TB_JA001.perid 에서 'p' 제거 → TB_E401.reperid 형식)
-            User user = (User) auth.getPrincipal();
-            Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
-            if (userInfo != null && userInfo.get("perid") != null) {
+            if (userInfo.get("perid") != null) {
                 myPerid = String.valueOf(userInfo.get("perid")).replaceFirst("^p", "");
             } else {
                 myPerid = "__none__";

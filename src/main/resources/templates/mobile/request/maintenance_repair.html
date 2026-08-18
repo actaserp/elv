@@ -578,8 +578,7 @@
             toDate   : toDate,
             actnm    : actnm,
             repernm  : repernm,
-            showAll  : showAll,
-            spjangcd : _spjangcd
+            showAll  : showAll
         }, function (result) {
             if (result && result.data) {
                 _repairListCache = result.data;
@@ -617,7 +616,7 @@
                 </div>
                 <div class="item-actnm">${esc(item.actnm || '-')}</div>
                 <div class="item-contents">${esc(item.equpnm || '')} ${item.contents ? '· ' + esc(item.contents) : ''}</div>
-                ${item.repernm ? `<div class="item-contents" style="color:#4472c4; margin-top:2px;">접수자 · ${esc(item.repernm)}</div>` : ''}
+                ${item.repernm || item.pernm ? `<div class="item-contents" style="color:#4472c4; margin-top:2px;">${item.repernm ? '접수자 · ' + esc(item.repernm) : ''}${item.repernm && item.pernm ? ' / ' : ''}${item.pernm ? '통보자 · ' + esc(item.pernm) : ''}</div>` : ''}
             `;
 
             div.addEventListener('click', function () {
