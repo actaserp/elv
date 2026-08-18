@@ -62,7 +62,7 @@ public class WebHandleService {
                 """;
 
         if (myPerid != null && !myPerid.isBlank()) {
-            sql += " AND e.reperid = :myPerid";
+            sql += " AND e.perid = :myPerid";   // TB_E401.perid = 통보자 (현장 가는 사람)
             param.addValue("myPerid", myPerid);
         }
 

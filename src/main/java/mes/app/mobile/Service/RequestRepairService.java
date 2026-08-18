@@ -83,7 +83,7 @@ public class RequestRepairService {
                                      AND ct.spjangcd = e.spjangcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.recedate BETWEEN :fromDate AND :toDate
-                  AND e.perid    = :perid
+                  AND e.reperid  = :perid
                 """;
 
         if (actnm != null && !actnm.isBlank()) {

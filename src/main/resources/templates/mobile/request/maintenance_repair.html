@@ -416,7 +416,7 @@
         </div>
         <label style="display:flex; align-items:center; gap:6px; padding:8px 16px; border-bottom:1px solid #eee; font-size:13px; color:#666; flex-shrink:0;">
             <input type="checkbox" id="repairShowAll" onchange="searchRepairList()" style="width:16px; height:16px;">
-            전체 통보자 접수건 보기 (기본: 본인 통보건만)
+            전체 접수건 보기 (기본: 본인 통보건만)
         </label>
         <div style="display:flex; gap:0; border-bottom:1px solid #eee; flex-shrink:0;">
             <input type="text" class="popup-search-input" id="repairActnmSearch"
@@ -424,7 +424,7 @@
                    placeholder="현장명 검색" oninput="filterRepairList()">
             <input type="text" class="popup-search-input" id="repairRepernmSearch"
                    style="flex:1; border-bottom:none; border-left:1px solid #eee;"
-                   placeholder="통보자 검색" oninput="filterRepairList()">
+                   placeholder="접수자 검색" oninput="filterRepairList()">
         </div>
         <div class="popup-list" id="repairList">
             <div style="padding:40px 20px; text-align:center; color:#bbb; font-size:13px;">조회 버튼을 눌러주세요.</div>
@@ -617,7 +617,7 @@
                 </div>
                 <div class="item-actnm">${esc(item.actnm || '-')}</div>
                 <div class="item-contents">${esc(item.equpnm || '')} ${item.contents ? '· ' + esc(item.contents) : ''}</div>
-                ${item.repernm ? `<div class="item-contents" style="color:#4472c4; margin-top:2px;">통보자 · ${esc(item.repernm)}</div>` : ''}
+                ${item.repernm ? `<div class="item-contents" style="color:#4472c4; margin-top:2px;">접수자 · ${esc(item.repernm)}</div>` : ''}
             `;
 
             div.addEventListener('click', function () {

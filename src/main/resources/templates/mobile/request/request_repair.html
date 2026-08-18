@@ -152,13 +152,13 @@
                     <textarea id="regRemark" placeholder="비고 입력"></textarea>
                 </div>
                 <div class="form-row">
-                    <label>접수자</label>
-                    <input type="text" id="regPernm" placeholder="접수자 선택" readonly onclick="openPerPopup('perid')">
+                    <label>통보자</label>
+                    <input type="text" id="regPernm" placeholder="통보자 선택" readonly onclick="openPerPopup('perid')">
                     <input type="hidden" id="regPerid">
                 </div>
                 <div class="form-row">
-                    <label>통보자</label>
-                    <input type="text" id="regRepernm" placeholder="통보자 선택" readonly onclick="openPerPopup('reperid')">
+                    <label>접수자</label>
+                    <input type="text" id="regRepernm" placeholder="접수자 선택" readonly onclick="openPerPopup('reperid')">
                     <input type="hidden" id="regReperid">
                 </div>
                 <div class="form-row">
@@ -320,7 +320,7 @@
         const perid    = document.getElementById('regPerid').value;
         if (!recedate) { Alert.alert('', '접수일자를 입력해주세요.'); return; }
         if (!actcd)    { Alert.alert('', '현장을 선택해주세요.');     return; }
-        if (!perid)    { Alert.alert('', '접수자를 선택해주세요.');   return; }
+        if (!perid)    { Alert.alert('', '통보자를 선택해주세요.');   return; }
 
         const data = {
             recedate  : recedate.replaceAll('-', ''),
@@ -334,8 +334,8 @@
             contents  : document.getElementById('regContentsDetail').value,
             contcd    : document.getElementById('regContcd').value,
             remark    : document.getElementById('regRemark').value,
-            perid     : perid,                                        // 접수자(담당기사)
-            reperid   : document.getElementById('regReperid').value,  // 통보자
+            perid     : perid,                                        // 통보자 (현장 가는 사람)
+            reperid   : document.getElementById('regReperid').value,  // 접수자 (전화 받는 사람)
             bigo      : document.getElementById('regBigo').value,
         };
 
@@ -367,7 +367,7 @@
     function openPerPopup(target) {
         _perTarget = target || 'perid';
         document.getElementById('perPopupTitle').textContent =
-            (_perTarget === 'reperid') ? '통보자 선택' : '접수자 선택';
+            (_perTarget === 'reperid') ? '접수자 선택' : '통보자 선택';
         document.getElementById('perSearchInput').value = '';
 
         if (_perListCache.length > 0) {

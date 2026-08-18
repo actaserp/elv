@@ -83,8 +83,9 @@ public class MaintenanceRepairService {
                 """;
 
         // 통보자=본인 필터 (전체가 아닐 때만)
+        // TB_E401.perid = 통보자 (현장 가는 사람) — PB 기준 확정
         if (myPerid != null && !myPerid.isBlank()) {
-            sql += " AND e.reperid = :myPerid";
+            sql += " AND e.perid = :myPerid";
             param.addValue("myPerid", myPerid);
         }
 
