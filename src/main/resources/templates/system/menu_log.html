@@ -194,9 +194,10 @@
 
         /*메뉴로그 컬럼들*/
         var columns1 = [
-            {binding: 'folder_name', header: '메뉴폴더', width: 200, align: 'left'},
-            {binding: 'menu_name', header: '메뉴', width: 200, align: 'left'},
-            {binding: 'use_count', header: '사용횟수', width: 200, align: 'right'},
+            {binding: 'product_nm',  header: '서비스명',   width: 160, align: 'left'},
+            {binding: 'folder_name', header: '메뉴폴더',   width: 200, align: 'left'},
+            {binding: 'menu_name',   header: '메뉴',       width: 200, align: 'left'},
+            {binding: 'use_count',   header: '사용횟수',   width: 200, align: 'right'},
             {binding: '', header: '', width: "*" },
         ];
 
@@ -303,10 +304,11 @@
             }
 
             let menulogData = data.map(item => ({
+                product_nm:  item.product_nm  || '-',
                 folder_name: item.folder_name,
-                menu_name: item.menu_name,
-                use_count: item.use_count,
-                e:item.e
+                menu_name:   item.menu_name,
+                use_count:   item.use_count,
+                e: item.e
             }));
 
             if (typeof theGrid1 === 'undefined' || typeof viewdata1 === 'undefined') {

@@ -29,19 +29,23 @@ public class MenuLogService {
 		
         String sql = """   		
 	        select mf."FolderName" as folder_name
-	        , g."MenuCode" as menu_code, m."MenuName" as menu_name
+	        , g."MenuCode" as menu_code
+	        , m."MenuName" as menu_name
+	        , m.product_cd
+	        , p.product_nm
 	        , count(*) as use_count
 	        from menu_use_log g 
 	        inner join menu_item m on m."MenuCode" = g."MenuCode" 
-	        left join menu_folder mf on mf.id = m."MenuFolder_id" 
-	        left join auth_user u on u.id = g."User_id" 
+	        left join menu_folder mf on mf.id = m."MenuFolder_id"
+	        left join auth_user u on u.id = g."User_id"
+	        left join product p on p.product_cd = m.product_cd
 	        where g._created between cast(:dateFrom as timestamp) and cast(:dateTo as timestamp)
 	        and g.spjangcd = :spjangcd
 	        """;
         if (StringUtils.isEmpty(menuCode)==false)  sql += "and g.\"MenuCode\" = :menuCode ";
         if (StringUtils.isEmpty(userPk)==false)  sql += "and g.\"User_id\" = cast(:userPk as Integer) ";
         
-        sql += "group by mf.\"FolderName\", g.\"MenuCode\",  m.\"MenuName\"";
+        sql += "group by mf.\"FolderName\", g.\"MenuCode\", m.\"MenuName\", m.product_cd, p.product_nm";
 		
         List<Map<String,Object>> items = this.sqlRunner.getRows(sql, paramMap);
 		
