@@ -576,15 +576,16 @@
                         allowSorting: true,
                         itemsSource: this.adminUsageGrid_viewData,
                         columns: [
-                            { header: '사업장코드',        binding: 'spjangcd',            width: 100,  align: 'center' },
-                            { header: '사업장명',          binding: 'spjangnm',            width: 150,  align: 'left'   },
-                            { header: '이용서비스플랜',    binding: 'name',                width: 100,  align: 'left'   },
-                            { header: '계약상품',          binding: 'contract_products',   width: '*',  align: 'left'   },
-                            { header: '기본요금',          binding: 'price',               width: 110,  align: 'right'  },
-                            { header: '기본제공 api 호출량', binding: 'api_call_limit',    width: 150,  align: 'right'  },
-                            { header: 'api 호출량',        binding: 'apiCallCount',        width: 120,  align: 'right'  },
-                            { header: 'api 초과호출량',    binding: 'overCall',            width: 120,  align: 'right'  },
-                            { header: '이용료',            binding: 'overCallFee',         width: 120,  align: 'right', format: 'n0' }
+                            { header: '사업장코드',          binding: 'spjangcd',          width: 100,  align: 'center' },
+                            { header: '사업장명',            binding: 'spjangnm',          width: 150,  align: 'left'   },
+                            { header: '이용서비스플랜',      binding: 'name',              width: 100,  align: 'left'   },
+                            { header: '계약상품',            binding: 'contract_products', width: '*',  align: 'left'   },
+                            { header: '기본요금',            binding: 'price',             width: 110,  align: 'right', format: 'n0' },
+                            { header: '기본제공 api 호출량', binding: 'api_call_limit',    width: 150,  align: 'right', format: 'n0' },
+                            { header: 'api 호출량',          binding: 'apiCallCount',      width: 120,  align: 'right', format: 'n0' },
+                            { header: 'api 초과호출량',      binding: 'overCall',          width: 120,  align: 'right', format: 'n0' },
+                            { header: '초과금액',            binding: 'overCallFee',       width: 110,  align: 'right', format: 'n0' },
+                            { header: '이용료',              binding: 'totalFee',          width: 120,  align: 'right', format: 'n0' }
                         ],
                         formatItem: (s, e) => {
                             if (e.panel === s.cells) {
@@ -781,29 +782,19 @@
                     isReadOnly: true,
                     itemsSource: detailGridData,
                     columns: [
-                        { header: '상품명',       binding: 'product_nm',    width: 300,  align: 'left'  },
-                        { header: '계약',          binding: 'contract_nm',   width: 70,   align: 'center'},
-                        { header: '기본요금',      binding: 'price',         width: 110,  align: 'right', format: 'n0' },
-                        { header: '기본제공(API)', binding: 'api_call_limit',width: 120,  align: 'right', format: 'n0' },
-                        { header: '사용량',        binding: 'usage_cnt',     width: 100,  align: 'right', format: 'n0' },
-                        { header: '초과분',        binding: 'over_cnt',      width: 90,   align: 'right', format: 'n0' },
-                        { header: '초과금액',      binding: 'over_amt',      width: 100,  align: 'right', format: 'n0' },
-                        { header: '청구금액',      binding: 'bill',          width: 110,  align: 'right', format: 'n0' }
+                        { header: '상품명',   binding: 'product_nm',  width: '*',  align: 'left'   },
+                        { header: '계약',     binding: 'contract_nm', width: 70,   align: 'center' },
+                        { header: '기본요금', binding: 'price',       width: 120,  align: 'right', format: 'n0' },
+                        { header: '사용량',   binding: 'usage_cnt',   width: 110,  align: 'right', format: 'n0' }
                     ],
                     formatItem: (s, e) => {
                         if (e.panel !== s.cells) return;
                         let row = s.rows[e.row].dataItem;
                         if (!row) return;
-                        // 미계약 행 흐리게
                         if (row.contract_yn === '0') {
                             e.cell.style.color = '#aaa';
                         } else {
                             e.cell.style.color = '';
-                        }
-                        // 초과분 빨간색
-                        if (s.columns[e.col].binding === 'over_cnt' && row.over_cnt > 0) {
-                            e.cell.style.color = 'red';
-                            e.cell.style.fontWeight = 'bold';
                         }
                     }
                 });

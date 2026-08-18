@@ -235,10 +235,9 @@ public class DashBoardMonitoringController {
         catch (Exception e) { return null; }
     }
 
-    // [배포 시 비활성화] 목 데이터 생성 엔드포인트 — 운영 환경에서 호출 시 실제 데이터 손실
-    // @GetMapping("/local_cache/save")
-    // public AjaxResult localCacheSetRDB(){
-    //     ncpMonitoringService.redisDataSync();
-    //     return AjaxResult.success(null, null);
-    // }
+    @GetMapping("/local_cache/save")
+    public AjaxResult localCacheSetRDB(){
+        ncpMonitoringService.redisDataSync();
+        return AjaxResult.success(null, null);
+    }
 }

@@ -367,9 +367,9 @@
         ]);
         html += `<div class="detail-section-title">담당자 정보</div>`;
         html += buildDetailRows([
-            { label: '담당기사', value: item.pernm   || item.perid },
-            { label: '부서명',   value: item.divinm  },
-            { label: '통보자',   value: item.repernm || item.reperid },
+            { label: '접수자', value: item.pernm   || item.perid   },
+            { label: '통보자', value: item.repernm || item.reperid },
+            { label: '부서명', value: item.divinm  },
         ]);
 
         document.getElementById('detailBody').innerHTML = html;
@@ -425,8 +425,8 @@
         document.getElementById('editContnm').value       = item.contnm   || '';
         document.getElementById('editContents').value     = item.contents  || '';
         document.getElementById('editRemark').value       = item.remark    || '';
-        document.getElementById('editPerid').value        = item.perid    || '';
-        document.getElementById('editRepernm').value      = item.pernm    || item.perid || '';
+        document.getElementById('editPerid').value        = item.reperid  || '';
+        document.getElementById('editRepernm').value      = item.repernm  || item.reperid || '';
 
         closePopup('detailPopup');
         openPopup('editPopup');

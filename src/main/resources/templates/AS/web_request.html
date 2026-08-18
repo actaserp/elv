@@ -602,8 +602,8 @@
       if (!hitchdt) { Alert.alert('', '고장일자를 입력하세요.'); return; }
       if (!actcd)   { Alert.alert('', '현장을 선택하세요.');     return; }
       if (!equpcd)  { Alert.alert('', '호기를 선택하세요.');     return; }
-      if (!reperid) { Alert.alert('', '접수자를 선택하세요.');   return; }
-      if (!perid)   { Alert.alert('', '통보자를 선택하세요.');   return; }
+      if (!reperid) { Alert.alert('', '통보자를 선택하세요.');   return; }
+      if (!perid)   { Alert.alert('', '접수자를 선택하세요.');   return; }
       if (!contcd)  { Alert.alert('', '고장내용을 선택하세요.'); return; }
 
       // datetime-local → recedate(yyyyMMdd) / recetime(HHmm) 분리
@@ -935,7 +935,7 @@
     }
 
     function openPernmPopup() {
-      openPernmPopupCommon('접수자(담당기사) 선택', function (item) {
+      openPernmPopupCommon('접수자 선택', function (item) {
         document.getElementById('perid').value = (item.perid || '').replace(/^p/, '');
         document.getElementById('pernm').value = item.pernm || '';
         searchPushId(item.pernm);

@@ -274,26 +274,23 @@ public class NcpMonitoringService {
     private void fillBillingData(Map<String, Object> spjang, long callCount) {
         Integer apiCallLimit = UtilClass.toIntOrDefault(spjang.get("api_call_limit"), 0);
         Integer DefaultPrice = UtilClass.toIntOrDefault(spjang.get("price"), 0);
+        Integer extraUnitPrice = UtilClass.toIntOrDefault(spjang.get("extra_api_unit_price"), 4);
 
-        String status = "";
-        long overCall = 0L;
+        long overCall    = 0L;
         long overCallFee = 0L;
+        long totalFee    = DefaultPrice;
 
-        // 기존 로직 유지 (apiCallLimit - callCount > 0)
-        if (apiCallLimit - callCount > 0) {
-            status = "정상";
-            overCallFee = DefaultPrice;
-        } else {
-            status = "초과";
-            overCall = callCount - apiCallLimit;
-            // 기존에 하드코딩된 * 4 유지 (필요시 extra_api_unit_price 사용으로 변경 가능)
-            overCallFee = (overCall * 4) + DefaultPrice;
+        if (apiCallLimit > 0 && callCount > apiCallLimit) {
+            overCall    = callCount - apiCallLimit;
+            overCallFee = overCall * extraUnitPrice;
+            totalFee    = DefaultPrice + overCallFee;
         }
 
         spjang.put("apiCallCount", callCount);
-        spjang.put("status", status);
-        spjang.put("overCall", overCall);
-        spjang.put("overCallFee", overCallFee);
+        spjang.put("status",       overCall > 0 ? "초과" : "정상");
+        spjang.put("overCall",     overCall);
+        spjang.put("overCallFee",  overCallFee);  // 초과 금액
+        spjang.put("totalFee",     totalFee);     // 기본요금 + 초과금액
     }
 
 

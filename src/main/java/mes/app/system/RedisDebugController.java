@@ -15,12 +15,20 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * [개발 확인용 - 배포 전 삭제 완료]
- * 이 컨트롤러는 배포 환경에서 비활성화됩니다.
+ * [개발 확인용 - 배포 전 삭제할 것]
+ *
+ * Redis 에 실제로 적재된 API 사용량 카운터를 브라우저에서 바로 확인하기 위한 임시 컨트롤러.
+ * redis-cli / RedisInsight 접속 없이 확인하려는 목적.
+ *
+ * 사용법:
+ *   http://localhost:8034/api/redis_debug/keys
+ *   http://localhost:8034/api/redis_debug/keys?pattern=MES:ZZ:*
+ *
+ * ※ @ApiProduct 를 붙이지 않았으므로 이 API 자체는 사용량에 집계되지 않는다.
  */
 @Slf4j
-// @RestController  ← 배포 시 비활성화
-// @RequestMapping("/api/redis_debug")
+@RestController
+@RequestMapping("/api/redis_debug")
 @RequiredArgsConstructor
 public class RedisDebugController {
 
