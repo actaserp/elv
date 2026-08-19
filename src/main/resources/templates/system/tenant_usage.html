@@ -227,7 +227,7 @@
                                         <td class="text-right" style="font-weight:600;" id="over_amt">- 원</td>
                                     </tr>
                                     <tr class="total-row">
-                                        <td>합계 (VAT 포함)</td>
+                                        <td>합계</td>
                                         <td class="text-right total-amount" id="total_amt">- 원</td>
                                     </tr>
                                     </tbody>
@@ -352,7 +352,7 @@
                 overEl.style.color   = isExcess ? '#FF0000' : '';
                 overEl.style.fontWeight = isExcess ? 'bold' : '';
                 document.getElementById('over_amt').textContent = comma(s.over_amt) + ' 원';
-                document.getElementById('total_amt').textContent = comma(s.total_vat) + ' 원';
+                document.getElementById('total_amt').textContent = comma(s.total_bill) + ' 원';
 
                 const ym = String(s.year_month || '');
                 const mm = ym.length === 6 ? parseInt(ym.substring(4, 6), 10) : null;

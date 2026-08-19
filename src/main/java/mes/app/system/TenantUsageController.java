@@ -105,9 +105,11 @@ public class TenantUsageController {
         // ── 전체 사용량 합산 (초과 판단용) ──
         long totalUsageCnt = usageByProduct.values().stream().mapToLong(Long::longValue).sum();
 
-        // ── 등급 기준 초과 계산 ──
-        long totalOverCnt = planApiLimit > 0 ? Math.max(0L, totalUsageCnt - planApiLimit) : 0L;
-        BigDecimal totalOverAmt = extraUnit.multiply(BigDecimal.valueOf(totalOverCnt));
+        // ── 등급 기준 초과 계산 (추후 도입 예정 — 현재 비활성화) ──
+        // long totalOverCnt = planApiLimit > 0 ? Math.max(0L, totalUsageCnt - planApiLimit) : 0L;
+        // BigDecimal totalOverAmt = extraUnit.multiply(BigDecimal.valueOf(totalOverCnt));
+        long totalOverCnt = 0L;
+        BigDecimal totalOverAmt = BigDecimal.ZERO;
 
         // ── 상품 목록 + 계약여부 ──
         List<Map<String, Object>> products = tenantUsageService.getProductListWithContract(spjangcd);
@@ -140,8 +142,9 @@ public class TenantUsageController {
             rows.add(row);
         }
 
-        // 초과 금액은 전체 합산 기준으로 별도 청구
-        BigDecimal finalBill = totalBill.add(totalOverAmt);
+        // 초과 금액은 추후 도입 예정 — 현재는 기본요금 합산만 청구
+        // BigDecimal finalBill = totalBill.add(totalOverAmt);
+        BigDecimal finalBill = totalBill;
 
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("spjangcd",       spjangcd);
@@ -155,7 +158,7 @@ public class TenantUsageController {
         summary.put("over_cnt",       totalOverCnt);
         summary.put("over_amt",       totalOverAmt);
         summary.put("total_bill",     finalBill);
-        summary.put("total_vat",      finalBill.multiply(new BigDecimal("1.1")));
+        // summary.put("total_vat",   finalBill.multiply(new BigDecimal("1.1")));  // 추후 도입 예정
 
         Map<String, Object> data = new HashMap<>();
         data.put("summary", summary);
