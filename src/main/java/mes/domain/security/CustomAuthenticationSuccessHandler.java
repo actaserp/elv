@@ -55,6 +55,11 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
 		List<Map<String, Object>> spjangList = loadSpjangList(dbKey);
 
 		// 세션 저장
+		// ✅ 기존 세션 무효화 후 새 세션 생성 (이전 세션의 spjangcd 등이 남아 DuplicateKeyException 발생 방지)
+		HttpSession oldSession = request.getSession(false);
+		if (oldSession != null) {
+			oldSession.invalidate();
+		}
 		HttpSession session = request.getSession(true);
 		session.setAttribute("db_key", dbKey);
 		session.setAttribute("spjangcd_login", dbKey); // 로그인 URL 복원용
