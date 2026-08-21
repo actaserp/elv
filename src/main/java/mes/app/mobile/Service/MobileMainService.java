@@ -96,6 +96,7 @@ public class MobileMainService {
 
         String sql = """
                 SELECT t.starttime,
+                       t.endtime,
                        t.workcd,
                        t.remark
                 FROM auth_user a

@@ -64,9 +64,10 @@ public class MobileMainController {
         resultData.put("username",  userInfo.get("username"));
 
         if (timeInfo != null) {
-            resultData.put("inOfficeTime", timeInfo.get("starttime"));
-            resultData.put("workcd",       timeInfo.get("workcd"));
-            resultData.put("remark",       timeInfo.get("remark"));
+            resultData.put("inOfficeTime",  timeInfo.get("starttime"));
+            resultData.put("outOfficeTime", timeInfo.get("endtime"));   // ✅ idx=1 퇴근시간 (추가근무 진입 조건용)
+            resultData.put("workcd",        timeInfo.get("workcd"));
+            resultData.put("remark",        timeInfo.get("remark"));
         }
 
         if (overtimeInfo != null) {

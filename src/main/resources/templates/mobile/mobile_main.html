@@ -241,6 +241,7 @@
 <script type="text/javascript">
   // ✅ 전역 변수로 유저 ID 저장 (이름보다 empId가 더 안전)
   let currentUserInfo = null;
+  let hasCheckedOut   = false; // ✅ idx=1 퇴근 완료 여부
 
   const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -336,6 +337,9 @@
           document.getElementById('officeTime').textContent =
                   result.data.inOfficeTime ? result.data.inOfficeTime : "--:--";
 
+          // ✅ idx=1 퇴근 완료 여부 저장
+          hasCheckedOut = !!result.data.outOfficeTime;
+
           // ✅ 비고 표시 (출근 후 저장된 remark)
           if (result.data.remark) {
             document.getElementById('remarkInput').value = result.data.remark;
@@ -421,7 +425,12 @@
       const alreadyIn = document.getElementById('officeTime').textContent !== '--:--';
 
       if (alreadyIn) {
-        // ✅ 이미 출근기록 있음 → 추가근무 여부 확인 팝업
+        // ✅ 이미 출근기록 있음 → idx=1 퇴근 완료 여부 먼저 확인
+        if (!hasCheckedOut) {
+          Alert.alert('', '퇴근 후 추가근무 출근이 가능합니다.');
+          return;
+        }
+        // 퇴근 완료된 경우 → 추가근무 여부 확인 팝업
         Alert.confirm(
                 '',
                 '이미 출근기록이 있습니다. \n추가근무 출근이신가요?',
