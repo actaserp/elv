@@ -231,11 +231,11 @@
                     <dd>
                         <div style="display: flex; gap: 5px">
                             <div>
-                                <div>연비</div>
+                                <div>연비(리터당)</div>
                                 <div style="width: 100%"><input type="text" id="liter" readonly inputmode="decimal" oninput="calcTotal()"></div>
                             </div>
                             <div>
-                                <div>단가</div>
+                                <div>단가(리터당)</div>
                                 <div style="width: 100%"><input type="text" id="unitAmt" readonly inputmode="decimal" oninput="calcTotal()"></div>
                             </div>
                         </div>
@@ -547,7 +547,7 @@
                 html += `
                     <div class="vehicle-item" onclick="selectVehicle('${item.carcd}', '${(item.carnum || '').replace(/'/g, "\\'")}', '${fuelcd}', '${samt}')">
                         <div class="vehicle-num">${item.carnum || '-'}</div>
-                        <div class="vehicle-fuel">유종: ${item.fuelnm}</div>
+                        <div class="vehicle-fuel">유종: ${item.fuelnm ?? '-'}</div>
                     </div>`;
             });
             container.innerHTML = html;

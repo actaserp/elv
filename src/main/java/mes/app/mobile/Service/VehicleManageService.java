@@ -124,11 +124,11 @@ public class VehicleManageService {
                           SELECT MAX(f2.uamt)
                           FROM TB_E037_1 f2
                           WHERE f2.fuelcd   = f1.fuelcd
-                            AND f2.spjangcd = f1.spjangcd
+                            AND f2.spjangcd = :spjangcd
                             AND f2.useyn    = '1'
                       )
                 ) f ON f.fuelcd = e.gubun
-                WHERE 1=1
+                WHERE e.spjangcd = :spjangcd
                 """;
 
         if (keyword != null && !keyword.trim().isEmpty()) {
