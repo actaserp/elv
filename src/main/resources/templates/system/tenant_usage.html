@@ -181,7 +181,7 @@
                     <section class="wp100" style="border-radius:15px; display:flex; flex-direction:column;">
 
                         <!-- 조회 조건 -->
-                        <div class="section-top" style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+                        <div class="" style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
                             <label style="font-weight:600;">조회월</label>
                             <input type="month" id="searchMonth" class="form-control" style="width:180px;">
                             <button type="button" class="btn btn-search" id="btnSearch">
@@ -196,6 +196,7 @@
                             <div class="summary-card-blue">
                                 <h3>결제 예정 금액</h3>
                                 <div class="amount-wrap">
+                                    <p id="spjangnmLabel" style="font-size: 37px; font-weight:700; opacity:0.95; margin-bottom: 12%;"></p>
                                     <p class="month-label" id="monthLabel">이번 달 예정금액</p>
                                     <h1 class="main-amount" id="realTimeBill">-<span class="unit"> 원/월</span></h1>
                                 </div>
@@ -333,6 +334,11 @@
                     const n = parseFloat(String(v ?? 0).replace(/[^0-9.-]/g, ''));
                     return isNaN(n) ? '0' : Math.round(n).toLocaleString();
                 };
+
+                // 사업체명
+                if (s.spjangnm) {
+                    document.getElementById('spjangnmLabel').textContent = s.spjangnm;
+                }
 
                 document.getElementById('realTimeBill').innerHTML =
                     comma(s.total_bill) + '<span class="unit"> 원/월</span>';

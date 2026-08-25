@@ -23,6 +23,7 @@ public class RealTimeUsageService {
         String sql = """
                 select
                 TO_CHAR(CURRENT_DATE, 'YYYY-MM') AS stat_day
+                ,a.spjangnm
                 ,b.name
                 ,b.price  --단가
                 ,b.api_call_limit as api_call_limit --기본제공 api

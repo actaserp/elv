@@ -295,8 +295,7 @@
       }
       page = new AccountsReceivableListPage();
 
-      AjaxUtil.fillSelectOptions($('#cboCompany'), 'company', 'all', '', 'sale');
-      AjaxUtil.fillSelectOptions($('#cboYear'), 'data_year', '', false);
+      // company 콤보는 팝업(PopCompComponent)으로 선택 - ComboService 호출 제거
 
       let today = new Date();
       let monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
