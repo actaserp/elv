@@ -333,6 +333,12 @@
           document.getElementById('userInfo').textContent =
                   result.data.divinm + " " + result.data.last_name + " " + result.data.RSPNM;
 
+          // Master 그룹이면 결재관리 메뉴 노출
+          if (result.data.isMaster) {
+            const menuEl = document.getElementById('menuApproval');
+            if (menuEl) menuEl.style.display = '';
+          }
+
           // ✅ 일반 출근시간 (idx=1)
           document.getElementById('officeTime').textContent =
                   result.data.inOfficeTime ? result.data.inOfficeTime : "--:--";

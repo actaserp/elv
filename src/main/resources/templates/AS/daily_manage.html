@@ -192,6 +192,28 @@
                                         </li>
                                     </dd>
                                 </dl>
+                                <dl style="display:none;">
+                                    <dt><span class="eq"></span></dt>
+                                    <dd>
+                                        <li>
+                                            <button type="button" class="btn btn-excell" id="btnApprove"
+                                                    title="결재상신" style="height:36px;">
+                                                ✅ 결재상신
+                                            </button>
+                                        </li>
+                                    </dd>
+                                </dl>
+                                <dl style="display:none;">
+                                    <dt><span class="eq"></span></dt>
+                                    <dd>
+                                        <li>
+                                            <button type="button" class="btn btn-excell" id="btnApproveCancel"
+                                                    title="상신취소" style="height:36px;">
+                                                ↩️ 상신취소
+                                            </button>
+                                        </li>
+                                    </dd>
+                                </dl>
                                 <dl>
                                     <dt><span class="eq"></span></dt>
                                     <dd>
@@ -434,11 +456,13 @@
         var headGrid, headData, detailGrid, detailData;
 
         const headColumns = [
-            {binding: 'rptdate', header: '작성일자', width: 110, align: 'center'},
-            {binding: 'pernm',   header: '사원명',   width: 100, align: 'center'},
-            {binding: 'clanm',   header: '직위',     width: 100, align: 'center'},
-            {binding: 'divinm',  header: '부서',     width: '*', align: 'center'},
-            {binding: 'rptcnt',  header: '작성건수', width:  80, align: 'center'},
+            {binding: 'rptdate',  header: '작성일자', width: 110, align: 'center'},
+            {binding: 'pernm',    header: '사원명',   width: 100, align: 'center'},
+            {binding: 'clanm',    header: '직위',     width: 100, align: 'center'},
+            {binding: 'divinm',   header: '부서',     width: 100, align: 'center'},
+            {binding: 'rptcnt',   header: '작성건수', width:  80, align: 'center'},
+            {binding: 'appgubun', header: '결재상태', width:  90, align: 'center'},
+            {binding: 'appnum',   visible: false},
         ];
 
         const detailColumns = [
@@ -473,6 +497,26 @@
                         if (val && String(val).length === 8) {
                             const v = String(val);
                             e.cell.textContent = `${v.substring(0,4)}.${v.substring(4,6)}.${v.substring(6,8)}`;
+                        }
+                    }
+                    if (col.binding === 'appgubun') {
+                        const val = s.getCellData(e.row, e.col, false) || '';
+                        const map = {
+                            '001': { text: '대기',     color: '#777777', bg: '#f1f1f1' },
+                            '101': { text: '결재',     color: '#1a73e8', bg: '#e8f0fe' },
+                            '111': { text: '결재중',   color: '#e37400', bg: '#fef3e2' },
+                            '121': { text: '참조',     color: '#6a0dad', bg: '#f3e8ff' },
+                            '131': { text: '반려',     color: '#c5221f', bg: '#fce8e6' },
+                            '201': { text: '결재완료', color: '#188038', bg: '#e6f4ea' },
+                        };
+                        const info = map[val];
+                        if (info) {
+                            e.cell.innerHTML = `<span style="display:inline-block; padding:2px 8px; border-radius:10px;
+                                font-size:11px; font-weight:600; background:${info.bg}; color:${info.color};">
+                                ${info.text}</span>`;
+                        } else {
+                            e.cell.textContent = '-';
+                            e.cell.style.color = '#999';
                         }
                     }
                 }
@@ -533,6 +577,8 @@
                 if (e.keyCode === 13) searchManageData();
             });
             $('#btnDel').click(function () { deleteReport(); });
+            $('#btnApprove').click(function () { submitApprove(); });
+            $('#btnApproveCancel').click(function () { cancelApprove(); });
 
             searchManageData();
         }
@@ -595,6 +641,54 @@
                 } else {
                     Alert.alert('', '상세 조회 중 오류가 발생하였습니다.');
                 }
+            });
+        }
+
+        function submitApprove() {
+            const row = headGrid.selectedRows[0];
+            if (!row || !row.dataItem) { Alert.alert('', '결재상신할 업무일지를 선택해주세요.'); return; }
+            const d = row.dataItem;
+
+            if (!d.appnum) { Alert.alert('', '결재문서번호(appnum)가 없습니다.'); return; }
+
+            const appgubun = d.appgubun || '';
+            if (appgubun === '101' || appgubun === '111') { Alert.alert('', '이미 결재상신 되었습니다.'); return; }
+
+            Alert.confirm('', '결재를 상신하시겠습니까?', function () {
+                AjaxUtil.postAsyncData('/api/AS/daily_manage/approve', {
+                    custcd   : d.custcd,
+                    spjangcd : d.spjangcd,
+                    appnum   : d.appnum,
+                    rptdate  : d.rptdate,
+                    perid    : d.perid
+                }, function (result) {
+                    Alert.alert('', result.message, function () {
+                        if (result.success) searchManageData();
+                    });
+                });
+            });
+        }
+
+        function cancelApprove() {
+            const row = headGrid.selectedRows[0];
+            if (!row || !row.dataItem) { Alert.alert('', '취소할 업무일지를 선택해주세요.'); return; }
+            const d = row.dataItem;
+
+            const appgubun = d.appgubun || '';
+            if (appgubun !== '101') { Alert.alert('', '대기 상태인 건만 취소할 수 있습니다.'); return; }
+
+            Alert.confirm('', '결재상신을 취소하시겠습니까?', function () {
+                AjaxUtil.postAsyncData('/api/AS/daily_manage/approve/cancel', {
+                    custcd   : d.custcd,
+                    spjangcd : d.spjangcd,
+                    appnum   : d.appnum,
+                    rptdate  : d.rptdate,
+                    perid    : d.perid
+                }, function (result) {
+                    Alert.alert('', result.message, function () {
+                        if (result.success) searchManageData();
+                    });
+                });
             });
         }
 

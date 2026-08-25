@@ -41,6 +41,7 @@ public class CarManageService {
                     j.pernm,
                     c.carcd,
                     e.carnum,
+                    e.reginm,
                     c.gubun,
                     f.fuelnm,
                     c.actcd,
@@ -55,17 +56,10 @@ public class CarManageService {
                 LEFT JOIN TB_E601   s ON s.actcd    = c.actcd
                                     AND s.spjangcd  = c.spjangcd
                 LEFT JOIN (
-                    SELECT f1.fuelcd, f1.fuelnm
+                    SELECT DISTINCT f1.fuelcd, f1.fuelnm
                     FROM TB_E037_1 f1
                     WHERE f1.spjangcd = :spjangcd
                       AND f1.useyn    = '1'
-                      AND f1.uamt = (
-                          SELECT MAX(f2.uamt)
-                          FROM TB_E037_1 f2
-                          WHERE f2.fuelcd   = f1.fuelcd
-                            AND f2.spjangcd = f1.spjangcd
-                            AND f2.useyn    = '1'
-                      )
                 ) f ON f.fuelcd = c.gubun
                 WHERE c.spjangcd = :spjangcd
                   AND c.kcdate  BETWEEN :startDate AND :endDate
@@ -103,20 +97,13 @@ public class CarManageService {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
         String sql = """
-                SELECT e.carcd, e.carnum, e.gubun AS fuelcd, e.samt, f.fuelnm
+                SELECT e.carcd, e.carnum, e.reginm, e.gubun AS fuelcd, e.samt, f.fuelnm
                 FROM TB_E047 e
                 LEFT JOIN (
-                    SELECT f1.fuelcd, f1.fuelnm, f1.uamt
+                    SELECT DISTINCT f1.fuelcd, f1.fuelnm
                     FROM TB_E037_1 f1
                     WHERE f1.spjangcd = :spjangcd
                       AND f1.useyn    = '1'
-                      AND f1.uamt = (
-                          SELECT MAX(f2.uamt)
-                          FROM TB_E037_1 f2
-                          WHERE f2.fuelcd   = f1.fuelcd
-                            AND f2.spjangcd = f1.spjangcd
-                            AND f2.useyn    = '1'
-                      )
                 ) f ON f.fuelcd = e.gubun
                 WHERE e.spjangcd = :spjangcd
                 """;

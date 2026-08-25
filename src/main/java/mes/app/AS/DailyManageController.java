@@ -323,6 +323,79 @@ public class DailyManageController {
         return result;
     }
 
+    // ── 결재상신 ──────────────────────────────────────────────
+    @PostMapping("/approve")
+    public AjaxResult approve(
+            @RequestParam("custcd")   String custcd,
+            @RequestParam("spjangcd") String spjangcd,
+            @RequestParam("appnum")   String appnum,
+            @RequestParam("rptdate")  String rptdate,
+            @RequestParam("perid")    String perid,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        User user = (User) auth.getPrincipal();
+
+        // 사용자(User) 그룹은 본인 건만 상신 가능
+        String ownPerid = getOwnPeridIfUserGroup(user);
+        if (ownPerid != null && !ownPerid.equals(perid)) {
+            result.success = false;
+            result.message = "본인이 작성한 업무일지만 상신할 수 있습니다.";
+            return result;
+        }
+
+        String today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
+
+        try {
+            String errorMsg = dailyManageService.submitApproval(custcd, spjangcd, appnum, rptdate, perid, today);
+            if (errorMsg != null) {
+                result.success = false;
+                result.message = errorMsg;
+            } else {
+                result.success = true;
+                result.message = "결재상신 되었습니다.";
+            }
+        } catch (Exception e) {
+            log.error("결재상신 오류", e);
+            result.success = false;
+            result.message = "결재상신 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
+
+    // ── 결재상신 취소 ─────────────────────────────────────────
+    @PostMapping("/approve/cancel")
+    public AjaxResult approveCancel(
+            @RequestParam("custcd")   String custcd,
+            @RequestParam("spjangcd") String spjangcd,
+            @RequestParam("appnum")   String appnum,
+            @RequestParam("rptdate")  String rptdate,
+            @RequestParam("perid")    String perid,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        User user = (User) auth.getPrincipal();
+
+        // 사용자(User) 그룹은 본인 건만 취소 가능
+        String ownPerid = getOwnPeridIfUserGroup(user);
+        if (ownPerid != null && !ownPerid.equals(perid)) {
+            result.success = false;
+            result.message = "본인이 작성한 업무일지만 취소할 수 있습니다.";
+            return result;
+        }
+
+        try {
+            dailyManageService.cancelApproval(custcd, spjangcd, appnum, rptdate, perid);
+            result.success = true;
+            result.message = "상신취소 되었습니다.";
+        } catch (Exception e) {
+            log.error("결재상신 취소 오류", e);
+            result.success = false;
+            result.message = "상신취소 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
+
     // ── 업무일지 수정 (User면 본인 것만) ──────────────────────
     @PostMapping("/update_status")
     public AjaxResult updateStatus(

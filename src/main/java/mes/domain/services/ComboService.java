@@ -97,6 +97,8 @@ public class ComboService {
 		this._dicFunc_.put("workcd", this.workcd);
 		this._dicFunc_.put("iotype", this.iotype);
 		this._dicFunc_.put("mssec", this.mssec);
+		this._dicFunc_.put("appr_doc", this.appr_doc); // 결재 문서코드 (TB_CA510, com_cls='620')
+		this._dicFunc_.put("appr_gubun", this.appr_gubun); // 결재 구분코드 (TB_CA510, com_cls='621')
 	}
 
 	public List<Map<String, Object>> getComboList(String comboType, String cond1, String cond2, String cond3){
@@ -959,6 +961,32 @@ public class ComboService {
 		}
 		dicParam.addValue("cond2", cond2);
 		dicParam.addValue("cond3", cond3);
+		return this.sqlRunner.getRows(sql, dicParam);
+	};
+
+	// 결재 문서코드 콤보 - TB_CA510 (com_cls='620', com_code<>'00')
+	ComboDataFunction appr_doc = (String cond1, String cond2, String cond3) -> {
+		String sql = """
+				SELECT com_code AS value, com_cnam AS text
+				FROM TB_CA510
+				WHERE com_cls  = '620'
+				  AND com_code <> '00'
+				ORDER BY com_code
+				""";
+		MapSqlParameterSource dicParam = new MapSqlParameterSource();
+		return this.sqlRunner.getRows(sql, dicParam);
+	};
+
+	// 결재 구분코드 콤보 - TB_CA510 (com_cls='621', com_code<>'00')
+	ComboDataFunction appr_gubun = (String cond1, String cond2, String cond3) -> {
+		String sql = """
+				SELECT com_code AS value, com_cnam AS text
+				FROM TB_CA510
+				WHERE com_cls  = '621'
+				  AND com_code <> '00'
+				ORDER BY com_code
+				""";
+		MapSqlParameterSource dicParam = new MapSqlParameterSource();
 		return this.sqlRunner.getRows(sql, dicParam);
 	};
 

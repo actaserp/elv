@@ -1,0 +1,283 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<style>
+  #theGrid  { width: 100%; height: 350px; overflow: auto; }
+  #theGrid2 { width: 100%; height: 150px; overflow: auto; }
+</style>
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>결재 목록</h2>
+        <a title="북마크" class="bookmark toggle">내메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+        <li>결재목록</li>
+        <li>결재목록</li>
+      </ul>
+    </div>
+
+    <div class="tab-contents" style="display:flex;">
+      <section class="tab-item">
+        <div class="section-top">
+          <div class="search-wrap">
+            <dl>
+              <dt><label>작성일자<span class="eq">*</span></label></dt>
+              <dd>
+                <ul class="date-box">
+                  <li><input type="date" id="startDate" name="startDate"><label for="startDate" class="hide">시작일</label></li>
+                  <li><input type="date" id="endDate"   name="endDate">  <label for="endDate"   class="hide">종료일</label></li>
+                </ul>
+              </dd>
+            </dl>
+            <dl>
+              <dt><label for="SearchPayment">진행구분</label></dt>
+              <dd>
+                <div class="srch-box">
+                  <select id="SearchPayment"><option value="all"></option></select>
+                </div>
+              </dd>
+            </dl>
+            <dl>
+              <dt><label for="searchUserNm">제목<span class="eq">*</span></label></dt>
+              <dd>
+                <div class="srch-box">
+                  <input type="text" id="searchUserNm" class="input-srch" placeholder="제목" style="border-radius:5px;">
+                </div>
+              </dd>
+            </dl>
+            <dl>
+              <dt>&nbsp;</dt>
+              <dd>
+                <li>
+                  <a class="btn btn-delete" title="검색" onclick="Search()">
+                    <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘"> 검색
+                  </a>
+                </li>
+              </dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="container-fluid">
+          <div id="theGrid1" style="min-height:77px;"></div>
+          <div id="theGrid"  style="min-height:350px;"></div>
+          <div id="theGrid2" style="min-height:150px;"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <footer><p>ⓒ corp. All rights reserved.</p></footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <th:block th:replace="common/columns_setting :: columns_setting"></th:block>
+  <script type="text/javascript">
+    let theGrid, theGrid1, theGrid2;
+
+    $(document).ready(function() {
+      let today    = new Date();
+      let monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      $('#startDate').val(CommonUtil.getYYYYMMDDMonthFirst());
+      $('#endDate').val(CommonUtil.formatYYYYMMDD(monthEnd));
+      AjaxUtil.fillSelectOptions($('#SearchPayment'), 'system_code', 'all', false, 'Payment');
+      init();
+    });
+
+    document.getElementById('searchUserNm').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') Search();
+    });
+
+    function init()   { fetchListData(); fetchListData1(); }
+    function Search() { fetchListData(); fetchListData1(); }
+
+    function fetchListData() {
+      let data = [];
+      $.ajax({
+        url: '/api/AS/daily_approval/history/read',
+        type: 'GET',
+        data: {
+          startDate:    $('#startDate').val(),
+          endDate:      $('#endDate').val(),
+          SearchPayment:$('#SearchPayment').val(),
+          searchUserNm: $('#searchUserNm').val()
+        },
+        async: false,
+        success: function(res) {
+          if (res && Array.isArray(res.data)) {
+            data = res.data.map((item, i) => ({
+              rownum:           i + 1,
+              repodate:         item.repodate         || '',
+              repoperid:        item.repoperid        || '',
+              papercd:          item.papercd          || '',
+              papercd_name:     item.papercd_name     || '',
+              appgubun:         item.appgubun         || '',
+              appgubun_display: item.appgubun_display || '',
+              appdate:          item.appdate          || '',
+              appnum:           item.appnum           || '',
+              appperid:         item.appperid         || '',
+              title:            item.title            || '',
+              remark:           item.remark           || ''
+            }));
+          }
+        }
+      });
+
+      while (data.length < 8) data.push({ rownum: data.length + 1 });
+      let viewdata = new wijmo.collections.CollectionView(data);
+
+      if (!theGrid) {
+        theGrid = new wijmo.grid.FlexGrid('#theGrid', {
+          autoGenerateColumns: false,
+          showMarquee: true,
+          isReadOnly: true,
+          selectionMode: 'ListBox',
+          columns: [
+            { binding: 'rownum',           header: '순번',   width: 60,  align: 'center' },
+            { binding: 'repodate',         header: '상신일자', width: 120, align: 'center' },
+            { binding: 'papercd_name',     header: '문서명',  width: 120, align: 'center' },
+            { binding: 'appgubun_display', header: '결재구분', width: 90,  align: 'center' },
+            { binding: 'appdate',          header: '결재일자', width: 120, align: 'center' },
+            { binding: 'title',            header: '제목',   width: '*', align: 'left' },
+            { binding: 'remark',           header: '사유',   width: 200, align: 'left' },
+            { binding: 'appnum',   header: '문서번호', visible: false },
+            { binding: 'papercd',  header: '문서코드', visible: false },
+            { binding: 'appgubun', header: '결재구분', visible: false },
+            { binding: 'appperid', header: '',         visible: false },
+            { binding: 'repoperid',header: '',         visible: false }
+          ],
+          itemsSource: viewdata
+        });
+        theGrid.rowHeaders.columns.splice(0, 1);
+        new FlexGridContextMenu(theGrid);
+        window.downloadFileName = '결재 목록';
+
+        // 행 클릭 — 하단 결재라인 상세 그리드 로드
+        theGrid.hostElement.addEventListener('click', function(e) {
+          let ht = theGrid.hitTest(e);
+          if (ht.cellType === wijmo.grid.CellType.Cell) {
+            let rowData = theGrid.rows[ht.row].dataItem;
+            if (rowData && rowData.appnum) fetchListData2(rowData.appnum);
+          }
+        });
+      } else {
+        theGrid.itemsSource = viewdata;
+      }
+    }
+
+    function fetchListData1() {
+      let data = [];
+      $.ajax({
+        url: '/api/AS/daily_approval/history/read1',
+        type: 'GET',
+        data: { startDate: $('#startDate').val(), endDate: $('#endDate').val() },
+        async: false,
+        success: function(res) {
+          if (res && res.data) {
+            let userName    = res.data.userName    || '';
+            let paymentList = res.data.paymentList || [];
+            if (Array.isArray(paymentList)) {
+              data = paymentList.map(item => ({
+                userName:  userName,
+                appgubun1: (item.appgubun1 || '0') + '건',
+                appgubun2: (item.appgubun2 || '0') + '건',
+                appgubun3: (item.appgubun3 || '0') + '건',
+                appgubun4: (item.appgubun4 || '0') + '건'
+              }));
+            }
+          }
+        }
+      });
+      if (!data.length) data.push({ userName: '', appgubun1: '', appgubun2: '', appgubun3: '', appgubun4: '' });
+      let viewdata = new wijmo.collections.CollectionView(data);
+
+      if (!theGrid1) {
+        theGrid1 = new wijmo.grid.FlexGrid('#theGrid1', {
+          autoGenerateColumns: false,
+          showMarquee: true,
+          isReadOnly: true,
+          columns: [
+            { binding: 'userName',  header: '결재자명', width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appgubun1', header: '결재대기', width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appgubun2', header: '결재문서', width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appgubun4', header: '보류문서', width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appgubun3', header: '반려문서', width: '*', minWidth: 100, align: 'center' }
+          ],
+          itemsSource: viewdata
+        });
+        theGrid1.rowHeaders.columns.splice(0, 1);
+        new FlexGridContextMenu(theGrid1);
+      } else {
+        theGrid1.itemsSource = viewdata;
+      }
+    }
+
+    function fetchListData2(appnum) {
+      let data = [];
+      $.ajax({
+        url: '/api/AS/daily_approval/history/detail',
+        type: 'GET',
+        data: { appnum: appnum },
+        async: false,
+        success: function(res) {
+          if (res && Array.isArray(res.data)) {
+            data = res.data.map(item => ({
+              appnum:           item.appnum           || '',
+              seq:              item.seq              || '',
+              appperid:         item.appperid         || '',
+              apppernm:         item.apppernm         || '',
+              divinm:           item.divinm           || '',
+              rspnm:            item.rspnm            || '',
+              appgubun:         item.appgubun         || '',
+              appgubun_display: item.appgubun_display || '',
+              appdate:          item.appdate          || '',
+              remark:           item.remark           || ''
+            }));
+          }
+        }
+      });
+      if (!data.length) data.push({});
+      let viewdata = new wijmo.collections.CollectionView(data);
+
+      if (!theGrid2) {
+        theGrid2 = new wijmo.grid.FlexGrid('#theGrid2', {
+          autoGenerateColumns: false,
+          showMarquee: true,
+          isReadOnly: true,
+          columns: [
+            { binding: 'appnum',           header: '문서번호', visible: false },
+            { binding: 'seq',              header: '결재순서', width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appperid',         header: '결재자코드', width: '*', minWidth: 100, align: 'center' },
+            { binding: 'apppernm',         header: '결재자명', width: '*', minWidth: 100, align: 'center' },
+            { binding: 'divinm',           header: '부서명',  width: '*', minWidth: 100, align: 'center' },
+            { binding: 'rspnm',            header: '직급',   width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appgubun',         header: '결재구분', visible: false },
+            { binding: 'appgubun_display', header: '결재구분', width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appdate',          header: '결재일자', width: '*', minWidth: 100, align: 'center' },
+            { binding: 'remark',           header: '사유',   width: '*', minWidth: 100, align: 'left' }
+          ],
+          itemsSource: viewdata,
+          formatItem: function(s, e) {
+            if (e.panel === s.cells) {
+              let col  = s.columns[e.col];
+              let item = s.rows[e.row].dataItem;
+              if (col.binding === 'appgubun_display' && item.appgubun_display === '결재') {
+                e.cell.style.color = 'red';
+                e.cell.style.fontWeight = 'bold';
+              } else {
+                e.cell.style.color = '';
+                e.cell.style.fontWeight = '';
+              }
+            }
+          }
+        });
+        theGrid2.rowHeaders.columns.splice(0, 1);
+        new FlexGridContextMenu(theGrid2);
+        window.downloadFileName = '결재 라인';
+      } else {
+        theGrid2.itemsSource = viewdata;
+      }
+    }
+  </script>
+</th:block>
+</html>

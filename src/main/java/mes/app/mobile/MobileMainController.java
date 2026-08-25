@@ -10,6 +10,9 @@ import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
+import mes.domain.services.SqlRunner;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
@@ -33,6 +36,10 @@ public class MobileMainController {
 
     @Autowired
     TenantUserService tenantUserService;
+
+    @Autowired
+    @Qualifier("mainSqlRunner")
+    SqlRunner mainSqlRunner;
 
     private static final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -76,7 +83,36 @@ public class MobileMainController {
             resultData.put("remark", overtimeInfo.get("remark"));
         }
 
+        // Master 그룹 여부 (User 그룹이 아니면 Master)
+        try {
+            MapSqlParameterSource p = new MapSqlParameterSource();
+            p.addValue("userId", user.getId());
+            p.addValue("dbKey",  user.getDbKey());
+            String groupSql = """
+                    SELECT COUNT(*) AS cnt FROM (
+                        SELECT ug."Code" AS code
+                        FROM rela_data rd
+                        JOIN user_group ug ON ug.id = rd."DataPk2" AND ug.spjangcd = :dbKey
+                        WHERE rd."RelationName" = 'auth_user-user_group'
+                          AND rd."DataPk1" = :userId AND rd."Char1" = 'Y'
+                        UNION ALL
+                        SELECT ug."Code"
+                        FROM user_profile up
+                        JOIN user_group ug ON ug.id = up."UserGroup_id" AND ug.spjangcd = up.spjangcd
+                        WHERE up."User_id" = :userId AND up.spjangcd = :dbKey
+                    ) t WHERE LOWER(t.code) = 'user'
+                    """;
+            Map<String, Object> groupRow = mainSqlRunner.getRow(groupSql, p);
+            boolean isUser = groupRow != null && groupRow.get("cnt") != null
+                             && ((Number) groupRow.get("cnt")).intValue() > 0;
+            resultData.put("isMaster", !isUser);
+        } catch (Exception e) {
+            log.warn("[MobileMain] 그룹 판별 실패", e);
+            resultData.put("isMaster", false);
+        }
+
         result.data = resultData;
+        result.success = true;
         return result;
     }
 

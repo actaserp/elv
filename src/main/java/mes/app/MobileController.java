@@ -111,6 +111,22 @@ public class MobileController {
         return "mobile/data_room";
     }
 
+    // ========== 결재관리 (approval) ==========
+
+    @GetMapping("/approval/pending_approvals")
+    public String pendingApprovals(Model model) {
+        model.addAttribute("currentPage", "pending_approvals");
+        return "mobile/approval/pending_approvals";
+    }
+
+    // ========== 근태현황 (admin) ==========
+
+    @GetMapping("/attendance/commute_status")
+    public String commuteStatus(Model model) {
+        model.addAttribute("currentPage", "commute_status");
+        return "mobile/attendance/commute_status";
+    }
+
     // ========== 계정관리 ==========
 
     @GetMapping("/user_info")

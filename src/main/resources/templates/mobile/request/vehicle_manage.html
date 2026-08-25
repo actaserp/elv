@@ -232,11 +232,11 @@
                         <div style="display: flex; gap: 5px">
                             <div>
                                 <div>연비(리터당)</div>
-                                <div style="width: 100%"><input type="text" id="liter" readonly inputmode="decimal" oninput="calcTotal()"></div>
+                                <div style="width: 100%"><input type="text" id="liter" inputmode="decimal" oninput="calcTotal()"></div>
                             </div>
                             <div>
                                 <div>단가(리터당)</div>
-                                <div style="width: 100%"><input type="text" id="unitAmt" readonly inputmode="decimal" oninput="calcTotal()"></div>
+                                <div style="width: 100%"><input type="text" id="unitAmt" inputmode="decimal" oninput="calcTotal()"></div>
                             </div>
                         </div>
                         <div>
@@ -393,23 +393,13 @@
 
     // 유종 정보가 없을 때(연비/단가 미존재) 직접 입력할 수 있도록 readonly 토글
     function setFuelFieldsEditable(editable) {
+        // 연비/단가는 항상 직접 수정 가능
         const liter = document.getElementById('liter');
         const unit  = document.getElementById('unitAmt');
-        if (editable) {
-            liter.removeAttribute('readonly');
-            unit.removeAttribute('readonly');
-            liter.style.backgroundColor = '#fffef2';
-            unit.style.backgroundColor  = '#fffef2';
-            liter.placeholder = '연비 직접 입력';
-            unit.placeholder  = '단가 직접 입력';
-        } else {
-            liter.setAttribute('readonly', 'readonly');
-            unit.setAttribute('readonly', 'readonly');
-            liter.style.backgroundColor = '';
-            unit.style.backgroundColor  = '';
-            liter.placeholder = '';
-            unit.placeholder  = '';
-        }
+        liter.removeAttribute('readonly');
+        unit.removeAttribute('readonly');
+        liter.style.backgroundColor = '#fffef2';
+        unit.style.backgroundColor  = '#fffef2';
     }
 
     function calcDistance() {
@@ -547,7 +537,7 @@
                 html += `
                     <div class="vehicle-item" onclick="selectVehicle('${item.carcd}', '${(item.carnum || '').replace(/'/g, "\\'")}', '${fuelcd}', '${samt}')">
                         <div class="vehicle-num">${item.carnum || '-'}</div>
-                        <div class="vehicle-fuel">유종: ${item.fuelnm ?? '-'}</div>
+                        <div class="vehicle-fuel">유종: ${item.fuelnm ?? '-'}${item.reginm ? ' · ' + item.reginm : ''}</div>
                     </div>`;
             });
             container.innerHTML = html;

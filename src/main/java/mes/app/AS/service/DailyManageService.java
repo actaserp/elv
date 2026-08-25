@@ -50,6 +50,8 @@ public class DailyManageService {
                     h.spjangcd,
                     h.rptdate,
                     h.perid,
+                    h.appgubun,
+                    h.appnum,
                     j.pernm,
                     pz.RSPNM     AS clanm,
                     jc.divinm,
@@ -81,6 +83,7 @@ public class DailyManageService {
         sql += """
                  GROUP BY
                     h.custcd, h.spjangcd, h.rptdate, h.perid,
+                    h.appgubun, h.appnum,
                     j.pernm, pz.RSPNM, jc.divinm
                  ORDER BY h.rptdate DESC, j.pernm ASC
                 """;
@@ -384,6 +387,136 @@ public class DailyManageService {
                      :filesvnm, :filepath)
                 """;
         namedParameterJdbcTemplate.update(insertSql, param);
+    }
+
+    // ── 결재상신 (tb_e064 결재라인 → tb_e080 INSERT + TB_E037 UPDATE) ──
+    public String submitApproval(String custcd, String spjangcd, String appnum, String rptdate, String perid, String today) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("custcd",   custcd);
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("appnum",   appnum);
+        param.addValue("perid",    perid);
+
+        // 1) 반려(131) 재상신 시 기존 tb_e080 삭제
+        String deleteSql = """
+                DELETE FROM tb_e080
+                WHERE custcd    = :custcd
+                  AND spjangcd  = :spjangcd
+                  AND appnum    = :appnum
+                  AND repoperid = :perid
+                """;
+        namedParameterJdbcTemplate.update(deleteSql, param);
+
+        // 2) tb_e064에서 결재라인 조회 (papercd='101', 본인 perid 기준)
+        MapSqlParameterSource lineParam = new MapSqlParameterSource();
+        lineParam.addValue("custcd",   custcd);
+        lineParam.addValue("spjangcd", spjangcd);
+        lineParam.addValue("perid",    perid);
+
+        String lineSql = """
+                SELECT kcperid, seq
+                FROM tb_e064 WITH(NOLOCK)
+                WHERE custcd   = :custcd
+                  AND spjangcd = :spjangcd
+                  AND perid    = :perid
+                  AND papercd  = '101'
+                ORDER BY seq
+                """;
+        List<Map<String, Object>> lines = sqlRunner.getRows(lineSql, lineParam);
+
+        if (lines == null || lines.isEmpty()) {
+            return "결재라인이 등록되어 있지 않습니다.";
+        }
+
+        // 3) tb_e080 INSERT (결재라인 순서대로)
+        for (Map<String, Object> line : lines) {
+            String kcperid = (String) line.get("kcperid");
+            String seq     = String.valueOf(line.get("seq"));
+            String flag    = "1".equals(seq) ? "1" : "0";
+
+            MapSqlParameterSource insParam = new MapSqlParameterSource();
+            insParam.addValue("custcd",   custcd);
+            insParam.addValue("spjangcd", spjangcd);
+            insParam.addValue("appnum",   appnum);
+            insParam.addValue("kcperid",  kcperid);
+            insParam.addValue("seq",      seq);
+            insParam.addValue("flag",     flag);
+            insParam.addValue("rptdate",  rptdate);
+            insParam.addValue("perid",    perid);
+            insParam.addValue("today",    today);
+
+            String insSql = """
+                    INSERT INTO tb_e080
+                        (custcd, spjangcd, appnum, appperid, seq,
+                         flag,   repodate, papercd, repoperid, title,
+                         appgubun, inperid, indate)
+                    VALUES
+                        (:custcd, :spjangcd, :appnum, :kcperid, :seq,
+                         :flag,   :rptdate, '101',   :perid,   '업무일지',
+                         '001',   :perid,   :today)
+                    """;
+            namedParameterJdbcTemplate.update(insSql, insParam);
+        }
+
+        // 4) TB_E037 appgubun='101'(결재), appdate=오늘 UPDATE
+        MapSqlParameterSource updParam = new MapSqlParameterSource();
+        updParam.addValue("custcd",   custcd);
+        updParam.addValue("spjangcd", spjangcd);
+        updParam.addValue("rptdate",  rptdate);
+        updParam.addValue("perid",    perid);
+        updParam.addValue("today",    today);
+
+        String updSql = """
+                UPDATE TB_E037 SET
+                    appgubun = '101',
+                    appdate  = :today
+                WHERE custcd   = :custcd
+                  AND spjangcd = :spjangcd
+                  AND rptdate  = :rptdate
+                  AND perid    = :perid
+                """;
+        namedParameterJdbcTemplate.update(updSql, updParam);
+
+        return null; // null = 성공
+    }
+
+    // ── 결재상신 취소 (tb_e080 DELETE + TB_E037 UPDATE) ──────
+    public void cancelApproval(String custcd, String spjangcd, String appnum, String rptdate, String perid) {
+
+        // 1) tb_e080 삭제
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("custcd",   custcd);
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("appnum",   appnum);
+        param.addValue("perid",    perid);
+
+        String deleteSql = """
+                DELETE FROM tb_e080
+                WHERE custcd    = :custcd
+                  AND spjangcd  = :spjangcd
+                  AND appnum    = :appnum
+                  AND repoperid = :perid
+                """;
+        namedParameterJdbcTemplate.update(deleteSql, param);
+
+        // 2) TB_E037 appgubun='', appdate='' UPDATE
+        MapSqlParameterSource updParam = new MapSqlParameterSource();
+        updParam.addValue("custcd",   custcd);
+        updParam.addValue("spjangcd", spjangcd);
+        updParam.addValue("rptdate",  rptdate);
+        updParam.addValue("perid",    perid);
+
+        String updSql = """
+                UPDATE TB_E037 SET
+                    appgubun = '',
+                    appdate  = ''
+                WHERE custcd   = :custcd
+                  AND spjangcd = :spjangcd
+                  AND rptdate  = :rptdate
+                  AND perid    = :perid
+                """;
+        namedParameterJdbcTemplate.update(updSql, updParam);
     }
 
     // ── 업무일지 수정 (TB_E038 UPDATE) ───────────────────────

@@ -1,0 +1,312 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>결재라인등록</h2>
+        <a href="#" title="북마크" class="bookmark toggle">내메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+        <li>결재라인관리</li>
+        <li>결재라인등록</li>
+      </ul>
+    </div>
+
+    <div class="tab-wrap">
+      <div class="tab-contents">
+        <section class="tab-item" id="tab1">
+          <div class="section-top">
+            <div class="title-wrap"><h3>결재라인등록</h3></div>
+            <div class="button-wrap" style="justify-content: end">
+              <ul>
+                <li>
+                  <a id="newdataBtn" class="btn btn-excell" title="신규등록"
+                     onclick="resetFormFields(); resetGridAndComcd();">
+                    <img th:src="@{/images/icon/ico-plus.svg}" alt="등록 아이콘"> 신규등록
+                  </a>
+                </li>
+                <li>
+                  <a class="btn btn-delete" id="deleteButton" title="삭제">
+                    <img th:src="@{/images/icon/ico-delete.svg}" alt="삭제 아이콘"> 삭제
+                  </a>
+                </li>
+                <li>
+                  <a class="btn btn-edit" id="btnSave" title="저장" onclick="save()">
+                    <img th:src="@{/images/icon/ico-save.svg}" alt="저장 아이콘"> 저장
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="write-table">
+              <caption>결재라인 등록 테이블</caption>
+              <input type="hidden" id="064no">
+              <tbody>
+              <tr>
+                <th style="text-align:center"><label for="comcd">문서코드</label></th>
+                <td colspan="3">
+                  <select id="comcd" onchange="changeComcdSelect()">
+                    <option value=""></option>
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <th style="text-align:center"><label>등록사원</label></th>
+                <td>
+                  <input type="text" id="perid" style="width:80px" readonly>
+                </td>
+                <th style="text-align:center"><label>등록사원이름</label></th>
+                <td>
+                  <input type="text" id="pernm" style="width:130px" readonly>
+                </td>
+                <th style="text-align:center"><label for="kcperid">결재자</label></th>
+                <td>
+                  <select id="kcperid" style="width:150px;" onchange="changeKcpSelect()">
+                    <option value=""></option>
+                  </select>
+                </td>
+                <th style="text-align:center"><label>결재자코드</label></th>
+                <td>
+                  <input id="kcpernm" style="width:80px;" readonly>
+                </td>
+                <th style="text-align:center"><label for="gubuncd">결재구분</label></th>
+                <td>
+                  <select id="gubuncd" style="width:150px;">
+                    <option value="">선택</option>
+                  </select>
+                </td>
+                <th style="text-align:center"><label for="comseq">결재순서</label></th>
+                <td>
+                  <input type="number" id="comseq" style="width:80px;">
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="container-fluid">
+            <div id="theGrid2" style="max-height:714px; height:300px; margin-top:40px;"></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <footer style="margin-top:5px;"><p>Copyrightⓒ corp. All rights reserved.</p></footer>
+  <div style="height:10px"></div>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <th:block th:replace="common/columns_setting :: columns_setting"></th:block>
+  <script type="text/javascript">
+    var theGrid2;
+    var viewdata2;
+    let SelectItem;
+
+    document.readyState === 'complete' ? init() : window.onload = init;
+
+    function init() {
+      AjaxUtil.fillSelectOptions($('#comcd'), 'appr_doc', 'all', false, 'appr_doc');
+      AjaxUtil.fillSelectOptions($('#kcperid'), 'person', 'choose', false, 'person');
+      AjaxUtil.fillSelectOptions($('#gubuncd'), 'appr_gubun', 'choose', false, 'appr_gubun');
+      getMyInfo();
+      fetchListData2();
+    }
+
+    function getMyInfo() {
+      $.ajax({
+        url: '/api/AS/daily_approval/line/read',
+        type: 'GET',
+        data: {},
+        success: function(res) {
+          // getUserInfo는 별도 API가 없으므로 auth_user에서 가져온 사원 정보를 grid read 시 활용
+          // 사원코드/이름은 서버에서 세션 기준 반환 — 여기서는 grid data에서 perid/pernm 표시
+        }
+      });
+      // perid/pernm은 grid 조회 후 첫 행에서 노출하거나, 별도 getUserInfo 엔드포인트 활용 가능
+      // 현재 구조에서는 그리드 데이터 로드 후 세팅
+    }
+
+    function fetchListData2() {
+      let data2 = [];
+      $.ajax({
+        url: '/api/AS/daily_approval/line/read',
+        type: 'GET',
+        data: { comcd: $('#comcd').val() },
+        async: false,
+        success: function(res) {
+          data2 = res.data || [];
+          // 첫 행에서 perid/pernm 세팅
+          if (data2.length > 0) {
+            document.getElementById('perid').value = data2[0].perid || '';
+          }
+          while (data2.length < 5) data2.push({});
+        }
+      });
+
+      viewdata2 = new wijmo.collections.CollectionView(data2);
+
+      if (!theGrid2) {
+        theGrid2 = new wijmo.grid.FlexGrid('#theGrid2', {
+          autoGenerateColumns: false,
+          showMarquee: true,
+          isReadOnly: true,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          columns: [
+            { binding: 'no',      header: 'No',     width: 80,  align: 'right' },
+            { binding: 'kcperid', header: '결재자코드', width: '*', minWidth: 100, align: 'center' },
+            { binding: 'kcpernm', header: '결재자명',  width: '*', minWidth: 100, align: 'center' },
+            { binding: 'papercd', header: '문서코드', visible: false },
+            { binding: 'perid',   header: '사원코드', visible: false },
+            { binding: 'papernm', header: '문서종류',  width: '*', minWidth: 100, align: 'center' },
+            { binding: 'gubunnm', header: '구분',     width: '*', minWidth: 100, align: 'center' },
+            { binding: 'seq',     header: '결재순서',  width: '*', minWidth: 100, align: 'center' }
+          ],
+          itemsSource: viewdata2
+        });
+
+        theGrid2.formatItem.addHandler(function(s, e) {
+          if (e.panel === s.columnHeaders) e.cell.style.textAlign = 'center';
+        });
+
+        // 더블클릭 — 상세 조회 후 폼 세팅
+        theGrid2.hostElement.addEventListener('dblclick', function(e) {
+          let ht = theGrid2.hitTest(e);
+          if (ht.cellType !== wijmo.grid.CellType.Cell) return;
+          let item = theGrid2.rows[ht.row].dataItem;
+          if (!item || !item.no) return;
+
+          $.ajax({
+            url: '/api/AS/daily_approval/line/detail',
+            type: 'GET',
+            data: { no: item.no, papercd: item.papercd },
+            success: function(res) {
+              if (res && res.success && res.data) {
+                let d = res.data;
+                document.getElementById('kcpernm').value = d.kcperid || '';
+                document.getElementById('comseq').value  = d.seq     || '';
+                document.getElementById('064no').value   = d.no      || '';
+                document.getElementById('gubuncd').value = d.gubun   || '';
+                setSelectedIndex(document.getElementById('kcperid'), d.kcpernm || '');
+              }
+            }
+          });
+        });
+
+        // 체크박스 selector
+        new wijmo.grid.selector.Selector(theGrid2, {
+          itemChecked: () => { SelectItem = theGrid2.rows.filter(r => r.isSelected); }
+        });
+
+        theGrid2.hostElement.style.maxHeight = '300px';
+        theGrid2.hostElement.style.overflowY = 'auto';
+        new FlexGridContextMenu(theGrid2);
+        window.downloadFileName = '결재라인등록';
+      } else {
+        theGrid2.itemsSource = viewdata2;
+      }
+    }
+
+    function changeComcdSelect() {
+      fetchListData2();
+    }
+
+    function setSelectedIndex(sel, selectedValue) {
+      let found = false;
+      for (let i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].text.trim().toLowerCase() === String(selectedValue).trim().toLowerCase()) {
+          sel.selectedIndex = i; found = true; break;
+        }
+      }
+      if (!found) sel.selectedIndex = 0;
+    }
+
+    function changeKcpSelect() {
+      let sel = document.getElementById('kcperid');
+      document.getElementById('kcpernm').value = sel.options[sel.selectedIndex].value;
+    }
+
+    $(document).ready(function() {
+      $('#deleteButton').off('click').on('click', deleteBody);
+    });
+
+    function deleteBody() {
+      if (!SelectItem || SelectItem.length === 0) {
+        Alert.alert('', '삭제할 항목을 선택해 주세요.');
+        return;
+      }
+      Alert.confirm('', '선택된 행 내용을 삭제하시겠습니까?', function() {
+        SelectItem.forEach(function(selectedRow) {
+          let d = selectedRow.dataItem;
+          if (d.kcperid) {
+            AjaxUtil.postAsyncData('/api/AS/daily_approval/line/delete', {
+              kcperid: d.kcperid,
+              papercd: d.papercd,
+              perid:   d.perid,
+              no:      d.no
+            }, function(res) {
+              if (res.success) fetchListData2();
+            });
+          }
+        });
+        Alert.alert('', '삭제되었습니다.');
+      });
+    }
+
+    function resetFormFields() {
+      ['kcperid', 'kcpernm', 'comseq', '064no'].forEach(function(id) {
+        document.getElementById(id).value = '';
+      });
+      document.getElementById('btnSave').title = '저장';
+    }
+
+    function resetGridAndComcd() {
+      document.getElementById('comcd').value = '';
+      fetchListData2();
+    }
+
+    function save() {
+      let required = [
+        { id: '#comcd',   label: '문서코드를 선택해주세요' },
+        { id: '#kcperid', label: '결재자를 선택해주세요' },
+        { id: '#comseq',  label: '결재순서를 지정해주세요' },
+        { id: '#gubuncd', label: '결재구분을 선택해주세요' }
+      ];
+      for (let f of required) {
+        if (!$(f.id).val() || $(f.id).val().trim() === '') {
+          Alert.alert('', f.label); return;
+        }
+      }
+
+      let alertMsg = document.getElementById('btnSave').title === '저장' ? '저장하시겠습니까?' : '수정하시겠습니까?';
+      Alert.confirm('', alertMsg, function() {
+        let formData = new FormData();
+        formData.append('papercd',  $('#comcd').val());
+        formData.append('gubun',    $('#gubuncd').val());
+        formData.append('seq',      $('#comseq').val());
+        formData.append('kcperid',  $('#kcperid').val());
+        formData.append('no',       $('#064no').val());
+
+        $.ajax({
+          url: '/api/AS/daily_approval/line/save',
+          type: 'POST',
+          data: formData,
+          processData: false,
+          contentType: false,
+          headers: { 'X-CSRF-Token': $('[name=_csrf]').val() },
+          success: function(res) {
+            if (res.success) {
+              Alert.alert('', res.message, function() { fetchListData2(); resetFormFields(); });
+            } else {
+              Alert.alert('', '저장에 실패했습니다.');
+            }
+          },
+          error: function() { Alert.alert('', '에러가 발생하였습니다.'); }
+        });
+      });
+    }
+  </script>
+</th:block>
+</html>

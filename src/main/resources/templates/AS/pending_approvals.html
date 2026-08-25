@@ -1,0 +1,464 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<style>
+  /* disabled 버튼 hover 무시 */
+  .popup-button button:disabled:hover,
+  .popup-button .btn-navy:disabled:hover {
+    background-color: #ccc !important;
+    color: #999 !important;
+    border: 1px solid #ccc !important;
+    cursor: not-allowed !important;
+    box-shadow: none !important;
+  }
+  .popup-button button:not(:disabled):hover,
+  .popup-button .btn-navy:not(:disabled):hover {
+    background-color: #F5F6FA;
+    border: 1px solid #03428E;
+    color: #03428E;
+  }
+</style>
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>결재 할 내역</h2>
+        <a title="북마크" class="bookmark toggle">내메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+        <li>결재목록</li>
+        <li>결재 할 내역</li>
+      </ul>
+    </div>
+
+    <div class="tab-contents" style="display:flex;">
+      <section class="tab-item">
+        <div class="section-top">
+          <div class="search-wrap">
+            <dl>
+              <dt><label>작성일자<span class="eq">*</span></label></dt>
+              <dd>
+                <ul class="date-box">
+                  <li><input type="date" id="startDate"><label for="startDate" class="hide">시작일</label></li>
+                  <li><input type="date" id="endDate">  <label for="endDate"   class="hide">종료일</label></li>
+                </ul>
+              </dd>
+            </dl>
+            <dl>
+              <dt><label for="SearchPayment">진행구분</label></dt>
+              <dd>
+                <div class="srch-box">
+                  <select id="SearchPayment"><option value="all"></option></select>
+                </div>
+              </dd>
+            </dl>
+            <dl>
+              <dt><label for="searchText">제목<span class="eq">*</span></label></dt>
+              <dd>
+                <div class="srch-box">
+                  <input type="text" id="searchText" class="input-srch" placeholder="제목" style="border-radius:5px;">
+                </div>
+              </dd>
+            </dl>
+            <dl>
+              <dt>&nbsp;</dt>
+              <dd>
+                <li>
+                  <a class="btn btn-delete" title="검색" onclick="Search()">
+                    <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘"> 검색
+                  </a>
+                </li>
+              </dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="container-fluid">
+          <div id="theGrid1" style="min-height:77px;"></div>
+          <div id="theGrid"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <footer><p>ⓒ corp. All rights reserved.</p></footer>
+
+  <!-- 결재 승인 팝업 -->
+  <div class="dashboard-layout-popup">
+    <div class="popup-overlay" id="popup1"></div>
+    <div class="popup-wrapper" id="wrapper1" style="overflow-y:auto; max-height:90vh; min-width:800px;">
+      <div class="popup-title">
+        <h3>결재 승인</h3>
+        <a onclick="NewClose()" title="팝업닫기" class="btn-popup-close">
+          <img th:src="@{/images/icon/btn-popup-close.svg}" alt="닫기">
+        </a>
+      </div>
+      <div class="popup-contents">
+        <form id="ApprovalForm" autocomplete="off">
+          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+          <input id="appgubun" type="hidden">
+          <input id="appnum"   type="hidden">
+          <input id="appperid" type="hidden">
+          <input id="papercd"  type="hidden">
+
+          <!-- 업무일지 헤드 정보 -->
+          <div class="table-wrap" style="margin-bottom:8px;">
+            <table class="view-table">
+              <caption>업무일지 기본정보</caption>
+              <tbody>
+              <tr>
+                <th>상신자</th>
+                <td id="infoRepopernm"></td>
+                <th>부서</th>
+                <td id="infoDivinm"></td>
+                <th>직급</th>
+                <td id="infoRspnm"></td>
+              </tr>
+              <tr>
+                <th>작성일자</th>
+                <td id="infoRptdate"></td>
+                <th>문서명</th>
+                <td id="infoPapercd"></td>
+                <th>제목</th>
+                <td id="infoTitle"></td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 업무일지 상세 그리드 -->
+          <div id="detailGrid" style="height:200px; margin-bottom:8px;"></div>
+
+          <!-- 결재 사유 -->
+          <div class="table-wrap">
+            <table class="view-table">
+              <caption>결재처리</caption>
+              <tbody>
+              <tr>
+                <th><label for="remark">사유</label></th>
+                <td><input id="remark" name="remark" class="wp100" placeholder="사유 (선택입력)"/></td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </form>
+      </div>
+      <div class="popup-button">
+        <button class="btn-navy btn-reject"  onclick="Statechange('reject')">반려</button>
+        <button class="btn-navy btn-hold"    onclick="Statechange('hold')">보류</button>
+        <button class="btn-navy btn-approve" onclick="Statechange('approve')">승인</button>
+        <button class="btn-navy btn-cancel"  onclick="Statechange('cancel')">승인취소</button>
+        <button class="btn-popup-close"      onclick="NewClose()">종료</button>
+      </div>
+    </div>
+  </div>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <script type="text/javascript">
+    let theGrid, theGrid1;
+
+    $(document).ready(function() {
+      let today    = new Date();
+      let monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      $('#startDate').val(CommonUtil.getYYYYMMDDMonthFirst());
+      $('#endDate').val(CommonUtil.formatYYYYMMDD(monthEnd));
+      AjaxUtil.fillSelectOptions($('#SearchPayment'), 'system_code', 'all', false, 'Payment');
+      init();
+    });
+
+    document.getElementById('searchText').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') fetchListData();
+    });
+
+    function init()   { fetchListData(); fetchListData1(); }
+    function Search() { fetchListData(); fetchListData1(); }
+
+    function fetchListData() {
+      let data = [];
+      $.ajax({
+        url: '/api/AS/daily_approval/pending/read',
+        type: 'GET',
+        data: {
+          startDate:    $('#startDate').val(),
+          endDate:      $('#endDate').val(),
+          SearchPayment:$('#SearchPayment').val(),
+          searchText:   $('#searchText').val()
+        },
+        async: false,
+        success: function(res) {
+          if (res && Array.isArray(res.data)) {
+            data = res.data.map((item, i) => ({
+              rownum:           i + 1,
+              repodate:         item.repodate         || '',
+              repoperid:        item.repoperid        || '',
+              repopernm:        item.repopernm        || '',
+              appgubun:         item.appgubun         || '',
+              appgubun_display: item.appgubun_display || '',
+              appdate:          item.appdate          || '',
+              appnum:           item.appnum           || '',
+              appperid:         item.appperid         || '',
+              papercd:          item.papercd          || '',
+              papercd_name:     item.papercd_name     || '',
+              title:            item.title            || '',
+              remark:           item.remark           || ''
+            }));
+          }
+        }
+      });
+
+      while (data.length < 15) data.push({ rownum: data.length + 1 });
+      let viewdata = new wijmo.collections.CollectionView(data);
+
+      if (!theGrid) {
+        theGrid = new wijmo.grid.FlexGrid('#theGrid', {
+          autoGenerateColumns: false,
+          showMarquee: true,
+          isReadOnly: true,
+          selectionMode: 'ListBox',
+          virtualizationThreshold: 1,
+          columns: [
+            { binding: 'rownum',           header: '순번',   width: 60,  align: 'center' },
+            { binding: 'repodate',         header: '상신일자', width: 120, align: 'center' },
+            { binding: 'repopernm',        header: '작성자명', width: 90,  align: 'center' },
+            { binding: 'papercd_name',     header: '문서명',  width: 100, align: 'center' },
+            { binding: 'appgubun_display', header: '결재구분', width: 90,  align: 'center' },
+            { binding: 'appdate',          header: '결재일자', width: 120, align: 'center' },
+            { binding: 'title',            header: '제목',   width: '*', minWidth: 300, align: 'left' },
+            { binding: 'remark',           header: '사유',   width: 200, align: 'left' },
+            { binding: 'appnum',   header: '문서번호', visible: false },
+            { binding: 'papercd',  header: '문서코드', visible: false },
+            { binding: 'appgubun', header: '결재구분', visible: false },
+            { binding: 'appperid', header: '',         visible: false },
+            { binding: 'repoperid',header: '',         visible: false }
+          ],
+          itemsSource: viewdata
+        });
+        theGrid.rowHeaders.columns.splice(0, 1);
+        attachDoubleClickEvent(theGrid);
+        new FlexGridContextMenu(theGrid);
+        window.downloadFileName = '결재 할 내역';
+      } else {
+        theGrid.itemsSource = viewdata;
+      }
+    }
+
+    function attachDoubleClickEvent(grid) {
+      let lastClick = 0;
+      grid.hostElement.addEventListener('click', function(e) {
+        let now = new Date().getTime();
+        if (now - lastClick < 300) {
+          let ht = grid.hitTest(e);
+          if (ht.cellType === wijmo.grid.CellType.Cell) {
+            let rowData = grid.rows[ht.row].dataItem;
+            if (rowData && rowData.appnum) openPopup(rowData);
+          }
+        }
+        lastClick = now;
+      });
+    }
+
+    let detailGrid = null;
+
+    function openPopup(rowData) {
+      document.getElementById('appnum').value   = rowData.appnum   || '';
+      document.getElementById('appgubun').value = rowData.appgubun || '';
+      document.getElementById('remark').value   = '';
+      document.getElementById('papercd').value  = rowData.papercd  || '';
+      document.getElementById('appperid').value = rowData.appperid || '';
+
+      document.getElementById('infoRepopernm').textContent = rowData.repopernm    || '';
+      document.getElementById('infoPapercd').textContent   = rowData.papercd_name || '';
+      document.getElementById('infoTitle').textContent     = rowData.title        || '';
+      document.getElementById('infoRptdate').textContent   = rowData.repodate     || '';
+      document.getElementById('infoDivinm').textContent    = '';
+      document.getElementById('infoRspnm').textContent     = '';
+
+      document.getElementById('popup1').style.display   = 'block';
+      document.getElementById('wrapper1').style.display = 'block';
+
+      setButtonStateByAppgubun(rowData.appgubun);
+      loadDailyDetail(rowData.appnum);
+    }
+
+    function loadDailyDetail(appnum) {
+      if (!appnum) return;
+      $.ajax({
+        url: '/api/AS/daily_approval/pending/dailyDetail',
+        type: 'GET',
+        data: { appnum: appnum },
+        success: function(res) {
+          if (!res.success || !res.data) return;
+
+          const head    = res.data.head    || {};
+          const details = res.data.details || [];
+
+          // 헤드 정보 세팅
+          document.getElementById('infoRptdate').textContent = head.rptdate  || '';
+          document.getElementById('infoDivinm').textContent  = head.divinm   || '';
+          document.getElementById('infoRspnm').textContent   = head.rspnm    || '';
+
+          // 상세 그리드 렌더링
+          const data = details.length > 0 ? details : [{}];
+          while (data.length < 5) data.push({});
+          const viewdata = new wijmo.collections.CollectionView(data);
+
+          if (!detailGrid) {
+            detailGrid = new wijmo.grid.FlexGrid('#detailGrid', {
+              autoGenerateColumns: false,
+              isReadOnly: true,
+              showMarquee: true,
+              columns: [
+                { binding: 'rptnum',  header: '순번',   width: 55,  align: 'center' },
+                { binding: 'businm',  header: '구분',   width: 100, align: 'center' },
+                { binding: 'actnm',   header: '행선지', width: 120, align: 'left' },
+                { binding: 'equpnm',  header: '호기',   width: 100, align: 'center' },
+                { binding: 'frtime',  header: '시작',   width: 70,  align: 'center' },
+                { binding: 'totime',  header: '종료',   width: 70,  align: 'center' },
+                { binding: 'remark',  header: '내용',   width: '*', minWidth: 150, align: 'left' }
+              ],
+              itemsSource: viewdata
+            });
+            detailGrid.rowHeaders.columns.splice(0, 1);
+          } else {
+            detailGrid.itemsSource = viewdata;
+          }
+        }
+      });
+    }
+
+    function NewClose() {
+      document.getElementById('popup1').style.display   = 'none';
+      document.getElementById('wrapper1').style.display = 'none';
+      document.getElementById('ApprovalForm').reset();
+      // 상세 그리드 초기화
+      if (detailGrid) {
+        detailGrid.itemsSource = new wijmo.collections.CollectionView([{}]);
+      }
+      document.getElementById('infoDivinm').textContent = '';
+      document.getElementById('infoRspnm').textContent  = '';
+      document.getElementById('infoRptdate').textContent = '';
+    }
+
+    function setButtonStateByAppgubun(appgubun) {
+      let $btnReject  = $('.btn-reject');
+      let $btnHold    = $('.btn-hold');
+      let $btnApprove = $('.btn-approve');
+      let $btnCancel  = $('.btn-cancel');
+
+      [$btnReject, $btnHold, $btnApprove, $btnCancel].forEach(btn => btn.prop('disabled', true));
+
+      let appnum = document.getElementById('appnum').value;
+      if (!appnum) return;
+
+      $.ajax({
+        url: '/api/AS/daily_approval/pending/approvalInfo',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ appnum: appnum }),
+        headers: { 'X-CSRF-Token': $('[name=_csrf]').val() },
+        success: function(res) {
+          let canCancel  = res.data?.canCancel  === true;
+          let isApproved = res.data?.isApproved === true;
+
+          switch (appgubun) {
+            case '101':
+              if (canCancel && isApproved) {
+                $btnCancel.prop('disabled', false);
+              } else if (res.data?.canApprove && !isApproved) {
+                [$btnReject, $btnHold, $btnApprove].forEach(btn => btn.prop('disabled', false));
+              }
+              break;
+            case '001':
+              [$btnReject, $btnHold, $btnApprove].forEach(btn => btn.prop('disabled', false));
+              break;
+            case '201':
+              $btnReject.prop('disabled', false);
+              $btnApprove.prop('disabled', false);
+              break;
+            default:
+              break;
+          }
+        }
+      });
+    }
+
+    function Statechange(action) {
+      let appnum   = document.getElementById('appnum').value;
+      let appgubun = document.getElementById('appgubun').value;
+      let remark   = document.getElementById('remark').value;
+
+      if (!appnum || !appgubun) {
+        Alert.alert('', '문서번호와 결재구분이 없습니다.');
+        return;
+      }
+
+      $.ajax({
+        url: '/api/AS/daily_approval/pending/changeState',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ appnum: appnum, action: action, remark: remark }),
+        headers: { 'X-CSRF-Token': $('[name=_csrf]').val() },
+        success: function(res) {
+          if (!res.success) {
+            Alert.alert('', res.message || '상태 변경 실패');
+            return;
+          }
+          Alert.alert('', '결재가 처리되었습니다.', function() {
+            NewClose();
+            fetchListData();
+            fetchListData1();
+          });
+        },
+        error: function() { Alert.alert('', '상태 변경 중 오류 발생'); }
+      });
+    }
+
+    function fetchListData1() {
+      let data = [];
+      $.ajax({
+        url: '/api/AS/daily_approval/pending/read1',
+        type: 'GET',
+        data: { startDate: $('#startDate').val(), endDate: $('#endDate').val() },
+        async: false,
+        success: function(res) {
+          if (res && res.data) {
+            let userName    = res.data.userName    || '';
+            let paymentList = res.data.paymentList || [];
+            if (Array.isArray(paymentList)) {
+              data = paymentList.map(item => ({
+                userName:  userName,
+                appgubun1: (item.appgubun1 || '0') + '건',
+                appgubun2: (item.appgubun2 || '0') + '건',
+                appgubun3: (item.appgubun3 || '0') + '건',
+                appgubun4: (item.appgubun4 || '0') + '건'
+              }));
+            }
+          }
+        }
+      });
+      if (!data.length) data.push({ userName: '', appgubun1: '', appgubun2: '', appgubun3: '', appgubun4: '' });
+      let viewdata = new wijmo.collections.CollectionView(data);
+
+      if (!theGrid1) {
+        theGrid1 = new wijmo.grid.FlexGrid('#theGrid1', {
+          autoGenerateColumns: false,
+          showMarquee: true,
+          isReadOnly: true,
+          columns: [
+            { binding: 'userName',  header: '결재자명', width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appgubun1', header: '결재대기', width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appgubun2', header: '결재문서', width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appgubun4', header: '보류문서', width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appgubun3', header: '반려문서', width: '*', minWidth: 100, align: 'center' }
+          ],
+          itemsSource: viewdata
+        });
+        theGrid1.rowHeaders.columns.splice(0, 1);
+        new FlexGridContextMenu(theGrid1);
+        window.downloadFileName = '문서 현황';
+      } else {
+        theGrid1.itemsSource = viewdata;
+      }
+    }
+  </script>
+</th:block>
+</html>

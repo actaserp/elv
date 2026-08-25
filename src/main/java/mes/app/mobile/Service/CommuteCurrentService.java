@@ -10,76 +10,54 @@ import java.util.Map;
 
 @Service
 public class CommuteCurrentService {
+
     @Autowired
     SqlRunner sqlRunner;
 
-    public List<Map<String, Object>> getUserInfo(String username, String workcd, String searchFromDate, String searchToDate) {
-
-        MapSqlParameterSource dicParam = new MapSqlParameterSource();
-        dicParam.addValue("username", username);
-        dicParam.addValue("workcd",   workcd);
+    /** 본인 출퇴근 현황 조회 */
+    public List<Map<String, Object>> getUserInfo(String username, String workcd,
+                                                  String searchFromDate, String searchToDate) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("username", username);
+        param.addValue("workcd",   workcd);
 
         String fromDate = searchFromDate.replace("-", "");
         String toDate   = searchToDate.replace("-", "");
-
-        dicParam.addValue("fromDate", fromDate);
-        dicParam.addValue("toDate",   toDate);
+        param.addValue("fromDate", fromDate);
+        param.addValue("toDate",   toDate);
 
         String sql = """
             SELECT
-                t.workym,
-                t.workday,
-                t.perid,
-                t.worknum,
-                t.holiyn,
-                t.workyn,
-                t.workcd,
-                td.worknm,
-                t.starttime,
-                t.endtime,
-                t.worktime,
-                t.nomaltime,
-                t.overtime,
-                t.nighttime,
-                t.holitime,
-                t.jitime,
-                t.jotime,
-                t.yuntime,
-                t.abtime,
-                t.bantime,
-                t.remark,
-                t.out_remark,
-                t.fixflag,
-                t.address,
-                t.out_address,
+                t.workym, t.workday, t.perid, t.worknum, t.holiyn, t.workyn,
+                t.workcd, td.worknm, t.starttime, t.endtime, t.worktime,
+                t.nomaltime, t.overtime, t.nighttime, t.holitime,
+                t.jitime, t.jotime, t.yuntime, t.abtime, t.bantime,
+                t.remark, t.out_remark, t.fixflag, t.address, t.out_address,
                 a.first_name,
                 STUFF(
-                    CASE WHEN t.jitime = 1 THEN ', 지각' ELSE '' END +
-                    CASE WHEN t.jotime = 1 THEN ', 조퇴' ELSE '' END +
+                    CASE WHEN t.jitime  = 1 THEN ', 지각' ELSE '' END +
+                    CASE WHEN t.jotime  = 1 THEN ', 조퇴' ELSE '' END +
                     CASE WHEN t.yuntime = 1 THEN ', 연차' ELSE '' END +
-                    CASE WHEN t.abtime = 1 THEN ', 결근' ELSE '' END +
+                    CASE WHEN t.abtime  = 1 THEN ', 결근' ELSE '' END +
                     CASE WHEN t.bantime = 1 THEN ', 반차' ELSE '' END
                 , 1, 2, '') AS status_text
             FROM tb_pb201 t
-            LEFT JOIN auth_user a  ON a.personid = t.perid
-            LEFT JOIN person p     ON p.id       = a.personid
-            LEFT JOIN tb_pb210 td  ON t.workcd   = td.workcd
+            LEFT JOIN auth_user a ON a.personid = t.perid
+            LEFT JOIN person p    ON p.id       = a.personid
+            LEFT JOIN tb_pb210 td ON t.workcd   = td.workcd
             WHERE a.username = :username
-           """;
+            """;
 
         if (workcd != null && !workcd.isEmpty()) {
             sql += " AND t.workcd = :workcd ";
         }
 
-        // ✅ workym + workday 합쳐서 8자리 문자열로 비교 (MSSQL)
         sql += """
             AND (t.workym + t.workday) >= :fromDate
             AND (t.workym + t.workday) <= :toDate
-           """;
+            ORDER BY t.workym DESC, t.workday DESC
+            """;
 
-        sql += " ORDER BY t.workym DESC, t.workday DESC ";
-
-        return this.sqlRunner.getRows(sql, dicParam);
+        return sqlRunner.getRows(sql, param);
     }
-
 }

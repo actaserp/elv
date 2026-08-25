@@ -31,13 +31,13 @@
           <div class="row">
             <div class="wp30 mg-r10">
               <div class="container-fluid col">
-                <div id="theGrid"></div>
+                <div id="theGrid" style="height:600px;"></div>
               </div>
             </div>
             <div class="col wp68">
               <div class="section">
                 <div class="container-fluid col">
-                  <div id="theGrid2"></div>
+                  <div id="theGrid2" style="height:600px;"></div>
                 </div>
               </div>
             </div>
@@ -152,7 +152,9 @@
       changeComcdSelect() {
         this.selectedPerid = null;
         this.fetchListData();
-        this.viewData2 = new wijmo.collections.CollectionView([]);
+        let emptyRows = [];
+        while (emptyRows.length < 14) emptyRows.push({});
+        this.viewData2 = new wijmo.collections.CollectionView(emptyRows);
         this.theGrid2.itemsSource = this.viewData2;
       }
     }

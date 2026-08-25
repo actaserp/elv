@@ -113,20 +113,13 @@ public class VehicleManageService {
         dicParam.addValue("spjangcd", spjangcd);
 
         String sql = """
-                SELECT e.carcd, e.carnum, e.gubun AS fuelcd, e.samt, f.fuelnm
+                SELECT e.carcd, e.carnum, e.reginm, e.gubun AS fuelcd, e.samt, f.fuelnm
                 FROM TB_E047 e
                 LEFT JOIN (
-                    SELECT f1.fuelcd, f1.fuelnm, f1.uamt
+                    SELECT DISTINCT f1.fuelcd, f1.fuelnm
                     FROM TB_E037_1 f1
                     WHERE f1.spjangcd = :spjangcd
                       AND f1.useyn    = '1'
-                      AND f1.uamt = (
-                          SELECT MAX(f2.uamt)
-                          FROM TB_E037_1 f2
-                          WHERE f2.fuelcd   = f1.fuelcd
-                            AND f2.spjangcd = :spjangcd
-                            AND f2.useyn    = '1'
-                      )
                 ) f ON f.fuelcd = e.gubun
                 WHERE e.spjangcd = :spjangcd
                 """;
@@ -442,6 +435,7 @@ public class VehicleManageService {
                     j.pernm,
                     jc.divinm,
                     e.carnum,
+                    e.reginm,
                     f.fuelnm,
                     c.km,
                     c.liter,

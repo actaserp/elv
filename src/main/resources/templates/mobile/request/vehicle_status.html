@@ -216,6 +216,7 @@
             <span class="card-actnm">${esc(item.carnum || '')}</span>
             <span style="font-size:12px; color:#888;">${esc(item.kcdate || '')}</span>
           </div>
+          ${item.reginm ? `<div class="card-row"><span class="card-label">지역구분</span><span class="card-value">${esc(item.reginm)}</span></div>` : ''}
           ${item.pernm ? `<div class="card-row"><span class="card-label">운전자</span><span class="card-value">${esc(item.pernm)}</span></div>` : ''}
           ${item.actnm ? `<div class="card-row"><span class="card-label">현장명</span><span class="card-value">${esc(item.actnm)}</span></div>` : ''}
           ${item.km != null ? `<div class="card-row"><span class="card-label">주행거리</span><span class="card-value">${item.km} km</span></div>` : ''}
@@ -232,6 +233,7 @@
     html += buildDetailRows([
       { label: '운행일자',   value: item.kcdate  },
       { label: '차량번호',   value: item.carnum  },
+      { label: '지역구분',   value: item.reginm  },
       { label: '운전자',     value: item.pernm   },
       { label: '부서',       value: item.divinm  },
       { label: '현장명',     value: item.actnm   },
