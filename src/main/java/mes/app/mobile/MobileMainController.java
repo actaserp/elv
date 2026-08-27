@@ -48,39 +48,54 @@ public class MobileMainController {
         AjaxResult result = new AjaxResult();
         User user       = (User) auth.getPrincipal();
         String username = user.getUsername();
-        String spjangcd = tenantUserService.getSpjangcd(username);
-
         // TenantUserService에서 사업체DB 기준 사원 정보 조회
+        // 본사에서 만든 사업체 관리 전용 계정(admin, kyoungelv 등)은 auth_user.personid 가 없어
+        // null 이 돌아온다. 이 계정들도 로그인·DB라우팅·권한은 정상이므로 여기서 중단하지 않고,
+        // 사원 정보와 출퇴근 항목만 비운 채 isMaster 판정까지 진행한다.
         Map<String, Object> userInfo = tenantUserService.getUserInfo(username);
-        if (userInfo == null) {
-            result.success = false;
-            result.message = "사용자 정보를 찾을 수 없습니다.";
-            return result;
-        }
-        username = (String) userInfo.get("username"); //사업체 DB username 조회
-
-        Map<String, Object> timeInfo     = mobileMainService.getInOfficeTime(username, spjangcd);
-        Map<String, Object> overtimeInfo = mobileMainService.getOvertimeInfo(username, spjangcd);
+        boolean isEmployee = (userInfo != null);
 
         Map<String, Object> resultData = new HashMap<>();
-        resultData.put("perid",   userInfo.get("personid") != null ? userInfo.get("personid").toString() : null);
-        resultData.put("pernm",   userInfo.get("pernm"));
-        resultData.put("divinm",  userInfo.get("divinm"));
-        resultData.put("RSPNM",   userInfo.get("rspnm"));
-        resultData.put("last_name", userInfo.get("pernm"));  // 화면 호환성 유지
-        resultData.put("username",  userInfo.get("username"));
+        resultData.put("isEmployee", isEmployee);
 
-        if (timeInfo != null) {
-            resultData.put("inOfficeTime",  timeInfo.get("starttime"));
-            resultData.put("outOfficeTime", timeInfo.get("endtime"));   // ✅ idx=1 퇴근시간 (추가근무 진입 조건용)
-            resultData.put("workcd",        timeInfo.get("workcd"));
-            resultData.put("remark",        timeInfo.get("remark"));
-        }
+        if (isEmployee) {
+            // getSpjangcd 도 내부적으로 getUserInfo 를 타므로 조회 결과를 재사용한다
+            String spjangcd = (String) userInfo.get("spjangcd");
+            username = (String) userInfo.get("username"); //사업체 DB username 조회
 
-        if (overtimeInfo != null) {
-            resultData.put("ovStartTime", overtimeInfo.get("starttime"));
-            // 추가근무 중일 때는 추가근무 레코드의 remark로 덮어씀
-            resultData.put("remark", overtimeInfo.get("remark"));
+            Map<String, Object> timeInfo     = mobileMainService.getInOfficeTime(username, spjangcd);
+            Map<String, Object> overtimeInfo = mobileMainService.getOvertimeInfo(username, spjangcd);
+
+            resultData.put("perid",   userInfo.get("personid") != null ? userInfo.get("personid").toString() : null);
+            resultData.put("pernm",   userInfo.get("pernm"));
+            resultData.put("divinm",  userInfo.get("divinm"));
+            resultData.put("RSPNM",   userInfo.get("rspnm"));
+            resultData.put("last_name", userInfo.get("pernm"));  // 화면 호환성 유지
+            resultData.put("username",  userInfo.get("username"));
+
+            if (timeInfo != null) {
+                resultData.put("inOfficeTime",  timeInfo.get("starttime"));
+                resultData.put("outOfficeTime", timeInfo.get("endtime"));   // ✅ idx=1 퇴근시간 (추가근무 진입 조건용)
+                resultData.put("workcd",        timeInfo.get("workcd"));
+                resultData.put("remark",        timeInfo.get("remark"));
+            }
+
+            if (overtimeInfo != null) {
+                resultData.put("ovStartTime", overtimeInfo.get("starttime"));
+                // 추가근무 중일 때는 추가근무 레코드의 remark로 덮어씀
+                resultData.put("remark", overtimeInfo.get("remark"));
+            }
+        } else {
+            // 사원이 아닌 관리 계정 — 화면이 divinm + last_name + RSPNM 을 그대로 이어붙이므로
+            // null 대신 빈 문자열을 넣어 "null null null" 이 찍히지 않게 한다.
+            String displayName = (user.getUserProfile() != null && user.getUserProfile().getName() != null)
+                    ? user.getUserProfile().getName() : username;
+            resultData.put("perid",     null);
+            resultData.put("pernm",     displayName);
+            resultData.put("divinm",    "");
+            resultData.put("RSPNM",     "");
+            resultData.put("last_name", displayName);
+            resultData.put("username",  username);
         }
 
         // Master 그룹 여부 (User 그룹이 아니면 Master)
