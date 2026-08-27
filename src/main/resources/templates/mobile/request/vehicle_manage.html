@@ -179,7 +179,7 @@
                             <div style="display: flex; flex-direction: row; gap: 5px;">
                                 <div style="flex: 1">
                                     <div>주행시작(km)</div>
-                                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                                    <div id="startPhotoBox" style="display: flex; flex-direction: column; gap: 5px;">
                                         <input type="file" id="startImgFile" accept="image/*" capture="environment"
                                                style="display:none;" onchange="analyzeOcr(this, 'start', 'startImgPreview')">
                                         <button type="button" onclick="document.getElementById('startImgFile').click()"
@@ -187,6 +187,9 @@
                                         <img id="startImgPreview" src="" alt="시작 이미지"
                                              style="display:none; width:100%; border-radius:5px;">
                                     </div>
+                                    <!-- 주행종료 모드: 시작 사진은 이미 찍었으므로 텍스트로 대체 -->
+                                    <div id="startCaptured" style="display:none; padding:9px 0; text-align:center;
+                                         color:#2e7d32; font-weight:700; font-size:13px;">✅ 촬영완료</div>
                                 </div>
                                 <div style="flex: 1">
                                     <div>주행종료(km)</div>
@@ -305,7 +308,48 @@
         document.getElementById('vehicleSearchInput').addEventListener('input', function () {
             loadVehicleList(this.value);
         });
+
+        loadOngoing();
     });
+
+    // =====================================================
+    // 2단계 등록 — 주행시작만 등록된 건(runstat='1')이 있으면 이어서 종료를 기록한다.
+    // 화면 구성은 그대로 두고, 시작 사진 자리만 '촬영완료' 로 바꾼다.
+    // =====================================================
+    let ongoingItem = null;   // null 이면 주행시작 등록, 값이 있으면 주행종료 등록
+
+    function loadOngoing() {
+        AjaxUtil.getAsyncData('/api/vehicle_manage/ongoing', {}, function (result) {
+            const list = (result && result.data) ? result.data : [];
+            if (list.length === 0) return;      // 신규 운행 — 기존 화면 그대로
+            bindOngoing(list[0]);               // 가장 오래된 미완료 건부터 종료 처리
+        });
+    }
+
+    function bindOngoing(item) {
+        ongoingItem = item;
+
+        // 시작 사진은 이미 찍었으므로 버튼 대신 텍스트를 보여준다
+        document.getElementById('startPhotoBox').style.display = 'none';
+        document.getElementById('startCaptured').style.display = '';
+
+        // 주행시작 때 확정된 값으로 채운다
+        document.getElementById('startDate').value = fmtDate(item.kcdate);
+        document.getElementById('vehicleCd').value = item.carcd  ?? '';
+        document.getElementById('vehicleNm').value = item.carnum ?? '';
+        document.getElementById('siteCd').value    = item.actcd  ?? '';
+        document.getElementById('siteNm').value    = item.actnm  ?? '';
+        document.getElementById('startKM').value   = item.startkm ?? '';
+
+        if (item.gubun) {
+            waitAndSetFuel(item.gubun, null, 0);
+        }
+    }
+
+    function fmtDate(d) {
+        if (!d || d.length < 8) return d || '';
+        return d.substring(0, 4) + '-' + d.substring(4, 6) + '-' + d.substring(6, 8);
+    }
 
     function bindDate() {
         const today = new Date();
@@ -322,6 +366,10 @@
                 const userNameEl = document.getElementById('userName2');
                 if (userIdEl)   userIdEl.value   = result.data.username   ?? '';
                 if (userNameEl) userNameEl.value = result.data.first_name ?? '';
+
+                // 주행종료 모드에서는 운행 건의 차량/유종이 이미 확정돼 있으므로 덮어쓰지 않는다
+                // (배정 차량과 실제 운행 차량이 다를 수 있음)
+                if (ongoingItem) return;
 
                 if (result.data.carnum) {
                     hasMyVehicle = true;
@@ -576,31 +624,40 @@
             Alert.alert('', '출발(km) 값을 입력하세요.');
             return;
         }
-        if (!endKM) {
-            Alert.alert('', '도착(km) 값을 입력하세요.');
-            return;
+
+        let url, data;
+
+        if (!ongoingItem) {
+            // 주행시작 등록 — 도착(km)/유류비는 종료 때 입력한다
+            url  = '/api/vehicle_manage/submitStart';
+            data = {
+                'userId'    : document.getElementById('userId').value,
+                'siteCd'    : document.getElementById('siteCd').value,
+                'vehicleCd' : document.getElementById('vehicleCd').value,
+                'fuelKind'  : document.getElementById('fuelKind').value,
+                'startDate' : document.getElementById('startDate').value,
+                'startKM'   : startKM,
+            };
+        } else {
+            // 주행종료 등록 — 대상 운행 건(kcdate/kcnum)을 UPDATE
+            if (!endKM) {
+                Alert.alert('', '도착(km) 값을 입력하세요.');
+                return;
+            }
+            if (parseFloat(endKM) <= parseFloat(startKM)) {
+                Alert.alert('', '도착(km)은 출발(km)보다 커야 합니다.');
+                return;
+            }
+            url  = '/api/vehicle_manage/submitEnd';
+            data = {
+                'userId'  : document.getElementById('userId').value,
+                'kcdate'  : ongoingItem.kcdate,
+                'kcnum'   : ongoingItem.kcnum,
+                'endKM'   : endKM,
+                'liter'   : document.getElementById('liter').value,
+                'unitAmt' : document.getElementById('unitAmt').value,
+            };
         }
-        if (parseFloat(endKM) <= parseFloat(startKM)) {
-            Alert.alert('', '도착(km)은 출발(km)보다 커야 합니다.');
-            return;
-        }
-        let url  = '/api/vehicle_manage/submitAttendance';
-        let data = {
-            'userId'    : document.getElementById('userId').value,
-            'userName'  : document.getElementById('userName2').value,
-            'siteCd'    : document.getElementById('siteCd').value,
-            'siteNm'    : document.getElementById('siteNm').value,
-            'vehicleCd' : document.getElementById('vehicleCd').value,
-            'vehicleNm' : document.getElementById('vehicleNm').value,
-            'fuelKind'  : document.getElementById('fuelKind').value,
-            'liter'     : document.getElementById('liter').value,
-            'unitAmt'   : document.getElementById('unitAmt').value,
-            'startDate' : document.getElementById('startDate').value,
-            'startKM'   : document.getElementById('startKM').value,
-            'endKM'     : document.getElementById('endKM').value,
-            'totalKM'   : document.getElementById('totalKM').value,
-            'total'     : document.getElementById('total').value,
-        };
         let fnsuccess = function (result) {
             if (result != null) {
                 if (result.success) {

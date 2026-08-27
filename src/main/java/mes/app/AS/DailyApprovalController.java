@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -52,6 +53,23 @@ public class DailyApprovalController {
         String spjangcd = TenantContext.get();
 
         result.data    = dailyApprovalService.getApprovalLineList(perid, spjangcd, comcd);
+        result.success = true;
+        return result;
+    }
+
+    /** 로그인 사원의 사원코드/성명 (화면 상단 표시용) */
+    @GetMapping("/line/myinfo")
+    public AjaxResult lineMyInfo(Authentication auth) {
+        AjaxResult result = new AjaxResult();
+        User user = (User) auth.getPrincipal();
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (userInfo == null) { result.success = false; result.message = "사원 정보 없음"; return result; }
+
+        Map<String, Object> my = new HashMap<>();
+        my.put("perid", dailyApprovalService.stripP((String) userInfo.get("perid")));
+        my.put("pernm", userInfo.get("pernm"));
+
+        result.data    = my;
         result.success = true;
         return result;
     }

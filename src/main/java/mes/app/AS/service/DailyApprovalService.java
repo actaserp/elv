@@ -22,7 +22,7 @@ public class DailyApprovalService {
     NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     /** perid에서 앞의 'p' 제거 유틸 (tb_e080.appperid/repoperid는 순수 사번) */
-    private String stripP(String perid) {
+    public String stripP(String perid) {
         return (perid != null && perid.startsWith("p")) ? perid.substring(1) : perid;
     }
 
@@ -32,7 +32,7 @@ public class DailyApprovalService {
 
     public List<Map<String, Object>> getApprovalLineList(String perid, String spjangcd, String comcd) {
         MapSqlParameterSource param = new MapSqlParameterSource();
-        param.addValue("perid",    perid);
+        param.addValue("perid",    stripP(perid));
         param.addValue("spjangcd", spjangcd);
 
         String sql = """
@@ -60,7 +60,7 @@ public class DailyApprovalService {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("no",       no);
         param.addValue("papercd",  papercd);
-        param.addValue("perid",    perid);
+        param.addValue("perid",    stripP(perid));
         param.addValue("spjangcd", spjangcd);
 
         String sql = """
@@ -70,7 +70,7 @@ public class DailyApprovalService {
                        sc.com_cnam AS gubunnm,
                        e.seq, e.papercd, e.perid
                 FROM TB_E064 e
-                LEFT JOIN TB_JA001 j  ON j.spjangcd = e.spjangcd AND j.perid = 'p' + e.perid
+                LEFT JOIN TB_JA001 j  ON j.spjangcd = e.spjangcd AND j.perid = 'p' + e.kcperid
                 LEFT JOIN TB_CA510 sc ON sc.com_cls = '621' AND sc.com_code = e.gubun
                 WHERE e.no = :no AND e.perid = :perid AND e.papercd = :papercd AND e.spjangcd = :spjangcd
                 """;
@@ -83,9 +83,9 @@ public class DailyApprovalService {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
         param.addValue("custcd",   custcd);
-        param.addValue("perid",    perid);
+        param.addValue("perid",    stripP(perid));
         param.addValue("papercd",  papercd);
-        param.addValue("kcperid",  kcperid);
+        param.addValue("kcperid",  stripP(kcperid));
         param.addValue("gubun",    gubun);
         param.addValue("seq",      seq);
         param.addValue("no",       no);
@@ -104,10 +104,10 @@ public class DailyApprovalService {
 
     public void deleteApprovalLine(String perid, String papercd, String no, String kcperid, String spjangcd) {
         MapSqlParameterSource param = new MapSqlParameterSource();
-        param.addValue("perid",    perid);
+        param.addValue("perid",    stripP(perid));
         param.addValue("papercd",  papercd);
         param.addValue("no",       no);
-        param.addValue("kcperid",  kcperid);
+        param.addValue("kcperid",  stripP(kcperid));
         param.addValue("spjangcd", spjangcd);
 
         namedParameterJdbcTemplate.update(
@@ -125,7 +125,7 @@ public class DailyApprovalService {
     public String getNextNo(String spjangcd, String perid, String papercd) {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
-        param.addValue("perid",    perid);
+        param.addValue("perid",    stripP(perid));
         param.addValue("papercd",  papercd);
         List<Map<String, Object>> result = sqlRunner.getRows(
             "SELECT ISNULL(MAX(CAST(no AS INT)),0)+1 AS nextno FROM TB_E064 WHERE spjangcd=:spjangcd AND perid=:perid AND papercd=:papercd", param);
@@ -158,14 +158,14 @@ public class DailyApprovalService {
     public List<Map<String, Object>> getApprovalLineDetail2(String spjangcd, String perid, String comcd) {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
-        param.addValue("perid",    perid);
+        param.addValue("perid",    stripP(perid));
         param.addValue("papercd",  comcd);
         String sql = """
                 SELECT e.no, e.kcperid AS kcpersonid, j.pernm AS kcpernm,
                        c.com_cnam AS gubunnm, e.seq, e.remark
                 FROM TB_E064 e
                 LEFT JOIN TB_JA001 j ON j.spjangcd=e.spjangcd AND j.perid='p'+e.kcperid
-                LEFT JOIN TB_CA510 c ON c.com_cls='620' AND c.com_code=e.gubun AND c.com_code<>'00'
+                LEFT JOIN TB_CA510 c ON c.com_cls='621' AND c.com_code=e.gubun AND c.com_code<>'00'
                 WHERE e.spjangcd=:spjangcd AND e.perid=:perid AND e.papercd=:papercd
                 ORDER BY CAST(e.seq AS INT) ASC
                 """;

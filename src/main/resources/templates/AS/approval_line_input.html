@@ -109,24 +109,43 @@
 
     function init() {
       AjaxUtil.fillSelectOptions($('#comcd'), 'appr_doc', 'all', false, 'appr_doc');
-      AjaxUtil.fillSelectOptions($('#kcperid'), 'person', 'choose', false, 'person');
+      bindApproverOptions();
       AjaxUtil.fillSelectOptions($('#gubuncd'), 'appr_gubun', 'choose', false, 'appr_gubun');
       getMyInfo();
       fetchListData2();
     }
 
-    function getMyInfo() {
+    // 결재자 목록 — TB_JA001 기준 (option value = 'p' 뗀 사번, TB_E064.kcperid 와 동일 형식)
+    function bindApproverOptions() {
       $.ajax({
-        url: '/api/AS/daily_approval/line/read',
+        url: '/api/approval/getKcperid',
         type: 'GET',
-        data: {},
+        async: false,
         success: function(res) {
-          // getUserInfo는 별도 API가 없으므로 auth_user에서 가져온 사원 정보를 grid read 시 활용
-          // 사원코드/이름은 서버에서 세션 기준 반환 — 여기서는 grid data에서 perid/pernm 표시
+          let sel = document.getElementById('kcperid');
+          sel.innerHTML = '<option value="">선택</option>';
+          (res.data || []).forEach(function(item) {
+            let option = document.createElement('option');
+            option.value = item.cd;
+            option.textContent = item.cdnm;
+            sel.appendChild(option);
+          });
         }
       });
-      // perid/pernm은 grid 조회 후 첫 행에서 노출하거나, 별도 getUserInfo 엔드포인트 활용 가능
-      // 현재 구조에서는 그리드 데이터 로드 후 세팅
+    }
+
+    // 로그인 사원의 사원코드/성명 — 결재라인이 0건이어도 표시되어야 하므로 별도 조회
+    function getMyInfo() {
+      $.ajax({
+        url: '/api/AS/daily_approval/line/myinfo',
+        type: 'GET',
+        success: function(res) {
+          if (res && res.success && res.data) {
+            document.getElementById('perid').value = res.data.perid || '';
+            document.getElementById('pernm').value = res.data.pernm || '';
+          }
+        }
+      });
     }
 
     function fetchListData2() {
@@ -138,10 +157,7 @@
         async: false,
         success: function(res) {
           data2 = res.data || [];
-          // 첫 행에서 perid/pernm 세팅
-          if (data2.length > 0) {
-            document.getElementById('perid').value = data2[0].perid || '';
-          }
+          // 사원코드/성명은 getMyInfo() 가 담당 (라인 0건이어도 표시되어야 함)
           while (data2.length < 5) data2.push({});
         }
       });

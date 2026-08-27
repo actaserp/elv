@@ -143,7 +143,8 @@
       </div>
       <div class="popup-button">
         <button class="btn-navy btn-reject"  onclick="Statechange('reject')">반려</button>
-        <button class="btn-navy btn-hold"    onclick="Statechange('hold')">보류</button>
+        <!-- 보류 숨김: TB_CA510(com_cls='621')에 보류 코드가 없어 '201'(결재완료)로 저장되는 문제 -->
+        <button class="btn-navy btn-hold"    onclick="Statechange('hold')" style="display:none">보류</button>
         <button class="btn-navy btn-approve" onclick="Statechange('approve')">승인</button>
         <button class="btn-navy btn-cancel"  onclick="Statechange('cancel')">승인취소</button>
         <button class="btn-popup-close"      onclick="NewClose()">종료</button>

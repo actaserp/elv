@@ -360,6 +360,186 @@ public class VehicleManageService {
         return result;
     }
 
+    // ── 미완료(운행중) 건 조회 ─────────────────────────────────
+    // runstat='1' 인 건만 대상. 기존 데이터는 runstat 이 NULL 이라 절대 걸리지 않는다.
+    // 날짜 제한 없음 — 자정을 넘겨 운행하거나 종료 등록을 잊은 건을 계속 찾아야 하기 때문.
+    public List<Map<String, Object>> getOngoingList(String spjangcd, String perid) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("perid",    perid);
+
+        String sql = """
+                SELECT c.kcdate, c.kcnum, c.carcd, c.actcd, c.gubun,
+                       c.startkm,
+                       e.carnum, e.reginm,
+                       s.actnm
+                FROM TB_E037_CONF c
+                LEFT JOIN TB_E047 e ON e.carcd    = c.carcd
+                LEFT JOIN TB_E601 s ON s.actcd    = c.actcd
+                                   AND s.spjangcd = c.spjangcd
+                WHERE c.spjangcd = :spjangcd
+                  AND c.perid    = :perid
+                  AND c.runstat  = '1'
+                ORDER BY c.kcdate ASC, c.kcnum ASC
+                """;
+        return this.sqlRunner.getRows(sql, param);
+    }
+
+    // ── 주행시작 등록 ─────────────────────────────────────────
+    // 유류비 항목은 주행종료 시점에 계산되므로 여기서는 0 으로 둔다.
+    public AjaxResult submitStart(Map<String, Object> param, String spjangcd) {
+
+        AjaxResult result = new AjaxResult();
+
+        try {
+            String custcd = getCustcdBySpjangcd(spjangcd);
+            if (custcd == null || custcd.isBlank()) {
+                result.success = false;
+                result.message = "거래처코드(custcd)를 찾을 수 없습니다.";
+                return result;
+            }
+
+            String userId    = (String) param.get("userId");
+            String startDate = ((String) param.get("startDate")).replace("-", "");
+            String confmon   = startDate.substring(0, 6);
+            String vehicleCd = (String) param.get("vehicleCd");
+            String fuelKind  = (String) param.get("fuelKind");
+            String actcd     = (String) param.get("siteCd");
+            double startKM   = parseDouble(param.get("startKM"));
+
+            String divicd = getDivicd(userId);
+            String kcnum  = getNextKcnum(custcd, spjangcd, startDate);
+
+            MapSqlParameterSource dicParam = new MapSqlParameterSource();
+            dicParam.addValue("custcd",   custcd);
+            dicParam.addValue("spjangcd", spjangcd);
+            dicParam.addValue("kcdate",   startDate);
+            dicParam.addValue("kcnum",    kcnum);
+            dicParam.addValue("confmon",  confmon);
+            dicParam.addValue("perid",    userId);
+            dicParam.addValue("kcseq",    "001");
+            dicParam.addValue("carcd",    vehicleCd);
+            dicParam.addValue("gubun",    fuelKind);
+            dicParam.addValue("startkm",  startKM);
+            dicParam.addValue("actcd",    actcd);
+            dicParam.addValue("divicd",   divicd);
+            dicParam.addValue("unit",     "KM");
+            dicParam.addValue("confyn",   "0");
+            dicParam.addValue("indate",   startDate);
+
+            String sql = """
+                    INSERT INTO TB_E037_CONF (
+                        custcd, spjangcd, kcdate, kcnum, confmon, perid, kcseq,
+                        carcd, gubun,
+                        km, liter, uamt, samt,
+                        startkm, runstat,
+                        actcd, divicd, unit, confyn, indate
+                    ) VALUES (
+                        :custcd, :spjangcd, :kcdate, :kcnum, :confmon, :perid, :kcseq,
+                        :carcd, :gubun,
+                        0, 0, 0, 0,
+                        :startkm, '1',
+                        :actcd, :divicd, :unit, :confyn, :indate
+                    )
+                    """;
+
+            this.sqlRunner.execute(sql, dicParam);
+
+            result.success = true;
+            result.message = "출발 기록이 등록되었습니다.";
+
+        } catch (Exception e) {
+            result.success = false;
+            result.message = "등록 중 오류가 발생했습니다: " + e.getMessage();
+        }
+
+        return result;
+    }
+
+    // ── 주행종료 등록 ─────────────────────────────────────────
+    // 주행시작으로 만들어진 행을 UPDATE 한다. kcdate/kcnum 은 출발일 기준 그대로 유지.
+    public AjaxResult submitEnd(Map<String, Object> param, String spjangcd) {
+
+        AjaxResult result = new AjaxResult();
+
+        try {
+            String kcdate = (String) param.get("kcdate");
+            String kcnum  = (String) param.get("kcnum");
+            String perid  = (String) param.get("userId");
+
+            MapSqlParameterSource findParam = new MapSqlParameterSource();
+            findParam.addValue("spjangcd", spjangcd);
+            findParam.addValue("kcdate",   kcdate);
+            findParam.addValue("kcnum",    kcnum);
+            findParam.addValue("perid",    perid);
+
+            Map<String, Object> row = this.sqlRunner.getRow("""
+                    SELECT startkm, runstat
+                    FROM TB_E037_CONF
+                    WHERE spjangcd = :spjangcd AND kcdate = :kcdate
+                      AND kcnum    = :kcnum    AND perid  = :perid
+                    """, findParam);
+
+            if (row == null || row.isEmpty()) {
+                result.success = false;
+                result.message = "운행중인 기록을 찾을 수 없습니다.";
+                return result;
+            }
+            if (!"1".equals(String.valueOf(row.get("runstat")).trim())) {
+                result.success = false;
+                result.message = "이미 완료 처리된 기록입니다.";
+                return result;
+            }
+
+            double startKM = parseDouble(row.get("startkm"));
+            double endKM   = parseDouble(param.get("endKM"));
+
+            if (endKM <= startKM) {
+                result.success = false;
+                result.message = "도착(km)은 출발(km)보다 커야 합니다.";
+                return result;
+            }
+
+            double totalKM   = endKM - startKM;
+            double kmPerL    = parseDouble(param.get("liter"));    // 연비 (km/L)
+            double uamt      = parseDouble(param.get("unitAmt"));  // 단가
+            double usedLiter = (kmPerL > 0) ? (totalKM / kmPerL) : 0;
+            double samt      = usedLiter * uamt;
+
+            MapSqlParameterSource dicParam = new MapSqlParameterSource();
+            dicParam.addValue("spjangcd", spjangcd);
+            dicParam.addValue("kcdate",   kcdate);
+            dicParam.addValue("kcnum",    kcnum);
+            dicParam.addValue("perid",    perid);
+            dicParam.addValue("endkm",    endKM);
+            dicParam.addValue("km",       totalKM);
+            dicParam.addValue("liter",    usedLiter);
+            dicParam.addValue("uamt",     uamt);
+            dicParam.addValue("samt",     samt);
+
+            this.sqlRunner.execute("""
+                    UPDATE TB_E037_CONF SET
+                        endkm   = :endkm,
+                        km      = :km,
+                        liter   = :liter,
+                        uamt    = :uamt,
+                        samt    = :samt,
+                        runstat = '2'
+                    WHERE spjangcd = :spjangcd AND kcdate = :kcdate
+                      AND kcnum    = :kcnum    AND perid  = :perid
+                    """, dicParam);
+
+            result.success = true;
+            result.message = "운행기록이 등록되었습니다.";
+
+        } catch (Exception e) {
+            result.success = false;
+            result.message = "등록 중 오류가 발생했습니다: " + e.getMessage();
+        }
+
+        return result;
+    }
+
     private String getNextKcnum(String custcd, String spjangcd, String kcdate) {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("custcd",   custcd);
@@ -441,6 +621,9 @@ public class VehicleManageService {
                     c.liter,
                     c.uamt,
                     c.samt,
+                    c.startkm,
+                    c.endkm,
+                    c.runstat,
                     s.actnm
                 FROM TB_E037_CONF c
                 LEFT JOIN TB_JA001 j   ON j.perid    = c.perid

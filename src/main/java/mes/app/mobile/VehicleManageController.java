@@ -119,6 +119,38 @@ public class VehicleManageController {
         return vehicleManageService.submitAttendance(param, spjangcd);
     }
 
+    /** 미완료(운행중) 건 목록 — 화면 진입 시 주행시작/주행종료 모드 판단용 */
+    @GetMapping("/ongoing")
+    public AjaxResult getOngoing(Authentication auth) {
+        AjaxResult result = new AjaxResult();
+        User user = (User) auth.getPrincipal();
+        String spjangcd = tenantUserService.getSpjangcd(user.getUsername());
+        result.data = vehicleManageService.getOngoingList(spjangcd, user.getUsername());
+        return result;
+    }
+
+    /** 주행시작 등록 */
+    @PostMapping("/submitStart")
+    public AjaxResult submitStart(
+            @RequestBody Map<String, Object> param,
+            Authentication auth) {
+
+        User user = (User) auth.getPrincipal();
+        String spjangcd = tenantUserService.getSpjangcd(user.getUsername());
+        return vehicleManageService.submitStart(param, spjangcd);
+    }
+
+    /** 주행종료 등록 */
+    @PostMapping("/submitEnd")
+    public AjaxResult submitEnd(
+            @RequestBody Map<String, Object> param,
+            Authentication auth) {
+
+        User user = (User) auth.getPrincipal();
+        String spjangcd = tenantUserService.getSpjangcd(user.getUsername());
+        return vehicleManageService.submitEnd(param, spjangcd);
+    }
+
     @GetMapping("/read_status")
     public AjaxResult getStatusList(
             @RequestParam(value = "fromDate", required = false) String fromDate,

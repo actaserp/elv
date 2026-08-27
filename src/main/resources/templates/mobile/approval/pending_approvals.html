@@ -175,7 +175,8 @@
           <div class="s-count" id="cnt101">-</div>
           <div class="s-label">결재</div>
         </div>
-        <div class="summary-item">
+        <!-- 보류 타일 숨김: 보류 버튼 제거로 '201' 레코드가 생기지 않음 (기존 데이터도 0건) -->
+        <div class="summary-item" style="display:none">
           <div class="s-count" id="cnt201">-</div>
           <div class="s-label">보류</div>
         </div>
@@ -217,7 +218,8 @@
   <div class="btn-row">
     <button class="btn-approval btn-approve"  id="btnApprove" onclick="doAction('approve')">승인</button>
     <button class="btn-approval btn-reject"   id="btnReject"  onclick="doAction('reject')">반려</button>
-    <button class="btn-approval btn-hold"     id="btnHold"    onclick="doAction('hold')">보류</button>
+    <!-- 보류 숨김: TB_CA510(com_cls='621')에 보류 코드가 없어 '201'(결재완료)로 저장되는 문제 -->
+    <button class="btn-approval btn-hold"     id="btnHold"    onclick="doAction('hold')" style="display:none">보류</button>
     <button class="btn-approval btn-cancel"   id="btnCancelApprove" onclick="doAction('cancel')">승인취소</button>
     <button class="btn-approval btn-close"    onclick="closePopup()">닫기</button>
   </div>
