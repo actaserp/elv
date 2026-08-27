@@ -305,39 +305,12 @@ public class DailyApprovalService {
         namedParameterJdbcTemplate.update(
             "UPDATE TB_E037 SET appgubun=:stateCode WHERE appnum=:appnum AND spjangcd=:spjangcd", param);
 
-        if ("101".equals(stateCode) || "001".equals(stateCode)) {
-            updateNextFlag(appnum, purePerid, "101".equals(stateCode));
-        }
+        // 결재 진행 순서는 tb_e080.appgubun 으로 판단한다 (파워빌더와 동일 규약).
+        // flag 는 파워빌더가 전 행을 '1' 로 넣는 별개 용도의 컬럼이므로 여기서 건드리지 않는다.
+        // (이전 updateNextFlag 는 flag 를 순번 게이트로 가정했는데, 실제 데이터에 flag='0' 행이
+        //  하나도 없어 승인은 무동작, 승인취소는 앞 결재자의 flag 를 '0' 으로 만들어 목록에서
+        //  문서를 사라지게 만들었다. seq 를 Number 로 캐스팅해 ClassCastException 도 발생했다.)
         return affected > 0;
-    }
-
-    private void updateNextFlag(String appnum, String perid, boolean isApprove) {
-        MapSqlParameterSource p = new MapSqlParameterSource();
-        p.addValue("appnum", appnum);
-        p.addValue("perid",  perid);
-        Map<String, Object> seqRow = sqlRunner.getRow(
-            "SELECT seq FROM tb_e080 WHERE appnum=:appnum AND appperid=:perid", p);
-        if (seqRow == null || seqRow.get("seq") == null) return;
-
-        int currentSeq = ((Number) seqRow.get("seq")).intValue();
-        MapSqlParameterSource p2 = new MapSqlParameterSource();
-        p2.addValue("appnum",     appnum);
-        p2.addValue("currentSeq", currentSeq);
-        p2.addValue("flag",       isApprove ? "0" : "1");
-
-        String findSql = isApprove
-            ? "SELECT TOP 1 seq FROM tb_e080 WHERE appnum=:appnum AND seq>:currentSeq AND flag=:flag ORDER BY seq ASC"
-            : "SELECT TOP 1 seq FROM tb_e080 WHERE appnum=:appnum AND seq<:currentSeq AND flag=:flag ORDER BY seq DESC";
-        Map<String, Object> nextRow = sqlRunner.getRow(findSql, p2);
-        if (nextRow == null || nextRow.get("seq") == null) return;
-
-        int nextSeq = ((Number) nextRow.get("seq")).intValue();
-        MapSqlParameterSource p3 = new MapSqlParameterSource();
-        p3.addValue("appnum",  appnum);
-        p3.addValue("nextSeq", nextSeq);
-        p3.addValue("flag",    isApprove ? "1" : "0");
-        namedParameterJdbcTemplate.update(
-            "UPDATE tb_e080 SET flag=:flag WHERE appnum=:appnum AND seq=:nextSeq", p3);
     }
 
     // ════════════════════════════════════════════════════════

@@ -8,6 +8,9 @@ import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.NoTransactionException;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -27,6 +30,8 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
+@Transactional   // 결재 상태변경·결재라인 저장이 여러 UPDATE/INSERT 로 나뉘어 있어, 중간 실패 시
+                 // 앞 구문만 커밋되는 것을 막는다 (VehicleManageController 와 동일 방식)
 @RequestMapping("/api/AS/daily_approval")
 public class DailyApprovalController {
 
@@ -39,6 +44,18 @@ public class DailyApprovalController {
     // ════════════════════════════════════════════════════════
     //  결재라인 등록
     // ════════════════════════════════════════════════════════
+
+    /**
+     * 예외를 catch 해서 AjaxResult 로 돌려주는 구조라, 예외가 메서드 밖으로 나가지 않아
+     * @Transactional 만으로는 롤백되지 않는다. 쓰기 작업의 catch 에서 명시적으로 표시한다.
+     */
+    private void markRollback() {
+        try {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        } catch (NoTransactionException ignored) {
+            // 트랜잭션 밖에서 호출된 경우 (테스트 등) — 무시
+        }
+    }
 
     /** 결재라인 목록 그리드 조회 */
     @GetMapping("/line/read")
@@ -123,6 +140,7 @@ public class DailyApprovalController {
             result.message = "저장을 성공했습니다.";
         } catch (Exception e) {
             log.error("[결재라인 저장 실패]", e);
+            markRollback();
             result.success = false;
             result.message = "저장 실패: " + e.getMessage();
         }
@@ -152,6 +170,8 @@ public class DailyApprovalController {
             result.success = true;
             result.message = "삭제하였습니다.";
         } catch (Exception e) {
+            log.error("[결재라인 삭제 실패]", e);
+            markRollback();
             result.success = false;
             result.message = "삭제 실패: " + e.getMessage();
         }
@@ -269,6 +289,7 @@ public class DailyApprovalController {
             }
         } catch (Exception e) {
             log.error("[결재 상태 변경 실패]", e);
+            markRollback();
             result.success = false;
             result.message = "오류: " + e.getMessage();
         }

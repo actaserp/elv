@@ -433,7 +433,9 @@ public class DailyManageService {
         for (Map<String, Object> line : lines) {
             String kcperid = (String) line.get("kcperid");
             String seq     = String.valueOf(line.get("seq"));
-            String flag    = "1".equals(seq) ? "1" : "0";
+            // flag 는 파워빌더가 결재선 전 행을 '1' 로 넣는다. 여기서 seq=1 만 '1' 을 넣으면
+            // 2번 이후 결재자가 getPendingApprovalList 의 flag='1' 필터에 걸려 문서를 볼 수 없다.
+            String flag    = "1";
 
             MapSqlParameterSource insParam = new MapSqlParameterSource();
             insParam.addValue("custcd",   custcd);
