@@ -42,6 +42,20 @@ public class AccountsReceivableListService {
         return String.format(RCV_SUM, alias);
     }
 
+    /**
+     * 현장구분(TB_CA510 com_cls='813')을 담는 TB_E601 의 컬럼명.
+     * 이름상 actgubun 이 유력하나 확정 전이라 한 곳에 모아둔다. 다르면 여기만 바꾸면 된다.
+     */
+    private static final String SITE_GUBUN_COL = "actgubun";
+
+    /** 지정한 별칭의 actcd 가 해당 현장구분에 속하는지 검사하는 조건절 */
+    private static String siteGubunCond(String alias) {
+        return " AND (:siteGubun = '%' OR EXISTS ("
+             + " SELECT 1 FROM TB_E601 e6 WITH(NOLOCK)"
+             + "  WHERE e6.custcd = " + alias + ".custcd AND e6.spjangcd = " + alias + ".spjangcd"
+             + "    AND e6.actcd = " + alias + ".actcd AND e6." + SITE_GUBUN_COL + " = :siteGubun)) ";
+    }
+
     /** spjangcd 로 custcd 조회 (파워빌더의 as_custcd) */
     public String getCustcd(String spjangcd) {
         MapSqlParameterSource param = new MapSqlParameterSource();
@@ -60,7 +74,9 @@ public class AccountsReceivableListService {
     //  미수금현황 집계 (상단 그리드)
     // ════════════════════════════════════════════════════════
     public List<Map<String, Object>> getTotalList(String startDate, String endDate, String spjangcd,
-                                                  String cltcd, String gubun, String billgubun, String perid) {
+                                                  String cltcd, String gubun, String billgubun, String perid,
+                                                  String divicd, String siteGubun,
+                                                  boolean salesBasis, boolean balanceOnly) {
 
         String custcd = getCustcd(spjangcd);
         if (custcd == null) return List.of();
@@ -76,6 +92,8 @@ public class AccountsReceivableListService {
         p.addValue("gubun",     orAll(gubun));
         p.addValue("billgubun", orAll(billgubun));
         p.addValue("perid",     orAll(perid));
+        p.addValue("divicd",    orAll(divicd));
+        p.addValue("siteGubun", orAll(siteGubun));
         p.addValue("cltcd",     orAll(cltcd));
 
         String misOutstanding =
@@ -91,7 +109,8 @@ public class AccountsReceivableListService {
                        ISNULL(SUM(z.misamt), 0) AS misamt,
                        ISNULL(SUM(z.iamt),   0) AS rcvamt,
                        (ISNULL(SUM(z.beamt), 0) + ISNULL(SUM(z.misamt), 0)) - ISNULL(SUM(z.iamt), 0) AS resuamt,
-                       '' AS remark,
+                       -- 비고 = 미결 건수. 파워빌더 화면이 안쪽 count 합계를 그대로 보여준다.
+                       ISNULL(SUM(z.remark), 0) AS remark,
                        CAST(:stdate  AS VARCHAR(8)) AS frdate,
                        CAST(:enddate AS VARCHAR(8)) AS todate
                   FROM (
@@ -118,6 +137,8 @@ public class AccountsReceivableListService {
                            AND (billgubun = :billgubun OR :billgubun = '%')
                            AND (gubun     = :gubun     OR :gubun     = '%')
                            AND (perid     = :perid     OR :perid     = '%')
+                           AND (divicd    = :divicd    OR :divicd    = '%')
+                           __SITE_GUBUN_PLAIN__
                            AND (sangflag IS NULL OR LEN(sangflag) = 0 OR sangflag = '')
                          GROUP BY custcd, cltcd, sangflag
 
@@ -132,10 +153,12 @@ public class AccountsReceivableListService {
                                  ON (a.custcd = b.custcd AND a.spjangcd = b.spjangcd
                                  AND a.misdate = b.misdate AND a.misnum = b.misnum AND a.cltcd = b.cltcd)
                          WHERE a.custcd = :custcd AND a.spjangcd = :spjangcd
-                           AND b.rcvdate BETWEEN :rsdate AND :redate
+                           __RCV_PERIOD__
                            AND (a.billgubun = :billgubun OR :billgubun = '%')
                            AND (a.gubun     = :gubun     OR :gubun     = '%')
                            AND (a.perid     = :perid     OR :perid     = '%')
+                           AND (a.divicd    = :divicd    OR :divicd    = '%')
+                           __SITE_GUBUN_A__
                            AND (a.sangflag IS NULL OR LEN(a.sangflag) = 0 OR a.sangflag = '')
                          GROUP BY a.custcd, a.cltcd
 
@@ -151,6 +174,8 @@ public class AccountsReceivableListService {
                            AND (billgubun = :billgubun OR :billgubun = '%')
                            AND (gubun     = :gubun     OR :gubun     = '%')
                            AND (perid     = :perid     OR :perid     = '%')
+                           AND (divicd    = :divicd    OR :divicd    = '%')
+                           __SITE_GUBUN_PLAIN__
                            AND (sangflag IS NULL OR LEN(sangflag) = 0 OR sangflag = '')
                          GROUP BY custcd, cltcd, sangflag
 
@@ -165,10 +190,11 @@ public class AccountsReceivableListService {
                           LEFT OUTER JOIN TB_DA023 b
                                  ON (a.custcd = b.custcd AND a.spjangcd = b.spjangcd AND a.cltcd = b.cltcd
                                  AND a.misdate = b.misdate AND a.misnum = b.misnum
-                                 AND (b.perid = :perid OR :perid = '%'))
+                                 AND (b.perid  = :perid  OR :perid  = '%')
+                                 AND (b.divicd = :divicd OR :divicd = '%'))
+                           __SITE_GUBUN_B__
                          WHERE a.custcd = :custcd AND a.spjangcd = :spjangcd
-                           AND a.rcvdate BETWEEN LEFT(:rsdate,4) + '0101'
-                                             AND CONVERT(VARCHAR(8), DATEADD(day, -1, CONVERT(datetime, :rsdate)), 112)
+                           __RCV_PRIOR_PERIOD__
                            AND (b.billgubun = :billgubun OR :billgubun = '%')
                            AND (b.gubun     = :gubun     OR :gubun     = '%')
                            AND (b.sangflag IS NULL OR LEN(b.sangflag) = 0 OR b.sangflag = '')
@@ -184,6 +210,7 @@ public class AccountsReceivableListService {
                            AND year = LEFT(:stdate, 4)
                            AND (billgubun = :billgubun OR :billgubun = '%')
                            AND (gubun     = :gubun     OR :gubun     = '%')
+                           __SITE_GUBUN_END__
                          GROUP BY custcd, spjangcd, cltcd
                        ) z,
                        TB_XCLIENT AS x WITH(NOLOCK)
@@ -192,11 +219,32 @@ public class AccountsReceivableListService {
                      OR (x.cltnm LIKE '%' + :cltcd + '%' OR :cltcd = '%'))
                    AND (z.sangflag NOT IN ('1','0') OR z.sangflag IS NULL)
                  GROUP BY z.cltcd
+                __BALANCE_ONLY__
                  ORDER BY resuamt DESC
                 """
+                // 화면의 '잔액체크' — 미수잔액이 0 인 거래처는 제외한다
+                .replace("__BALANCE_ONLY__", balanceOnly
+                        ? " HAVING (ISNULL(SUM(z.beamt),0) + ISNULL(SUM(z.misamt),0)) - ISNULL(SUM(z.iamt),0) <> 0 "
+                        : "")
                 .replace("__MIS_OUTSTANDING__", misOutstanding)
                 .replace("__RCV_A__", rcvSum("a"))
-                .replace("__RCV_B__", rcvSum("b"));
+                .replace("__RCV_B__", rcvSum("b"))
+                // 현장구분 — TB_DA023 / TB_DA023_END 의 actcd 를 TB_E601 로 확인한다
+                // 화면의 '매출기준' — 켜면 입금도 매출일자(misdate) 기준으로 거른다.
+                // 끄면 입금은 자기 날짜(rcvdate) 기준. 파워빌더가 as_rsdate/as_redate 를
+                // 별도 파라미터로 둔 이유가 이 전환이다.
+                .replace("__RCV_PERIOD__", salesBasis
+                        ? " AND a.misdate BETWEEN :stdate AND :enddate "
+                        : " AND b.rcvdate BETWEEN :rsdate AND :redate ")
+                .replace("__RCV_PRIOR_PERIOD__", salesBasis
+                        ? " AND b.misdate BETWEEN LEFT(:stdate,4) + '0101'"
+                        + "                   AND CONVERT(VARCHAR(8), DATEADD(day, -1, CONVERT(datetime, :stdate)), 112) "
+                        : " AND a.rcvdate BETWEEN LEFT(:rsdate,4) + '0101'"
+                        + "                   AND CONVERT(VARCHAR(8), DATEADD(day, -1, CONVERT(datetime, :rsdate)), 112) ")
+                .replace("__SITE_GUBUN_PLAIN__", siteGubunCond("TB_DA023"))
+                .replace("__SITE_GUBUN_END__", siteGubunCond("TB_DA023_END"))
+                .replace("__SITE_GUBUN_A__", siteGubunCond("a"))
+                .replace("__SITE_GUBUN_B__", siteGubunCond("b"));
 
         return sqlRunner.getRows(sql, p);
     }

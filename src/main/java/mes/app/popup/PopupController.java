@@ -339,6 +339,66 @@ public class PopupController {
 	}
 
 	/**
+	 * 범용 코드도움 — 파워빌더의 w_popup_com 과 같은 역할.
+	 * type 으로 소스를 고르고 {cd, cdnm} 형태로 통일해서 돌려준다.
+	 */
+	@RequestMapping("/search_Code")
+	public AjaxResult getSearchCode(
+			@RequestParam(value = "type") String type,
+			@RequestParam(value = "keyword", required = false) String keyword) {
+
+		AjaxResult result = new AjaxResult();
+		MapSqlParameterSource paramMap = new MapSqlParameterSource();
+		paramMap.addValue("spjangcd", TenantContext.get());
+
+		String sql;
+		switch (type) {
+			// 담당자 — TB_JA001. 'p' 를 뗀 사번을 코드로 쓴다 (TB_DA023.perid 형식과 동일)
+			case "perid":
+				sql = """
+					SELECT DISTINCT RIGHT(j.perid, LEN(j.perid) - 1) AS cd,
+					       j.pernm                                   AS cdnm,
+					       ISNULL(c.divinm, '')                      AS remark
+					  FROM TB_JA001 j WITH(NOLOCK)
+					  LEFT JOIN TB_JC002 c WITH(NOLOCK)
+					         ON c.divicd = j.divicd AND c.spjangcd = j.spjangcd
+					 WHERE j.rtclafi = '001'
+					   AND j.spjangcd = :spjangcd
+					""";
+				break;
+			// 부서 — TB_JC002
+			case "divicd":
+				sql = """
+					SELECT DISTINCT divicd AS cd, divinm AS cdnm, '' AS remark
+					  FROM TB_JC002 WITH(NOLOCK)
+					 WHERE spjangcd = :spjangcd
+					""";
+				break;
+			// 현장구분 — TB_CA510 (com_cls='813')
+			case "site_gubun":
+				sql = """
+					SELECT DISTINCT com_code AS cd, com_cnam AS cdnm, ISNULL(com_rem1,'') AS remark
+					  FROM TB_CA510 WITH(NOLOCK)
+					 WHERE com_cls = '813' AND com_code <> '00'
+					""";
+				break;
+			default:
+				result.success = false;
+				result.message = "지원하지 않는 코드 종류입니다: " + type;
+				return result;
+		}
+
+		if (keyword != null && !keyword.isBlank()) {
+			sql = "SELECT * FROM ( " + sql + " ) t WHERE t.cd LIKE :keyword + '%' OR t.cdnm LIKE '%' + :keyword + '%'";
+			paramMap.addValue("keyword", keyword.trim());
+		}
+		sql += " ORDER BY cdnm ";
+
+		result.data = this.sqlRunner.getRows(sql, paramMap);
+		return result;
+	}
+
+	/**
 	 * 거래처 검색 — 사업체 MSSQL 의 TB_XCLIENT 기준 (파워빌더와 동일 소스).
 	 * 기존 /search_Comp 는 본사 스키마의 company 테이블을 보고 id(정수 PK) 를 돌려주므로,
 	 * cltcd(문자 코드) 가 필요한 파워빌더 이식 화면에서는 이 엔드포인트를 쓴다.
@@ -372,6 +432,10 @@ public class PopupController {
 				 WHERE x.custcd = (SELECT TOP 1 custcd FROM tb_xa012 WHERE spjangcd = :spjangcd)
 				   AND (x.clttype LIKE :clttype)
 				   AND (x.grade   LIKE :grade)
+				   -- 거래처명이 빈 레코드만 제외한다.
+				   -- relyn 조건은 넣었다가 결과가 비어 되돌렸다. TB_XCLIENT 의 relyn 의미가
+				   -- 본사 company 테이블과 다른 것으로 보이며, 파워빌더 원본에도 이 조건은 없다.
+				   AND ISNULL(x.cltnm, '') <> ''
 				""";
 
 		if (keyword != null && !keyword.isBlank()) {

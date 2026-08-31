@@ -30,10 +30,17 @@ public class AccountsReceivableListController {
             @RequestParam(value = "gubun",       required = false) String gubun,
             @RequestParam(value = "billgubun",   required = false) String billgubun,
             @RequestParam(value = "perid",       required = false) String perid,
+            @RequestParam(value = "divicd",      required = false) String divicd,
+            @RequestParam(value = "siteGubun",   required = false) String siteGubun,
+            // 화면의 '매출기준' — 켜면 입금도 매출일자 기준으로 조회한다
+            @RequestParam(value = "salesBasis",  required = false, defaultValue = "false") boolean salesBasis,
+            // 화면의 '잔액체크' — 기본 켜짐 (파워빌더와 동일)
+            @RequestParam(value = "balanceOnly", required = false, defaultValue = "true") boolean balanceOnly,
             @RequestParam(value = "spjangcd") String spjangcd) {
 
         List<Map<String, Object>> items = this.accountsReceivableListService
-                .getTotalList(start_date, end_date, spjangcd, cltcd, gubun, billgubun, perid);
+                .getTotalList(start_date, end_date, spjangcd, cltcd, gubun, billgubun, perid, divicd, siteGubun,
+                        salesBasis, balanceOnly);
 
         AjaxResult result = new AjaxResult();
         result.data = items;

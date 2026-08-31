@@ -99,6 +99,9 @@ public class ComboService {
 		this._dicFunc_.put("mssec", this.mssec);
 		this._dicFunc_.put("appr_doc", this.appr_doc); // 결재 문서코드 (TB_CA510, com_cls='620')
 		this._dicFunc_.put("appr_gubun", this.appr_gubun); // 결재 구분코드 (TB_CA510, com_cls='621')
+		this._dicFunc_.put("sales_gubun", this.sales_gubun); // 매출 구분 (TB_DA020)
+		this._dicFunc_.put("site_gubun", this.site_gubun);   // 현장구분 (TB_CA510, com_cls='813')
+		this._dicFunc_.put("sales_perid", this.sales_perid); // 매출 담당자 (TB_JA001)
 	}
 
 	public List<Map<String, Object>> getComboList(String comboType, String cond1, String cond2, String cond3){
@@ -987,6 +990,50 @@ public class ComboService {
 				ORDER BY com_code
 				""";
 		MapSqlParameterSource dicParam = new MapSqlParameterSource();
+		return this.sqlRunner.getRows(sql, dicParam);
+	};
+
+	// 매출 구분 콤보 - TB_DA020 (파워빌더 원본과 동일 소스)
+	// '전체'(%) 항목은 화면에서 null_option='all' 로 붙이므로 여기서는 실데이터만 내린다.
+	// custcd/spjangcd 가 PK 에 포함된 테이블들이라 조건을 걸지 않으면 사업장 수만큼 중복된다.
+	ComboDataFunction sales_gubun = (String cond1, String cond2, String cond3) -> {
+		// custcd 조건을 걸었더니 결과가 비어 DISTINCT 로만 중복을 제거한다.
+		// (사업장별로 같은 코드가 반복 저장돼 있어 DISTINCT 로 충분하다)
+		String sql = """
+				SELECT DISTINCT artcd AS value, artnm AS text
+				FROM TB_DA020 WITH(NOLOCK)
+				ORDER BY artcd
+				""";
+		MapSqlParameterSource dicParam = new MapSqlParameterSource();
+		return this.sqlRunner.getRows(sql, dicParam);
+	};
+
+	// 현장구분 콤보 - TB_CA510 (com_cls='813')
+	ComboDataFunction site_gubun = (String cond1, String cond2, String cond3) -> {
+		String sql = """
+				SELECT DISTINCT com_code AS value, com_cnam AS text
+				FROM TB_CA510 WITH(NOLOCK)
+				WHERE com_cls  = '813'
+				  AND com_code <> '00'
+				ORDER BY com_code
+				""";
+		MapSqlParameterSource dicParam = new MapSqlParameterSource();
+		return this.sqlRunner.getRows(sql, dicParam);
+	};
+
+	// 매출 담당자 콤보 - TB_JA001 (재직자). perid 는 'p' 를 뗀 사번으로 내려준다.
+	// TB_DA023.perid 에 이름/상호가 그대로 들어간 레거시 행이 있어 그런 건은 걸러지지 않는다.
+	ComboDataFunction sales_perid = (String cond1, String cond2, String cond3) -> {
+		String sql = """
+				SELECT DISTINCT RIGHT(perid, LEN(perid) - 1) AS value,
+				       pernm                                 AS text
+				FROM TB_JA001 WITH(NOLOCK)
+				WHERE rtclafi = '001'
+				  AND spjangcd = :spjangcd
+				ORDER BY pernm
+				""";
+		MapSqlParameterSource dicParam = new MapSqlParameterSource();
+		dicParam.addValue("spjangcd", TenantContext.get());
 		return this.sqlRunner.getRows(sql, dicParam);
 	};
 

@@ -37,7 +37,8 @@
           </dl>
           <dl>
             <dt>
-              조회기간<span class="eq">*</span>
+              <!-- 매출기준 체크 시 '매출일자'로 바뀐다 (파워빌더와 동일) -->
+              <span id="lblSearchDate">일자</span><span class="eq">*</span>
             </dt>
             <dd>
               <ul class="date-box">
@@ -50,6 +51,58 @@
                   <label for="srchEndDt" class="hide">종료일</label>
                 </li>
               </ul>
+            </dd>
+          </dl>
+          <dl>
+            <dt><label for="cboGubun">구분</label></dt>
+            <dd>
+              <div class="srch-box">
+                <select id="cboGubun" style="width:110px;"></select>
+              </div>
+            </dd>
+          </dl>
+          <dl>
+            <dt><label for="cboPerid">담당자</label></dt>
+            <dd>
+              <div class="srch-box">
+                <input type="text" id="cboPerid" readonly placeholder="클릭해서 검색" style="width:150px; cursor:pointer;">
+                <input type="hidden" id="cboPeridHidden">
+              </div>
+            </dd>
+          </dl>
+          <dl>
+            <dt><label for="cboSiteGubun">현장구분</label></dt>
+            <dd>
+              <div class="srch-box">
+                <input type="text" id="cboSiteGubun" readonly placeholder="클릭해서 검색" style="width:180px; cursor:pointer;">
+                <input type="hidden" id="cboSiteGubunHidden">
+              </div>
+            </dd>
+          </dl>
+          <dl>
+            <dt><label for="cboDivicd">부서</label></dt>
+            <dd>
+              <div class="srch-box">
+                <select id="cboDivicd" style="width:150px;"></select>
+              </div>
+            </dd>
+          </dl>
+          <dl>
+            <dt><label for="chkSalesBasis">매출기준</label></dt>
+            <dd>
+              <div class="srch-box" style="display:flex; align-items:center; height:100%;">
+                <!-- 켜면 입금액도 매출일자 기준으로 조회 (기본 꺼짐, 파워빌더와 동일) -->
+                <input type="checkbox" id="chkSalesBasis">
+              </div>
+            </dd>
+          </dl>
+          <dl>
+            <dt><label for="chkBalanceOnly">잔액체크</label></dt>
+            <dd>
+              <div class="srch-box" style="display:flex; align-items:center; height:100%;">
+                <!-- 파워빌더와 동일하게 기본 켜짐: 미수잔액 0 인 거래처는 제외 -->
+                <input type="checkbox" id="chkBalanceOnly" checked>
+              </div>
             </dd>
           </dl>
           <dl>
@@ -92,6 +145,7 @@
   <th:block th:replace="common/multiform_material :: multiform_material"></th:block>
   <!-- 파워빌더와 동일하게 TB_XCLIENT 기준 거래처 팝업을 쓴다 (cltcd 반환) -->
   <th:block th:replace="common/popup_client :: popup_client"></th:block>
+  <th:block th:replace="common/popup_code :: popup_code"></th:block>
   <script type="text/javascript">
     class AccountsReceivableListPage {
       constructor() {
@@ -125,7 +179,10 @@
             {binding: 'misamt',  header: '매출액',     width: 140, align: 'right', format: 'n0'},
             {binding: 'rcvamt',  header: '입금액',     width: 140, align: 'right', format: 'n0'},
             {binding: 'resuamt', header: '미수잔액',   width: 150, align: 'right', format: 'n0'},
-            {binding: 'remark',  header: '비고',       width: 120, align: 'center'},
+            {binding: 'remark',  header: '비고',       width: 120, align: 'center',
+              // 파워빌더는 미결 건수를 "1610건" 형태로 보여준다
+              cellTemplate: (ctx) => (ctx.value == null || ctx.value === '')
+                      ? '' : Number(ctx.value).toLocaleString() + '건'},
             {binding: 'saupnum', header: '사업자번호', width: 140, align: 'center'}
           ],
           itemsSource: this.viewData, // 데이터를 설정할 배열
@@ -196,14 +253,14 @@
             }
           },
           columns: [
-            // 파워빌더 상세팝업과 동일한 구성 (전일잔액 → 매출 → 입금 순, 월계/누계 포함)
-            {binding: 'misdate', header: '발생일자', width: 110, align: 'center'},
+            // 파워빌더 상세팝업(w_popup_da023w) 컬럼 순서 그대로
+            {binding: 'actnm',   header: '현장명',   width: 200, align: 'left'},
+            {binding: 'misdate', header: '미수일자', width: 110, align: 'center'},
             {binding: 'misnum',  header: '번호',     width:  80, align: 'center'},
-            {binding: 'actnm',   header: '현장',     width: 180, align: 'left'},
             {binding: 'remark',  header: '적요',     width: '*', align: 'left'},
-            {binding: 'misamt',  header: '발생금액', width: 140, align: 'right', format: 'n0'},
+            {binding: 'misamt',  header: '청구금액', width: 140, align: 'right', format: 'n0'},
             {binding: 'rcvamt',  header: '입금액',   width: 140, align: 'right', format: 'n0'},
-            {binding: 'resuamt', header: '미수금',   width: 150, align: 'right', format: 'n0'}
+            {binding: 'resuamt', header: '미수잔액', width: 150, align: 'right', format: 'n0'}
           ],
           itemsSource: this.viewData, // 데이터를 설정할 배열
         });
@@ -229,18 +286,16 @@
               .map(r => +r.dataItem[field] || 0)
               .reduce((a, b) => a + b, 0);
 
-          SalesTotal.dataItem = {
-            remark: '합 계',
-            misamt: getSum('misamt'),
-            rcvamt: getSum('rcvamt')
-          };
-
-          // 마지막 누계 = 최종 미수금 잔액
+          // 파워빌더 팝업은 하단에 '합 계' 한 줄만 둔다.
+          // 미수잔액은 합산이 아니라 마지막 누계값(= 최종 잔액)이다.
           const lastRow = rows[rows.length - 1]?.dataItem;
-          DepositTotal.dataItem = {
-            remark: '미수금 잔액',
+          SalesTotal.dataItem = {
+            actnm:   '합 계',
+            misamt:  getSum('misamt'),
+            rcvamt:  getSum('rcvamt'),
             resuamt: lastRow ? (+lastRow.resuamt || 0) : 0
           };
+          DepositTotal.dataItem = {};
         });
       }
 
@@ -251,6 +306,12 @@
           'srchStartDt': $("#srchStartDt").val(),
           'srchEndDt': $("#srchEndDt").val(),
           'cltcd': $("#cboCompanyHidden").val(),
+          'gubun': $("#cboGubun").val(),
+          'perid': $("#cboPeridHidden").val(),
+          'divicd': $("#cboDivicd").val(),
+          'siteGubun': $("#cboSiteGubunHidden").val(),
+          'salesBasis': $("#chkSalesBasis").is(':checked'),
+          'balanceOnly': $("#chkBalanceOnly").is(':checked'),
           spjangcd: this.spjangcd.val()
         }
         // 집계 데이터 조회
@@ -339,6 +400,24 @@
         $('#spjangcdHidden').val(spjangcd);  // hidden input이 있어야 함
       }
       page = new AccountsReceivableListPage();
+
+      // 검색조건 콤보 — 미선택 시 '전체'(서버에서 '%' 로 처리)
+      AjaxUtil.fillSelectOptions($('#cboGubun'), 'sales_gubun', 'all', false, 'sales_gubun');
+      AjaxUtil.fillSelectOptions($('#cboDivicd'), 'depart', 'all', false, 'depart');   // 기존 TB_JC002 콤보 재사용
+
+      // 담당자·현장구분은 목록이 길어 파워빌더처럼 코드도움 팝업으로 처리한다
+      $('#cboPerid').click(function () { codePopupOpen('cboPerid', 'cboPeridHidden', 'perid', '담당자'); });
+      $('#cboSiteGubun').click(function () { codePopupOpen('cboSiteGubun', 'cboSiteGubunHidden', 'site_gubun', '현장구분'); });
+
+      // 값을 지우면 코드도 함께 비운다 (미선택 = 전체)
+      $('#cboPerid, #cboSiteGubun').on('input', function () {
+        if ($(this).val() === '') $('#' + this.id + 'Hidden').val('');
+      });
+
+      // 매출기준을 켜면 조회 기준이 매출일자로 바뀌므로 라벨도 함께 바꾼다
+      $('#chkSalesBasis').on('change', function () {
+        $('#lblSearchDate').text(this.checked ? '매출일자' : '일자');
+      });
 
       // company 콤보는 팝업(PopCompComponent)으로 선택 - ComboService 호출 제거
 
