@@ -90,7 +90,8 @@
 <th:block layout:fragment="scripts">
   <!--<th:block th:replace="common/columns_setting :: columns_setting"></th:block>-->
   <th:block th:replace="common/multiform_material :: multiform_material"></th:block>
-  <th:block th:replace="common/popup_company :: popup_company"></th:block>
+  <!-- 파워빌더와 동일하게 TB_XCLIENT 기준 거래처 팝업을 쓴다 (cltcd 반환) -->
+  <th:block th:replace="common/popup_client :: popup_client"></th:block>
   <script type="text/javascript">
     class AccountsReceivableListPage {
       constructor() {
@@ -117,12 +118,15 @@
             }
           },
           columns: [
-            {binding: 'cltcd', header: '코드', width: 130, align: 'center'},
-            {binding: 'clt_name', header: '거래처명', width: 320, align: 'center'},
-            {binding: 'receivables', header: '전잔액', width: 220, align: 'right'},
-            {binding: 'sales', header: '매출액', width: 200, align: 'right'},
-            {binding: 'AmountDeposited', header: '입금액', width: 200, align: 'right'},
-            {binding: 'balance', header: '잔액', width: 210, align: 'right'}
+            // 파워빌더 미수금현황 그리드와 동일한 구성
+            {binding: 'cltcd',   header: '거래처코드', width: 110, align: 'center'},
+            {binding: 'cltnm',   header: '거래처명',   width: 300, align: 'left'},
+            {binding: 'beamt',   header: '전일미수',   width: 150, align: 'right', format: 'n0'},
+            {binding: 'misamt',  header: '매출액',     width: 140, align: 'right', format: 'n0'},
+            {binding: 'rcvamt',  header: '입금액',     width: 140, align: 'right', format: 'n0'},
+            {binding: 'resuamt', header: '미수잔액',   width: 150, align: 'right', format: 'n0'},
+            {binding: 'remark',  header: '비고',       width: 120, align: 'center'},
+            {binding: 'saupnum', header: '사업자번호', width: 140, align: 'center'}
           ],
           itemsSource: this.viewData, // 데이터를 설정할 배열
         });
@@ -137,8 +141,9 @@
             return;
           }
 
-          const code = selectedItem.code || selectedItem.cltcd;
-          const name = selectedItem.clt_name || selectedItem.cltName;
+          const code = selectedItem.cltcd;
+          const name = selectedItem.cltnm;
+          if (!code) return;   // 총합계 행 더블클릭 방지
 
           // ✅ input에 값 설정
           document.getElementById('cboCompanyHidden').value = code;
@@ -161,10 +166,12 @@
 
           const getSum = (field) => rows.map(r => +r.dataItem[field] || 0).reduce((a, b) => a + b, 0);
           footerTotal.dataItem = {
-            cltcd: '합 계',
-            receivables: getSum('receivables'),
-            sales: getSum('sales'),
-            AmountDeposited: getSum('AmountDeposited'),
+            cltcd: '총합계',
+            cltnm: rows.length + '건',
+            beamt:   getSum('beamt'),
+            misamt:  getSum('misamt'),
+            rcvamt:  getSum('rcvamt'),
+            resuamt: getSum('resuamt'),
           };
         });
 
@@ -181,30 +188,22 @@
             if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader) {
               e.cell.style.textAlign = 'center';
             }
-            if (e.panel.cellType === wijmo.grid.CellType.Cell && col.binding === 'date') {
-              if (item?.summary === '전잔액') {
-                e.cell.textContent = '전잔액';  // 날짜 대신 전잔액 표시
-                e.cell.style.textAlign = 'center';
-                e.cell.style.fontWeight = 'bold';
-                e.cell.style.color = '#444';
-              }
+            // 전일잔액 / 월계 / 누계 행은 파워빌더처럼 강조한다
+            if (e.panel.cellType === wijmo.grid.CellType.Cell && item?._kind && item._kind !== 'row') {
+              e.cell.style.fontWeight = 'bold';
+              e.cell.style.color = (item._kind === 'open') ? '#444' : '#1a56a8';
+              e.cell.style.background = '#f6f8fb';
             }
           },
           columns: [
-            {binding: 'comp_name', header: '거래처명', width: 150, align: 'center'},
-            {binding: 'date', header: '일자', width: 100, align: 'center'},
-            {binding: 'summary', header: '구분', width: 100, align: 'center'},
-            {binding: 'total_amount', header: '금액', width: 150, align: 'right'},
-            {binding: 'balance', header: '잔액', width: 150, align: 'right'},
-            {binding: 'itemnm', header: '품목', width: 120, align: 'center'},
-            {binding: 'iotype', header: '입급형태', width: 100, align: 'center'},
-            {binding: 'banknm', header: '은행', width: 120, align: 'center'},
-            {binding: 'accnum', header: '계좌', width: 180, align: 'center'},
-            {binding: 'eumnum', header: '어음번호', width: 150, align: 'center'},
-            {binding: 'eumtodt', header: '만기일', width: 120, align: 'center'},
-            {binding: 'tradenm', header: '거래구분', width: 120, align: 'center'},
-            {binding: 'remark1', header: '적요', width: 200, align: 'center'},
-            {binding: 'memo', header: '메모', width: 200, align: 'center'}
+            // 파워빌더 상세팝업과 동일한 구성 (전일잔액 → 매출 → 입금 순, 월계/누계 포함)
+            {binding: 'misdate', header: '발생일자', width: 110, align: 'center'},
+            {binding: 'misnum',  header: '번호',     width:  80, align: 'center'},
+            {binding: 'actnm',   header: '현장',     width: 180, align: 'left'},
+            {binding: 'remark',  header: '적요',     width: '*', align: 'left'},
+            {binding: 'misamt',  header: '발생금액', width: 140, align: 'right', format: 'n0'},
+            {binding: 'rcvamt',  header: '입금액',   width: 140, align: 'right', format: 'n0'},
+            {binding: 'resuamt', header: '미수금',   width: 150, align: 'right', format: 'n0'}
           ],
           itemsSource: this.viewData, // 데이터를 설정할 배열
         });
@@ -223,23 +222,24 @@
           const SalesTotal = this.grid3.columnFooters.rows[0];
           const DepositTotal = this.grid3.columnFooters.rows[1];
 
-          const getSumBySummary = (field, summaryType) =>
+          // 실거래 행(_kind === 'row')만 합산한다. 월계/누계 행은 이미 소계라 중복이 된다.
+          const getSum = (field) =>
             rows
-              .filter(r => r.dataItem.summary === summaryType)
+              .filter(r => r.dataItem?._kind === 'row')
               .map(r => +r.dataItem[field] || 0)
               .reduce((a, b) => a + b, 0);
 
-          // 매출 합계
           SalesTotal.dataItem = {
-            comp_name: '합계',
-            summary: '매출계',
-            total_amount: getSumBySummary('total_amount', '매출')
+            remark: '합 계',
+            misamt: getSum('misamt'),
+            rcvamt: getSum('rcvamt')
           };
 
-          // 입금 합계
+          // 마지막 누계 = 최종 미수금 잔액
+          const lastRow = rows[rows.length - 1]?.dataItem;
           DepositTotal.dataItem = {
-            summary: '입금계',
-            total_amount: getSumBySummary('total_amount', '입금')
+            remark: '미수금 잔액',
+            resuamt: lastRow ? (+lastRow.resuamt || 0) : 0
           };
         });
       }
@@ -250,7 +250,7 @@
         let param = {
           'srchStartDt': $("#srchStartDt").val(),
           'srchEndDt': $("#srchEndDt").val(),
-          'cboCompany': $("#cboCompanyHidden").val(),
+          'cltcd': $("#cboCompanyHidden").val(),
           spjangcd: this.spjangcd.val()
         }
         // 집계 데이터 조회
@@ -267,14 +267,13 @@
         let param = {
           'srchStartDt': $("#srchStartDt").val(),
           'srchEndDt': $("#srchEndDt").val(),
-          'cboCompany': $("#cboCompanyHidden").val(),
-          'code': code, // 🔥 여기 코드 필터
+          'cltcd': code,
           spjangcd: this.spjangcd.val()
         };
 
         AjaxUtil.getAsyncData(url, param, function (result) {
           if (result != null && result.data) {
-            _this.grid3.itemsSource = result.data;
+            _this.grid3.itemsSource = buildDetailRows(result.data);
           } else {
             _this.grid3.itemsSource = []; // 데이터 없으면 초기화
           }
@@ -284,6 +283,52 @@
       switchToDetailTab() {
         $('a[href="#tabs_sales_details"]').click();
       }
+    }
+
+    /**
+     * 상세 팝업 행 구성 — 파워빌더 DataWindow 가 계산하던 부분.
+     * 서버는 전일잔액(sort 0) / 매출(sort 1) / 입금(sort 2) 행만 내려주므로
+     * 여기서 잔액을 누적하고 월계·누계 행을 끼워 넣는다.
+     */
+    function buildDetailRows(rows) {
+      const out = [];
+      const num = (v) => Number(v) || 0;
+
+      // 전일잔액
+      let running = rows.filter(r => String(r.sort) === '0')
+                        .reduce((a, r) => a + num(r.resuamt), 0);
+      out.push({remark: '전일잔액', misamt: null, rcvamt: null, resuamt: running, _kind: 'open'});
+
+      // 거래 내역 (일자, 번호 순)
+      const txns = rows.filter(r => String(r.sort) !== '0')
+              .sort((a, b) => String(a.misdate || '').localeCompare(String(b.misdate || ''))
+                      || String(a.misnum || '').localeCompare(String(b.misnum || '')));
+
+      let curMon = null, monMis = 0, monRcv = 0;
+
+      const flushMonth = () => {
+        if (curMon === null) return;
+        out.push({remark: '월 계', misamt: monMis, rcvamt: monRcv, resuamt: monMis - monRcv, _kind: 'msum'});
+        out.push({remark: '누 계', misamt: null, rcvamt: null, resuamt: running, _kind: 'tsum'});
+        monMis = 0;
+        monRcv = 0;
+      };
+
+      txns.forEach(r => {
+        const mon = r.mismon || String(r.misdate || '').substring(0, 6);
+        if (curMon !== null && mon !== curMon) flushMonth();
+        curMon = mon;
+
+        const mis = num(r.misamt), rcv = num(r.rcvamt);
+        running += mis - rcv;
+        monMis += mis;
+        monRcv += rcv;
+
+        out.push(Object.assign({}, r, {resuamt: running, _kind: 'row'}));
+      });
+      flushMonth();
+
+      return out;
     }
 
     let page = null;
@@ -339,15 +384,14 @@
       });*/
 
       $('#cboCompany').click(function () {
-        let poppage = new PopCompComponent();
-        let $poppage = $(poppage);
-        let searchcallback = function (items) {
-          console.log('items : ', items);
-          document.getElementById('cboCompany').value = items.compname;
-          document.getElementById('cboCompanyHidden').value = items.id;
-        };
-
-        poppage.show(searchcallback);
+        // TB_XCLIENT 기준 팝업 — cltcd(문자 코드)를 hidden 에 담는다
+        let poppage = new PopClientComponent();
+        poppage.focusAfterClose = document.getElementById('cboCompany');
+        poppage.show(function (item) {
+          if (!item) return;
+          document.getElementById('cboCompany').value = item.cltnm || '';
+          document.getElementById('cboCompanyHidden').value = item.cltcd || '';
+        });
       });
 
       $('#cboCompany').on('input', function () {

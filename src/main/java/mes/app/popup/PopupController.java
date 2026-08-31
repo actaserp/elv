@@ -338,6 +338,61 @@ public class PopupController {
 
 	}
 
+	/**
+	 * 거래처 검색 — 사업체 MSSQL 의 TB_XCLIENT 기준 (파워빌더와 동일 소스).
+	 * 기존 /search_Comp 는 본사 스키마의 company 테이블을 보고 id(정수 PK) 를 돌려주므로,
+	 * cltcd(문자 코드) 가 필요한 파워빌더 이식 화면에서는 이 엔드포인트를 쓴다.
+	 */
+	@RequestMapping("/search_Client")
+	public AjaxResult getSearchClient(
+			@RequestParam(value = "keyword",  required = false) String keyword,
+			@RequestParam(value = "clttype",  required = false) String clttype,
+			@RequestParam(value = "grade",    required = false) String grade) {
+
+		String spjangcd = TenantContext.get();
+		AjaxResult result = new AjaxResult();
+
+		MapSqlParameterSource paramMap = new MapSqlParameterSource();
+		paramMap.addValue("spjangcd", spjangcd);
+		paramMap.addValue("clttype", (clttype == null || clttype.isBlank()) ? "%" : clttype.trim());
+		paramMap.addValue("grade",   (grade   == null || grade.isBlank())   ? "%" : grade.trim());
+
+		String sql = """
+				SELECT x.cltcd,
+				       x.cltnm,
+				       x.saupnum,
+				       x.prenm,
+				       x.telnum,
+				       x.hptelnum,
+				       x.cltadres,
+				       x.perid,
+				       x.clttype,
+				       x.grade
+				  FROM TB_XCLIENT x WITH(NOLOCK)
+				 WHERE x.custcd = (SELECT TOP 1 custcd FROM tb_xa012 WHERE spjangcd = :spjangcd)
+				   AND (x.clttype LIKE :clttype)
+				   AND (x.grade   LIKE :grade)
+				""";
+
+		if (keyword != null && !keyword.isBlank()) {
+			// 파워빌더와 동일하게 코드/거래처명/사업자번호/대표자/약칭을 함께 훑는다
+			sql += """
+				   AND (x.cltcd        LIKE       :keyword + '%'
+				     OR x.cltnm        LIKE '%' + :keyword + '%'
+				     OR x.saupnum      LIKE       :keyword + '%'
+				     OR x.prenm        LIKE '%' + :keyword + '%'
+				     OR ISNULL(x.agnernm,  '') LIKE '%' + :keyword + '%'
+				     OR ISNULL(x.prtcltnm, '') LIKE '%' + :keyword + '%')
+				""";
+			paramMap.addValue("keyword", keyword.trim());
+		}
+
+		sql += " ORDER BY x.cltnm ASC ";
+
+		result.data = this.sqlRunner.getRows(sql, paramMap);
+		return result;
+	}
+
 	@RequestMapping("/search_Comp")
 	public AjaxResult getSearchComp(
 			@RequestParam(value = "compCode", required = false) String compCode,

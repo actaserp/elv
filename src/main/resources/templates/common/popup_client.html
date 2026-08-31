@@ -1,0 +1,254 @@
+<th:block th:fragment="popup_client">
+    <!--
+      거래처 선택 팝업 — 사업체 MSSQL 의 TB_XCLIENT 기준 (파워빌더와 동일 소스).
+      선택 시 cltcd(문자 코드) 를 돌려준다. 본사 company 테이블의 id(정수) 를 쓰는
+      popup_company 와는 별개이므로, 파워빌더 이식 화면에서만 이 팝업을 사용한다.
+    -->
+    <script type="text/x-tmpl" id="popup_clientSearchTemplate">
+
+        <div class="content_wrap popup">
+
+            <section class="section" style="padding-top: 10px;">
+
+                <div class="section-top">
+                    <div class="search-wrap" style="text-align: left;">
+                        <dl>
+                            <dt>
+                                <label for="clientKeyword">
+                                    검색어<span class="eq"></span>
+                                </label>
+                            </dt>
+                            <dd>
+                                <div class="srch-box">
+                                    <input type="text" id="clientKeyword" name="clientKeyword" style="width:260px;"
+                                           placeholder="거래처코드 / 거래처명 / 사업자번호 / 대표자"/>
+                                </div>
+                            </dd>
+                        </dl>
+
+                        <dl>
+                            <dt>&nbsp;</dt>
+                            <dd>
+                                <li>
+                                    <a class="btn btn-delete" title="검색" id="btnClientSearch">
+                                        <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                                        검색
+                                    </a>
+                                </li>
+                            </dd>
+                        </dl>
+                    </div>
+                    <div class="container-fluid">
+                        <div id="theGridClient" style="height: 300px;"></div>
+                    </div>
+                </div>
+
+            </section>
+
+            <div class="popup-button">
+                <button type="button" class="btn-popup" id="btnClientSelect"><span data-commonCd="선택">선택</span></button>
+                <button type="button" class="btn-popup" id="btn-client-close"><span data-commonCd="닫기">닫기</span></button>
+            </div>
+
+        </div>
+    </script>
+
+    <script type="text/javascript">
+
+        class PopClientComponent {
+            static currentInstance = null;
+
+            constructor() {
+                if (PopClientComponent.currentInstance) {
+                    PopClientComponent.currentInstance.close();
+                }
+                PopClientComponent.currentInstance = this;
+
+                this.grid = null;
+                this.viewData = new wijmo.collections.CollectionView();
+                this.selectedItem = null;
+                this.callback = null;
+                this.modalContainer = new PopupDraggable('거래처 선택');
+                this.$btnClientSearch = null;
+                this.$btnClientSelect = null;
+                this.$keyword = null;
+            }
+
+            searchDataBind() {
+                let _this = this;
+                let url = '/api/popup/search_Client';
+                let data = {
+                    'keyword': _this.$keyword.val()
+                };
+
+                let result = AjaxUtil.getSyncData(url, data);
+                if (result) {
+                    _this.viewData.sourceCollection = result.data;
+                    setTimeout(() => {
+                        if (_this.grid && _this.grid.rows.length > 0) {
+                            _this.grid.select(0, 0);
+                            _this.grid.focus();
+                        }
+                    }, 0);
+                }
+
+                this.selectedItem = null;
+            }
+
+            selectData(item) {
+                this._skipAutoFocus = false;
+
+                if (typeof this.callback === 'function') {
+                    this._skipAutoFocus = true;
+                    this.callback(item);
+                }
+
+                this.close();
+            }
+
+            show(callback) {
+                let _this = this;
+
+                this.callback = callback;
+
+                let content = tmpl('popup_clientSearchTemplate', {});
+                let $content = $(content);
+                this.modalContainer.open({width: 900, height: 500, $content});
+
+                setTimeout(() => {
+
+                    const el = document.getElementById('theGridClient');
+                    if (!el) {
+                        return;
+                    }
+
+                    const existingGrid = wijmo.Control.getControl(el);
+                    if (existingGrid) {
+                        existingGrid.dispose();
+                    }
+
+                    this.grid = new wijmo.grid.FlexGrid('#theGridClient', {
+                        selectionMode: wijmo.grid.SelectionMode.Row,
+                        autoGenerateColumns: false,
+                        showMarquee: true,
+                        isReadOnly: true,
+                        keyActionEnter: wijmo.grid.KeyAction.None,
+                        columns: [
+                            {binding: 'cltcd', header: '거래처코드', width: 110, align: 'center'},
+                            {binding: 'cltnm', header: '거래처명', width: '*', align: 'left'},
+                            {binding: 'saupnum', header: '사업자번호', width: 140, align: 'center'},
+                            {binding: 'prenm', header: '대표자', width: 110, align: 'center'},
+                            {binding: 'telnum', header: '연락처', width: 150, align: 'left'}
+                        ],
+                        itemsSource: this.viewData,
+                    });
+                    this.grid.rowHeaders.columns.splice(0, 1);
+                    new FlexGridContextMenu(this.grid);
+                    this.grid.downloadFileName = '거래처 내역';
+
+                    this.$btnClientSearch = $content.find('#btnClientSearch');
+                    this.$keyword = $content.find('#clientKeyword');
+                    this.$btnClientSelect = $content.find('#btnClientSelect');
+
+                    this.$btnClientSearch.click(function (e) {
+                        _this.searchDataBind();
+                    });
+
+                    $('#btnClientSearch').click();
+
+                    this.$btnClientSelect.click(function (e) {
+                        let items = _this.grid.selectedItems;
+                        if (items.length === 0) {
+                            return false;
+                        }
+                        _this.selectData(items[0]);
+                    });
+
+                    $content.find('#btn-client-close').on('click', function () {
+                        _this.close();
+                    });
+
+                    this.grid.hostElement.addEventListener('dblclick', function (e) {
+                        let items = _this.grid.selectedItems;
+                        if (items.length === 0) {
+                            return false;
+                        }
+                        _this.selectData(items[0]);
+                    });
+
+                    this.grid.hostElement.addEventListener('keydown', function (e) {
+                        if (e.key === 'Enter' || e.keyCode === 13) {
+                            setTimeout(() => {
+                                const selected = _this.grid.selectedItems;
+                                if (selected.length > 0) {
+                                    _this.selectData(selected[0]);
+                                }
+                            }, 0);
+                        }
+                    });
+
+                    this._escHandler = function (e) {
+                        if (e.key === 'Escape' || e.keyCode === 27) {
+                            _this.close();
+                        }
+                    };
+                    $(document).on('keydown.clientpopupesc', this._escHandler);
+
+                    this.modalContainer.onClose = () => {
+                        if (this.focusAfterClose && document.body.contains(this.focusAfterClose)) {
+                            setTimeout(() => {
+                                this.focusAfterClose.focus();
+                            }, 50);
+                        }
+                        $(document).off('keydown.clientpopupesc', this._escHandler);
+                    };
+                }, 50);
+            }
+
+            close() {
+                this.modalContainer.close();
+
+                if (this.modalContainer.$content) {
+                    this.modalContainer.$content.remove();
+                    this.modalContainer.$content = null;
+                }
+
+                if (!this._skipAutoFocus && this.focusAfterClose && document.body.contains(this.focusAfterClose)) {
+                    setTimeout(() => {
+                        this.focusAfterClose.focus();
+                    }, 50);
+                }
+
+                $(document).off('keydown.clientpopupesc', this._escHandler);
+
+                if (PopClientComponent.currentInstance === this) {
+                    PopClientComponent.currentInstance = null;
+                }
+            }
+
+        }
+
+        /**
+         * 거래처 팝업 열기.
+         * @param inputId  거래처명이 표시될 input id
+         * @param hiddenId cltcd 가 저장될 hidden input id
+         */
+        function clientPopupOpen(inputId, hiddenId) {
+            const popup = new PopClientComponent();
+            popup.focusAfterClose = document.getElementById(inputId);
+            popup.show(function (item) {
+                if (!item) return;
+                $('#' + inputId).val(item.cltnm || '');
+                $('#' + hiddenId).val(item.cltcd || '');
+            });
+        }
+
+        $(document).on('keydown', '#clientKeyword', function (e) {
+            if (e.key === 'Enter' || e.keyCode === 13) {
+                e.preventDefault();
+                $('#btnClientSearch').trigger('click');
+            }
+        });
+
+    </script>
+</th:block>
