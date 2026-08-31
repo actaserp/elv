@@ -12,6 +12,10 @@ var geocoder = null;
 var latitude = null;
 var longitude = null;
 
+// 실제 변환에 성공한 주소. 안내 문구와 구분해야 하므로 별도로 들고 있는다.
+// (gpsInfo 의 텍스트로 판단하면 "확인 중" 같은 문구를 주소로 오인한다)
+var resolvedAddress = null;
+
 // 마지막으로 주소를 변환한 좌표. 제자리에서 반복 변환하는 것을 막는다.
 var lastGeoLat = null;
 var lastGeoLon = null;
@@ -53,9 +57,10 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
 
 // GPS 좌표 조회 → 주소 변환
 const getGPSLocation = () => {
+    // gpsInfo 에는 "실제 주소"만 넣는다. 출퇴근 등록 검증이 이 값의 유무로
+    // 진행 여부를 판단하기 때문에, 에러/안내 문구를 넣으면 주소가 확보된 것으로 오인된다.
     if (!navigator.geolocation) {
         console.error('Geolocation 지원 안됨');
-        setGpsInfo('GPS를 지원하지 않는 기기입니다.');
         return;
     }
 
@@ -66,8 +71,8 @@ const getGPSLocation = () => {
             longitude = position.coords.longitude;
             console.log(`GPS Coordinates: Lat ${latitude}, Lon ${longitude}, 정확도 ${position.coords.accuracy}m`);
 
-            // 2) 거의 움직이지 않았고 주소가 이미 있으면 변환을 건너뛴다 (API 호출 절감)
-            if (getGpsInfoText()
+            // 2) 주소를 이미 확보했고 거의 움직이지 않았으면 변환을 건너뛴다 (API 호출 절감)
+            if (resolvedAddress
                 && distanceMeters(lastGeoLat, lastGeoLon, latitude, longitude) < GEO_MIN_MOVE_M) {
                 return;
             }
@@ -76,8 +81,9 @@ const getGPSLocation = () => {
             resolveAddress(latitude, longitude, 0);
         },
         (error) => {
-            console.warn('GPS 접근 실패', error.message);
-            setGpsInfo('위치정보를 조회할 수 없습니다.');
+            // 권한 거부(1) / 측위 실패(2) / 타임아웃(3)
+            console.warn('GPS 접근 실패 code=' + error.code, error.message);
+            // gpsInfo 는 건드리지 않는다. 이전에 확보한 주소가 있으면 그대로 유지된다.
         },
         {
             enableHighAccuracy: true,   // GPS 우선 사용 (WiFi/네트워크 측위 대신)
@@ -92,10 +98,8 @@ function resolveAddress(lat, lon, attempt) {
     if (!geocoder) {
         if (attempt >= GEOCODER_RETRY_MAX) {
             console.warn('Kakao Geocoder 초기화 실패 — 좌표만 확보된 상태');
-            if (!getGpsInfoText()) setGpsInfo('주소를 확인하지 못했습니다.');
             return;
         }
-        if (!getGpsInfoText()) setGpsInfo('주소를 확인하는 중입니다...');
         setTimeout(function () { resolveAddress(lat, lon, attempt + 1); }, GEOCODER_RETRY_MS);
         return;
     }
@@ -115,12 +119,14 @@ function getAddressFromKakao(lat, lon) {
             console.log('주소:', address);
             setGpsInfo(address);
 
-            // 변환에 성공한 좌표를 기록해 다음 호출에서 재변환 여부를 판단한다
+            // 변환에 성공한 값만 기록한다. 다음 호출의 재변환 여부 판단 기준.
+            resolvedAddress = address;
             lastGeoLat = lat;
             lastGeoLon = lon;
         } else {
             console.error('주소 변환 실패');
-            if (!getGpsInfoText()) setGpsInfo('주소를 찾을 수 없습니다.');
+            // gpsInfo 는 비워둔다 — 출퇴근 등록 검증이 이 값의 유무로 진행 여부를 판단하므로
+            // 안내 문구를 넣으면 주소가 확보된 것으로 오인된다.
         }
     });
 }
