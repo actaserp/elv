@@ -271,17 +271,18 @@
             .catch(error => console.error("IP 조회 중 에러 발생: ", error.message));
   };
 
+  // 사내/외부망 표시만 담당한다.
+  // 위치 조회는 별도 주기로 돌린다 — 외부 IP 조회(api.ipify.org)가 실패하면
+  // 여기까지 오지 못해 좌표를 영영 못 잡는 문제가 있었다.
   const handleIPDisplay = (ip) => {
     if (ip === '') {
       document.getElementById('inside').style.display = 'flex';
       document.getElementById('outside').style.display = 'none';
       document.getElementById('workcd').style.display = 'none';
-      getGPSLocation();
     } else {
       document.getElementById('inside').style.display = 'none';
       document.getElementById('outside').style.display = 'flex';
       document.getElementById('workcd').style.display = 'block';
-      getGPSLocation();
     }
   };
 
@@ -318,7 +319,9 @@
 
     updateIPAddress();
     updateTime();
+    getGPSLocation();                    // 진입 즉시 1회 — IP 조회 성공 여부와 무관하게 좌표를 잡는다
     setInterval(updateIPAddress, 5000);
+    setInterval(getGPSLocation, 5000);   // 위치 갱신을 IP 조회에서 분리
     setInterval(updateTime, 5000);
     updateDate();
 
@@ -480,14 +483,15 @@
 
       // ✅ 위치정보(GPS) 조회 전 출근 시도 차단
       if (latitude == null || longitude == null) {
-        Alert.alert('', '위치정보를 불러오지 못했습니다.\n새로고침을 진행합니다.', reloadWindow);
+        // 새로고침하면 인앱 브라우저의 위치 권한이 초기화돼 요청창이 다시 뜬다. 재시도만 한다.
+        Alert.alert('', '위치정보를 불러오는 중입니다.\n잠시 후 다시 시도해주세요.', getGPSLocation);
         return;
       }
 
       // ✅ 주소(gpsInfo) 바인드 전 출근 차단 (좌표는 있어도 역지오코딩이 늦어 address 가 비는 문제 방지)
       const inAddress = document.getElementById('gpsInfo').innerText.trim();
       if (!inAddress) {
-        Alert.alert('', '주소정보를 불러오지 못했습니다.\n새로고침을 진행합니다.', reloadWindow);
+        Alert.alert('', '주소정보를 불러오는 중입니다.\n잠시 후 다시 시도해주세요.', getGPSLocation);
         return;
       }
 
@@ -543,14 +547,15 @@
       // 퇴근 API
       // ✅ 위치정보(GPS 좌표) 바인드 전 퇴근 차단
       if (latitude == null || longitude == null) {
-        Alert.alert('', '위치정보를 불러오지 못했습니다.\n새로고침을 진행합니다.', reloadWindow);
+        // 새로고침하면 인앱 브라우저의 위치 권한이 초기화돼 요청창이 다시 뜬다. 재시도만 한다.
+        Alert.alert('', '위치정보를 불러오는 중입니다.\n잠시 후 다시 시도해주세요.', getGPSLocation);
         return;
       }
 
       // ✅ 주소(gpsInfo) 바인드 전 퇴근 차단 (좌표는 있어도 주소 역지오코딩이 늦어 out_address 가 비는 문제 방지)
       const outAddress = document.getElementById('gpsInfo').innerText.trim();
       if (!outAddress) {
-        Alert.alert('', '주소정보를 불러오지 못했습니다.\n새로고침을 진행합니다.', reloadWindow);
+        Alert.alert('', '주소정보를 불러오는 중입니다.\n잠시 후 다시 시도해주세요.', getGPSLocation);
         return;
       }
 
