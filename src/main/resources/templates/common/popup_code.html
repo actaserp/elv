@@ -1,0 +1,206 @@
+<th:block th:fragment="popup_code">
+    <!--
+      범용 코드도움 팝업 — 파워빌더의 w_popup_com 과 같은 역할.
+      type 만 바꿔서 담당자(perid) · 부서(divicd) · 현장구분(site_gubun) 등에 재사용한다.
+
+      사용법:
+        codePopupOpen('cboPerid', 'cboPeridHidden', 'perid', '담당자');
+    -->
+    <script type="text/x-tmpl" id="popup_codeSearchTemplate">
+        <div class="content_wrap popup">
+            <section class="section" style="padding-top: 10px;">
+                <div class="section-top">
+                    <div class="search-wrap" style="text-align: left;">
+                        <dl>
+                            <dt><label for="codeKeyword">검색어<span class="eq"></span></label></dt>
+                            <dd>
+                                <div class="srch-box">
+                                    <input type="text" id="codeKeyword" name="codeKeyword" style="width:240px;"
+                                           placeholder="코드 또는 명칭"/>
+                                </div>
+                            </dd>
+                        </dl>
+                        <dl>
+                            <dt>&nbsp;</dt>
+                            <dd>
+                                <li>
+                                    <a class="btn btn-delete" title="검색" id="btnCodeSearch">
+                                        <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                                        검색
+                                    </a>
+                                </li>
+                            </dd>
+                        </dl>
+                    </div>
+                    <div class="container-fluid">
+                        <div id="theGridCode" style="height: 300px;"></div>
+                    </div>
+                </div>
+            </section>
+            <div class="popup-button">
+                <button type="button" class="btn-popup" id="btnCodeSelect"><span data-commonCd="선택">선택</span></button>
+                <button type="button" class="btn-popup" id="btn-code-close"><span data-commonCd="닫기">닫기</span></button>
+            </div>
+        </div>
+    </script>
+
+    <script type="text/javascript">
+
+        class PopCodeComponent {
+            static currentInstance = null;
+
+            constructor(type, title) {
+                if (PopCodeComponent.currentInstance) {
+                    PopCodeComponent.currentInstance.close();
+                }
+                PopCodeComponent.currentInstance = this;
+
+                this.type = type;
+                this.grid = null;
+                this.viewData = new wijmo.collections.CollectionView();
+                this.callback = null;
+                this.modalContainer = new PopupDraggable(title || '코드 선택');
+                this.$btnCodeSearch = null;
+                this.$btnCodeSelect = null;
+                this.$keyword = null;
+            }
+
+            searchDataBind() {
+                let _this = this;
+                let result = AjaxUtil.getSyncData('/api/popup/search_Code', {
+                    'type': _this.type,
+                    'keyword': _this.$keyword.val()
+                });
+                if (result) {
+                    _this.viewData.sourceCollection = result.data;
+                    setTimeout(() => {
+                        if (_this.grid && _this.grid.rows.length > 0) {
+                            _this.grid.select(0, 0);
+                            _this.grid.focus();
+                        }
+                    }, 0);
+                }
+            }
+
+            selectData(item) {
+                this._skipAutoFocus = false;
+                if (typeof this.callback === 'function') {
+                    this._skipAutoFocus = true;
+                    this.callback(item);
+                }
+                this.close();
+            }
+
+            show(callback) {
+                let _this = this;
+                this.callback = callback;
+
+                let $content = $(tmpl('popup_codeSearchTemplate', {}));
+                this.modalContainer.open({width: 700, height: 480, $content});
+
+                setTimeout(() => {
+                    const el = document.getElementById('theGridCode');
+                    if (!el) return;
+
+                    const existingGrid = wijmo.Control.getControl(el);
+                    if (existingGrid) existingGrid.dispose();
+
+                    this.grid = new wijmo.grid.FlexGrid('#theGridCode', {
+                        selectionMode: wijmo.grid.SelectionMode.Row,
+                        autoGenerateColumns: false,
+                        showMarquee: true,
+                        isReadOnly: true,
+                        keyActionEnter: wijmo.grid.KeyAction.None,
+                        columns: [
+                            {binding: 'cd', header: '코드', width: 110, align: 'center'},
+                            {binding: 'cdnm', header: '명칭', width: '*', align: 'left'},
+                            {binding: 'remark', header: '비고', width: 180, align: 'left'}
+                        ],
+                        itemsSource: this.viewData,
+                    });
+                    this.grid.rowHeaders.columns.splice(0, 1);
+                    new FlexGridContextMenu(this.grid);
+
+                    this.$btnCodeSearch = $content.find('#btnCodeSearch');
+                    this.$keyword = $content.find('#codeKeyword');
+                    this.$btnCodeSelect = $content.find('#btnCodeSelect');
+
+                    this.$btnCodeSearch.click(function () { _this.searchDataBind(); });
+                    $('#btnCodeSearch').click();
+
+                    this.$btnCodeSelect.click(function () {
+                        let items = _this.grid.selectedItems;
+                        if (items.length === 0) return false;
+                        _this.selectData(items[0]);
+                    });
+
+                    $content.find('#btn-code-close').on('click', function () { _this.close(); });
+
+                    this.grid.hostElement.addEventListener('dblclick', function () {
+                        let items = _this.grid.selectedItems;
+                        if (items.length === 0) return false;
+                        _this.selectData(items[0]);
+                    });
+
+                    this.grid.hostElement.addEventListener('keydown', function (e) {
+                        if (e.key === 'Enter' || e.keyCode === 13) {
+                            setTimeout(() => {
+                                const sel = _this.grid.selectedItems;
+                                if (sel.length > 0) _this.selectData(sel[0]);
+                            }, 0);
+                        }
+                    });
+
+                    this._escHandler = function (e) {
+                        if (e.key === 'Escape' || e.keyCode === 27) _this.close();
+                    };
+                    $(document).on('keydown.codepopupesc', this._escHandler);
+
+                    this.modalContainer.onClose = () => {
+                        $(document).off('keydown.codepopupesc', this._escHandler);
+                    };
+                }, 50);
+            }
+
+            close() {
+                this.modalContainer.close();
+                if (this.modalContainer.$content) {
+                    this.modalContainer.$content.remove();
+                    this.modalContainer.$content = null;
+                }
+                if (!this._skipAutoFocus && this.focusAfterClose && document.body.contains(this.focusAfterClose)) {
+                    setTimeout(() => { this.focusAfterClose.focus(); }, 50);
+                }
+                $(document).off('keydown.codepopupesc', this._escHandler);
+                if (PopCodeComponent.currentInstance === this) {
+                    PopCodeComponent.currentInstance = null;
+                }
+            }
+        }
+
+        /**
+         * 코드도움 팝업 열기.
+         * @param inputId  명칭이 표시될 input id
+         * @param hiddenId 코드가 저장될 hidden input id
+         * @param type     perid | divicd | site_gubun
+         * @param title    팝업 제목
+         */
+        function codePopupOpen(inputId, hiddenId, type, title) {
+            const popup = new PopCodeComponent(type, title);
+            popup.focusAfterClose = document.getElementById(inputId);
+            popup.show(function (item) {
+                if (!item) return;
+                $('#' + inputId).val(item.cdnm || '');
+                $('#' + hiddenId).val(item.cd || '');
+            });
+        }
+
+        $(document).on('keydown', '#codeKeyword', function (e) {
+            if (e.key === 'Enter' || e.keyCode === 13) {
+                e.preventDefault();
+                $('#btnCodeSearch').trigger('click');
+            }
+        });
+
+    </script>
+</th:block>
