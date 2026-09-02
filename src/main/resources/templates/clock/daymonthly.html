@@ -125,6 +125,15 @@
                                     <select style="width: 150px;" id="depart" name="depart"></select>
                                 </dd>
                             </dl>
+
+                            <dl>
+                                <dt>
+                                    <label for="team">팀</label>
+                                </dt>
+                                <dd>
+                                    <select style="width: 150px;" id="team" name="team"></select>
+                                </dd>
+                            </dl>
                             <dl>
                                 <dt><span class="eq"></span></dt>
                                 <dd>
@@ -239,6 +248,15 @@
                                 </dt>
                                 <dd>
                                     <select style="width: 150px;" id="depart2" name="depart2"></select>
+                                </dd>
+                            </dl>
+
+                            <dl>
+                                <dt>
+                                    <label for="team2">팀</label>
+                                </dt>
+                                <dd>
+                                    <select style="width: 150px;" id="team2" name="team2"></select>
                                 </dd>
                             </dl>
 
@@ -665,6 +683,7 @@
                     serchday: selectedDate,
                     work_division: $('#work_division').val(),
                     depart:$('#depart').val(),
+                    officecd: $('#team').val(),
                     spjangcd: sessionStorage.getItem('spjangcd'),
                 };
 
@@ -850,6 +869,7 @@
                     startdate: $('#startdate2').val(),
                     person_name :$('#person_name').val(),
                     depart : $('#depart2').val(),
+                    officecd : $('#team2').val(),
                     spjangcd: sessionStorage.getItem('spjangcd'),
                 };
 
@@ -1149,6 +1169,22 @@
                 }
             );
 
+            // 팀 목록 (TB_PZ012). 사원별 소속팀은 ERP의 TB_JA001.officecd 에 들어온다.
+            AjaxUtil.getAsyncData(
+                '/api/clock/DayMonthly/teamList',
+                {
+                    spjangcd: sessionStorage.getItem('spjangcd')
+                },
+                function(res){
+
+                    bindSelectFromAPI(
+                        $('#team').add('#team2'),
+                        res.data
+                    );
+
+                }
+            );
+
             page.searchMainData();
 
             $('#btnSearch').click(function (ex) {
@@ -1229,7 +1265,7 @@
 
 
 
-            $('#work_division, #depart').change(function () {
+            $('#work_division, #depart, #team').change(function () {
                 // 값이 변경되었을 때 searchData 함수를 호출
                 page.searchMainData();
             });

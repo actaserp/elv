@@ -645,6 +645,9 @@
                         searchCode: $searchCode.val(),
                         searchName: $searchName.val(),
                         spjangcd: sessionStorage.getItem('spjangcd'),
+                        // 조회용 팝업이라 퇴사자도 골라야 한다.
+                        // 재직여부(외부 ERP의 TB_JA001) 대신 사용자관리의 활성화여부만 본다.
+                        activeOnly: true,
                     },
                     async: false,
                     success: function (res) {

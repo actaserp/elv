@@ -608,15 +608,20 @@ public class UserController {
 		return result;
 	}
 
+	// 사원 검색 팝업.
+	// activeOnly=true 로 부르면 재직여부(TB_JA001.rtclafi / TB_XUSERS.useyn) 대신
+	// 사용자관리의 활성화여부(auth_user.is_active)만 보고 퇴사자도 함께 내려준다.
+	// 기본값 false 는 기존 동작(재직자만) 그대로다.
 	@GetMapping("/getPerson")
 	public AjaxResult getAccSearchList(
 			@RequestParam(value="searchCode", required=false) String code,
-			@RequestParam(value="searchName", required=false) String name
+			@RequestParam(value="searchName", required=false) String name,
+			@RequestParam(value="activeOnly", required=false, defaultValue="false") boolean activeOnly
 	) {
 
 		AjaxResult result = new AjaxResult();
 		String spjangcd = TenantContext.get();
-		List<Map<String, Object>> items = this.userService.getPSearchitem(code,name,spjangcd);
+		List<Map<String, Object>> items = this.userService.getPSearchitem(code,name,spjangcd,activeOnly);
 		result.data = items;
 		return result;
 	}

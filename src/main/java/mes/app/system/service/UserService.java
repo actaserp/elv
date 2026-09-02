@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 
 import mes.app.common.TenantContext;
-import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -200,11 +199,26 @@ public class UserService {
 	}
 
 	public List<Map<String, Object>> getPSearchitem(String code, String name, String spjangcd) {
+		return getPSearchitem(code, name, spjangcd, false);
+	}
+
+	/**
+	 * 사원 검색 팝업.
+	 *
+	 * activeOnly = false (기본) : 재직자만. TB_XUSERS.useyn + TB_JA001.rtclafi 기준.
+	 *   사번찾기(사용자 등록)처럼 아직 웹 계정이 없는 사원까지 골라야 하는 화면이 쓴다.
+	 * activeOnly = true : 사용자관리의 활성화여부(auth_user.is_active)만 기준.
+	 *   TB_JA001 은 외부 ERP 가 관리해서 퇴사하면 재직자 조건에 걸리는데,
+	 *   사원별휴가확인처럼 퇴사자의 과거 기록도 조회해야 하는 화면이 쓴다.
+	 *
+	 * auth_user.username 은 TB_XUSERS.userid(로그인ID)가 아니라 perid(사번)다.
+	 * UserController.saveUser 가 person.Code 에서 'p' 만 떼어 넣기 때문.
+	 */
+	public List<Map<String, Object>> getPSearchitem(String code, String name, String spjangcd, boolean activeOnly) {
 		MapSqlParameterSource paramMap = new MapSqlParameterSource();
 		paramMap.addValue("pernm", name);
 		paramMap.addValue("perid", code);
 		paramMap.addValue("spjangcd", spjangcd);
-		AjaxResult result = new AjaxResult();
 
 		String sql = """
      SELECT
@@ -228,10 +242,22 @@ public class UserService {
 				 LEFT JOIN tb_pz001 p
 				     ON j.rspcd = p.RSPCD
 				 WHERE
-				     u.useyn = '1'
-				     AND j.rtclafi = '001'
-				     and u.spjangcd =:spjangcd
+				     u.spjangcd =:spjangcd
     """;
+
+		if (activeOnly) {
+			// 활성화여부(auth_user.is_active)만 기준 — 퇴사자도 포함된다
+			sql += """
+				     AND EXISTS (
+				         SELECT 1 FROM auth_user au
+				          WHERE au.username = u.perid
+				            AND au.spjangcd = u.spjangcd
+				            AND au.is_active = 1
+				     )
+			""";
+		} else {
+			sql += " AND u.useyn = '1' AND j.rtclafi = '001' ";
+		}
 
 		if (name != null && !name.isEmpty()) {
 			sql += " and u.pernm like :pernm ";

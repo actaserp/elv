@@ -63,7 +63,8 @@ public class DayMonthlyService {
     // =========================================================
     // 일별 근태 목록 조회
     // =========================================================
-    public List<Map<String, Object>> getDayList(String work_division, String serchday, String spjangcd, String depart) {
+    public List<Map<String, Object>> getDayList(String work_division, String serchday, String spjangcd, String depart,
+                                                String officecd) {
         MapSqlParameterSource paramMap = new MapSqlParameterSource();
 
         String workym = null;
@@ -75,6 +76,7 @@ public class DayMonthlyService {
 
         paramMap.addValue("work_division", work_division != null ? work_division : "");
         paramMap.addValue("depart_id",     depart        != null ? depart        : "");
+        paramMap.addValue("officecd",      officecd      != null ? officecd.trim() : "");
         paramMap.addValue("workym",  workym);
         paramMap.addValue("workday", workday);
         paramMap.addValue("spjangcd", spjangcd);
@@ -155,6 +157,12 @@ public class DayMonthlyService {
                     AND (
                         :depart_id = ''
                         OR jc.divicd = :depart_id
+                    )
+                    -- 팀(TB_PZ012.officecd). 사원의 소속팀은 TB_JA001.officecd 에만 있다.
+                    -- char(2) vs char(3) 이라 공백 패딩을 걷어내고 비교한다.
+                    AND (
+                        :officecd = ''
+                        OR LTRIM(RTRIM(ISNULL(j.officecd, ''))) = :officecd
                     )
                     AND p.spjangcd = :spjangcd
                     AND p.id NOT IN (:inactiveIds)
@@ -344,10 +352,12 @@ public class DayMonthlyService {
     // =========================================================
     // 월정산 목록 조회
     // =========================================================
-    public List<Map<String, Object>> getMonthlyReadList(String person_name, String startdate, String spjangcd, String depart) {
+    public List<Map<String, Object>> getMonthlyReadList(String person_name, String startdate, String spjangcd, String depart,
+                                                        String officecd) {
         MapSqlParameterSource paramMap = new MapSqlParameterSource();
         paramMap.addValue("person_name", person_name != null ? person_name : "");
         paramMap.addValue("depart_id",   depart      != null ? depart      : "");
+        paramMap.addValue("officecd",    officecd    != null ? officecd.trim() : "");
         paramMap.addValue("startdate",   startdate);
         paramMap.addValue("spjangcd",    spjangcd);
 
@@ -390,6 +400,8 @@ public class DayMonthlyService {
             WHERE
                 (:person_name = '' OR CAST(t.personid AS VARCHAR) = :person_name)
                 AND (:depart_id = '' OR jc.divicd = :depart_id)
+                -- 팀(TB_PZ012.officecd) — getDayList 와 동일한 조건
+                AND (:officecd = '' OR LTRIM(RTRIM(ISNULL(j.officecd, ''))) = :officecd)
                 AND t.spjangcd = :spjangcd
                 AND t.workym = :startdate
                 AND p.id NOT IN (:inactiveIds)
@@ -523,6 +535,33 @@ public class DayMonthlyService {
     public int cancelMonthlyMagam(String spjangcd, String workym, int personid) {
         String sql = "UPDATE tb_pb203 SET fixflag = '0' WHERE spjangcd = ? AND workym = ? AND personid = ?";
         return jdbcTemplate.update(sql, spjangcd, workym, personid);
+    }
+
+    // =========================================================
+    // 팀 목록 조회 (TB_PZ012)
+    //   ACTAS 마스터는 한 테이블에 여러 회사가 섞이는 구조라 custcd 를 반드시 건다.
+    //   (실제로 일부 사업체 DB의 TB_PZ012 에 타 회사 행이 남아 있었다)
+    // =========================================================
+    public List<Map<String, Object>> getTeamList(String spjangcd) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+
+        Map<String, Object> row = this.sqlRunner.getRow(
+                "SELECT custcd FROM tb_xa012 WHERE spjangcd = :spjangcd", param);
+        if (row == null || row.get("custcd") == null) return List.of();
+        param.addValue("custcd", String.valueOf(row.get("custcd")).trim());
+
+        String sql = """
+                    SELECT
+                        LTRIM(RTRIM(officecd)) as value,
+                        officenm              as text
+                    FROM TB_PZ012 WITH(NOLOCK)
+                    WHERE custcd   = :custcd
+                      AND spjangcd = :spjangcd
+                      AND useyn    = '1'
+                    ORDER BY officecd
+                """;
+        return this.sqlRunner.getRows(sql, param);
     }
 
     // =========================================================

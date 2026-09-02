@@ -29,6 +29,7 @@ public class DayMonthlyController {
             @RequestParam(value = "work_division", required = false) String work_division,
             @RequestParam(value = "serchday",      required = false) String serchday,
             @RequestParam(value = "depart",        required = false) String depart,
+            @RequestParam(value = "officecd",      required = false) String officecd,
             @RequestParam(value = "spjangcd")                        String spjangcd,
             HttpServletRequest request,
             Authentication auth) {
@@ -41,7 +42,7 @@ public class DayMonthlyController {
             serchday = serchday.replaceAll("-", "");
         }
 
-        List<Map<String, Object>> items = this.dayMonthlyService.getDayList(work_division, serchday, spjangcd, depart);
+        List<Map<String, Object>> items = this.dayMonthlyService.getDayList(work_division, serchday, spjangcd, depart, officecd);
         result.data = items;
 
         long end = System.currentTimeMillis();
@@ -191,6 +192,7 @@ public class DayMonthlyController {
             @RequestParam(value = "person_name", required = false) String person_name,
             @RequestParam(value = "startdate",   required = false) String startdate,
             @RequestParam(value = "depart",      required = false) String depart,
+            @RequestParam(value = "officecd",    required = false) String officecd,
             @RequestParam(value = "spjangcd")                      String spjangcd,
             HttpServletRequest request,
             Authentication auth) {
@@ -201,7 +203,7 @@ public class DayMonthlyController {
             startdate = startdate.replaceAll("-", "");
         }
 
-        List<Map<String, Object>> items = this.dayMonthlyService.getMonthlyReadList(person_name, startdate, spjangcd, depart);
+        List<Map<String, Object>> items = this.dayMonthlyService.getMonthlyReadList(person_name, startdate, spjangcd, depart, officecd);
         result.data = items;
         return result;
     }
@@ -400,6 +402,16 @@ public class DayMonthlyController {
     public AjaxResult getDepartList(String spjangcd) {
         AjaxResult result = new AjaxResult();
         result.data = this.dayMonthlyService.getDepartList(spjangcd);
+        return result;
+    }
+
+    // =========================================================
+    // 팀 목록 조회 (TB_PZ012)
+    // =========================================================
+    @GetMapping("/teamList")
+    public AjaxResult getTeamList(String spjangcd) {
+        AjaxResult result = new AjaxResult();
+        result.data = this.dayMonthlyService.getTeamList(spjangcd);
         return result;
     }
 }
