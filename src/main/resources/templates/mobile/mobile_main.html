@@ -382,6 +382,27 @@
     }
     searchMainData();
     AjaxUtil.fillSelectOptions($('#selectWorkcd'), 'workcd', 'choose', false, 'work_division', '');
+
+    // ✅ 화면을 백그라운드에 두었다 다시 열었을 때
+    //    로그인이 풀렸는지 먼저 확인한다. 화면에는 이전 정보가 그대로 남아 있어
+    //    로그인된 것처럼 보이는 상태에서 출근 버튼을 누르게 되는 문제가 있었다.
+    //    로그인이 풀렸으면 AjaxUtil.goLogin() 이 안내 후 로그인 화면으로 보낸다.
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'visible') return;
+
+      $.get(withCtx('/api/mobile_main/read_userInfo'))
+       .done(function (res) {
+         // 401 이면 done 이 아니라 fail 로 온다. 여기서는 응답 본문만 확인하면 된다.
+         if (res && res.data) {
+           searchMainData();   // 로그인 유지됨 → 출퇴근 기록 최신화
+         } else {
+           AjaxUtil.goLogin();
+         }
+       })
+       .fail(function () {
+         AjaxUtil.goLogin();
+       });
+    });
   });
 
   // 공휴일 확인 API

@@ -1,7 +1,6 @@
 package mes.app.transaction;
 
 import lombok.extern.slf4j.Slf4j;
-import mes.app.aspect.DecryptField;
 import mes.app.transaction.service.CompBalanceDetailService;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,16 +20,20 @@ public class CompBalanceDetailController {
     @Autowired
     CompBalanceDetailService compBalanceDetailService;
 
-    // 미수금 잔액명세
-    @DecryptField(columns = {"accnum"})
+    // 미수금 잔액명세 (파워빌더 w_input_da023w_01)
+    //   cltcd/gubun 은 파워빌더와 동일하게 미입력 시 전체로 처리된다.
     @GetMapping("/read")
     public AjaxResult getList(
             @RequestParam(value = "srchStartDt", required = false) String start,
-            @RequestParam(value = "srchEndDt", required = false) String end,
-            @RequestParam(value = "cboCompany", required = false) String company,
-            @RequestParam(value = "spjangcd") String spjangcd) {
+            @RequestParam(value = "srchEndDt",   required = false) String end,
+            @RequestParam(value = "cltcd",       required = false) String cltcd,
+            @RequestParam(value = "gubun",       required = false) String gubun,
+            @RequestParam(value = "spjangcd")                      String spjangcd) {
 
-        List<Map<String, Object>> items = this.compBalanceDetailService.getList(start, end, company, spjangcd);
+        if (start != null) start = start.replace("-", "");
+        if (end   != null) end   = end.replace("-", "");
+
+        List<Map<String, Object>> items = this.compBalanceDetailService.getList(start, end, spjangcd, cltcd, gubun);
 
         AjaxResult result = new AjaxResult();
         result.data = items;

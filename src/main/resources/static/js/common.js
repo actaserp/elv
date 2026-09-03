@@ -1069,12 +1069,30 @@ let AjaxUtil = {
             window.parent.$('#loader2').hide();
         } catch (e) {}
     },
+    /**
+     * 로그인이 풀렸을 때 안내 후 로그인 화면으로 보낸다.
+     * '세션' 같은 용어는 쓰지 않는다 (현장 사용자가 알아듣지 못한다).
+     * 이미 로그인 화면이면 중복 안내/이동을 하지 않는다.
+     */
+    goLogin: function () {
+        let loginUrl = withCtx('/login');
+        if (location.pathname === loginUrl || location.pathname === loginUrl + '/') return;
+        if (AjaxUtil._goLoginCalled) return;   // 여러 요청이 동시에 401 을 받아도 한 번만
+        AjaxUtil._goLoginCalled = true;
+
+        Alert.alert('', '자동으로 로그아웃되었습니다.\n다시 로그인해 주세요.', function () {
+            location.href = loginUrl;
+        });
+    },
+    _goLoginCalled: false,
+
     failureCallback: function (req, status, error) {
         let message = '에러가 발생했습니다.';
 
         if(req.status==401){
-            message = '로그아웃되었습니다.';
-            Alert.alert('Error', message);
+            // 로그인이 풀린 상태. 안내만 하고 끝내면 사용자가 계속 같은 버튼을 누르게 되므로
+            // 확인 후 로그인 화면으로 보낸다. (모바일에서 화면을 백그라운드에 두었다 돌아온 경우가 대부분)
+            AjaxUtil.goLogin();
         }
         else if(req.status==403){
             Alert.alert('Error', "권한이 없습니다.");
