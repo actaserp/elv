@@ -1,6 +1,7 @@
 package mes.app.clock.service;
 
 import lombok.extern.slf4j.Slf4j;
+import mes.app.common.TenantContext;
 import mes.domain.services.SqlRunner;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -38,14 +39,24 @@ public class DayMonthlyService {
     //   - 사업체 DB 근태 조회에서 이 personid 들을 제외하기 위함
     // =========================================================
     private List<Integer> getInactivePersonIds(String spjangcd) {
+        // 본사 auth_user 는 사업체를 db_key(ZQ/IX/GO/AN/DJ) 로 구분한다.
+        // spjangcd 는 전 사업체가 'ZZ' 라 그걸로 거르면 타 사업체의 비활성 personid 까지 딸려오고,
+        // person.id 가 사업체별 자동증가 PK 라 값이 겹치면 엉뚱한 사람이 근태 화면에서 빠진다.
+        // 화면이 넘겨주는 spjangcd 로는 구분이 안 되므로 TenantContext 에서 db_key 를 가져온다.
+        String dbKey = TenantContext.getDbKey();
+        if (dbKey == null || dbKey.isBlank()) {
+            log.warn("getInactivePersonIds - db_key 를 알 수 없어 활성필터 미적용");
+            return java.util.Collections.emptyList();
+        }
+
         MapSqlParameterSource p = new MapSqlParameterSource();
-        p.addValue("spjangcd", spjangcd);
+        p.addValue("dbKey", dbKey);
         String sql = """
                 SELECT personid
                 FROM auth_user
                 WHERE is_active = false
                   AND personid IS NOT NULL
-                  AND spjangcd = :spjangcd
+                  AND db_key = :dbKey
                 """;
         try {
             List<Map<String, Object>> rows = this.mainSqlRunner.getRows(sql, p);

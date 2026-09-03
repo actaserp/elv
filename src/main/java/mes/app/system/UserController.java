@@ -1,5 +1,7 @@
 package mes.app.system;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +34,7 @@ import mes.domain.security.Pbkdf2Sha256;
 import mes.domain.services.CommonUtil;
 import mes.domain.services.SqlRunner;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/system/user")
 public class UserController {
@@ -467,10 +470,34 @@ public class UserController {
 			}
 		}
 
+		// ── 활성화여부 동기화 (분기와 무관하게 항상) ────────────────────────
+		// 본사 auth_user 는 위에서 무조건 갱신되는데(user.setActive), 사업체 auth_user 는
+		// 신규 등록 분기에서만 갱신돼서 '기존 사용자의 활성화여부 변경' 이 사업체에 반영되지 않았다.
+		// 그 결과 사용자관리 화면(본사 조회)과 사원검색 팝업(사업체 조회)의 값이 어긋났다.
+		// 여기서 한 번 더 맞춰준다. 신규 분기에서 이미 같은 값을 넣었어도 결과는 동일하다.
+		try {
+			String syncUsername = (person_code != null && !person_code.isEmpty())
+					? (person_code.startsWith("p") ? person_code.substring(1) : person_code)
+					: login_id;   // person_code 가 안 넘어오는 경로 대비 (사업체 username = 사번 = login_id)
+
+			if (syncUsername != null && !syncUsername.isEmpty()) {
+				MapSqlParameterSource syncParam = new MapSqlParameterSource();
+				syncParam.addValue("is_active", is_active);
+				syncParam.addValue("username",  syncUsername);
+				syncParam.addValue("spjangcd",  effectiveSpjangcd);
+				this.tenantSqlRunner.execute(
+					"UPDATE auth_user SET is_active = :is_active WHERE username = :username AND spjangcd = :spjangcd",
+					syncParam);
+			}
+		} catch (Exception e) {
+			// 동기화 실패로 저장 자체를 되돌리지는 않는다. 로그만 남긴다.
+			log.warn("사업체 auth_user.is_active 동기화 실패 - login_id={}, {}", login_id, e.getMessage());
+		}
+
 		result.data = user;
 		return result;
 	}
-	
+
 	// user 삭제
 	@PostMapping("/delete")
 	@Transactional

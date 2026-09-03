@@ -50,7 +50,7 @@ public class MobileMainService {
                 LEFT JOIN (
                     SELECT Code, Value
                     FROM sys_code
-                    WHERE CodeType = 'jik_type'
+                    WHERE CodeType = 'jik_type' 
                 ) s ON s.Code = p.jik_id
                 LEFT JOIN tb_xusers u
                     ON  u.perid   = a.username

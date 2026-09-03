@@ -75,7 +75,10 @@ public class ClockMemberService {
                ) sc ON sc.[Code] = t.appgubun
                LEFT JOIN tb_pb210 tb210 ON tb210.workcd = t.workcd
                LEFT JOIN auth_user au ON au.personid = p.id
-               left join tb_xusers u on u.userid =au.username and au.last_name =u.pernm
+               -- auth_user.username 은 로그인ID(tb_xusers.userid)가 아니라 사번(perid)이다.
+               -- userid 로 조인하면 juwon 처럼 둘이 우연히 같은 곳에서만 맞고
+               -- elv_kyoung·elv_lrt 에서는 매칭이 0건이라 부서·직위가 빈칸으로 나왔다.
+               left join tb_xusers u on u.perid = au.username and au.last_name = u.pernm
                LEFT JOIN tb_ja001 j  ON j.perid = CONCAT('p', u.perid)
                LEFT JOIN tb_jc002 jc ON j.divicd = jc.divicd
                LEFT JOIN tb_pz001 pz  ON j.rspcd = pz.RSPCD
