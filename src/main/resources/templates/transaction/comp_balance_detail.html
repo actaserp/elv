@@ -21,6 +21,23 @@
         <div class="search-wrap">
           <dl>
             <dt>
+              <label for="cboFlag">구분</label>
+            </dt>
+            <dd>
+              <!-- 파워빌더 d_tb_da023w_01_key 의 flag 코드테이블. DB 조회가 아니라 고정 목록이다. -->
+              <select style="width: 210px;" id="cboFlag" name="cboFlag">
+                <option value="0">매출수금거래내역</option>
+                <option value="1">매출수금(동일기간)미수내역</option>
+                <option value="2">매출수금(별도기간)미수내역</option>
+                <option value="3">매출기간내 미수내역</option>
+                <option value="4">매출별수금내역(현대양식)</option>
+                <option value="5">거래처원장(입출금포함)</option>
+              </select>
+            </dd>
+          </dl>
+
+          <dl>
+            <dt>
               조회기간<span class="eq">*</span>
             </dt>
             <dd>
@@ -32,6 +49,23 @@
                 <li>
                   <input type="date" id="srchEndDt" name="srchEndDt">
                   <label for="srchEndDt" class="hide">종료일</label>
+                </li>
+              </ul>
+            </dd>
+          </dl>
+
+          <!-- 수금일자는 구분 2(별도기간) 에서만 쓴다 -->
+          <dl id="areaRcvDate" style="display:none;">
+            <dt>수금일자</dt>
+            <dd>
+              <ul class="date-box">
+                <li>
+                  <input type="date" id="rcvStartDt" name="rcvStartDt">
+                  <label for="rcvStartDt" class="hide">수금시작일</label>
+                </li>
+                <li>
+                  <input type="date" id="rcvEndDt" name="rcvEndDt">
+                  <label for="rcvEndDt" class="hide">수금종료일</label>
                 </li>
               </ul>
             </dd>
@@ -54,6 +88,17 @@
             </dt>
             <dd>
               <select style="width: 150px;" id="cboGubun" name="cboGubun"></select>
+            </dd>
+          </dl>
+
+          <!-- 부서는 구분 1·2·3 에서만 쓴다 (파워빌더 dw_key.Modify('divicd_t.visible=...') 와 동일) -->
+          <dl id="areaDivicd" style="display:none;">
+            <dt>부서</dt>
+            <dd>
+              <input type="text" id="divinm" placeholder="부서 선택" readonly
+                     style="width:140px; cursor:pointer; background:#fff;">
+              <input type="hidden" id="divicd">
+              <button type="button" class="btn-default" id="btnDiviClear">전체</button>
             </dd>
           </dl>
 
@@ -81,26 +126,96 @@
   <th:block th:replace="common/multiform_material :: multiform_material"></th:block>
   <!-- 파워빌더와 동일하게 TB_XCLIENT 기준 거래처 팝업을 쓴다 (cltcd 반환) -->
   <th:block th:replace="common/popup_client :: popup_client"></th:block>
+  <th:block th:replace="common/popup_code :: popup_code"></th:block>
   <script type="text/javascript">
     // 미수금 잔액명세 — 파워빌더 w_input_da023w_01(거래처잔액명세) 이식
-    //   sort 1 전일잔액 / 2 매출 / 3 입금 / 4 선수금
+    //
+    // 구분(flag) 마다 파워빌더가 DataWindow 를 통째로 바꿔 끼우므로,
+    // 여기서도 구분에 따라 그리드 컬럼 세트와 검색칸 노출을 갈아끼운다.
+    //   0 → d_tb_da023w_01_01   1 → _01_03   2 → _01_04
+    //   3 → _01_05             4 → _01_06   5 → d_tb_da026_06_totlist
     class CompBalanceDetailPage {
-      constructor() {
-        this.grid = null;
-        this.spjangcd = $('#spjangcdHidden');
-        this.viewData = new wijmo.collections.CollectionView();
-        // 거래처(cltcd) 그룹 — 파워빌더 DataWindow 의 group cltcd 와 동일
-        this.viewData.groupDescriptions.push(
-            new wijmo.collections.PropertyGroupDescription('cltcd'));
-        this.init();
-      }
 
-      // 'YYYYMMDD' → 'YYYY-MM-DD'. 전일잔액 행은 일자가 비어 있다.
+      // 'YYYYMMDD' → 'YYYY-MM-DD'
       static fmtDate(v) {
         if (!v) return '';
         const s = String(v).trim();
         if (s.length !== 8) return s;
         return s.substring(0, 4) + '-' + s.substring(4, 6) + '-' + s.substring(6, 8);
+      }
+
+      // 구분별 그리드 컬럼. 파워빌더 각 DataWindow 의 Detail 밴드와 같은 순서다.
+      static COLUMNS = {
+        // 매출수금거래내역
+        '0': [
+          {binding: 'cltcd',    header: '코드',       width: 90,  align: 'center'},
+          {binding: 'cltnm',    header: '거래처명',   width: 200, align: 'left'},
+          {binding: 'actnm',    header: '현장명',     width: 180, align: 'left'},
+          {binding: 'misdate',  header: '일자',       width: 110, align: 'center'},
+          {binding: 'misamt',   header: '매출액',     width: 130, align: 'right', format: 'n0', aggregate: 'Sum'},
+          {binding: 'rcvamt',   header: '입금액',     width: 130, align: 'right', format: 'n0', aggregate: 'Sum'},
+          {binding: 'plamt',    header: '초과금액',   width: 110, align: 'right', format: 'n0', aggregate: 'Sum'},
+          {binding: 'balance',  header: '잔액',       width: 140, align: 'right', format: 'n0'},
+          {binding: 'remark',   header: '상세내역',   width: '*', align: 'left'},
+          {binding: 'sangflag', header: '상계',       width: 70,  align: 'center'},
+          {binding: 'bigo',     header: '비고',       width: 150, align: 'left'},
+          {binding: 'saupnum',  header: '사업자번호', width: 130, align: 'center'}
+        ],
+        // 미수내역 3종 — 출력 컬럼이 같다.
+        // ★ 파워빌더가 misamt ↔ resuamt 별칭을 뒤바꿔 놓아서 '매출액' 은 resuamt 에 있다.
+        'misu': [
+          {binding: 'cltcd',   header: '코드',     width: 90,  align: 'center'},
+          {binding: 'cltnm',   header: '거래처명', width: 190, align: 'left'},
+          {binding: 'actnm',   header: '현장명',   width: 190, align: 'left'},
+          {binding: 'contg',   header: '계약',     width: 90,  align: 'center'},
+          {binding: 'divinm',  header: '부서',     width: 100, align: 'center'},
+          {binding: 'pernm',   header: '담당자',   width: 90,  align: 'center'},
+          {binding: 'misdate', header: '일자',     width: 110, align: 'center'},
+          {binding: 'resuamt', header: '매출액',   width: 140, align: 'right', format: 'n0', aggregate: 'Sum'},
+          {binding: 'misamt',  header: '미수잔액', width: 140, align: 'right', format: 'n0', aggregate: 'Sum'},
+          {binding: 'remark',  header: '상세내역', width: '*', align: 'left'}
+        ],
+        // 매출별수금내역(현대양식)
+        '4': [
+          {binding: 'cltcd',   header: '코드',     width: 90,  align: 'center'},
+          {binding: 'cltnm',   header: '거래처명', width: 200, align: 'left'},
+          {binding: 'misdate', header: '일자',     width: 110, align: 'center'},
+          {binding: 'misamt',  header: '매출액',   width: 130, align: 'right', format: 'n0', aggregate: 'Sum'},
+          {binding: 'rcvdate', header: '입금일자', width: 110, align: 'center'},
+          {binding: 'rcvamt',  header: '입금액',   width: 130, align: 'right', format: 'n0', aggregate: 'Sum'},
+          {binding: 'resuamt', header: '잔액',     width: 140, align: 'right', format: 'n0'},
+          {binding: 'sundate', header: '선수일자', width: 110, align: 'center'},
+          {binding: 'sunamt',  header: '선수금',   width: 120, align: 'right', format: 'n0', aggregate: 'Sum'},
+          {binding: 'minamt',  header: '선수잔액', width: 120, align: 'right', format: 'n0'},
+          {binding: 'remark',  header: '상세내역', width: '*', align: 'left'},
+          {binding: 'sangflag',header: '상계',     width: 70,  align: 'center'}
+        ],
+        // 거래처원장(입출금포함)
+        '5': [
+          {binding: 'cltcd',    header: '코드',     width: 90,  align: 'center'},
+          {binding: 'cltnm',    header: '거래처명', width: 190, align: 'left'},
+          {binding: 'gubunnm',  header: '구분',     width: 80,  align: 'center'},
+          {binding: 'misdate',  header: '일자',     width: 110, align: 'center'},
+          {binding: 'remark',   header: '적요',     width: '*', align: 'left'},
+          {binding: 'misamt',   header: '거래액',   width: 130, align: 'right', format: 'n0', aggregate: 'Sum'},
+          {binding: 'rcvamt',   header: '결제액',   width: 130, align: 'right', format: 'n0', aggregate: 'Sum'},
+          {binding: 'tran_amt', header: '입금',     width: 120, align: 'right', format: 'n0', aggregate: 'Sum'},
+          {binding: 'wdr_amt',  header: '출금',     width: 120, align: 'right', format: 'n0', aggregate: 'Sum'},
+          {binding: 'restamt',  header: '잔액',     width: 140, align: 'right', format: 'n0'},
+          {binding: 'bigo',     header: '비고',     width: 150, align: 'left'}
+        ]
+      };
+
+      static columnsFor(flag) {
+        if (flag === '1' || flag === '2' || flag === '3') return CompBalanceDetailPage.COLUMNS['misu'];
+        return CompBalanceDetailPage.COLUMNS[flag] || CompBalanceDetailPage.COLUMNS['0'];
+      }
+
+      constructor() {
+        this.grid = null;
+        this.spjangcd = $('#spjangcdHidden');
+        this.viewData = new wijmo.collections.CollectionView();
+        this.init();
       }
 
       init() {
@@ -114,90 +229,100 @@
             const col  = sender.columns[e.col];
             const item = sender.rows[e.row]?.dataItem;
 
-            // 헤더 중앙 정렬
             if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader) {
               e.cell.style.textAlign = 'center';
               return;
             }
-
             if (e.panel.cellType !== wijmo.grid.CellType.Cell || !item) return;
 
-            // 일자 — 전일이월/전일잔액 행은 일자가 없다 (파워빌더는 '- -' 로 보여준다)
-            if (col.binding === 'misdate') {
-              const sort = String(item.sort);
-              e.cell.textContent = (sort === '0') ? ''
-                                 : (sort === '1') ? '- -'
-                                 : CompBalanceDetailPage.fmtDate(item.misdate);
+            // 일자류 컬럼은 YYYYMMDD 로 내려오므로 보기 좋게 바꾼다.
+            if (col.binding === 'misdate' || col.binding === 'rcvdate' || col.binding === 'sundate') {
+              const sort = String(item.sort ?? '');
+              // 구분 0 의 전일이월(sort 0)·전일잔액(sort 1) 행은 일자가 없다
+              if (col.binding === 'misdate' && sort === '0' && item.remark === '전일이월') {
+                e.cell.textContent = '';
+              } else if (col.binding === 'misdate' && sort === '1') {
+                e.cell.textContent = '- -';
+              } else {
+                e.cell.textContent = CompBalanceDetailPage.fmtDate(item[col.binding]);
+              }
               e.cell.style.textAlign = 'center';
             }
 
-            // 전일이월/전일잔액 행은 굵게
-            if (String(item.sort) === '0' || String(item.sort) === '1') {
+            // 전일이월/전일잔액 행 강조
+            if (item.remark === '전일이월' || item.remark === '전일잔액') {
               e.cell.style.fontWeight = 'bold';
               e.cell.style.color = '#333';
             }
           },
-          // 파워빌더가 cltcd 로 그룹을 잡고 Trailer 밴드에 sum(...for group) 을 놓는다.
-          // wijmo 는 그룹 헤더에 집계를 보여주므로 위치만 다르고 값은 같다.
-          columns: [
-            {binding: 'cltcd',    header: '코드',       width: 90,  align: 'center'},
-            {binding: 'cltnm',    header: '거래처명',   width: 200, align: 'left'},
-            {binding: 'actnm',    header: '현장명',     width: 200, align: 'left'},
-            {binding: 'misdate',  header: '일자',       width: 110, align: 'center'},
-            {binding: 'misamt',   header: '매출액',     width: 130, align: 'right', format: 'n0', aggregate: 'Sum'},
-            {binding: 'rcvamt',   header: '입금액',     width: 130, align: 'right', format: 'n0', aggregate: 'Sum'},
-            {binding: 'plamt',    header: '초과금액',   width: 120, align: 'right', format: 'n0', aggregate: 'Sum'},
-            {binding: 'balance',  header: '잔액',       width: 140, align: 'right', format: 'n0'},
-            {binding: 'remark',   header: '상세내역',   width: '*', align: 'left'},
-            {binding: 'sangflag', header: '상계',       width: 70,  align: 'center'},
-            {binding: 'bigo',     header: '비고',       width: 160, align: 'left'},
-            {binding: 'saupnum',  header: '사업자번호', width: 130, align: 'center'}
-          ],
+          columns: CompBalanceDetailPage.columnsFor('0'),
           itemsSource: this.viewData,
         });
 
-        // 합계 푸터
-        this.grid.columnFooters.rows.push(new wijmo.grid.Row());
-        this.grid.bottomLeftCells.setCellData(0, 0, '총합');
+        // 총계 (파워빌더 화면 하단의 '총 계'). GroupRow 를 쓰면 컬럼의 aggregate 를 그대로 집계한다.
+        this.grid.columnFooters.rows.push(new wijmo.grid.GroupRow());
+        this.grid.bottomLeftCells.setCellData(0, 0, '총 계');
 
-        this.grid.loadedRows.addHandler(() => {
-          const rows   = this.grid.rows;
-          const footer = this.grid.columnFooters.rows[0];
-          const getSum = (field) => rows.map(r => +r.dataItem[field] || 0).reduce((a, b) => a + b, 0);
-
-          footer.dataItem = {
-            cltnm:  '합계',
-            misamt: getSum('misamt'),
-            rcvamt: getSum('rcvamt'),
-            plamt:  getSum('plamt'),
-          };
-        });
+        this.applyFlag('0');
 
         new FlexGridContextMenu(this.grid);
-        this.grid.downloadFileName = '거래처별 잔액명세(입금)';
+        this.grid.downloadFileName = '거래처잔액명세';
+      }
+
+      /** 구분이 바뀌면 컬럼 세트와 그룹을 바꾼다 */
+      applyFlag(flag) {
+        this.grid.columns.clear();
+        CompBalanceDetailPage.columnsFor(flag).forEach(c => this.grid.columns.push(new wijmo.grid.Column(c)));
+
+        // 파워빌더가 cltcd 로 그룹을 잡는 것은 구분 0 뿐이다.
+        this.viewData.groupDescriptions.clear();
+        if (flag === '0') {
+          this.viewData.groupDescriptions.push(new wijmo.collections.PropertyGroupDescription('cltcd'));
+        }
       }
 
       searchMainData() {
         let _this = this;
-        let url = '/api/transaction/CompBalanceDetail/read';
+        const flag = $('#cboFlag').val();
+
         let data = {
           'srchStartDt': $('#srchStartDt').val(),
           'srchEndDt':   $('#srchEndDt').val(),
-          // 거래처 미선택 시 입력한 텍스트로도 찾는다 (파워빌더가 코드/거래처명 둘 다 LIKE 로 본다)
           'cltcd':       $('#cboCompanyHidden').val() || $('#cboCompany').val(),
           'gubun':       $('#cboGubun').val(),
+          'flag':        flag,
           'spjangcd':    _this.spjangcd.val()
         };
-        let fnsuccess = function (result) {
-          if (result != null) {
-            _this.viewData.sourceCollection = result.data;
+        // 구분 2 만 수금일자를 따로 넘긴다. 비우면 서버가 전 기간으로 처리한다.
+        if (flag === '2') {
+          data.rcvStartDt = $('#rcvStartDt').val();
+          data.rcvEndDt   = $('#rcvEndDt').val();
+        }
+        // 부서는 구분 1·2·3 에서만
+        if (flag === '1' || flag === '2' || flag === '3') {
+          data.divicd = $('#divicd').val();
+        }
+
+        AjaxUtil.getAsyncData('/api/transaction/CompBalanceDetail/read', data, function (result) {
+          if (result == null) return;
+          if (result.success === false) {
+            Alert.alert('', result.message || '조회에 실패했습니다.');
+            _this.viewData.sourceCollection = [];
+            return;
           }
-        };
-        AjaxUtil.getAsyncData(url, data, fnsuccess);
+          _this.viewData.sourceCollection = result.data;
+        });
       }
     }
 
     let page = null;
+
+    // 구분에 따라 수금일자·부서 칸을 보이거나 숨긴다.
+    function applyFlagUI(flag) {
+      $('#areaRcvDate').toggle(flag === '2');
+      $('#areaDivicd').toggle(flag === '1' || flag === '2' || flag === '3');
+      page.applyFlag(flag);
+    }
 
     $(document).ready(function (e) {
 
@@ -215,9 +340,15 @@
       $('#srchStartDt').val(new Date().getFullYear() + '-01-01');
       $('#srchEndDt').val(CommonUtil.getYYYYMMDD());
 
+      applyFlagUI('0');
       page.searchMainData();
 
-      $('#btnSearch').click(function (e) {
+      $('#cboFlag').change(function () {
+        applyFlagUI($(this).val());
+        page.searchMainData();
+      });
+
+      $('#btnSearch').click(function () {
         page.searchMainData();
       });
 
@@ -225,7 +356,7 @@
         page.searchMainData();
       });
 
-      // TB_XCLIENT 기준 팝업 — cltcd(문자 코드)를 hidden 에 담는다
+      // TB_XCLIENT 기준 거래처 팝업 — cltcd 를 hidden 에 담는다
       $('#cboCompany').click(function () {
         let poppage = new PopClientComponent();
         poppage.focusAfterClose = document.getElementById('cboCompany');
@@ -241,6 +372,17 @@
         if ($(this).val() === '') {
           $('#cboCompanyHidden').val('');
         }
+      });
+
+      // 부서 코드도움 (파워빌더 F2 코드도움과 같은 divicd 타입)
+      $('#divinm').click(function () {
+        codePopupOpen('divinm', 'divicd', 'divicd', '부서 검색');
+      });
+
+      $('#btnDiviClear').click(function () {
+        $('#divinm').val('');
+        $('#divicd').val('');
+        page.searchMainData();
       });
 
       // .btn-clear 클릭 후 input 이벤트 강제 발생
