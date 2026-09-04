@@ -55,43 +55,82 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
     return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-// GPS 좌표 조회 → 주소 변환
+// ─────────────────────────────────────────────────────────────
+// 위치 추적은 watchPosition 을 한 번만 건다.
+//
+// 예전에는 setInterval 로 5초마다 getCurrentPosition 을 새로 불렀는데,
+// 그 호출 하나하나가 별개의 권한 요청이라 네이버 인앱브라우저처럼
+// 허용을 저장하지 않는(WebView 의 retain=false) 환경에서는
+// 허용을 눌러도 5초 뒤 권한창이 다시 떴다. (분당 12회)
+//
+// watchPosition 은 구독을 한 번 열어두고 그 안에서 좌표가 갱신되므로
+// 권한 요청이 화면당 1회로 끝난다. GPS 세션이 유지돼 정확도도 더 좋아진다.
+// ─────────────────────────────────────────────────────────────
+var gpsWatchId = null;
+var gpsAccuracy = null;   // 마지막 측위의 오차 반경(m). 출퇴근 등록 시 참고용.
+
+const handleGpsPosition = (position) => {
+    // 1) 좌표부터 확보한다. Geocoder 상태와 무관하다.
+    latitude    = position.coords.latitude;
+    longitude   = position.coords.longitude;
+    gpsAccuracy = position.coords.accuracy;
+    console.log(`GPS Coordinates: Lat ${latitude}, Lon ${longitude}, 정확도 ${gpsAccuracy}m`);
+
+    // 2) 주소를 이미 확보했고 거의 움직이지 않았으면 변환을 건너뛴다 (카카오 API 호출 절감)
+    if (resolvedAddress
+        && distanceMeters(lastGeoLat, lastGeoLon, latitude, longitude) < GEO_MIN_MOVE_M) {
+        return;
+    }
+
+    // 3) 주소 변환
+    resolveAddress(latitude, longitude, 0);
+};
+
+const handleGpsError = (error) => {
+    // 권한 거부(1) / 측위 실패(2) / 타임아웃(3)
+    console.warn('GPS 접근 실패 code=' + error.code, error.message);
+    // gpsInfo 는 건드리지 않는다. 이전에 확보한 주소가 있으면 그대로 유지된다.
+
+    // 권한 거부가 아닌 일시적 실패(2,3)면 구독을 유지한다. 곧 다시 콜백이 온다.
+    // 권한 거부(1)는 구독을 정리한다 — 열어둬도 콜백이 오지 않는다.
+    if (error.code === 1 && gpsWatchId !== null) {
+        navigator.geolocation.clearWatch(gpsWatchId);
+        gpsWatchId = null;
+    }
+};
+
+// gpsInfo 에는 "실제 주소"만 넣는다. 출퇴근 등록 검증이 이 값의 유무로
+// 진행 여부를 판단하기 때문에, 에러/안내 문구를 넣으면 주소가 확보된 것으로 오인된다.
+//
+// 여러 번 불려도 구독은 하나만 유지한다 (화면의 재시도 버튼에서도 호출된다).
 const getGPSLocation = () => {
-    // gpsInfo 에는 "실제 주소"만 넣는다. 출퇴근 등록 검증이 이 값의 유무로
-    // 진행 여부를 판단하기 때문에, 에러/안내 문구를 넣으면 주소가 확보된 것으로 오인된다.
     if (!navigator.geolocation) {
         console.error('Geolocation 지원 안됨');
         return;
     }
+    if (gpsWatchId !== null) {
+        // 이미 추적 중이다. 새로 요청하면 권한창이 다시 뜰 수 있으므로 아무것도 하지 않는다.
+        return;
+    }
 
-    navigator.geolocation.getCurrentPosition(
-        (position) => {
-            // 1) 좌표부터 확보한다. Geocoder 상태와 무관하다.
-            latitude  = position.coords.latitude;
-            longitude = position.coords.longitude;
-            console.log(`GPS Coordinates: Lat ${latitude}, Lon ${longitude}, 정확도 ${position.coords.accuracy}m`);
-
-            // 2) 주소를 이미 확보했고 거의 움직이지 않았으면 변환을 건너뛴다 (API 호출 절감)
-            if (resolvedAddress
-                && distanceMeters(lastGeoLat, lastGeoLon, latitude, longitude) < GEO_MIN_MOVE_M) {
-                return;
-            }
-
-            // 3) 주소 변환
-            resolveAddress(latitude, longitude, 0);
-        },
-        (error) => {
-            // 권한 거부(1) / 측위 실패(2) / 타임아웃(3)
-            console.warn('GPS 접근 실패 code=' + error.code, error.message);
-            // gpsInfo 는 건드리지 않는다. 이전에 확보한 주소가 있으면 그대로 유지된다.
-        },
+    gpsWatchId = navigator.geolocation.watchPosition(
+        handleGpsPosition,
+        handleGpsError,
         {
             enableHighAccuracy: true,   // GPS 우선 사용 (WiFi/네트워크 측위 대신)
-            timeout: 15000,             // 최대 15초까지 GPS 측위 대기
-            maximumAge: 0               // 캐시된 이전 위치 사용 안 함
+            timeout: 15000,             // 최대 15초까지 측위 대기
+            maximumAge: 5000            // 5초 이내 측위값은 재사용 (불필요한 재측위 방지)
         }
     );
 };
+
+// 화면을 떠날 때 구독 정리
+window.addEventListener('pagehide', function () {
+    if (gpsWatchId !== null) {
+        navigator.geolocation.clearWatch(gpsWatchId);
+        gpsWatchId = null;
+    }
+});
 
 // Geocoder 가 준비될 때까지 기다렸다가 변환한다. 좌표는 이미 확보된 상태다.
 function resolveAddress(lat, lon, attempt) {

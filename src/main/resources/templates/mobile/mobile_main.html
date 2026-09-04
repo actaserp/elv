@@ -319,9 +319,11 @@
 
     updateIPAddress();
     updateTime();
-    getGPSLocation();                    // 진입 즉시 1회 — IP 조회 성공 여부와 무관하게 좌표를 잡는다
+    // 위치 추적은 watchPosition 구독을 한 번만 건다 (gps.js).
+    // 예전처럼 setInterval 로 5초마다 다시 요청하면 호출마다 권한 요청이 되어
+    // 네이버 인앱브라우저에서 허용을 눌러도 권한창이 계속 떴다.
+    getGPSLocation();
     setInterval(updateIPAddress, 5000);
-    setInterval(getGPSLocation, 5000);   // 위치 갱신을 IP 조회에서 분리
     setInterval(updateTime, 5000);
     updateDate();
 
