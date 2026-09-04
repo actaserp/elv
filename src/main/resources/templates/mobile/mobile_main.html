@@ -382,6 +382,11 @@
       };
       AjaxUtil.getAsyncData(url, {}, fnsuccess);
     }
+    // 출퇴근 등록 후 화면을 갱신할 때 밖에서도 부를 수 있게 노출한다.
+    // (출근 성공 시 예전에는 window.location.reload() 를 했는데, 새로고침이
+    //  인앱 브라우저의 위치 권한을 초기화해 권한창이 다시 뜨는 원인이었다)
+    window.searchMainData = searchMainData;
+
     searchMainData();
     AjaxUtil.fillSelectOptions($('#selectWorkcd'), 'workcd', 'choose', false, 'work_division', '');
 
@@ -557,7 +562,16 @@
               document.getElementById('officeIcon').style.width   = '22%';
               document.getElementById('overtimeIcon').style.width = '22%';
             }
-            Alert.alert('', result.message, reloadWindow);
+            // 새로고침 대신 필요한 값만 다시 조회한다.
+            // 출퇴근 판정에 쓰는 officeTime(출근시간)·hasCheckedOut(퇴근여부)은
+            // searchMainData() 안에서만 세팅되므로 이것으로 충분하다.
+            Alert.alert('', result.message, function () {
+              if (typeof window.searchMainData === 'function') {
+                window.searchMainData();
+              } else {
+                reloadWindow();   // 만약을 위한 대비
+              }
+            });
           } else {
             Alert.alert('', result.message || '출근 등록에 실패하였습니다.');
           }
