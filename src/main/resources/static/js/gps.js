@@ -124,11 +124,22 @@ const getGPSLocation = () => {
     );
 };
 
-// 화면을 떠날 때 구독 정리
-window.addEventListener('pagehide', function () {
-    if (gpsWatchId !== null) {
-        navigator.geolocation.clearWatch(gpsWatchId);
-        gpsWatchId = null;
+// ─────────────────────────────────────────────────────────────
+// 백그라운드 전환 시에는 구독을 건드리지 않는다.
+//
+// 안드로이드 WebView 는 앱을 백그라운드로 보낼 때도 pagehide 를 발생시킨다.
+// 여기서 clearWatch 를 하면 앱으로 돌아왔을 때 구독이 죽어 있어
+//   · 위치 갱신이 멈추고 (마지막 좌표로 고정된 채 출퇴근이 찍힘)
+//   · 재시도 시 watchPosition 을 다시 걸어 권한창이 또 뜬다
+// 페이지가 실제로 파기되면 구독도 함께 사라지므로 별도 정리는 필요 없다.
+//
+// 돌아왔을 때 구독이 사라져 있는 경우(웹뷰가 정리한 경우)에만 다시 건다.
+// 이때 권한창이 한 번 뜨는 것은 앱이 허용을 저장하지 않아 생기는 것으로 웹에서 막을 수 없다.
+// ─────────────────────────────────────────────────────────────
+document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (gpsWatchId === null) {
+        getGPSLocation();
     }
 });
 
