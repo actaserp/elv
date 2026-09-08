@@ -83,19 +83,23 @@ public class SalesListService {
         MapSqlParameterSource p = new MapSqlParameterSource();
         p.addValue("custcd", custcd);
         p.addValue("spjangcd", spjangcd);
+        // TB_DA026.bankcd 는 TB_AA040 의 bank(은행코드 2자리) + bankcd(계좌코드) 를 이어붙인 값이다.
+        //   예) bank='03' + bankcd='B01' → '03B01'
+        // 같은 은행에 계좌가 여러 개라 은행명만으로는 구분이 안 되므로 계좌번호를 함께 보여준다.
         return sqlRunner.getRows("""
-                SELECT DISTINCT a.bankcd AS code,
+                SELECT a.bank + a.bankcd AS code,
                        ISNULL(a.banknm, '') AS banknm,
-                       ISNULL(x.banknm, '') AS bankgrpnm
-                  FROM (SELECT DISTINCT bankcd FROM TB_DA026 WITH(NOLOCK)
-                         WHERE custcd = :custcd AND spjangcd = :spjangcd
-                           AND ISNULL(bankcd, '') <> '') d
-                  LEFT OUTER JOIN TB_AA040 a WITH(NOLOCK)
-                         ON a.spjangcd = :spjangcd AND d.bankcd LIKE '%' + a.bankcd
-                  LEFT OUTER JOIN TB_XBANK x WITH(NOLOCK)
-                         ON LEFT(d.bankcd, 2) = x.bankcd
-                 ORDER BY 1
-                """.replace("a.bankcd AS code", "d.bankcd AS code"), p);
+                       ISNULL(a.accnum, '') AS accnum,
+                       RTRIM(ISNULL(a.banknm, '')) +
+                       CASE WHEN ISNULL(a.accnum, '') <> '' THEN ' ' + a.accnum ELSE '' END AS label
+                  FROM TB_AA040 a WITH(NOLOCK)
+                 WHERE a.custcd = :custcd
+                   AND ISNULL(a.useyn, '1') = '1'
+                   AND EXISTS (SELECT 1 FROM TB_DA026 d WITH(NOLOCK)
+                                WHERE d.custcd = :custcd AND d.spjangcd = :spjangcd
+                                  AND d.bankcd = a.bank + a.bankcd)
+                 ORDER BY a.bank, a.bankcd
+                """, p);
     }
 
     /**

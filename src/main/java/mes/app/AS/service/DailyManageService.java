@@ -461,7 +461,10 @@ public class DailyManageService {
             namedParameterJdbcTemplate.update(insSql, insParam);
         }
 
-        // 4) TB_E037 appgubun='101'(결재), appdate=오늘 UPDATE
+        // 4) TB_E037 appgubun='111'(결재중), appdate=오늘 UPDATE
+        //    '101'(결재)은 결재선 전원이 승인했을 때 붙는 값이다. 상신 시점에 넣으면
+        //    아무도 결재하지 않은 문서가 업무일지 화면에서 "결재" 뱃지로 보인다.
+        //    최종 '101' 승격은 DailyApprovalService.changeApprovalState 가 담당한다.
         MapSqlParameterSource updParam = new MapSqlParameterSource();
         updParam.addValue("custcd",   custcd);
         updParam.addValue("spjangcd", spjangcd);
@@ -471,7 +474,7 @@ public class DailyManageService {
 
         String updSql = """
                 UPDATE TB_E037 SET
-                    appgubun = '101',
+                    appgubun = '111',
                     appdate  = :today
                 WHERE custcd   = :custcd
                   AND spjangcd = :spjangcd

@@ -674,8 +674,10 @@
             if (!row || !row.dataItem) { Alert.alert('', '취소할 업무일지를 선택해주세요.'); return; }
             const d = row.dataItem;
 
+            // 상신된 문서는 '111'(결재중) 또는 '101'(전원 결재 완료) 둘 중 하나다.
+            // 예전에는 상신 시점에 '101' 을 넣어서 '101' 만 봐도 됐다.
             const appgubun = d.appgubun || '';
-            if (appgubun !== '101') { Alert.alert('', '대기 상태인 건만 취소할 수 있습니다.'); return; }
+            if (appgubun !== '101' && appgubun !== '111') { Alert.alert('', '결재상신된 건만 취소할 수 있습니다.'); return; }
 
             Alert.confirm('', '결재상신을 취소하시겠습니까?', function () {
                 AjaxUtil.postAsyncData('/api/AS/daily_manage/approve/cancel', {

@@ -302,8 +302,17 @@ public class DailyApprovalService {
         updateE080.append("WHERE appnum=:appnum AND spjangcd=:spjangcd AND appperid=:perid");
         int affected = namedParameterJdbcTemplate.update(updateE080.toString(), param);
 
+        // 문서(TB_E037)의 상태는 결재자 개인의 처리결과가 아니라 결재선 전체의 진행도로 정한다.
+        //   001 미결재 → 111 결재중(일부만 결재) → 101 결재(전원 결재 완료)   ← 파워빌더 규약
+        // 이전에는 stateCode 를 그대로 덮어써서, 중간 결재자(이사)가 승인만 해도 문서가
+        // '101'(결재 완료)이 됐다. 경기엘리베이터에서 "이사가 결재하면 결재 확정된다"고 접수된 건.
+        String docState = "131".equals(stateCode) ? "131" : (isFullyApproved(appnum, spjangcd) ? "101" : "111");
+        MapSqlParameterSource docParam = new MapSqlParameterSource();
+        docParam.addValue("appnum",   appnum);
+        docParam.addValue("spjangcd", spjangcd);
+        docParam.addValue("docState", docState);
         namedParameterJdbcTemplate.update(
-            "UPDATE TB_E037 SET appgubun=:stateCode WHERE appnum=:appnum AND spjangcd=:spjangcd", param);
+            "UPDATE TB_E037 SET appgubun=:docState WHERE appnum=:appnum AND spjangcd=:spjangcd", docParam);
 
         // 결재 진행 순서는 tb_e080.appgubun 으로 판단한다 (파워빌더와 동일 규약).
         // flag 는 파워빌더가 전 행을 '1' 로 넣는 별개 용도의 컬럼이므로 여기서 건드리지 않는다.
@@ -311,6 +320,26 @@ public class DailyApprovalService {
         //  하나도 없어 승인은 무동작, 승인취소는 앞 결재자의 flag 를 '0' 으로 만들어 목록에서
         //  문서를 사라지게 만들었다. seq 를 Number 로 캐스팅해 ClassCastException 도 발생했다.)
         return affected > 0;
+    }
+
+    /**
+     * 결재선의 모든 결재자가 승인(101)했는지.
+     *
+     * seq='000' 행은 제외한다. 파워빌더가 참조자용으로 넣는 행이라 appgubun 이 항상 '001',
+     * flag 가 '0' 이어서 아무의 결재함에도 뜨지 않는다. (경기 3,771건, 2020~2023 생성)
+     * 이 행을 세면 어떤 문서도 결재 완료가 될 수 없다.
+     */
+    private boolean isFullyApproved(String appnum, String spjangcd) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("appnum",   appnum);
+        param.addValue("spjangcd", spjangcd);
+        Map<String, Object> row = sqlRunner.getRow("""
+                SELECT COUNT(*) AS cnt
+                  FROM tb_e080
+                 WHERE appnum=:appnum AND spjangcd=:spjangcd
+                   AND seq <> '000' AND appgubun <> '101'
+                """, param);
+        return row != null && ((Number) row.get("cnt")).intValue() == 0;
     }
 
     // ════════════════════════════════════════════════════════

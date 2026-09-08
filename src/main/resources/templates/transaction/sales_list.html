@@ -259,9 +259,10 @@
         AjaxUtil.getAsyncData('/api/sales/list/bankList',
             {spjangcd: this.spjangcd}, function (res) {
               const $sel = $('#cboBank').empty().append('<option value="%">전체</option>');
+              // label = '은행명 계좌번호'. 같은 은행에 계좌가 여러 개라 은행명만으로는 구분이 안 된다.
               ((res && res.data) ? res.data : []).forEach(function (b) {
-                const nm = (b.bankgrpnm || '') + (b.banknm ? ' ' + b.banknm : '');
-                $sel.append('<option value="' + b.code + '">' + (nm.trim() || b.code) + '</option>');
+                const nm = (b.label || '').trim() || b.code;
+                $sel.append('<option value="' + b.code + '">' + nm + '</option>');
               });
             });
       }
