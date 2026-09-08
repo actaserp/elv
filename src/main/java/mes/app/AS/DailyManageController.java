@@ -385,6 +385,14 @@ public class DailyManageController {
         }
 
         try {
+            // 상신취소는 tb_e080 행을 지운다. 결재가 시작된 뒤에 허용하면
+            // 이미 처리된 결재 이력(누가 언제 결재했는지)까지 함께 사라진다.
+            if (dailyManageService.hasAnyApproval(custcd, spjangcd, appnum)) {
+                result.success = false;
+                result.message = "이미 결재가 진행된 문서는 상신취소할 수 없습니다.";
+                return result;
+            }
+
             dailyManageService.cancelApproval(custcd, spjangcd, appnum, rptdate, perid);
             result.success = true;
             result.message = "상신취소 되었습니다.";

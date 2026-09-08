@@ -38,6 +38,11 @@ public class DailyReportController {
     @Autowired
     NcpObjectStorageService storageService;
 
+    // 결재상신/취소는 PC 업무일지 관리와 같은 로직을 쓴다. 두 화면이 갈라지면
+    // 결재선 해석이 달라져 문서 상태가 어긋난다.
+    @Autowired
+    mes.app.AS.service.DailyManageService dailyManageService;
+
     // ── 공통: tenantInfo + userInfo 합쳐서 반환 ───────────────
     private Map<String, Object> getTenantUserInfo(String username) {
         return tenantUserService.getUserInfo(username);
@@ -347,6 +352,87 @@ public class DailyReportController {
             log.error("업무일지 수정 오류", e);
             result.success = false;
             result.message = "수정 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
+
+    // ── 결재상신 / 상신취소 ────────────────────────────────────
+    // 결재는 상세(TB_E038) 한 건이 아니라 그 날짜의 업무일지 전체(TB_E037 헤드) 단위다.
+
+    /** 로그인 사용자의 custcd / spjangcd / perid(순수 사번). 못 구하면 null. */
+    private Map<String, String> resolveOwner(Authentication auth) {
+        User user = (User) auth.getPrincipal();
+        Map<String, Object> tenantInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (tenantInfo == null) return null;
+
+        Map<String, Object> userInfo =
+                dailyReportService.getUserInfo(((Number) tenantInfo.get("personid")).intValue());
+        if (userInfo == null) return null;
+
+        return Map.of(
+                "custcd",   (String) tenantInfo.get("custcd"),
+                "spjangcd", (String) tenantInfo.get("spjangcd"),
+                // TB_E037/TB_E038/tb_e080 은 'p' 없는 순수 사번을 쓴다.
+                "perid",    String.valueOf(userInfo.get("perid")).trim().replaceFirst("^p", ""));
+    }
+
+    @PostMapping("/submit_approval")
+    public AjaxResult submitApproval(@RequestParam("rptdate") String rptdate, Authentication auth) {
+        AjaxResult result = new AjaxResult();
+        Map<String, String> me = resolveOwner(auth);
+        if (me == null) { result.success = false; result.message = "사용자 정보를 찾을 수 없습니다."; return result; }
+
+        rptdate = rptdate.replaceAll("-", "");
+        try {
+            // 웹에서 만든 업무일지는 결재문서번호가 없다. 상신 시점에 채번한다.
+            String appnum = dailyManageService.ensureAppnum(
+                    me.get("custcd"), me.get("spjangcd"), rptdate, me.get("perid"));
+            if (appnum == null || appnum.isEmpty()) {
+                result.success = false;
+                result.message = "해당 일자의 업무일지를 찾을 수 없습니다.";
+                return result;
+            }
+
+            String today = java.time.LocalDate.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
+            String errorMsg = dailyManageService.submitApproval(
+                    me.get("custcd"), me.get("spjangcd"), appnum, rptdate, me.get("perid"), today);
+
+            if (errorMsg != null) { result.success = false; result.message = errorMsg; return result; }
+            result.success = true;
+            result.message = "결재상신 되었습니다.";
+        } catch (Exception e) {
+            log.error("업무일지 결재상신 오류 rptdate={}", rptdate, e);
+            result.success = false;
+            result.message = "결재상신 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
+
+    @PostMapping("/cancel_approval")
+    public AjaxResult cancelApproval(@RequestParam("rptdate") String rptdate,
+                                     @RequestParam("appnum")  String appnum,
+                                     Authentication auth) {
+        AjaxResult result = new AjaxResult();
+        Map<String, String> me = resolveOwner(auth);
+        if (me == null) { result.success = false; result.message = "사용자 정보를 찾을 수 없습니다."; return result; }
+
+        rptdate = rptdate.replaceAll("-", "");
+        try {
+            // 상신취소는 tb_e080 행을 지운다. 결재가 시작된 뒤에 허용하면 처리된 이력까지 사라진다.
+            if (dailyManageService.hasAnyApproval(me.get("custcd"), me.get("spjangcd"), appnum)) {
+                result.success = false;
+                result.message = "이미 결재가 진행된 문서는 상신취소할 수 없습니다.";
+                return result;
+            }
+            dailyManageService.cancelApproval(
+                    me.get("custcd"), me.get("spjangcd"), appnum, rptdate, me.get("perid"));
+            result.success = true;
+            result.message = "결재상신이 취소되었습니다.";
+        } catch (Exception e) {
+            log.error("업무일지 상신취소 오류 rptdate={}, appnum={}", rptdate, appnum, e);
+            result.success = false;
+            result.message = "상신취소 중 오류가 발생하였습니다.";
         }
         return result;
     }

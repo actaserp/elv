@@ -22,6 +22,15 @@
   .popup-footer { padding:12px 20px; border-top:1px solid #eee; display:flex; gap:8px; flex-shrink:0; }
   .btn-delete { flex:1; padding:12px; background:#ff4444; color:#fff; border:none; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; }
   .btn-edit   { flex:1; padding:12px; background:#4472c4; color:#fff; border:none; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; }
+  .btn-submit      { flex:1; padding:12px; background:#188038; color:#fff; border:none; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; }
+  .btn-cancel-appr { flex:1; padding:12px; background:#777;    color:#fff; border:none; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; }
+  /* 결재상태 뱃지 (PC 업무일지 관리 화면과 같은 색) */
+  .appr-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+  .appr-001 { background:#f1f1f1; color:#777777; }
+  .appr-101 { background:#e6f4ea; color:#188038; }
+  .appr-111 { background:#fef3e2; color:#e37400; }
+  .appr-131 { background:#fce8e6; color:#c5221f; }
+  .appr-none { background:#f1f1f1; color:#999999; }
   .edit-row { display:flex; flex-direction:column; margin-bottom:14px; }
   .edit-label { font-size:13px; color:#999; margin-bottom:4px; }
   .edit-input { padding:9px 10px; border:1px solid #ddd; border-radius:6px; font-size:14px; width:100%; box-sizing:border-box; }
@@ -108,6 +117,8 @@
     </div>
     <div class="popup-body" id="popupBody"></div>
     <div class="popup-footer">
+      <button class="btn-submit" id="btnSubmitAppr" onclick="submitApproval()">결재상신</button>
+      <button class="btn-cancel-appr" id="btnCancelAppr" onclick="cancelApproval()">상신취소</button>
       <button class="btn-edit"   onclick="openEditPopup()">수정</button>
       <button class="btn-delete" onclick="deleteRecord()">삭제</button>
     </div>
@@ -186,7 +197,9 @@
   </div>
 </div>
 
-<script type="text/javascript">
+<!-- th:inline="none" : 이 블록은 Thymeleaf 표현식을 쓰지 않는다. 이게 없으면 자바스크립트의
+     대괄호+괄호 조합(배열 첨자 안의 괄호식, 정규식 등)이 인라인 출력 문법으로 해석돼 템플릿 파싱이 깨진다. -->
+<script type="text/javascript" th:inline="none">
   var ctx = document.querySelector('meta[name="ctx"]').getAttribute('content') || '/';
   var _spjangcd = sessionStorage.getItem('spjangcd') || '';
   var _selectedItem = null;
@@ -223,6 +236,20 @@
     });
   }
 
+  // TB_CA510(com_cls='621') 기준. 상신 전에는 값이 비어 있다.
+  const APPR_LABEL = { '001': '대기', '101': '결재', '111': '결재중', '131': '반려' };
+
+  function apprCode(item) {
+    return ((item && item.appgubun) || '').trim();
+  }
+
+  function apprBadge(appgubun) {
+    const code  = (appgubun || '').trim();
+    const label = APPR_LABEL[code] || '미상신';
+    const cls   = APPR_LABEL[code] ? ('appr-' + code) : 'appr-none';
+    return `<span class="appr-badge ${cls}">${label}</span>`;
+  }
+
   function renderCardList(list) {
     const container = document.getElementById('cardList');
     const countEl   = document.getElementById('resultCount');
@@ -238,7 +265,9 @@
         <div class="site-card" onclick='openDetailPopup(${JSON.stringify(item)})'>
           <div class="card-header">
             <span class="card-actnm">${esc(item.actnm || '-')}</span>
-            <span style="font-size:12px; color:#888;">${esc(item.rptdate || '')}</span>
+            <span style="font-size:12px; color:#888; display:flex; align-items:center; gap:6px;">
+              ${apprBadge(item.appgubun)}${esc(item.rptdate || '')}
+            </span>
           </div>
           ${item.pernm ? `<div class="card-row"><span class="card-label">작성자</span><span class="card-value">${esc(item.pernm)}</span></div>` : ''}
           ${item.wkcd ? `<div class="card-row"><span class="card-label">업무구분</span><span class="card-value">${esc(item.wkcd)}</span></div>` : ''}
@@ -251,10 +280,14 @@
 
   function openDetailPopup(item) {
     _selectedItem = item;
+    // 주의: 대괄호 바로 뒤에 여는 괄호가 오면 Thymeleaf 인라인 출력 문법으로 해석돼 템플릿 파싱이 깨진다.
+    // 그래서 첨자 안에 괄호식을 직접 쓰지 않고 apprCode() 로 뺐다.
+    const apprText = APPR_LABEL[apprCode(item)] || '미상신';
     document.getElementById('popupTitle').textContent = item.actnm || '업무일지 상세';
     let html = `<div class="detail-section-title">업무일지 정보</div>`;
     html += buildDetailRows([
       { label: '일자',     value: item.rptdate },
+      { label: '결재상태', value: apprText },
       { label: '작성자',   value: item.pernm   },
       { label: '현장명',   value: item.actnm   },
       { label: '호기',     value: item.equpnm  },
@@ -278,7 +311,54 @@
     }
 
     document.getElementById('popupBody').innerHTML = html;
+    applyApprButtons(item);
     openPopup('detailPopup');
+  }
+
+  // 결재는 상세 한 건이 아니라 그 날짜의 업무일지 전체에 걸린다.
+  // 미상신이면 상신만, 상신됐으면 취소만 보인다. PC 업무일지 관리와 같은 규칙.
+  function applyApprButtons(item) {
+    const code      = apprCode(item);
+    const submitted = (code === '111' || code === '101');
+    document.getElementById('btnSubmitAppr').hidden = submitted;
+    document.getElementById('btnCancelAppr').hidden = !submitted;
+  }
+
+  function submitApproval() {
+    if (!_selectedItem) return;
+    Alert.confirm('', (_selectedItem.rptdate || '') + ' 업무일지를 결재상신 하시겠습니까?\n해당 일자의 작성 내역 전체가 함께 상신됩니다.', function () {
+      AjaxUtil.postAsyncData('/api/daily_report/submit_approval', {
+        rptdate : _selectedItem.rptdate
+      }, function (result) {
+        if (result && result.success) {
+          Alert.alert('', result.message, function () {
+            closePopup('detailPopup');
+            searchList();
+          });
+        } else {
+          Alert.alert('', (result && result.message) || '결재상신 중 오류가 발생하였습니다.');
+        }
+      });
+    }, function () {});
+  }
+
+  function cancelApproval() {
+    if (!_selectedItem) return;
+    Alert.confirm('', '결재상신을 취소하시겠습니까?', function () {
+      AjaxUtil.postAsyncData('/api/daily_report/cancel_approval', {
+        rptdate : _selectedItem.rptdate,
+        appnum  : _selectedItem.appnum
+      }, function (result) {
+        if (result && result.success) {
+          Alert.alert('', result.message, function () {
+            closePopup('detailPopup');
+            searchList();
+          });
+        } else {
+          Alert.alert('', (result && result.message) || '상신취소 중 오류가 발생하였습니다.');
+        }
+      });
+    }, function () {});
   }
 
   function deleteRecord() {

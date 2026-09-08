@@ -227,8 +227,15 @@ public class DailyReportService {
                     e.totime,
                     e.remark,
                     e.filesvnm,
-                    e.filepath
+                    e.filepath,
+                    -- 결재는 상세(TB_E038)가 아니라 일자 단위 헤드(TB_E037)에 걸린다.
+                    ISNULL(h.appgubun, '') AS appgubun,
+                    ISNULL(h.appnum,   '') AS appnum
                 FROM TB_E038 e
+                LEFT JOIN TB_E037 h   ON h.custcd    = e.custcd
+                                     AND h.spjangcd  = e.spjangcd
+                                     AND h.rptdate   = e.rptdate
+                                     AND h.perid     = e.perid
                 LEFT JOIN TB_JA001 j  ON j.perid    = 'p' + e.perid
                                      AND j.spjangcd  = e.spjangcd
                 LEFT JOIN TB_E611 eq  ON eq.actcd    = e.actcd

@@ -1,5 +1,6 @@
 package mes.app.AS.service;
 
+import lombok.extern.slf4j.Slf4j;
 import mes.app.files.NcpObjectStorageService;
 import mes.domain.services.SqlRunner;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,8 +11,12 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class DailyManageService {
+
+    /** 결재문서번호 채번 재시도 횟수. MAX+1 이라 한 번만 다시 받아도 대개 풀린다. */
+    private static final int APPNUM_MAX_ATTEMPT = 3;
 
     @Autowired
     SqlRunner sqlRunner;
@@ -389,6 +394,107 @@ public class DailyManageService {
         namedParameterJdbcTemplate.update(insertSql, param);
     }
 
+    /**
+     * 결재문서번호(TB_E037.appnum) 확보. 이미 있으면 그대로 쓰고, 없으면 채번한다.
+     *
+     * 지금까지 appnum 은 파워빌더가 업무일지를 저장할 때만 붙였다. 웹/모바일의 업무일지 등록은
+     * TB_E037 을 MERGE 로 만들기만 하고 appnum 을 넣지 않아서, 웹에서 만든 일지는 상신할 때
+     * "결재문서번호(appnum)가 없습니다" 로 막혔다. (경기 8,522건 중 1건이 그 상태)
+     *
+     * 형식은 파워빌더와 동일하게 rptdate 의 YYYYMM + '101'(업무일지 양식코드) + 4자리 일련번호.
+     * 일련번호는 월 단위로 0001 부터 시작하며, 삭제된 번호는 재사용하지 않으므로 건수가 아니라
+     * 그 달의 최대값 + 1 이다. (2026-04: 138건인데 최대 0139)
+     *
+     * 채번과 기록을 한 UPDATE 문 안에서 끝내고 같은 달 범위에 UPDLOCK/HOLDLOCK 을 걸어
+     * 웹 요청끼리는 같은 번호가 나오지 않게 한다. 파워빌더는 이 잠금 밖이라 동시 저장 시
+     * 충돌 가능성이 남는데, 웹 채번은 '상신 시점의 미채번 건'에만 걸려 창이 매우 좁다.
+     *
+     * 그 좁은 창까지 막기 위해, 채번 후 그 번호가 유일한지 확인하고 겹쳤으면 비우고 다시 받는다.
+     * (MAX+1 이므로 재시도하면 방금 쓴 번호보다 큰 값이 나와 같은 충돌이 반복되지 않는다)
+     * 겹치는 순간 WARN 을 남긴다 — 파워빌더와의 충돌이 실제로 일어나는지 확인할 근거가 된다.
+     * TB_E037 에는 appnum 유니크 인덱스가 없어서(PK 는 custcd+spjangcd+rptdate+perid) DB 가
+     * 막아주지 못한다. 실제로 중복이 남아 있다 — 경기 2건, 히츠 16건. 같은 appnum 을 쓰는
+     * 문서끼리는 결재 이력이 섞인다. 결재 조회가 전부 'WHERE appnum = ...' 만 보기 때문이다.
+     *
+     * @return 확보된 appnum. 헤드가 없거나 끝내 유일한 번호를 못 받으면 null.
+     */
+    public String ensureAppnum(String custcd, String spjangcd, String rptdate, String perid) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("custcd",   custcd);
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("rptdate",  rptdate);
+        param.addValue("perid",    perid);
+
+        String selectSql = """
+                SELECT appnum FROM TB_E037
+                 WHERE custcd=:custcd AND spjangcd=:spjangcd AND rptdate=:rptdate AND perid=:perid
+                """;
+        Map<String, Object> row = sqlRunner.getRow(selectSql, param);
+        if (row == null) return null;                       // 헤드 자체가 없음
+
+        String appnum = row.get("appnum") == null ? "" : String.valueOf(row.get("appnum")).trim();
+        if (!appnum.isEmpty()) return appnum;               // 파워빌더가 이미 붙여둔 번호
+
+        for (int attempt = 1; attempt <= APPNUM_MAX_ATTEMPT; attempt++) {
+            assignAppnum(param);
+
+            row = sqlRunner.getRow(selectSql, param);
+            appnum = (row == null || row.get("appnum") == null) ? "" : String.valueOf(row.get("appnum")).trim();
+            if (appnum.isEmpty()) return null;              // 채번 실패
+
+            if (countByAppnum(custcd, spjangcd, appnum) <= 1) return appnum;
+
+            log.warn("[업무일지 채번 충돌] appnum={} 이 이미 사용 중이다. rptdate={}, perid={}, {}회차 — 비우고 재채번한다.",
+                    appnum, rptdate, perid, attempt);
+            clearAppnum(param);
+        }
+
+        // 여기까지 오면 비운 상태로 끝난다. 번호를 붙이지 않는 편이 남의 결재에 섞이는 것보다 낫다.
+        log.error("[업무일지 채번 실패] {}회 시도했으나 유일한 appnum 을 얻지 못했다. custcd={}, rptdate={}, perid={}",
+                APPNUM_MAX_ATTEMPT, custcd, rptdate, perid);
+        return null;
+    }
+
+    /** 같은 사업체 안에서 그 appnum 을 쓰는 헤드 수. 1 이면 정상. */
+    private int countByAppnum(String custcd, String spjangcd, String appnum) {
+        MapSqlParameterSource p = new MapSqlParameterSource();
+        p.addValue("custcd",   custcd);
+        p.addValue("spjangcd", spjangcd);
+        p.addValue("appnum",   appnum);
+        Map<String, Object> r = sqlRunner.getRow("""
+                SELECT COUNT(*) AS cnt FROM TB_E037
+                 WHERE custcd=:custcd AND spjangcd=:spjangcd AND appnum=:appnum
+                """, p);
+        return r == null ? 0 : ((Number) r.get("cnt")).intValue();
+    }
+
+    /** 재채번을 위해 내 헤드의 appnum 만 비운다. */
+    private void clearAppnum(MapSqlParameterSource param) {
+        namedParameterJdbcTemplate.update("""
+                UPDATE TB_E037 SET appnum = ''
+                 WHERE custcd=:custcd AND spjangcd=:spjangcd AND rptdate=:rptdate AND perid=:perid
+                """, param);
+    }
+
+    private void assignAppnum(MapSqlParameterSource param) {
+        namedParameterJdbcTemplate.update("""
+                UPDATE h
+                   SET h.appnum = LEFT(h.rptdate, 6) + '101'
+                       + RIGHT('0000' + CAST(
+                             ISNULL((SELECT MAX(CAST(RIGHT(x.appnum, 4) AS INT))
+                                       FROM TB_E037 x WITH(UPDLOCK, HOLDLOCK)
+                                      WHERE x.custcd = h.custcd
+                                        AND x.spjangcd = h.spjangcd
+                                        AND LEN(x.appnum) = 13
+                                        AND LEFT(x.appnum, 9) = LEFT(h.rptdate, 6) + '101'), 0) + 1
+                         AS varchar(4)), 4)
+                  FROM TB_E037 h
+                 WHERE h.custcd=:custcd AND h.spjangcd=:spjangcd
+                   AND h.rptdate=:rptdate AND h.perid=:perid
+                   AND ISNULL(h.appnum, '') = ''
+                """, param);
+    }
+
     // ── 결재상신 (tb_e064 결재라인 → tb_e080 INSERT + TB_E037 UPDATE) ──
     public String submitApproval(String custcd, String spjangcd, String appnum, String rptdate, String perid, String today) {
 
@@ -484,6 +590,26 @@ public class DailyManageService {
         namedParameterJdbcTemplate.update(updSql, updParam);
 
         return null; // null = 성공
+    }
+
+    /**
+     * 결재선에 이미 승인(101)한 사람이 있는지.
+     *
+     * cancelApproval 은 tb_e080 행을 지워버리므로, 결재가 시작된 뒤에 취소하면
+     * 이미 처리된 결재 이력까지 사라진다. 상신자 본인이 되돌릴 수 있는 범위는
+     * "아무도 결재하지 않은 상태" 까지다.
+     */
+    public boolean hasAnyApproval(String custcd, String spjangcd, String appnum) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("custcd",   custcd);
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("appnum",   appnum);
+        Map<String, Object> row = sqlRunner.getRow("""
+                SELECT COUNT(*) AS cnt FROM tb_e080
+                 WHERE custcd=:custcd AND spjangcd=:spjangcd AND appnum=:appnum
+                   AND appgubun='101'
+                """, param);
+        return row != null && ((Number) row.get("cnt")).intValue() > 0;
     }
 
     // ── 결재상신 취소 (tb_e080 DELETE + TB_E037 UPDATE) ──────
