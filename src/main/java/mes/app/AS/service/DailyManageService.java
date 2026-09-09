@@ -536,12 +536,19 @@ public class DailyManageService {
         }
 
         // 3) tb_e080 INSERT (결재라인 순서대로)
+        //
+        // flag 는 "지금 이 사람 차례인가" 를 뜻하는 순번 게이트다.
+        // 결재함 조회가 flag='1' 만 보므로, 첫 결재자만 '1' 이고 나머지는 '0' 으로 넣는다.
+        // 앞사람이 승인하면 changeApprovalState 가 다음 사람의 flag 를 '1' 로 켠다.
+        //
+        // 순서는 TB_E064.seq 를 따르는데 그 값이 비어 있는 사업체가 있어(경기 일부),
+        // seq 값 자체로 판단하지 않고 조회 순서(ORDER BY seq)의 첫 행을 첫 결재자로 본다.
+        int lineNo = 0;
         for (Map<String, Object> line : lines) {
             String kcperid = (String) line.get("kcperid");
             String seq     = String.valueOf(line.get("seq"));
-            // flag 는 파워빌더가 결재선 전 행을 '1' 로 넣는다. 여기서 seq=1 만 '1' 을 넣으면
-            // 2번 이후 결재자가 getPendingApprovalList 의 flag='1' 필터에 걸려 문서를 볼 수 없다.
-            String flag    = "1";
+            String flag    = (lineNo == 0) ? "1" : "0";
+            lineNo++;
 
             MapSqlParameterSource insParam = new MapSqlParameterSource();
             insParam.addValue("custcd",   custcd);

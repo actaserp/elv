@@ -336,12 +336,55 @@ public class DailyApprovalService {
         namedParameterJdbcTemplate.update(
             "UPDATE TB_E037 SET appgubun=:docState WHERE appnum=:appnum AND spjangcd=:spjangcd", docParam);
 
-        // 결재 진행 순서는 tb_e080.appgubun 으로 판단한다 (파워빌더와 동일 규약).
-        // flag 는 파워빌더가 전 행을 '1' 로 넣는 별개 용도의 컬럼이므로 여기서 건드리지 않는다.
-        // (이전 updateNextFlag 는 flag 를 순번 게이트로 가정했는데, 실제 데이터에 flag='0' 행이
-        //  하나도 없어 승인은 무동작, 승인취소는 앞 결재자의 flag 를 '0' 으로 만들어 목록에서
-        //  문서를 사라지게 만들었다. seq 를 Number 로 캐스팅해 ClassCastException 도 발생했다.)
+        // 승인(101)일 때만 다음 결재자의 차례를 연다.
+        //
+        // flag 는 "지금 이 사람 차례인가" 를 뜻한다. 상신 시 첫 결재자만 '1' 이고 나머지는 '0' 이라,
+        // 앞사람이 승인하는 시점에 바로 다음 사람의 flag 를 '1' 로 켜줘야 그 사람 결재함에 뜬다.
+        // 켜주지 않으면 문서가 결재선 중간에서 멈춘 채 아무에게도 보이지 않는다.
+        // (경기엘리베이터 2026091010035 · 2026091010041 이 그 상태로 접수됐다)
+        //
+        // 반려·보류·승인취소에서는 flag 를 건드리지 않는다. 예전 updateNextFlag 는 취소 시
+        // 앞 결재자의 flag 까지 '0' 으로 만들어 문서를 목록에서 사라지게 했다.
+        if ("101".equals(stateCode)) {
+            openNextApprover(appnum, spjangcd, purePerid);
+        }
+
         return affected > 0;
+    }
+
+    /**
+     * 방금 승인한 사람의 바로 다음 결재자 한 명만 flag='1' 로 켠다.
+     *
+     * seq 는 varchar 라 문자 비교하면 '10' 이 '2' 보다 앞서므로 숫자로 변환해서 비교한다.
+     * seq='000' 은 파워빌더가 참조자용으로 넣는 행이라 결재 순번에서 제외한다.
+     */
+    private void openNextApprover(String appnum, String spjangcd, String purePerid) {
+        MapSqlParameterSource p = new MapSqlParameterSource();
+        p.addValue("appnum",   appnum);
+        p.addValue("spjangcd", spjangcd);
+        p.addValue("perid",    purePerid);
+
+        int opened = namedParameterJdbcTemplate.update("""
+                UPDATE tb_e080
+                   SET flag = '1'
+                 WHERE appnum = :appnum AND spjangcd = :spjangcd
+                   AND seq <> '000'
+                   AND TRY_CAST(seq AS int) = (
+                         SELECT MIN(TRY_CAST(z.seq AS int))
+                           FROM tb_e080 z
+                          WHERE z.appnum = :appnum AND z.spjangcd = :spjangcd
+                            AND z.seq <> '000'
+                            AND TRY_CAST(z.seq AS int) > (
+                                  SELECT MAX(TRY_CAST(m.seq AS int))
+                                    FROM tb_e080 m
+                                   WHERE m.appnum = :appnum AND m.spjangcd = :spjangcd
+                                     AND m.appperid = :perid AND m.seq <> '000'))
+                """, p);
+
+        if (opened == 0) {
+            // 마지막 결재자였거나 결재선이 한 명뿐인 정상 상황이다. 확인용으로만 남긴다.
+            log.debug("[결재] 다음 결재자 없음 appnum={}, perid={}", appnum, purePerid);
+        }
     }
 
     /** 그 사람이 이 문서를 이미 승인(101)했는지. */
