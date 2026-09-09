@@ -287,6 +287,10 @@ public class DailyApprovalController {
                 result.success = false;
                 result.message = "상태 변경 실패";
             }
+        } catch (IllegalStateException e) {
+            // 중복 승인 같은 업무 규칙 위반. 사용자에게 그대로 보여줄 문구다.
+            result.success = false;
+            result.message = e.getMessage();
         } catch (Exception e) {
             log.error("[결재 상태 변경 실패]", e);
             markRollback();

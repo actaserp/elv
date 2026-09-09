@@ -197,10 +197,26 @@ public class DailyApprovalService {
                        e.repodate, e.appdate, e.title, e.remark,
                        e.papercd,
                        ca.com_cnam AS papercd_name,
-                       e.flag
+                       e.flag,
+                       -- 표시용 상태: 내가 결재(101)했더라도 결재선에 남은 사람이 있으면 '결재중'이다.
+                       -- e.appgubun 은 '내 처리결과'라 마지막 결재자 전에도 '결재'로 보였다.
+                       CASE WHEN e.appgubun <> '101' THEN e.appgubun
+                            WHEN EXISTS (SELECT 1 FROM tb_e080 z
+                                          WHERE z.appnum = e.appnum AND z.spjangcd = e.spjangcd
+                                            AND z.seq <> '000' AND z.appgubun <> '101')
+                            THEN '111'
+                            ELSE '101' END AS appgubun_view,
+                       CASE WHEN e.appgubun = '101' THEN 1 ELSE 0 END AS already_approved
                 FROM tb_e080 e
                 LEFT JOIN TB_JA001 j  ON j.perid='p'+e.repoperid AND j.spjangcd=e.spjangcd
-                LEFT JOIN TB_CA510 sc ON sc.com_cls='621' AND sc.com_code=e.appgubun
+                -- 라벨도 표시용 상태(appgubun_view)를 따라간다. 화면은 이 값을 그대로 보여준다.
+                LEFT JOIN TB_CA510 sc ON sc.com_cls='621'
+                     AND sc.com_code = CASE WHEN e.appgubun <> '101' THEN e.appgubun
+                                            WHEN EXISTS (SELECT 1 FROM tb_e080 z
+                                                          WHERE z.appnum = e.appnum AND z.spjangcd = e.spjangcd
+                                                            AND z.seq <> '000' AND z.appgubun <> '101')
+                                            THEN '111'
+                                            ELSE '101' END
                 LEFT JOIN TB_CA510 ca ON ca.com_cls='620' AND ca.com_code=e.papercd
                 WHERE e.spjangcd=:spjangcd AND e.appperid=:perid AND e.flag='1'
                   AND e.repodate BETWEEN :startDate AND :endDate
@@ -285,6 +301,12 @@ public class DailyApprovalService {
         String stateCode = actionMap.get(action);
         if (stateCode == null) return false;
 
+        // 이미 승인한 건을 다시 승인하면 appdate 만 오늘로 덮어써 결재 이력이 훼손된다.
+        // 화면에서도 버튼을 막지만, 목록이 갱신되기 전에 누르는 경우가 있어 서버에서 한 번 더 막는다.
+        if ("approve".equals(action) && isApprovedBy(appnum, spjangcd, purePerid)) {
+            throw new IllegalStateException("이미 승인하신 결재건입니다.");
+        }
+
         String today = java.time.LocalDate.now()
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
 
@@ -320,6 +342,20 @@ public class DailyApprovalService {
         //  하나도 없어 승인은 무동작, 승인취소는 앞 결재자의 flag 를 '0' 으로 만들어 목록에서
         //  문서를 사라지게 만들었다. seq 를 Number 로 캐스팅해 ClassCastException 도 발생했다.)
         return affected > 0;
+    }
+
+    /** 그 사람이 이 문서를 이미 승인(101)했는지. */
+    private boolean isApprovedBy(String appnum, String spjangcd, String purePerid) {
+        MapSqlParameterSource p = new MapSqlParameterSource();
+        p.addValue("appnum",   appnum);
+        p.addValue("spjangcd", spjangcd);
+        p.addValue("perid",    purePerid);
+        Map<String, Object> row = sqlRunner.getRow("""
+                SELECT COUNT(*) AS cnt FROM tb_e080
+                 WHERE appnum=:appnum AND spjangcd=:spjangcd
+                   AND appperid=:perid AND appgubun='101'
+                """, p);
+        return row != null && ((Number) row.get("cnt")).intValue() > 0;
     }
 
     /**
@@ -463,7 +499,11 @@ public class DailyApprovalService {
                     e.totime,
                     e.equpcd,
                     m.equpnm,
-                    e.remark
+                    e.remark,
+                    -- 결재자가 첨부를 열어볼 수 있도록 내려준다. 다운로드는 업무일지와 같은
+                    -- /api/daily_report/download 를 쓴다.
+                    e.filesvnm,
+                    e.filepath
                 FROM TB_E038 e
                 LEFT JOIN TB_E021 b ON b.custcd = e.custcd AND b.spjangcd = e.spjangcd AND b.busicd = e.wkcd
                 LEFT JOIN TB_E611 m ON m.equpcd = e.equpcd AND m.actcd = e.actcd AND m.spjangcd = e.spjangcd

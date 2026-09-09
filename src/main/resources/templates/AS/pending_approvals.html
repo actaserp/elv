@@ -314,9 +314,29 @@
                 { binding: 'equpnm',  header: '호기',   width: 100, align: 'center' },
                 { binding: 'frtime',  header: '시작',   width: 70,  align: 'center' },
                 { binding: 'totime',  header: '종료',   width: 70,  align: 'center' },
-                { binding: 'remark',  header: '내용',   width: '*', minWidth: 150, align: 'left' }
+                { binding: 'remark',  header: '내용',   width: '*', minWidth: 150, align: 'left' },
+                { binding: 'filesvnm', header: '첨부파일', width: 100, align: 'center' },
+                { binding: 'filepath', visible: false }
               ],
               itemsSource: viewdata
+            });
+            // 첨부파일 셀을 다운로드 링크로 그린다. 업무일지 관리 화면과 같은 엔드포인트를 쓴다.
+            detailGrid.formatItem.addHandler(function (s, e) {
+              if (e.panel !== s.cells) return;
+              const col = s.columns[e.col];
+              if (col.binding !== 'filesvnm') return;
+              const item     = s.rows[e.row].dataItem;
+              const filesvnm = item && item.filesvnm ? String(item.filesvnm).trim() : '';
+              const filepath = item && item.filepath ? String(item.filepath).trim() : '';
+              if (filesvnm) {
+                const url = withCtx('/api/daily_report/download')
+                          + '?filepath=' + encodeURIComponent(filepath)
+                          + '&filesvnm=' + encodeURIComponent(filesvnm);
+                e.cell.innerHTML = `<a href="${url}" target="_blank"
+                    style="color:#4472c4; text-decoration:underline; font-size:12px;">📎 다운로드</a>`;
+              } else {
+                e.cell.innerHTML = '';
+              }
             });
             detailGrid.rowHeaders.columns.splice(0, 1);
           } else {
@@ -346,6 +366,7 @@
       let $btnCancel  = $('.btn-cancel');
 
       [$btnReject, $btnHold, $btnApprove, $btnCancel].forEach(btn => btn.prop('disabled', true));
+      showApprNotice('');
 
       let appnum = document.getElementById('appnum').value;
       if (!appnum) return;
@@ -364,8 +385,12 @@
             case '101':
               if (canCancel && isApproved) {
                 $btnCancel.prop('disabled', false);
+                showApprNotice('이미 승인하신 결재건입니다. 승인취소만 가능합니다.');
               } else if (res.data?.canApprove && !isApproved) {
                 [$btnReject, $btnHold, $btnApprove].forEach(btn => btn.prop('disabled', false));
+              } else {
+                // 내가 승인한 뒤 다음 결재자가 이미 처리해서 되돌릴 수 없는 상태
+                showApprNotice('이미 승인하신 결재건입니다.');
               }
               break;
             case '001':
@@ -380,6 +405,21 @@
           }
         }
       });
+    }
+
+    // 버튼이 모두 잠긴 이유를 팝업 안에 알려준다. 빈 문자열이면 감춘다.
+    function showApprNotice(msg) {
+      let el = document.getElementById('apprNotice');
+      if (!el) {
+        const anchor = document.querySelector('.btn-approve');
+        if (!anchor || !anchor.parentNode) return;
+        el = document.createElement('div');
+        el.id = 'apprNotice';
+        el.style.cssText = 'margin:8px 0; color:#c5221f; font-size:13px;';
+        anchor.parentNode.insertBefore(el, anchor.parentNode.firstChild);
+      }
+      el.textContent = msg || '';
+      el.style.display = msg ? '' : 'none';
     }
 
     function Statechange(action) {

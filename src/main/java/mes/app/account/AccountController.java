@@ -137,6 +137,15 @@ public class AccountController {
 		return mv;
 	}
 	
+	/** 자동로그인 쿠키를 지정한 경로에서 즉시 만료시킨다. */
+	private void expireAutoLoginCookie(HttpServletResponse response, String path) {
+		Cookie clearCookie = new Cookie("MES_AUTO_LOGIN", null);
+		clearCookie.setHttpOnly(true);
+		clearCookie.setMaxAge(0);
+		clearCookie.setPath(path);
+		response.addCookie(clearCookie);
+	}
+
 	@GetMapping("/logout")
 	public void logout(
 			HttpServletRequest request
@@ -149,13 +158,20 @@ public class AccountController {
 		
 		handler.logout(request, response, auth);
 
-		// ✅ 자동로그인 쿠키 제거
-		Cookie clearCookie = new Cookie("MES_AUTO_LOGIN", null);
-		clearCookie.setMaxAge(0);     // 즉시 만료
-		clearCookie.setPath("/");     // 전체 경로 적용
-		response.addCookie(clearCookie);
+		String ctx = request.getContextPath(); // "/elv"
 
-		String ctx = request.getContextPath(); // "/mes"
+		// ✅ 자동로그인 쿠키 제거
+		// 쿠키는 이름·경로·도메인이 모두 일치해야 삭제된다. 생성 시 path 가 contextPath 이므로
+		// 여기서도 같은 경로로 지워야 한다. 예전에는 "/" 로 지워서 쿠키가 남았고, 그 결과
+		// 로그아웃 → /login 진입 → 자동로그인 쿠키로 재인증 → redirect:/ 로 되돌아가
+		// 로그인 화면을 볼 수 없었다.
+		String cookiePath = ctx.isEmpty() ? "/" : ctx;
+		expireAutoLoginCookie(response, cookiePath);
+		// 구버전이 "/" 경로로 심어둔 쿠키가 남아 있을 수 있어 함께 만료시킨다.
+		if (!"/".equals(cookiePath)) {
+			expireAutoLoginCookie(response, "/");
+		}
+
 		response.sendRedirect(ctx + "/login");
 	}
 

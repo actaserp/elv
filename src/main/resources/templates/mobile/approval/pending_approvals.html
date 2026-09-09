@@ -286,7 +286,10 @@
       }
 
       list.innerHTML = realData.map(item => {
-        const st = statusMap[item.appgubun] || { label: item.appgubun_display || '', cls: '' };
+        // appgubun_view 는 결재선 진행도를 반영한 표시용 상태다.
+        // 내가 결재했어도 뒤에 결재자가 남아 있으면 '결재중'으로 나온다.
+        const stCode = item.appgubun_view || item.appgubun;
+        const st = statusMap[stCode] || { label: item.appgubun_display || '', cls: '' };
         return `
           <div class="approval-card" onclick="openPopup('${item.appnum}','${item.appgubun}','${item.papercd}','${item.papercd_name}','${item.repopernm}','${item.repodate}')">
             <span class="card-status ${st.cls}">${st.label}</span>
@@ -344,8 +347,36 @@
             ${d.frtime && d.totime ? d.frtime + ' ~ ' + d.totime : ''}
           </div>
           ${d.remark ? '<div style="margin-top:4px;color:#333;">' + d.remark + '</div>' : ''}
+          ${apprFileLink(d)}
         </div>`).join('');
     });
+  }
+
+  // 버튼이 모두 잠긴 이유를 팝업 안에 알려준다. 빈 문자열이면 감춘다.
+  function showApprNotice(msg) {
+    let el = document.getElementById('apprNotice');
+    if (!el) {
+      const anchor = document.getElementById('btnApprove');
+      if (!anchor || !anchor.parentNode) return;
+      el = document.createElement('div');
+      el.id = 'apprNotice';
+      el.style.cssText = 'margin:8px 0; color:#c5221f; font-size:13px; text-align:center;';
+      anchor.parentNode.insertBefore(el, anchor.parentNode.firstChild);
+    }
+    el.textContent = msg || '';
+    el.style.display = msg ? '' : 'none';
+  }
+
+  // 업무일지 첨부파일 다운로드 링크. 업무일지 화면과 같은 엔드포인트를 쓴다.
+  function apprFileLink(d) {
+    const svnm = d && d.filesvnm ? String(d.filesvnm).trim() : '';
+    const path = d && d.filepath ? String(d.filepath).trim() : '';
+    if (!svnm) return '';
+    const url = withCtx('/api/daily_report/download')
+              + '?filepath=' + encodeURIComponent(path)
+              + '&filesvnm=' + encodeURIComponent(svnm);
+    return '<div style="margin-top:6px;"><a href="' + url + '" target="_blank"'
+         + ' style="color:#4472c4; text-decoration:underline; font-size:13px;">📎 첨부파일 다운로드</a></div>';
   }
 
   function setButtons(appgubun, appnum) {
@@ -355,6 +386,7 @@
     const btnCancel  = document.getElementById('btnCancelApprove');
 
     [btnApprove, btnReject, btnHold, btnCancel].forEach(b => b.disabled = true);
+    showApprNotice('');
 
     if (!appnum) return;
 
@@ -371,10 +403,14 @@
         if (appgubun === '101') {
           if (canCancel && isApproved) {
             btnCancel.disabled = false;
+            showApprNotice('이미 승인하신 결재건입니다. 승인취소만 가능합니다.');
           } else if (!isApproved) {
             btnApprove.disabled = false;
             btnReject.disabled  = false;
             btnHold.disabled    = false;
+          } else {
+            // 다음 결재자가 이미 처리해서 되돌릴 수 없는 상태
+            showApprNotice('이미 승인하신 결재건입니다.');
           }
         } else if (appgubun === '001') {
           btnApprove.disabled = false;
