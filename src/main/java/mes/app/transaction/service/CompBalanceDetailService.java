@@ -33,8 +33,8 @@ public class CompBalanceDetailService {
 
     /**
      * 수금액 합계.
-     * 파워빌더가 구간마다 구성을 달리 쓴다 — 전일잔액(TB_DA026)은 sunamt 를 포함하고,
-     * 기간내 입금(TB_DA026H)은 sunamt 를 빼고 sort 4 에서 '선수금' 으로 따로 세운다.
+     * 파워빌더가 구간마다 구성을 달리 쓴다 — 미수내역(구분 1·2·3)은 TB_DA026 에 sunamt 까지 더하고,
+     * 구분 4(현대양식)만 TB_DA026H 를 쓰면서 sunamt 를 빼고 sort 4 에서 '선수금' 으로 따로 세운다.
      */
     private static final String RCV_12 =
             "ISNULL(%1$shamt,0) + ISNULL(%1$seamt,0) + ISNULL(%1$ssamt,0) + ISNULL(%1$sjamt,0) + "
@@ -422,7 +422,8 @@ public class CompBalanceDetailService {
                                 UNION ALL
 
                                 SELECT a.custcd, a.spjangcd, a.cltcd, a.misdate, a.misnum, a.remark,
-                                       a.misamt AS beamt, 0 AS misamt, 0 AS rcvamt,
+                                       -- 마감이월은 매출액에서 그 전표로 이미 받은 수금을 뺀 잔액이다 (파워빌더 원본과 동일)
+                                       a.misamt + ((__RCV_A__) * -1) AS beamt, 0 AS misamt, 0 AS rcvamt,
                                        a.actcd,
                                        (SELECT TOP 1 perid FROM TB_E601 WITH(NOLOCK)
                                          WHERE custcd = :custcd AND spjangcd = :spjangcd AND actcd = a.actcd) AS perid,

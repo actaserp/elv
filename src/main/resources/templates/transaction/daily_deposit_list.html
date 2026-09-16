@@ -1,0 +1,155 @@
+<html layout:decorate="~{layout_page}">
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>일별 입금현황</h2>
+        <a title="북마크" class="bookmark toggle">내 메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+        <li>입금관리</li>
+        <li>일별 입금현황</li>
+      </ul>
+    </div>
+
+    <section class="section">
+      <div class="section-top">
+        <div class="search-wrap">
+          <dl>
+            <dt>조회월<span class="eq">*</span></dt>
+            <dd>
+              <input type="month" id="srchMonth" name="srchMonth">
+            </dd>
+          </dl>
+          <dl>
+            <dt>거래처</dt>
+            <dd>
+              <input type="text" id="btnCompanySearch" name="btnCompanySearch" placeholder="해당 칸을 클릭해서 검색하세요." style="width:225px">
+              <input type="hidden" id="cboCompanyHidden">
+              <input type="hidden" id="spjangcdHidden">
+            </dd>
+          </dl>
+          <dl>
+            <dt>&nbsp;</dt>
+            <dd>
+              <li>
+                <a class="btn btn-delete" title="검색" id="btnSearch">
+                  <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                  검색
+                </a>
+              </li>
+            </dd>
+          </dl>
+        </div>
+      </div>
+      <div class="container-fluid">
+        <div id="theGrid" style="height: 730px;"></div>
+      </div>
+    </section>
+  </div>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <!-- 거래처는 사업체 DB(TB_XCLIENT) 기준 -->
+  <th:block th:replace="common/popup_client :: popup_client"></th:block>
+  <script type="text/javascript">
+    class DailyDepositListPage {
+      constructor() {
+        this.grid = null;
+        this.spjangcd = $('#spjangcdHidden');
+        this.viewData = new wijmo.collections.CollectionView();
+        this.init();
+      }
+
+      init() {
+        // 1~31일 컬럼
+        const dayColumns = Array.from({length: 31}, (_, i) => {
+          const day = i + 1;
+          return {
+            binding: `day${day}`,
+            header: `${day}일`,
+            width: 110,
+            align: 'right',
+            format: 'n0',
+            allowSorting: false
+          };
+        });
+
+        this.grid = new wijmo.grid.FlexGrid('#theGrid', {
+          frozenColumns: 2,
+          autoGenerateColumns: false,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          headersVisibility: wijmo.grid.HeadersVisibility.Column,
+          isReadOnly: true,
+          showMarquee: true,
+          formatItem: (sender, e) => {
+            if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader) {
+              e.cell.style.textAlign = 'center';
+            }
+          },
+          columns: [
+            {binding: 'cltcd', header: '거래처코드', width: 100, align: 'center'},
+            {binding: 'cltname', header: '거래처명', width: 250, align: 'left'},
+            ...dayColumns,
+            {binding: 'total_sum', header: '합계', width: 130, align: 'right', format: 'n0', allowSorting: false}
+          ],
+          itemsSource: this.viewData
+        });
+
+        new FlexGridContextMenu(this.grid);
+        this.grid.downloadFileName = '일별 입금현황';
+
+        // 합계 행
+        this.grid.columnFooters.rows.push(new wijmo.grid.Row());
+        this.grid.bottomLeftCells.setCellData(0, 0, '합 계');
+        this.grid.loadedRows.addHandler(() => {
+          const rows = this.grid.rows;
+          const footer = this.grid.columnFooters.rows[0];
+          const getSum = (field) => rows.map(r => +r.dataItem[field] || 0).reduce((a, b) => a + b, 0);
+          const data = {cltname: '합 계', total_sum: getSum('total_sum')};
+          dayColumns.forEach(col => { data[col.binding] = getSum(col.binding); });
+          footer.dataItem = data;
+        });
+      }
+
+      searchMainData() {
+        let _this = this;
+        let data = {
+          'srchMonth': ($('#srchMonth').val() || '').replace('-', ''),
+          'cltcd': $('#cboCompanyHidden').val(),
+          spjangcd: this.spjangcd.val()
+        };
+        AjaxUtil.getAsyncData('/api/transaction/daily_deposit_list/read', data, function (result) {
+          if (result != null) {
+            _this.viewData = new wijmo.collections.CollectionView(result.data);
+            _this.grid.itemsSource = _this.viewData;
+          }
+        });
+      }
+    }
+
+    let page = null;
+
+    $(document).ready(function (e) {
+      const spjangcd = sessionStorage.getItem('spjangcd');
+      if (spjangcd) $('#spjangcdHidden').val(spjangcd);
+
+      page = new DailyDepositListPage();
+
+      const today = new Date();
+      $('#srchMonth').val(today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2));
+
+      page.searchMainData();
+
+      $('#btnSearch').click(function () { page.searchMainData(); });
+      $('#btnCompanySearch').click(function () { clientPopupOpen('btnCompanySearch', 'cboCompanyHidden'); });
+      $('#btnCompanySearch').on('input', function () {
+        if ($(this).val() === '') $('#cboCompanyHidden').val('');
+      });
+    })
+  </script>
+</th:block>
+
+<input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+</html>

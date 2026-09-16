@@ -204,7 +204,10 @@
                   <td>
                     <input type="hidden" id="ACCID" name="ACCID" />
                     <input type="hidden" id="ACCNUM_REAL" />
-                    <input type="text" id="ACCNUM" name="ACCNUM" class="wp100" style="width: 300px !important" placeholder="계좌번호 입력 후 엔터를 눌러 검색하세요." />
+                    <!-- 사업체 계좌(TB_AA040)에서 고른다. 예전 입력칸은 sports 용 tb_account 를 검색해 사업체 DB 에서는 동작하지 않았다. -->
+                    <select id="ACCNUM" name="ACCNUM" class="wp100" style="width: 300px !important">
+                      <option value="">결제 계좌 선택</option>
+                    </select>
                   </td>
                   <th><label for="BANKNM">결제 은행</label></th>
                   <td >
@@ -333,7 +336,7 @@
        $('#accid').val(selectedItem.accid);                  // 히든
        $('#ACCID').val(selectedItem.accid);                  // 히든
        $('#accnum').val(selectedItem.accnum);                // 비마스킹
-       $('#ACCNUM').val(selectedItem.accnum);                // 마스킹된 값 넣어도 무방
+       setAccountOption(selectedItem.accnum, selectedItem.banknm);
        $('#ACCNUM_REAL').val(selectedItem.accnum);           // 히든 - 원본 값
        // 결제 은행
        $('#bankid').val(selectedItem.bankid);                // 히든
@@ -440,7 +443,7 @@
          $('#CategoryForm')[0].reset();
          _this.searchMainData();
         } else {
-         Alert.alert('', '저장에 실패했습니다.');
+         Alert.alert('', (result && result.message) || '저장에 실패했습니다.');
         }
        },
        error: function(xhr) {
@@ -453,11 +456,12 @@
     //삭제
     DeleteMainData() {
      const _this = this;
-     const url = '/api/transaction/manageCreditCard/delete';
-     const data = {
-      cardnum: $('#cardnum').val(),
-      spjangcd: this.spjangcd.val()
-     };
+     // 예전에는 옛 화면용 /api/transaction/manageCreditCard/delete 를 불렀고,
+     // this.spjangcd 가 없어 요청 전에 스크립트 오류로 멈췄다. 사업장은 서버가 세션에서 정한다.
+     const url = _this.url + '/delete';
+     const cardnum = $('#cardnum').val();
+     if (!cardnum) { Alert.alert('', '삭제할 카드를 목록에서 선택해주세요.'); return; }
+     const data = { cardnum: cardnum };
 
      Alert.confirm('', '삭제하시겠습니까?', function () {
       AjaxUtil.postAsyncData(url, data, function (result) {
@@ -465,8 +469,9 @@
         Alert.alert('', '삭제되었습니다.');
         _this.searchMainData();
         $('#CategoryForm')[0].reset();
+        $('#cardnum').prop('readonly', false);
        } else {
-        Alert.alert('', '삭제에 실패했습니다.');
+        Alert.alert('', (result && result.message) || '삭제에 실패했습니다.');
        }
       });
      });
@@ -597,10 +602,39 @@
     input.setSelectionRange(newPos, newPos);
    }
 
+   // 결제 계좌 선택 → 은행명 표시. 은행코드·은행명은 서버가 선택한 계좌에서 다시 정한다.
+   function syncBankFromAccount() {
+    const $opt = $('#ACCNUM option:selected');
+    $('#BANKNM').val($opt.val() ? ($opt.data('banknm') || '') : '');
+   }
+
+   // 목록에서 고른 카드의 계좌를 선택. 미사용 처리된 계좌라 목록에 없으면 옵션을 붙여서라도 보여준다.
+   function setAccountOption(accnum, banknm) {
+    const $sel = $('#ACCNUM');
+    if (accnum && $sel.find('option').filter(function () { return this.value === accnum; }).length === 0) {
+     $('<option>').val(accnum).text(((banknm || '') + ' ' + accnum + ' (미사용 계좌)').trim())
+      .data('banknm', banknm || '').appendTo($sel);
+    }
+    $sel.val(accnum || '');
+    $('#BANKNM').val(banknm || '');
+   }
+
+   function loadAccounts() {
+    AjaxUtil.getAsyncData('/api/account_management/manageCreditCard/accounts', {}, function (result) {
+     const $sel = $('#ACCNUM');
+     $sel.find('option:not(:first)').remove();
+     ((result && result.data) || []).forEach(function (a) {
+      $('<option>').val(a.accnum).text(a.label).data('banknm', a.banknm).appendTo($sel);
+     });
+    });
+   }
+
    let page = null;
 
    $(document).ready(function (e) {
     page = new ManageCreditCardsPage();
+    loadAccounts();
+    $('#ACCNUM').on('change', syncBankFromAccount);
 
     AjaxUtil.fillSelectOptions($('#cardco'), 'cardco', 'choose', false);
     // AjaxUtil.fillSelectOptions($('#cdpernm'), 'person', 'choose', false);
@@ -669,13 +703,6 @@
      page.BaroStopCard();
     });
 
-    AccountInputHandler.bind({
-     accnumSelector: '#ACCNUM',
-     banknmSelector: '#BANKNM',
-     bankidSelector: '#bankid',
-     accidSelector: '#ACCID',
-     minLength: 2
-    });
 
    })
   </script>

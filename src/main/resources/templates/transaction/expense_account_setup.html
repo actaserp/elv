@@ -183,13 +183,13 @@
             }
           }
         });
-        //콤보박스 처리
-        const tempSelect1 = $('<select>');
-        const jiflagRows = AjaxUtil.fillSelectOptions(tempSelect1, 'system_code', 'choose', null, 'jiflag');
-        const jiflagMap = new wijmo.grid.DataMap(jiflagRows, 'value', 'text');
+        // 고정비 구분은 ERP 에 코드표가 없어 파워빌더처럼 두 값만 쓴다 (TB_CA648.jflag)
+        const jiflagMap = new wijmo.grid.DataMap(
+            [{value: '1', text: '고정비'}, {value: '2', text: '변동비'}], 'value', 'text');
 
+        // 비용분류 = 손익항목분류 (TB_CA510 com_cls='802')
         const tempSelect2 = $('<select>');
-        const gflagRows = AjaxUtil.fillSelectOptions(tempSelect2, 'system_code', 'choose', null, 'gflag');
+        const gflagRows = AjaxUtil.fillSelectOptions(tempSelect2, 'expense_gflag', 'choose', null);
         const gflagMap = new wijmo.grid.DataMap(gflagRows, 'value', 'text');
 
 
@@ -216,14 +216,14 @@
             {binding: 'useyn', header: '사용', width: 60, dataType: 'Boolean', align: 'center'},
             {binding: 'artcd', header: '코드', width: 90 , align: 'center', isReadOnly: true},
             {binding: 'artnm', header: '매입항목', width: 160, align: 'center'},
-            {binding: 'jiflag', header: '고정비', width: 110, dataMap: jiflagMap, cellTemplate: '${text}'},
+            {binding: 'jflag', header: '고정비', width: 110, dataMap: jiflagMap, cellTemplate: '${text}'},
             {binding: 'gflag', header: '비용분류', width: 110, dataMap: gflagMap, cellTemplate: '${text}'},
             {binding: 'acccd', header: '비용계정', width: 90, align: 'center'},
             {binding: 'accnm', header: '비용계정명', width: 130, align: 'center', isReadOnly: true },
-            {binding: 'wacccd', header: '원가계정', width: 90, align: 'center'},
-            {binding: 'waccnm', header: '원가계정명', width: 130, align: 'center', isReadOnly: true},
-            {binding: 'sacccd', header: '상대계정', width: 90, align: 'center'},
-            {binding: 'saccnm', header: '상대계정명', width: 130, align: 'center', isReadOnly: true},
+            {binding: 'acccd2', header: '원가계정', width: 90, align: 'center'},
+            {binding: 'accnm2', header: '원가계정명', width: 130, align: 'center', isReadOnly: true},
+            {binding: 'antacccd', header: '상대계정', width: 90, align: 'center'},
+            {binding: 'antaccnm', header: '상대계정명', width: 130, align: 'center', isReadOnly: true},
           ],
           itemsSource: this.detailListData,
 
@@ -312,7 +312,9 @@
 
         AjaxUtil.getAsyncData(url, data, function(result) {
           if (result && Array.isArray(result.data)) {
-            _this.detailListData = new wijmo.collections.CollectionView(result.data);
+            // 사용여부는 DB 에 '1'/'0' 로 있고 그리드는 체크박스라 변환해서 넣는다
+            const rows = result.data.map(r => Object.assign({}, r, {useyn: r.useyn === '1' || r.useyn === true}));
+            _this.detailListData = new wijmo.collections.CollectionView(rows);
           } else {
             _this.detailListData = new wijmo.collections.CollectionView([]);
           }

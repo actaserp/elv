@@ -571,4 +571,60 @@ public class WebRequestService {
         if (next == null) next = 1;
         return String.format("%03d", next);
     }
+
+    // ── 발신번호로 고객 찾기 (인터넷전화 수신 시 통화메모 자동입력용) ──
+    //
+    // 번호 형식이 소스마다 제각각이라(‘0100-6232-1692’ · ‘01006459991’ · ‘1877-9433’)
+    // 양쪽 모두 숫자만 남겨서 비교한다. SQL Server 에 정규식이 없어 REPLACE 를 겹쳐 쓴다.
+    //
+    // 우선순위는 경기 실데이터 기준으로 정했다.
+    //   1) 현장(TB_E601)     tel 768/911 · hp 285 — actcd 까지 확정돼 고장접수로 바로 이어진다
+    //   2) 거래처(TB_XCLIENT) telnum 636/1178      — cltcd 확정
+    //   3) 과거 통화이력(TB_CALLMAIN)              — 고유번호 9,223개 중 이름 있는 건 1,640개.
+    //      수기 입력이라 정확도가 낮아 앞의 둘이 못 찾을 때만 쓴다.
+    private static final String DIGITS = """
+            REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(%s,''),'-',''),' ',''),'(',''),')',''),'.','')
+            """;
+
+    public Map<String, Object> findCallerInfo(String spjangcd, String callnum) {
+        String digits = callnum == null ? "" : callnum.replaceAll("[^0-9]", "");
+        if (digits.isEmpty()) return null;
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("num", digits);
+
+        // 1) 현장
+        Map<String, Object> row = sqlRunner.getRow(("""
+                SELECT TOP 1 '현장' AS source, e.actcd, e.actnm, e.actnm AS callnm,
+                       '' AS cltcd, '' AS cltnm, ISNULL(e.tel,'') AS tel
+                  FROM TB_E601 e
+                 WHERE e.spjangcd = :spjangcd
+                   AND (__TEL__ = :num OR __HP__ = :num)
+                """).replace("__TEL__", String.format(DIGITS, "e.tel").trim())
+                    .replace("__HP__",  String.format(DIGITS, "e.hp").trim()), param);
+        if (row != null) return row;
+
+        // 2) 거래처
+        row = sqlRunner.getRow(("""
+                SELECT TOP 1 '거래처' AS source, '' AS actcd, '' AS actnm, x.cltnm AS callnm,
+                       x.cltcd, x.cltnm, ISNULL(x.telnum,'') AS tel
+                  FROM TB_XCLIENT x
+                 WHERE (__T1__ = :num OR __T2__ = :num OR __T3__ = :num)
+                """).replace("__T1__", String.format(DIGITS, "x.telnum").trim())
+                    .replace("__T2__", String.format(DIGITS, "x.hptelnum").trim())
+                    .replace("__T3__", String.format(DIGITS, "x.opertel").trim()), param);
+        if (row != null) return row;
+
+        // 3) 과거 통화이력 — 이름이 남아 있는 가장 최근 건
+        row = sqlRunner.getRow(("""
+                SELECT TOP 1 '통화이력' AS source, ISNULL(c.actcd,'') AS actcd, ISNULL(c.actnm,'') AS actnm,
+                       c.callnm, ISNULL(c.cltcd,'') AS cltcd, ISNULL(c.cltnm,'') AS cltnm,
+                       ISNULL(c.callnum,'') AS tel
+                  FROM TB_CALLMAIN c
+                 WHERE __NUM__ = :num AND ISNULL(c.callnm,'') <> ''
+                 ORDER BY c.calldate DESC, c.calltime DESC
+                """).replace("__NUM__", String.format(DIGITS, "c.callnum").trim()), param);
+        return row;
+    }
 }

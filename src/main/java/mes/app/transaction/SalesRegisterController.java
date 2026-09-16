@@ -1,7 +1,7 @@
 package mes.app.transaction;
 
 import lombok.extern.slf4j.Slf4j;
-import mes.app.transaction.service.PurchaseInvoiceService;
+import mes.app.transaction.service.SalesRegisterService;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,18 +12,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 매입관리 (파워빌더 '비용등록' w_tb_ca640)
+ * 매출관리 (파워빌더 '매출등록' w_tb_da023)
  *
- * 1단계 범위: 헤더(TB_CA640) + 상세(TB_CA641) 등록·수정·삭제.
- * 자동지급처리, 부가세 자료 생성, 자재입고 연동은 넣지 않았다.
+ * 1단계 범위: 헤더(TB_DA023) + 상세(TB_DA024) 등록·수정·삭제.
+ * 세금계산서 생성, 팝빌·KTNET 연동, 수리완료·출고 연동은 넣지 않았다.
+ *
+ * 팝빌 전자세금계산서 쪽은 기존 SalesInvoiceController(/api/tran/sales)가 그대로 들고 있다.
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/tran/purchase")
-public class PurchaseInvoiceController {
+@RequestMapping("/api/tran/sales_register")
+public class SalesRegisterController {
 
     @Autowired
-    PurchaseInvoiceService purchaseInvoiceService;
+    SalesRegisterService salesRegisterService;
 
     // 헤더 목록
     @GetMapping("/read")
@@ -32,35 +34,48 @@ public class PurchaseInvoiceController {
             @RequestParam(value = "end", required = false) String end,
             @RequestParam(value = "keyword", required = false, defaultValue = "") String keyword,
             @RequestParam(value = "gubun", required = false, defaultValue = "") String gubun,
-            @RequestParam(value = "bhflag", required = false, defaultValue = "") String bhflag,
+            @RequestParam(value = "billgubun", required = false, defaultValue = "") String billgubun,
             @RequestParam(value = "spjangcd") String spjangcd) {
 
         AjaxResult result = new AjaxResult();
-        result.data = purchaseInvoiceService.getList(spjangcd, start, end, keyword, gubun, bhflag);
+        result.data = salesRegisterService.getList(spjangcd, start, end, keyword, gubun, billgubun);
         return result;
     }
 
-    // 비용상세 탭
+    // 매출상세 탭
     @GetMapping("/detail")
     public AjaxResult getDetail(
-            @RequestParam("mijdate") String mijdate,
-            @RequestParam("mijnum") String mijnum,
-            @RequestParam(value = "spjangcd") String spjangcd) {
+            @RequestParam("misdate") String misdate,
+            @RequestParam("misnum") String misnum,
+            @RequestParam("cltcd") String cltcd,
+            @RequestParam("spjangcd") String spjangcd) {
 
         AjaxResult result = new AjaxResult();
-        result.data = purchaseInvoiceService.getDetail(spjangcd, mijdate, mijnum);
+        result.data = salesRegisterService.getDetail(spjangcd, misdate, misnum, cltcd);
         return result;
     }
 
     // 거래명세표 탭
     @GetMapping("/pcode")
     public AjaxResult getPcodeList(
-            @RequestParam("mijdate") String mijdate,
-            @RequestParam("mijnum") String mijnum,
-            @RequestParam(value = "spjangcd") String spjangcd) {
+            @RequestParam("misdate") String misdate,
+            @RequestParam("misnum") String misnum,
+            @RequestParam("cltcd") String cltcd,
+            @RequestParam("spjangcd") String spjangcd) {
 
         AjaxResult result = new AjaxResult();
-        result.data = purchaseInvoiceService.getPcodeList(spjangcd, mijdate, mijnum);
+        result.data = salesRegisterService.getPcodeList(spjangcd, misdate, misnum, cltcd);
+        return result;
+    }
+
+    // 현장 목록 (현장 선택 팝업)
+    @GetMapping("/actcd")
+    public AjaxResult getActList(
+            @RequestParam(value = "keyword", required = false, defaultValue = "") String keyword,
+            @RequestParam("spjangcd") String spjangcd) {
+
+        AjaxResult result = new AjaxResult();
+        result.data = salesRegisterService.getActList(spjangcd, keyword);
         return result;
     }
 
@@ -80,14 +95,14 @@ public class PurchaseInvoiceController {
         }
 
         try {
-            result.data = purchaseInvoiceService.save(spjangcd, header, details, userId);
+            result.data = salesRegisterService.save(spjangcd, header, details, userId);
             result.success = true;
             result.message = "저장되었습니다.";
         } catch (IllegalStateException e) {
             result.success = false;
             result.message = e.getMessage();
         } catch (Exception e) {
-            log.error("매입 저장 오류", e);
+            log.error("매출 저장 오류", e);
             result.success = false;
             result.message = "저장 중 오류가 발생했습니다.";
         }
@@ -97,20 +112,21 @@ public class PurchaseInvoiceController {
     // 삭제
     @PostMapping("/delete")
     public AjaxResult delete(
-            @RequestParam("mijdate") String mijdate,
-            @RequestParam("mijnum") String mijnum,
+            @RequestParam("misdate") String misdate,
+            @RequestParam("misnum") String misnum,
+            @RequestParam("cltcd") String cltcd,
             @RequestParam("spjangcd") String spjangcd) {
 
         AjaxResult result = new AjaxResult();
         try {
-            purchaseInvoiceService.delete(spjangcd, mijdate, mijnum);
+            salesRegisterService.delete(spjangcd, misdate, misnum, cltcd);
             result.success = true;
             result.message = "삭제되었습니다.";
         } catch (IllegalStateException e) {
             result.success = false;
             result.message = e.getMessage();
         } catch (Exception e) {
-            log.error("매입 삭제 오류", e);
+            log.error("매출 삭제 오류", e);
             result.success = false;
             result.message = "삭제 중 오류가 발생했습니다.";
         }

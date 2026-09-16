@@ -36,7 +36,6 @@
             <dd>
               <input type="text" id="btnCompanySearch" name="btnCompanySearch" placeholder="입력 후 엔터를 눌러 검색하세요."/>
               <input type="hidden" id="cboCompanyHidden">
-              <input type="hidden"  id="cltflag" name="cltflag"/>
               <input type="hidden" id="spjangcdHidden">
             </dd>
           </dl>
@@ -111,8 +110,8 @@
 <th:block layout:fragment="scripts">
   <!--<th:block th:replace="common/columns_setting :: columns_setting"></th:block>-->
   <th:block th:replace="common/multiform_material :: multiform_material"></th:block>
-  <th:block th:replace="common/popup_company :: popup_company"></th:block>
-  <th:block th:replace="common/popup_company_employee_bank_card.html :: popup_company"></th:block>
+  <!-- 거래처는 사업체 DB(TB_XCLIENT) 기준 -->
+  <th:block th:replace="common/popup_client :: popup_client"></th:block>
   <script type="text/javascript">
     class MonthlyPurchaseListPage {
       constructor() {
@@ -131,7 +130,7 @@
         const monthColumns = Array.from({length: 12}, (_, i) => {
           const month = i + 1;
           return {
-            binding: `mon_${month}`,
+            binding: `mon${month}`,
             header: `${month}월`,
             width: 120,
             align: 'right',
@@ -141,7 +140,7 @@
         });
 
         this.grid = new wijmo.grid.FlexGrid('#theGrid', {
-          frozenColumns: 7,
+          frozenColumns: 2,
           frozenRows: 0,
           allowSorting: wijmo.grid.AllowSorting.MultiColumn,
           selectionMode: wijmo.grid.SelectionMode.Row,
@@ -156,12 +155,7 @@
           },
           columns: [
             {binding: 'cltcd', header: '거래처 코드', width: 250, align: 'center', visible: false},
-            {binding: 'cltflag', header: '거래처구분', width: 250, align: 'center', visible: false},
             {binding: 'cltname', header: '거래처명', width: 250, align: 'center', allowMerging: false},
-            {binding: 'misgubun_name', header: '매출구분', width: 90, align: 'center', allowMerging: false},
-            {binding: 'depart_id', header: '부서 코드', width: 90, align: 'center', visible: false},
-            {binding: 'depart_name', header: '부서', width: 90, align: 'center', allowMerging: false},
-            {binding: 'account_manager', header: '담당자', width: 100, align: 'center', allowSorting: false},
             ...monthColumns,  //여기에서 월별 컬럼을 삽입
             {binding: 'total_sum', header: '합계', width: 120, align: 'right', allowSorting: false},
           ],
@@ -188,7 +182,7 @@
           const getSum = (field) => rows.map(r => +r.dataItem[field] || 0).reduce((a, b) => a + b, 0);
           // footer에 들어갈 데이터 구성
           const footerData = {
-            comp_name: '합 계', // 첫 컬럼에 텍스트
+            cltname: '합 계', // 첫 컬럼에 텍스트
           };
           monthColumns.forEach(col => {
             footerData[col.binding] = getSum(col.binding);
@@ -213,8 +207,7 @@
           },
           columns: [
             {binding: 'cltcd', header: '거래처 코드', width: 250, visible: false},
-            {binding: 'cltflag', header: '거래처구분코드', width: 250, visible: false},
-            {binding: 'comp_name', header: '거래처명', width: 250, align: 'center', allowMerging: false},
+            {binding: 'cltname', header: '거래처명', width: 250, align: 'left', allowMerging: false},
             ...monthColumns,
             {binding: 'total_sum', header: '합계', width: 120, align: 'right', allowSorting: false},
           ],
@@ -242,7 +235,7 @@
           const getSum = (field) => rows.map(r => +r.dataItem[field] || 0).reduce((a, b) => a + b, 0);
 
           const footerData = {
-            comp_name: '합 계',
+            cltname: '합 계',
           };
           monthColumns.forEach(col => {
             footerData[col.binding] = getSum(col.binding);
@@ -252,7 +245,7 @@
         });
 
         this.grid4 = new wijmo.grid.FlexGrid('#accounts_payable-grid', {
-          frozenColumns: 4,
+          frozenColumns: 2,
           frozenRows: 0,
           allowSorting: wijmo.grid.AllowSorting.MultiColumn,
           selectionMode: wijmo.grid.SelectionMode.Row,
@@ -267,8 +260,7 @@
           },
           columns: [
             {binding: 'cltcd', header: '거래처 코드', width: 250, visible: false},
-            {binding: 'comp_name', header: '거래처명', width: 170, align: 'center', allowMerging: true},
-            {binding: 'amount', header: '전잔액', width: 110, align: 'right'},
+            {binding: 'cltname', header: '거래처명', width: 250, align: 'left', allowMerging: false},
             /* { binding: 'misgubun', header: '매출구분', width: 100, align: 'center', allowMerging: true },
              { binding: 'icerdeptnm', header: '부서', width: 130, align: 'center', allowMerging: true },
              { binding: 'icerceonm', header: '담당자', width: 100, align: 'center', allowSorting: false },*/
@@ -288,7 +280,7 @@
           const getSum = (field) => rows.map(r => +r.dataItem[field] || 0).reduce((a, b) => a + b, 0);
 
           const footerData = {
-            comp_name: '합 계',
+            cltname: '합 계',
           };
           monthColumns.forEach(col => {
             footerData[col.binding] = getSum(col.binding);
@@ -303,9 +295,8 @@
         let url = '/api/transaction/monthly_purchase_list'
         let data = {
           'cboYear': $("#cboYear").val(),
-          'cboCompany': $("#cboCompanyHidden").val(),
-          spjangcd: this.spjangcd.val(),
-          'cltflag' : $("#cltflag").val()
+          'cltcd': $("#cboCompanyHidden").val(),
+          spjangcd: this.spjangcd.val()
         }
         //매입 내역
         AjaxUtil.getAsyncData(url + '/PurchaseDetails', data, function (result) {
@@ -313,14 +304,14 @@
             _this.grid.itemsSource = result.data;
           }
         });
-        // 지급 내역
-        AjaxUtil.getAsyncData(url + '/ProvisionRead', data, function (result) {
+        // 지급 내역 (grid3 = #payment-grid)
+        AjaxUtil.getAsyncData(url + '/PaymentRead', data, function (result) {
           if (result != null) {
             _this.grid3.itemsSource = result.data;
           }
         });
-        // 미지급금 내역
-        AjaxUtil.getAsyncData(url + '/PaymentRead', data, function (result) {
+        // 미지급금 내역 (grid4 = #accounts_payable-grid)
+        AjaxUtil.getAsyncData(url + '/ProvisionRead', data, function (result) {
           if (result != null) {
             _this.grid4.itemsSource = result.data;
           }
@@ -331,9 +322,9 @@
       openPurchaseDetailPopup(data) {
         let _this = this;
         const cltcd = data.cltcd;
-        const depart_id = data.depart_id;
+        
         const compName = data.cltname;
-        const cltflag = data.cltflag;
+        
 
         let content = tmpl('PurchaseDetailPopup', {});
         let $content = $(content);
@@ -381,7 +372,7 @@
           },
           columns: [
             {binding: 'misdate', header: '일자', width: 120, align: 'center'},
-            {binding: 'misgubun', header: '매출구분', width: 80, align: 'center'},
+            {binding: 'misgubun', header: '매입구분', width: 80, align: 'center'},
             {binding: 'itemnm', header: '품목', width: 120, align: 'center'},
             {binding: 'spec', header: '규격', width: 120, align: 'center'},
             {binding: 'qty', header: '수량', width: 80, align: 'center'},
@@ -419,10 +410,9 @@
           method: 'GET',
           data: {
             cltcd: cltcd,
-            depart_id: depart_id, //부서 코드
+            // 부서는 파워빌더 월별비용현황에 없는 조건이라 뺐다
             cboYear: $("#cboYear").val(),
             spjangcd: this.spjangcd.val(),
-            cltflag : cltflag
           },
           dataType: 'json',
           success: function (response) {
@@ -446,8 +436,8 @@
       openPaymentPopup(data) {
         let _this = this;
         const cltcd = data.cltcd;
-        const compName = data.comp_name;
-        const cltflag = data.cltflag;
+        const compName = data.cltname;
+        
 
         // 템플릿 삽입
         let content = tmpl('popup_Payment', {});
@@ -465,13 +455,13 @@
           isReadOnly: true,
           columns: [
             {binding: 'trdate', header: '일자', width: 120, align: 'left'},
-            {binding: 'ioid', header: '코드', width: 100, align: 'right', visible: false},
+            {binding: 'sndnum', header: '지급번호', width: 90, align: 'center'},
             {binding: 'CompanyName', header: '거래처명', width: 140, align: 'center'},
             {binding: 'accout', header: '금액', width: 100, align: 'right'},
-            {binding: 'deposit_type', header: '입급형태', width: 80, align: 'center'},
+            
             {binding: 'banknm', header: '은행', width: 80, align: 'center'},
             {binding: 'accnum', header: '계좌', width: 140, align: 'center'},
-            {binding: 'memo', header: '메모', width: 150}
+            {binding: 'remark', header: '적요', width: 200}
           ],
           itemsSource: []  // 초기에는 비움
         });
@@ -514,7 +504,6 @@
             cltcd: cltcd,
             cboYear: $("#cboYear").val(),
             spjangcd: this.spjangcd.val(),
-            cltflag:cltflag
           },
           dataType: 'json',
           success: function (response) {
@@ -539,28 +528,8 @@
         });
       }
     }
-    function companyPopupOpenCustom(intputId, hiddenid, hiddenflag){
-
-      const value = document.getElementById(intputId).value;
-
-      let poppage = new PopCompComponentCustom(value);
-
-      let result = AjaxUtil.getSyncData('/api/popup/search_Comp_Custom', { item2 : value, spjangcd : getSpjangcdFromSession() });
-
-      let searchcallback = function (items) {
-
-        document.getElementById(intputId).focus();
-
-        document.getElementById(intputId).value = items.item2;
-        document.getElementById(hiddenid).value = items.id;
-        document.getElementById(hiddenflag).value = items.cltflag;
-      };
-      if(result && result.data.length === 1){
-        searchcallback(result.data[0]);   ``
-        return;
-      }
-
-      poppage.show(searchcallback, result.data);
+    function companyPopupOpenCustom(intputId, hiddenid){
+      clientPopupOpen(intputId, hiddenid);
     }
 
     let page = null;
@@ -594,7 +563,7 @@
         if (e.type === 'keydown' && (e.key === 'Enter' || e.keyCode === 13)) {
           e.preventDefault();
 
-          companyPopupOpenCustom('btnCompanySearch', 'cboCompanyHidden', 'cltflag');
+          clientPopupOpen('btnCompanySearch', 'cboCompanyHidden');
         }
       });
 
@@ -602,7 +571,7 @@
         const val = $(this).val();
         if (val === '') {
           $('#cboCompanyHidden').val('');
-          $('#cltflag').val('');
+          
         }
       });
 
@@ -615,7 +584,7 @@
       // 초기화 버튼 클릭 이벤트
       $('#btnClear').click(function () {
 
-        document.getElementById('cboCompany').value = '';
+        document.getElementById('btnCompanySearch').value = '';
         document.getElementById('cboCompanyHidden').value = '';
       });
 

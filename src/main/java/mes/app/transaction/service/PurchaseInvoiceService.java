@@ -1,46 +1,35 @@
 package mes.app.transaction.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.popbill.api.*;
 import lombok.extern.slf4j.Slf4j;
-import mes.Encryption.EncryptionUtil;
-import mes.app.util.UtilClass;
-import mes.config.Settings;
-import mes.domain.entity.*;
-import mes.domain.model.AjaxResult;
-import mes.domain.repository.*;
 import mes.domain.services.SqlRunner;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellType;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.xssf.usermodel.XSSFRow;
-import org.apache.poi.xssf.usermodel.XSSFSheet;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.net.URI;
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
+/**
+ * 매입관리 — 파워빌더 '비용등록'(w_tb_ca640)
+ *
+ * 헤더 TB_CA640 + 상세 TB_CA641. 파워빌더 화면 이름이 '비용등록' 이라 헷갈리는데 우리 매입관리와 같은 자료다.
+ *
+ * 1단계 범위는 매입 등록 자체(헤더 + 상세)까지다. 파워빌더 저장 스크립트의 다음 기능은 뺐다.
+ *   - 자동지급처리(etflag='1' → TB_CA642 생성 + hamt/bamt 기록)  ※ 헤더 지급액 컬럼은 건드리지 않는다
+ *   - 증빙구분별 매입증빙(부가세) 자료 생성 — wf_addtax01/02/03, TB_IA055
+ *   - 자재입고 연동(tb_ca611/tb_ca613 의 mijflag 갱신)
+ *   - 더존 전송건 잠금(파워빌더는 custcd='samjung' 에서만 건다)
+ *
+ * 파워빌더 저장 규칙 중 옮긴 것
+ *   - 상세 적요(remark)가 빈 행은 저장에서 뺀다
+ *   - 헤더 mijamt = 상세 mijamt 합계 (파워빌더도 저장 후 한 번 더 비교해 보정한다)
+ *   - 상세가 없거나 공급가액 합계가 0 이면 저장하지 않는다
+ *   - 지급예정일(schdate)이 비어 있으면 매입일자로 채운다
+ *   - TB_CA642 에 지급액이 있으면 수정할 수 없다
+ *   - 전표번호(mijnum)는 매입일자별 4자리 순번. 경기 5,782건 전부 그 형태이고 중복이 없다
+ */
 @Slf4j
 @Service
 public class PurchaseInvoiceService {
@@ -48,593 +37,398 @@ public class PurchaseInvoiceService {
     @Autowired
     SqlRunner sqlRunner;
 
-    @Autowired
-    private CompanyRepository companyRepository;
+    /** spjangcd 로 custcd 조회 (파워빌더의 as_custcd) */
+    public String getCustcd(String spjangcd) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        Map<String, Object> row = sqlRunner.getRow(
+                "SELECT custcd FROM tb_xa012 WHERE spjangcd = :spjangcd", param);
+        if (row == null || row.get("custcd") == null) return null;
+        return String.valueOf(row.get("custcd")).trim();
+    }
 
-    @Autowired
-    private TB_InvoicementRepository tb_invoicementRepository;
+    private MapSqlParameterSource base(String spjangcd, String custcd) {
+        MapSqlParameterSource p = new MapSqlParameterSource();
+        p.addValue("custcd", custcd);
+        p.addValue("spjangcd", spjangcd);
+        return p;
+    }
 
-    @Autowired
-    private TB_InvoiceDetailRepository tb_invoiceDetailRepository;
+    // ────────────────────────────────────────────────────────────
+    //  조회
+    // ────────────────────────────────────────────────────────────
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+    /** 헤더 목록 (파워빌더 왼쪽 그리드) */
+    public List<Map<String, Object>> getList(String spjangcd, String startDate, String endDate,
+                                             String keyword, String gubun, String bhflag) {
+        String custcd = getCustcd(spjangcd);
+        if (custcd == null) return List.of();
 
-    @Value("${invoice.api.key}")
-    private String invoiceeCheckApiKey;
-
-    @Autowired
-    private RestTemplate restTemplate;
-
-    @Autowired
-    private ObjectMapper jacksonObjectMapper;
-
-
-    @Autowired
-    private SysCodeRepository sysCodeRepository;
-
-    @Autowired
-    Settings settings;
-
-    public List<Map<String, Object>> getList(String invoice_kind, Integer cboCompany, Timestamp start, Timestamp end, String spjangcd) {
-
-        MapSqlParameterSource dicParam = new MapSqlParameterSource();
-        dicParam.addValue("invoice_kind", invoice_kind);
-        dicParam.addValue("cboCompany", cboCompany);
-        dicParam.addValue("start", start);
-        dicParam.addValue("end", end);
-        dicParam.addValue("spjangcd", spjangcd);
+        MapSqlParameterSource p = base(spjangcd, custcd);
+        p.addValue("stdate", startDate == null ? "" : startDate.replaceAll("-", ""));
+        p.addValue("enddate", endDate == null ? "" : endDate.replaceAll("-", ""));
+        p.addValue("keyword", keyword == null ? "" : keyword.trim());
+        p.addValue("gubun", gubun == null ? "" : gubun.trim());
+        p.addValue("bhflag", bhflag == null ? "" : bhflag.trim());
 
         String sql = """
-                WITH detail_summary AS (
-                    SELECT
-                        misnum,
-                        MIN(itemnm) AS first_itemnm,
-                        COUNT(*) AS item_count
-                    FROM tb_invoicedetail
-                    GROUP BY misnum
-                ),
-                clt_unified AS (
-                    SELECT id, '0' AS flag, "Code", "Name" AS name, NULL AS accnum, NULL AS accname, NULL AS cardnum, NULL AS cardnm FROM company
-                    UNION ALL
-                    SELECT id, '1' AS flag, "Code", "Name", NULL, NULL, NULL, NULL FROM person
-                    UNION ALL
-                    SELECT accid AS id, '2', NULL, NULL, accnum, accname, NULL, NULL FROM tb_account
-                    UNION ALL
-                    SELECT id, '3', NULL, NULL, NULL, null, cardnum, cardnm FROM tb_iz010
-                ),
-                payclt_unified AS (
-                    SELECT id, '0' AS flag, "Code", "Name" AS name, NULL AS accnum, NULL AS accname, NULL AS cardnum, NULL AS cardnm FROM company
-                    UNION ALL
-                    SELECT id, '1', "Code", "Name", NULL, NULL, NULL, NULL FROM person
-                    UNION ALL
-                    SELECT accid AS id, '2', NULL, NULL, accnum, accname, NULL, NULL FROM tb_account
-                    UNION ALL
-                    SELECT id, '3', NULL, NULL, NULL, null, cardnum, cardnm FROM tb_iz010
-                )
-                                
-                SELECT
-                    TO_CHAR(TO_DATE(m.misdate, 'YYYYMMDD'), 'YYYY-MM-DD') AS misdate,
-                    m.misnum,
-                    m.misgubun,
-                    purchase_type_code."Value" AS misgubun_name,
-                    m.paycltcd,
-                    m.cltcd,
-                    COALESCE(cu.name, cu.accnum, cu.cardnum) AS cltnm,
-                	COALESCE(cu.accname, cu.cardnm, cu."Code") AS cltnmsub,
-                    COALESCE(pcu.name, pcu.accnum, pcu.cardnum) AS paycltnm,
-                	COALESCE(pcu.accname, pcu.cardnm, pcu."Code") AS paycltnmsub,
-                    m.totalamt,
-                    m.supplycost,
-                    m.taxtotal,
-                    m.title,
-                    m.deductioncd,
-                    de.name AS dedunm,
-                    m.depart_id,
-                    dp."Name" AS dpName,
-                    m.card_id,
-                    iz.cardnum AS incardnum,
-                    CASE
-                        WHEN ds.item_count > 1 THEN ds.first_itemnm || ' 외 ' || (ds.item_count - 1) || '개'
-                        WHEN ds.item_count = 1 THEN ds.first_itemnm
-                        ELSE NULL
-                    END AS item_summary
-                                
-                FROM tb_invoicement m
-                LEFT JOIN detail_summary ds ON m.misnum = ds.misnum
-                LEFT JOIN clt_unified cu ON m.cltcd = cu.id AND m.cltflag = cu.flag
-                LEFT JOIN payclt_unified pcu ON m.paycltcd = pcu.id AND m.paycltflag = pcu.flag
-                LEFT JOIN vat_deduction_type de ON m.deductioncd = de.code
-                LEFT JOIN depart dp ON m.depart_id = dp.id
-                LEFT JOIN tb_iz010 iz ON m.card_id = iz.id
-                LEFT JOIN sys_code purchase_type_code ON purchase_type_code."CodeType" = 'purchase_type'
-                    AND purchase_type_code."Code" = m.misgubun
-                WHERE 1=1
-                and m.spjangcd = :spjangcd 
-                     """; // 조건은 아래에서 붙임
+                SELECT h.mijdate,
+                       h.mijnum,
+                       STUFF(STUFF(h.mijdate, 5, 0, '-'), 8, 0, '-') AS mijdate_fmt,
+                       ISNULL(h.remark, '')    AS remark,
+                       h.cltcd,
+                       ISNULL(h.cltnm, '')     AS cltnm,
+                       ISNULL(h.mijcltcd, '')  AS mijcltcd,
+                       ISNULL(h.mijcltnm, '')  AS mijcltnm,
+                       ISNULL(h.gubun, '')     AS gubun,
+                       ISNULL(g.com_cnam, '')  AS gubunnm,
+                       ISNULL(h.bhflag, '')    AS bhflag,
+                       ISNULL(h.mijamt, 0)     AS mijamt,
+                       ISNULL(h.artcd, '')     AS artcd,
+                       ISNULL(art.artnm, '')   AS artnm,
+                       ISNULL(h.divicd, '')    AS divicd,
+                       ISNULL(e.divinm, '')    AS divinm,
+                       ISNULL(h.actcd, '')     AS actcd,
+                       ISNULL(q.actnm, '')     AS actnm,
+                       ISNULL(h.acccd, '')     AS acccd,
+                       ISNULL(h.schdate, '')   AS schdate,
+                       ISNULL(h.tax_spdate, '') AS tax_spdate,
+                       ISNULL(h.taxreclafi, '') AS taxreclafi,
+                       ISNULL(tx.nm, '')       AS taxrenm,
+                       ISNULL(h.billkind, '')  AS billkind,
+                       ISNULL(h.yyyymm, '')    AS yyyymm,
+                       ISNULL(h.bigo, '')      AS bigo,
+                       -- 이미 지급된 금액. 0 보다 크면 수정할 수 없다 (파워빌더와 동일)
+                       ISNULL(pay.iamt, 0)     AS iamt,
+                       CASE WHEN ISNULL(pay.iamt, 0) > 0 THEN '지급' ELSE '미지급' END AS payyn
+                  FROM TB_CA640 h WITH(NOLOCK)
+                  LEFT JOIN TB_CA510 g WITH(NOLOCK) ON g.com_cls = '113' AND g.com_code = h.gubun
+                  LEFT JOIN TB_JC002 e WITH(NOLOCK)
+                    ON e.custcd = h.custcd AND e.spjangcd = h.spjangcd AND e.divicd = h.divicd
+                  LEFT JOIN TB_E601 q WITH(NOLOCK)
+                    ON q.custcd = h.custcd AND q.spjangcd = h.spjangcd AND q.actcd = h.actcd
+                  OUTER APPLY (SELECT TOP 1 artnm FROM TB_CA648 WITH(NOLOCK)
+                                WHERE TB_CA648.custcd = h.custcd AND TB_CA648.spjangcd = h.spjangcd
+                                  AND TB_CA648.artcd = h.artcd) art
+                  OUTER APPLY (SELECT TOP 1 nm FROM TB_IZ903 WITH(NOLOCK) WHERE TB_IZ903.cd = h.taxreclafi) tx
+                  OUTER APPLY (SELECT SUM(ISNULL(a.hamt,0) + ISNULL(a.eamt,0) + ISNULL(a.samt,0)
+                                        + ISNULL(a.bamt,0) + ISNULL(a.damt,0) + ISNULL(a.gamt,0)) AS iamt
+                                 FROM TB_CA642 a WITH(NOLOCK)
+                                WHERE a.custcd = h.custcd AND a.spjangcd = h.spjangcd
+                                  AND a.mijdate = h.mijdate AND a.mijnum = h.mijnum) pay
+                 WHERE h.custcd = :custcd AND h.spjangcd = :spjangcd
+                   AND h.mijdate BETWEEN :stdate AND :enddate
+                   AND (:keyword = '' OR h.cltcd LIKE '%' + :keyword + '%'
+                                      OR ISNULL(h.cltnm, '') LIKE '%' + :keyword + '%'
+                                      OR ISNULL(h.remark, '') LIKE '%' + :keyword + '%')
+                   AND (:gubun = '' OR h.gubun = :gubun)
+                   AND (:bhflag = '' OR h.bhflag = :bhflag)
+                 ORDER BY h.mijdate, h.mijnum
+                """;
 
-        if (invoice_kind != null && !invoice_kind.isEmpty()) {
-            sql += " and m.misgubun = :invoice_kind ";
-        }
-
-        if (cboCompany != null) {
-            sql += " and m.cltcd = :cboCompany ";
-        }
-
-        if (start != null && end != null) {
-            sql += " and to_date(m.misdate, 'YYYYMMDD') between :start and :end ";
-        }
-
-        return this.sqlRunner.getRows(sql, dicParam);
+        return sqlRunner.getRows(sql, p);
     }
 
+    /** 상세 (파워빌더 '비용상세' 탭) */
+    public List<Map<String, Object>> getDetail(String spjangcd, String mijdate, String mijnum) {
+        String custcd = getCustcd(spjangcd);
+        if (custcd == null) return List.of();
+
+        MapSqlParameterSource p = base(spjangcd, custcd);
+        p.addValue("mijdate", mijdate == null ? "" : mijdate.replaceAll("-", ""));
+        p.addValue("mijnum", mijnum == null ? "" : mijnum);
+
+        String sql = """
+                SELECT d.seq,
+                       ISNULL(d.remark, '') AS remark,
+                       ISNULL(d.size, '')   AS size,
+                       ISNULL(d.unit, '')   AS unit,
+                       ISNULL(d.qty, 0)     AS qty,
+                       ISNULL(d.uamt, 0)    AS uamt,
+                       ISNULL(d.samt, 0)    AS samt,
+                       ISNULL(d.tamt, 0)    AS tamt,
+                       ISNULL(d.mijamt, 0)  AS mijamt,
+                       ISNULL(d.actcd, '')  AS actcd,
+                       ISNULL(d.projno, '') AS projno,
+                       ISNULL(d.projectnm, '') AS projectnm,
+                       ISNULL(d.acc_spdate, '') AS acc_spdate,
+                       ISNULL(d.acc_spnum, '')  AS acc_spnum
+                  FROM TB_CA641 d WITH(NOLOCK)
+                 WHERE d.custcd = :custcd AND d.spjangcd = :spjangcd
+                   AND d.mijdate = :mijdate AND d.mijnum = :mijnum
+                 ORDER BY d.seq
+                """;
+
+        return sqlRunner.getRows(sql, p);
+    }
+
+    /** 거래명세표 탭 (TB_CA641_PCODE). 조회만 한다. */
+    public List<Map<String, Object>> getPcodeList(String spjangcd, String mijdate, String mijnum) {
+        String custcd = getCustcd(spjangcd);
+        if (custcd == null) return List.of();
+
+        MapSqlParameterSource p = base(spjangcd, custcd);
+        p.addValue("mijdate", mijdate == null ? "" : mijdate.replaceAll("-", ""));
+        p.addValue("mijnum", mijnum == null ? "" : mijnum);
+
+        return sqlRunner.getRows("""
+                SELECT seq, ISNULL(pcode, '') AS pcode, ISNULL(pname, '') AS pname,
+                       ISNULL(psize, '') AS psize, ISNULL(punit, '') AS punit,
+                       ISNULL(qty, 0) AS qty, ISNULL(uamt, 0) AS uamt,
+                       ISNULL(samt, 0) AS samt, ISNULL(tamt, 0) AS tamt, ISNULL(mijamt, 0) AS mijamt,
+                       ISNULL(ibgdate, '') AS ibgdate, ISNULL(ibgnum, '') AS ibgnum
+                  FROM TB_CA641_PCODE WITH(NOLOCK)
+                 WHERE custcd = :custcd AND spjangcd = :spjangcd
+                   AND mijdate = :mijdate AND mijnum = :mijnum
+                 ORDER BY seq
+                """, p);
+    }
+
+    // ────────────────────────────────────────────────────────────
+    //  저장 / 삭제
+    // ────────────────────────────────────────────────────────────
+
+    /** 이미 지급된 금액 (파워빌더가 수정을 막는 기준) */
+    public double paidAmount(String spjangcd, String custcd, String mijdate, String mijnum) {
+        MapSqlParameterSource p = base(spjangcd, custcd);
+        p.addValue("mijdate", mijdate);
+        p.addValue("mijnum", mijnum);
+        Map<String, Object> row = sqlRunner.getRow("""
+                SELECT ISNULL(SUM(ISNULL(hamt,0) + ISNULL(eamt,0) + ISNULL(samt,0)
+                                + ISNULL(bamt,0) + ISNULL(damt,0) + ISNULL(gamt,0)), 0) AS iamt
+                  FROM TB_CA642 WITH(NOLOCK)
+                 WHERE custcd = :custcd AND spjangcd = :spjangcd
+                   AND mijdate = :mijdate AND mijnum = :mijnum
+                """, p);
+        if (row == null) throw new IllegalStateException("지급내역을 확인하지 못했습니다.");
+        return ((Number) row.get("iamt")).doubleValue();
+    }
+
+    /**
+     * 헤더 + 상세 저장.
+     *
+     * @return 저장된 전표의 {mijdate, mijnum}
+     */
     @Transactional
-    public AjaxResult saveInvoice(@RequestBody Map<String, Object> form) {
+    public Map<String, String> save(String spjangcd, Map<String, Object> header,
+                                    List<Map<String, Object>> details, String userId) {
 
-        AjaxResult result = new AjaxResult();
-        try {
+        String custcd = getCustcd(spjangcd);
+        if (custcd == null) throw new IllegalStateException("사업장 정보를 찾을 수 없습니다.");
 
-            // 인보이스 저장
-            saveInvoiceInternal(form);
+        String mijdate = str(header.get("mijdate")).replaceAll("-", "");
+        if (mijdate.length() != 8 || !mijdate.matches("\\d{8}")) {
+            throw new IllegalStateException("매입일자를 다시 입력해주세요.");
+        }
+        String mijnum = str(header.get("mijnum")).trim();
+        boolean isNew = mijnum.isEmpty();
 
-
-            result.success = true;
-        } catch (Exception e) {
-            result.success = false;
-
-            Throwable rootCause = getRootCause(e);
-            String rawMessage = rootCause != null ? rootCause.getMessage() : e.getMessage();
-
-            if (rawMessage != null && rawMessage.contains("character varying")) {
-                result.message = "입력값이 너무 깁니다. 입력 길이를 확인해주세요.";
-            } else {
-                result.message = "처리 중 오류가 발생했습니다: " + rawMessage;
+        // 적요가 빈 상세는 저장하지 않는다 (파워빌더도 그 행을 지운다)
+        List<Map<String, Object>> rows = new ArrayList<>();
+        double sumSamt = 0, sumMijamt = 0;
+        if (details != null) {
+            for (Map<String, Object> d : details) {
+                if (str(d.get("remark")).isBlank()) continue;
+                rows.add(d);
+                sumSamt += num(d.get("samt"));
+                sumMijamt += num(d.get("mijamt"));
             }
+        }
+        if (rows.isEmpty()) throw new IllegalStateException("매입 상세를 입력해주세요.");
+        if (sumSamt == 0 || sumMijamt == 0) throw new IllegalStateException("공급가액을 입력해주세요.");
 
-            log.error("saveInvoice 예외 발생", e); // 서버 로그에 전체 출력
+        // 수정이면 지급 여부부터 확인한다
+        if (!isNew && paidAmount(spjangcd, custcd, mijdate, mijnum) > 0) {
+            throw new IllegalStateException("이미 지급된 내역이 있어 수정할 수 없습니다.");
         }
 
-        return result;
-    }
+        if (isNew) mijnum = nextMijnum(spjangcd, custcd, mijdate);
 
-    private TB_Invoicement saveInvoiceInternal(Map<String, Object> form) {
-        // 1. 기본 키 생성
-        Integer misnum = parseInt(form.get("misnum"));
-        boolean isUpdate = misnum != null;
+        MapSqlParameterSource p = base(spjangcd, custcd);
+        p.addValue("mijdate", mijdate);
+        p.addValue("mijnum", mijnum);
+        p.addValue("cltcd", str(header.get("cltcd")));
+        p.addValue("cltnm", str(header.get("cltnm")));
+        p.addValue("mijcltcd", str(header.get("mijcltcd")));
+        p.addValue("mijcltnm", str(header.get("mijcltnm")));
+        p.addValue("remark", str(header.get("remark")));
+        p.addValue("bigo", str(header.get("bigo")));
+        p.addValue("gubun", str(header.get("gubun")));
+        p.addValue("bhflag", str(header.get("bhflag")));
+        p.addValue("artcd", str(header.get("artcd")));
+        p.addValue("divicd", str(header.get("divicd")));
+        p.addValue("actcd", str(header.get("actcd")));
+        p.addValue("acccd", str(header.get("acccd")));
+        p.addValue("taxreclafi", str(header.get("taxreclafi")));
+        p.addValue("billkind", str(header.get("billkind")));
+        // 귀속년월이 비면 매입일자의 년월로 채운다 (경기 5,782건 중 5,776건이 그 형태다)
+        String yyyymm = str(header.get("yyyymm")).replaceAll("-", "");
+        p.addValue("yyyymm", yyyymm.isBlank() ? mijdate.substring(0, 6) : yyyymm);
+        p.addValue("tax_spdate", str(header.get("tax_spdate")).replaceAll("-", ""));
+        // 지급예정일이 비면 매입일자로 채운다 (파워빌더와 동일)
+        String schdate = str(header.get("schdate")).replaceAll("-", "");
+        p.addValue("schdate", schdate.isBlank() ? mijdate : schdate);
+        p.addValue("mijamt", sumMijamt);
+        p.addValue("inperid", userId == null ? "" : userId);
 
-        TB_Invoicement invoicement;
-
-        if (isUpdate) {
-            invoicement = tb_invoicementRepository.findById(misnum)
-                    .orElseThrow(() -> new RuntimeException("수정할 데이터가 없습니다."));
+        int affected;
+        if (isNew) {
+            affected = sqlRunner.execute("""
+                    INSERT INTO TB_CA640 (custcd, spjangcd, mijdate, mijnum, cltcd, cltnm, mijcltcd, mijcltnm,
+                                          remark, bigo, gubun, bhflag, artcd, divicd, actcd, acccd,
+                                          taxreclafi, billkind, yyyymm, tax_spdate, schdate, mijamt,
+                                          mijgubun, taxcls, indate, inperid)
+                    VALUES (:custcd, :spjangcd, :mijdate, :mijnum, :cltcd, :cltnm, :mijcltcd, :mijcltnm,
+                            :remark, :bigo, :gubun, :bhflag, :artcd, :divicd, :actcd, :acccd,
+                            :taxreclafi, :billkind, :yyyymm, :tax_spdate, :schdate, :mijamt,
+                            '0', '01', CONVERT(varchar(8), GETDATE(), 112), :inperid)
+                    """, p);
         } else {
-            invoicement = new TB_Invoicement();
+            affected = sqlRunner.execute("""
+                    UPDATE TB_CA640
+                       SET cltcd = :cltcd, cltnm = :cltnm, mijcltcd = :mijcltcd, mijcltnm = :mijcltnm,
+                           remark = :remark, bigo = :bigo, gubun = :gubun, bhflag = :bhflag,
+                           artcd = :artcd, divicd = :divicd, actcd = :actcd, acccd = :acccd,
+                           taxreclafi = :taxreclafi, billkind = :billkind, yyyymm = :yyyymm,
+                           tax_spdate = :tax_spdate, schdate = :schdate, mijamt = :mijamt,
+                           indate = CONVERT(varchar(8), GETDATE(), 112), inperid = :inperid
+                     WHERE custcd = :custcd AND spjangcd = :spjangcd
+                       AND mijdate = :mijdate AND mijnum = :mijnum
+                    """, p);
+        }
+        if (affected == 0) throw new IllegalStateException("매입 저장에 실패했습니다.");
+
+        // 상세는 통째로 다시 넣는다 (파워빌더는 행 단위로 갱신하지만 결과는 같다)
+        MapSqlParameterSource dp = base(spjangcd, custcd);
+        dp.addValue("mijdate", mijdate);
+        dp.addValue("mijnum", mijnum);
+        sqlRunner.execute("""
+                DELETE FROM TB_CA641
+                 WHERE custcd = :custcd AND spjangcd = :spjangcd
+                   AND mijdate = :mijdate AND mijnum = :mijnum
+                """, dp);
+
+        int seq = 1;
+        for (Map<String, Object> d : rows) {
+            MapSqlParameterSource rp = base(spjangcd, custcd);
+            rp.addValue("mijdate", mijdate);
+            rp.addValue("mijnum", mijnum);
+            rp.addValue("seq", String.format("%03d", seq++));
+            rp.addValue("cltcd", str(header.get("cltcd")));
+            rp.addValue("accdate", mijdate);
+            rp.addValue("remark", str(d.get("remark")));
+            rp.addValue("size", str(d.get("size")));
+            rp.addValue("unit", str(d.get("unit")));
+            rp.addValue("qty", num(d.get("qty")));
+            rp.addValue("uamt", num(d.get("uamt")));
+            rp.addValue("samt", num(d.get("samt")));
+            rp.addValue("tamt", num(d.get("tamt")));
+            rp.addValue("mijamt", num(d.get("mijamt")));
+            // 경기 상세 5,879건은 actcd·projno·artcd 가 모두 비어 있다. 채워 넣지 않고 들어온 값만 쓴다
+            rp.addValue("actcd", str(d.get("actcd")));
+            rp.addValue("projno", str(d.get("projno")));
+            rp.addValue("projectnm", str(d.get("projectnm")));
+            rp.addValue("inperid", userId == null ? "" : userId);
+
+            int ins = sqlRunner.execute("""
+                    INSERT INTO TB_CA641 (custcd, spjangcd, cltcd, mijdate, mijnum, seq, accdate,
+                                          remark, size, unit, qty, uamt, samt, tamt, mijamt,
+                                          actcd, projno, projectnm, indate, inperid)
+                    VALUES (:custcd, :spjangcd, :cltcd, :mijdate, :mijnum, :seq, :accdate,
+                            :remark, :size, :unit, :qty, :uamt, :samt, :tamt, :mijamt,
+                            :actcd, :projno, :projectnm, CONVERT(varchar(8), GETDATE(), 112), :inperid)
+                    """, rp);
+            if (ins == 0) throw new IllegalStateException("매입 상세 저장에 실패했습니다.");
         }
 
-        String misdate = sanitizeNumericString(form.get("writeDate"));
-        invoicement.setMisdate(misdate);
-        invoicement.setMisgubun((String)form.get("purchase_type"));
-        invoicement.setCltcd(parseInt(form.get("InvoicerID")));
-        invoicement.setCltflag((String) form.get("cltflag"));
-        invoicement.setPaycltflag((String) form.get("paycltflag"));
-        invoicement.setPaycltcd(parseInt(form.get("PaymentCorpID")));
-        invoicement.setTitle((String)form.get("title"));
-        invoicement.setDeductioncd((String) form.get("tax_codeHidden"));
-        invoicement.setDepart_id(parseInt(form.get("att_departHidden")));
-        invoicement.setCard_id(parseInt(form.get("card_codeHidden")));
-        invoicement.setTitle((String)form.get("title"));
+        // 파워빌더도 저장 뒤 헤더·상세 합계를 한 번 더 맞춘다
+        sqlRunner.execute("""
+                UPDATE TB_CA640
+                   SET mijamt = (SELECT SUM(ISNULL(mijamt, 0)) FROM TB_CA641 WITH(NOLOCK)
+                                  WHERE TB_CA641.custcd = TB_CA640.custcd
+                                    AND TB_CA641.spjangcd = TB_CA640.spjangcd
+                                    AND TB_CA641.mijdate = TB_CA640.mijdate
+                                    AND TB_CA641.mijnum = TB_CA640.mijnum)
+                 WHERE custcd = :custcd AND spjangcd = :spjangcd
+                   AND mijdate = :mijdate AND mijnum = :mijnum
+                """, dp);
 
-        BigDecimal totalAmount = parseMoney(form.get("TotalAmount"));
-        if (totalAmount != null) {
-            invoicement.setTotalamt(totalAmount.intValue()); // 합계금액
-        }
-        invoicement.setSupplycost(parseIntSafe(form.get("SupplyCostTotal"))); // 총 공급가액
-        invoicement.setTaxtotal(parseIntSafe(form.get("TaxTotal"))); // 총 세액
-        invoicement.setRemark1((String) form.get("Remark1")); // 비고1
-
-        Object remark2 = form.get("Remark2");
-        if (remark2 != null && !remark2.toString().trim().isEmpty()) {
-            invoicement.setRemark2(remark2.toString().trim()); // 비고2
-        }
-
-        Object remark3 = form.get("Remark3");
-        if (remark3 != null && !remark3.toString().trim().isEmpty()) {
-            invoicement.setRemark3(remark3.toString().trim()); // 비고3
-        }
-
-        if (isUpdate) {
-            tb_invoiceDetailRepository.deleteByMisnum(misnum);   // 현재 PK로 삭제
-        }
-
-        invoicement.setSpjangcd((String) form.get("spjangcd"));
-        TB_Invoicement saved = tb_invoicementRepository.save(invoicement);
-
-        // 3. 상세 목록 매핑
-        int serialIndex = 1;
-        List<TB_InvoiceDetail> details = new ArrayList<>();
-
-        int i = 0;
-        while (true) {
-            String prefix = "detailList[" + i + "]";
-            String itemName = (String) form.get(prefix + ".ItemName");
-
-            if (itemName == null) break; // 더 이상 항목 없음
-
-            if (itemName.trim().isEmpty()) {
-                i++;
-                continue;
-            }
-
-            String serialNum = String.valueOf(serialIndex++);
-
-            TB_InvoiceDetail detail = new TB_InvoiceDetail();
-            detail.setId(new TB_InvoiceDetailId(saved.getMisnum(), serialNum));
-            detail.setMaterialId(parseInt(form.get(prefix + ".ItemId")));
-            detail.setItemnm(itemName);
-            detail.setMisdate(misdate);
-            detail.setSpec((String) form.get(prefix + ".Spec"));
-            BigDecimal qty = parseMoney(form.get(prefix + ".Qty"));
-            if (qty != null) detail.setQty(qty.intValue());
-
-            BigDecimal unitCost = parseMoney(form.get(prefix + ".UnitCost"));
-            if (unitCost != null) detail.setUnitcost(unitCost.intValue());
-
-            BigDecimal supplyCost = parseMoney(form.get(prefix + ".SupplyCost"));
-            if (supplyCost != null) detail.setSupplycost(supplyCost.intValue());
-
-            BigDecimal tax = parseMoney(form.get(prefix + ".Tax"));
-            if (tax != null) detail.setTaxtotal(tax.intValue());
-
-            detail.setRemark((String) form.get(prefix + ".Remark"));
-            detail.setSpjangcd((String) form.get("spjangcd"));
-
-            detail.setArtcd((String) form.get(prefix+ ".ExpenseId"));
-            detail.setAcccd((String) form.get(prefix+ ".AccountId"));
-            detail.setProjcd((String) form.get(prefix + ".ProjectId"));
-
-            String purchaseDT = (String) form.get(prefix + ".PurchaseDT");
-            if (purchaseDT != null && purchaseDT.length() == 4) {
-                String fullPurchaseDT = misdate.substring(0, 4) + purchaseDT;
-                detail.setPurchasedt(fullPurchaseDT);
-            } else {
-                detail.setPurchasedt(null);
-            }
-
-            detail.setInvoicement(saved);
-            details.add(detail);
-
-            i++;
-        }
-
-        saved.getDetails().clear();
-        saved.getDetails().addAll(details);
-
-        return tb_invoicementRepository.save(saved);
-
+        return Map.of("mijdate", mijdate, "mijnum", mijnum);
     }
 
-    private Throwable getRootCause(Throwable throwable) {
-        Throwable cause = throwable;
-        while (cause.getCause() != null) {
-            cause = cause.getCause();
+    /**
+     * 전표번호 채번 — 매입일자별 MAX+1.
+     * 파워빌더도 화면에서 번호를 만들기 때문에 같은 순간에 저장하면 겹칠 수 있다.
+     * 그래서 잠금을 걸고 뽑은 뒤, 이미 있는 번호면 다시 뽑는다 (업무일지 채번과 같은 방식).
+     */
+    private String nextMijnum(String spjangcd, String custcd, String mijdate) {
+        MapSqlParameterSource p = base(spjangcd, custcd);
+        p.addValue("mijdate", mijdate);
+
+        for (int attempt = 0; attempt < 3; attempt++) {
+            Map<String, Object> row = sqlRunner.getRow("""
+                    SELECT ISNULL(MAX(TRY_CAST(mijnum AS int)), 0) + 1 AS nextnum
+                      FROM TB_CA640 WITH(UPDLOCK, HOLDLOCK)
+                     WHERE custcd = :custcd AND spjangcd = :spjangcd AND mijdate = :mijdate
+                    """, p);
+            if (row == null) throw new IllegalStateException("전표번호를 채번하지 못했습니다.");
+
+            int next = ((Number) row.get("nextnum")).intValue();
+            // mijnum 은 varchar(4) 라 5자리가 되면 더 못 넣는다
+            if (next > 9999) throw new IllegalStateException("해당 일자의 전표번호를 모두 사용했습니다.");
+            String candidate = String.format("%04d", next);
+            p.addValue("mijnum", candidate);
+
+            Map<String, Object> dup = sqlRunner.getRow("""
+                    SELECT COUNT(*) AS cnt FROM TB_CA640 WITH(NOLOCK)
+                     WHERE custcd = :custcd AND spjangcd = :spjangcd
+                       AND mijdate = :mijdate AND mijnum = :mijnum
+                    """, p);
+            if (dup != null && ((Number) dup.get("cnt")).intValue() == 0) return candidate;
+
+            log.warn("[매입관리] 전표번호 충돌 mijdate={}, mijnum={} — 재채번", mijdate, candidate);
         }
-        return cause;
+        throw new IllegalStateException("전표번호가 계속 충돌합니다. 잠시 후 다시 저장해주세요.");
     }
 
-    public Map<String, Object> getInvoiceDetail(Integer misnum) throws IOException {
-        MapSqlParameterSource paramMap = new MapSqlParameterSource();
-        paramMap.addValue("misnum", misnum);
-
-        String sql = """ 
-                SELECT
-                    TO_CHAR(TO_DATE(m.misdate, 'YYYYMMDD'), 'YYYY-MM-DD') AS "writeDate",
-                    m.misnum,
-                    m.misgubun as "purchase_type",
-                    purchase_type_code."Value" AS misgubun_name,  -- fn_code_name 제거
-                    m.paycltcd as "PaymentCorpID",
-                    m.cltcd as "InvoicerID",
-                    case
-                         when m.cltflag = '0' then c."Name"
-                         when m.cltflag = '1' then p."Name"
-                         when m.cltflag = '2' then d.accnum
-                         when m.cltflag = '3' then i.cardnum
-                         ELSE NULL
-                    END as "InvoicerCorpName",
-                    case
-                         when m.paycltflag = '0' then c2."Name"
-                         when m.paycltflag = '1' then p2."Name"
-                         when m.paycltflag = '2' then d2.accnum
-                         when m.paycltflag = '3' then i2.cardnum
-                         ELSE NULL
-                    END as "PaymentCorpName",
-                    m.title,
-                	m.deductioncd as "tax_codeHidden",
-                	de.name as "tax_code",
-                	m.depart_id as "att_departHidden",
-                	dp."Name" AS "att_depart",
-                	m.card_id as "card_codeHidden",
-                	iz.cardnum as "card_code",
-                	
-                	m.remark1 AS "Remark1",
-                	m.remark2 AS "Remark2",
-                	m.remark3 AS "Remark3",
-                	
-                    m.supplycost AS "SupplyCostTotal",
-                	m.taxtotal AS "TaxTotal"
-                 
-                FROM tb_invoicement m
-                   
-                LEFT JOIN vat_deduction_type de
-                   ON m.deductioncd = de.code
-                        
-                LEFT JOIN depart dp
-                   ON m.depart_id = dp.id
-                        
-                LEFT JOIN tb_iz010 iz
-                   ON m.card_id = iz.id
-                   
-                LEFT JOIN sys_code purchase_type_code
-                   ON purchase_type_code."CodeType" = 'purchase_type'
-                   AND purchase_type_code."Code" = m.misgubun
-                   
-                left join company c on c.id = m.cltcd
-                left join person p on p.id = m.cltcd
-                left join tb_account d on d.accid = m.cltcd
-                left join tb_iz010 i on i.id = m.cltcd
-                left join company c2 on c2.id = m.paycltcd
-                left join person p2 on p2.id = m.paycltcd
-                left join tb_account d2 on d2.accid = m.paycltcd
-                left join tb_iz010 i2 on i2.id = m.paycltcd
-                WHERE m.misnum = :misnum
-                """;
-
-        String detailSql = """ 
-                SELECT
-                	 d."Material_id" AS "ItemId",
-                	 d.itemnm AS "ItemName",
-                	 d.spec AS "Spec",
-                	 d.qty AS "Qty",
-                	 d.unitcost AS "UnitCost",
-                	 d.supplycost AS "SupplyCost",
-                	 d.taxtotal AS "Tax",
-                	 d.remark AS "Remark",
-                	 SUBSTRING(d.purchasedt FROM 5 FOR 4) AS "PurchaseDT",
-                	 d.artcd AS "ExpenseId",
-                	 ex.artnm AS "ExpenseNm",
-                	 d.acccd AS "AccountId",
-                	 ac.accnm as "AccountNm",
-                	 d.projcd AS "ProjectId",
-                	 pj.projnm as "ProjectNm"
-                	 
-                	 
-                 FROM tb_invoicedetail d
-                 
-                 LEFT JOIN tb_ca648 ex
-                    ON ex.artcd = d.artcd
-                 
-                 LEFT JOIN tb_accsubject ac
-                    ON ac."acccd" = d.acccd
-                 
-                 LEFT JOIN TB_DA003 pj
-                    ON pj."projno" = d.projcd
-                 
-                 
-                 WHERE d.misnum = :misnum
-                 ORDER BY d.misseq::int asc
-                """;
-
-        Map<String, Object> master = this.sqlRunner.getRow(sql, paramMap);
-        List<Map<String, Object>> detailList = this.sqlRunner.getRows(detailSql, paramMap);
-
-        UtilClass.decryptItem(master, "card_code", 0);
-        UtilClass.decryptItem(master, "InvoicerCorpName", 0);
-        UtilClass.decryptItem(master, "PaymentCorpName", 0);
-
-        master.put("detailList", detailList);
-        return master;
-    }
-
+    /** 삭제 — 지급된 건은 막는다 */
     @Transactional
-    public AjaxResult deleteInvoicement(List<Map<String, String>> deleteList) {
-        AjaxResult result = new AjaxResult();
+    public void delete(String spjangcd, String mijdate, String mijnum) {
+        String custcd = getCustcd(spjangcd);
+        if (custcd == null) throw new IllegalStateException("사업장 정보를 찾을 수 없습니다.");
 
-        if (deleteList == null || deleteList.isEmpty()) {
-            result.success = false;
-            result.message = "삭제할 데이터가 없습니다.";
-            return result;
+        String date = mijdate == null ? "" : mijdate.replaceAll("-", "");
+        if (paidAmount(spjangcd, custcd, date, mijnum) > 0) {
+            throw new IllegalStateException("이미 지급된 내역이 있어 삭제할 수 없습니다.");
         }
 
-        List<Integer> idList = deleteList.stream()
-                .map(item -> Integer.parseInt(item.get("misnum")))
-                .toList();
+        MapSqlParameterSource p = base(spjangcd, custcd);
+        p.addValue("mijdate", date);
+        p.addValue("mijnum", mijnum);
 
+        sqlRunner.execute("""
+                DELETE FROM TB_CA641
+                 WHERE custcd = :custcd AND spjangcd = :spjangcd
+                   AND mijdate = :mijdate AND mijnum = :mijnum
+                """, p);
 
-        deleteByInvoicedetailIds(idList);
-
-        tb_invoicementRepository.deleteAllById(idList);
-
-        result.success = true;
-        return result;
+        int deleted = sqlRunner.execute("""
+                DELETE FROM TB_CA640
+                 WHERE custcd = :custcd AND spjangcd = :spjangcd
+                   AND mijdate = :mijdate AND mijnum = :mijnum
+                """, p);
+        if (deleted == 0) throw new IllegalStateException("삭제할 매입을 찾을 수 없습니다.");
     }
 
-    public void deleteByInvoicedetailIds(List<Integer> idList) {
-        if (idList == null || idList.isEmpty()) return;
-
-        String placeholders = idList.stream()
-                .map(id -> "?")
-                .collect(Collectors.joining(", "));
-
-        String sql = "DELETE FROM tb_invoicedetail WHERE misnum IN (" + placeholders + ")";
-        jdbcTemplate.update(sql, idList.toArray());
+    private static String str(Object o) {
+        return o == null ? "" : String.valueOf(o);
     }
 
-    private Integer parseInt(Object value) {
-        if (value == null) return null;
-        try {
-            return Integer.parseInt(value.toString().trim());
-        } catch (Exception e) {
-            return null; // 또는 0
-        }
+    private static double num(Object o) {
+        if (o == null) return 0;
+        if (o instanceof Number n) return n.doubleValue();
+        String s = String.valueOf(o).replaceAll(",", "").trim();
+        if (s.isEmpty()) return 0;
+        try { return Double.parseDouble(s); } catch (NumberFormatException e) { return 0; }
     }
-
-    private BigDecimal parseMoney(Object obj) {
-        if (obj == null || obj.toString().trim().isEmpty()) return null;
-        try {
-            return new BigDecimal(obj.toString().replaceAll(",", "").trim());
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private String sanitizeNumericString(Object obj) {
-        if (obj == null) return null;
-        return obj.toString().replaceAll("[^0-9]", "");  // 숫자만 남김
-    }
-
-    private Integer parseIntSafe(Object obj) {
-        if (obj == null) return null;
-        String str = obj.toString().replaceAll(",", "").trim();
-        if (!str.matches("-?\\d+")) return null; // 정수 패턴 검사: optional 음수부호 + 숫자
-        return Integer.parseInt(str);
-    }
-
-    private String removeMinusSign(Object obj) {
-        if (obj == null) return null;
-        return obj.toString().replaceAll("-", ""); // '-'만 정규식으로 제거
-    }
-
-    @Transactional
-    public AjaxResult updateinvoice(Integer misnum, String issuediv) {
-        AjaxResult result = new AjaxResult();
-
-        TB_Invoicement sm = tb_invoicementRepository.findById(misnum).orElse(null);
-        if (sm == null) {
-            result.success = false;
-            result.message = "해당 데이터가 존재하지 않습니다.";
-            return result;
-        }
-
-
-        tb_invoicementRepository.save(sm);
-
-        return result;
-    }
-
-    @Transactional
-    public AjaxResult copyInvoice(List<Map<String, String>> copyList) {
-        AjaxResult result = new AjaxResult();
-
-        if (copyList == null || copyList.isEmpty()) {
-            result.success = false;
-            result.message = "복사할 데이터가 없습니다.";
-            return result;
-        }
-
-
-        for (Map<String, String> item : copyList) {
-            try {
-                Integer misnum = Integer.parseInt(item.get("misnum"));
-                String misdate = sanitizeNumericString(item.get("writedate"));
-                TB_Invoicement origin = tb_invoicementRepository.findById(misnum).orElseThrow();
-                TB_Invoicement copy = new TB_Invoicement();
-
-                BeanUtils.copyProperties(origin, copy,
-                        "misnum", "writedate", "misdate",
-                        "mgtkey", "orgntscfnum", "orgmgtkey",
-                        "modifycd", "statedt", "ntscode", "statecode",
-                        "details", "ntscfnum"
-                );
-
-                copy.setMisnum(null); // 새 엔티티
-                copy.setMisdate(misdate); // 새 날짜만 지정
-
-                // 조건부 상태코드 설정
-
-                TB_Invoicement savedCopy = tb_invoicementRepository.save(copy);
-
-                savedCopy = tb_invoicementRepository.save(savedCopy);
-
-                savedCopy = tb_invoicementRepository.save(savedCopy);
-
-                List<TB_InvoiceDetail> details = tb_invoiceDetailRepository.findByMisnum(misnum);
-                int sequence = 1;
-
-                for (TB_InvoiceDetail detail : details) {
-                    TB_InvoiceDetail newDetail = new TB_InvoiceDetail();
-                    TB_InvoiceDetailId newId = new TB_InvoiceDetailId(savedCopy.getMisnum(), String.valueOf(sequence++));
-                    newDetail.setId(newId);
-
-                    newDetail.setMisdate(misdate);
-                    newDetail.setItemnm(detail.getItemnm());
-                    newDetail.setSpec(detail.getSpec());
-                    newDetail.setQty(detail.getQty());
-                    newDetail.setUnitcost(detail.getUnitcost());
-                    newDetail.setSupplycost(detail.getSupplycost());
-                    newDetail.setTaxtotal(detail.getTaxtotal());
-                    newDetail.setTotalamt(detail.getTotalamt());
-                    newDetail.setRemark(detail.getRemark());
-                    newDetail.setPurchasedt(misdate);
-                    newDetail.setMaterialId(detail.getMaterialId());
-                    newDetail.setSpjangcd(detail.getSpjangcd());
-                    newDetail.setArtcd(detail.getArtcd());
-                    newDetail.setAcccd(detail.getAcccd());
-                    newDetail.setProjcd(detail.getProjcd());
-
-                    tb_invoiceDetailRepository.save(newDetail);
-                }
-
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        return result;
-    }
-
-    private String getString(Cell cell){
-        if (cell == null) return "";
-        return switch (cell.getCellType()) {
-            case STRING -> cell.getStringCellValue().strip();
-            case NUMERIC -> String.valueOf((long) cell.getNumericCellValue());
-            default -> "";
-        };
-    }
-
-    private int parseInt(Cell cell) {
-        if (cell == null) return 0;
-        try {
-            if (cell.getCellType() == CellType.NUMERIC) {
-                return (int) cell.getNumericCellValue();
-            } else if (cell.getCellType() == CellType.STRING) {
-                return Integer.parseInt(cell.getStringCellValue().replaceAll(",", "").trim());
-            }
-        } catch (Exception ignored) {}
-        return 0;
-    }
-
-    private boolean isRowEmpty(Row row) {
-        if (row == null) return true;
-        for (int c = 0; c < row.getLastCellNum(); c++) {
-            Cell cell = row.getCell(c);
-            if (cell != null && cell.getCellType() != CellType.BLANK) {
-                String val = getString(cell);
-                if (val != null && !val.isBlank()) return false;
-            }
-        }
-        return true;
-    }
-
-    private String formatIdentifier(String num) {
-        if (num == null) return "";
-        num = num.replaceAll("[^0-9]", ""); // 숫자만 추출
-
-        if (num.length() == 10) {
-            // 사업자등록번호: 000-00-00000
-            return num.substring(0, 3) + "-" + num.substring(3, 5) + "-" + num.substring(5);
-        } else if (num.length() == 13) {
-            // 주민등록번호: 000000-0000000
-            return num.substring(0, 6) + "-" + num.substring(6);
-        }
-        return num; // 길이 안 맞으면 그대로 반환
-    }
-
 }

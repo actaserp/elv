@@ -106,6 +106,26 @@
                                         </dd>
                                     </dl>
 
+                                    <!-- 아래 세 가지는 파워빌더 '비용발생현황' 의 조회조건과 같다. -->
+                                    <dl>
+                                        <dt><label>부서</label></dt>
+                                        <dd>
+                                            <select class="form-control2" id="divicd" name="divicd"></select>
+                                        </dd>
+                                    </dl>
+                                    <dl>
+                                        <dt><label>비용항목</label></dt>
+                                        <dd>
+                                            <select class="form-control2" id="artcd" name="artcd"></select>
+                                        </dd>
+                                    </dl>
+                                    <dl>
+                                        <dt><label>공제구분</label></dt>
+                                        <dd>
+                                            <select class="form-control2" id="taxreclafi" name="taxreclafi"></select>
+                                        </dd>
+                                    </dl>
+
                                     <!--<dl>
                                         <dt>
                                             <label>
@@ -302,7 +322,8 @@
 <th:block layout:fragment="scripts">
     <th:block th:replace="common/columns_setting :: columns_setting" ></th:block>
     <th:block th:replace="common/popup_account :: popup_account" />
-    <th:block th:replace="common/popup_company :: popup_company"></th:block>
+    <!-- 거래처는 사업체 DB(TB_XCLIENT) 기준이라 본사 company 를 쓰는 popup_company 대신 popup_client 를 쓴다. -->
+    <th:block th:replace="common/popup_client :: popup_client"></th:block>
     <th:block th:replace="shipment/trade_stmt/trade_stmt_tmpl :: printTemplate"></th:block>
     <script type="text/javascript">
 
@@ -319,8 +340,12 @@
 
                 $('#searchfrdate, #searchfrdate2').val(getNowDateMinus7());
                 $('#searchtodate, #searchtodate2').val(getNowDate());
-                purchase_type = AjaxUtil.fillSelectOptions($('#purchase_type'), 'system_code', 'choose', false, 'purchase_type');
+                // 매입구분 = TB_CA510 com_cls '113' (01 매입세금계산서 / 02 매입계산서 / 03 매입카드 / 04 기타)
+                purchase_type = AjaxUtil.fillSelectOptions($('#purchase_type'), 'purchase_gubun', 'all', false);
                 selectBoxBinding('purchase_type2', purchase_type);
+                AjaxUtil.fillSelectOptions($('#divicd'),     'depart',      'all', false);
+                AjaxUtil.fillSelectOptions($('#artcd'),      'expense_art', 'all', false);
+                AjaxUtil.fillSelectOptions($('#taxreclafi'), 'tax_deduct',  'all', false);
 
                 this.init();
             }
@@ -342,17 +367,23 @@
                     selectionMode: wijmo.grid.SelectionMode.Row,
                     isReadOnly: true,
                     itemsSource: cv,
-                    groupHeaderFormat: '{value}월 매출 - 총 {count}건',
+                    groupHeaderFormat: '{value}월 매입 - 총 {count}건',
                     columns: [
-                        { binding: 'misdate', header: '매입일자', align: 'center', width: '*' },
-                        { binding: 'misgubun', header: '매입구분', align: 'center', width: '*' },
-                        { binding: 'companycode', header: '거래처코드', align: 'right', width: '*'},
-                        { binding: 'companyname', header: '거래처명', align: 'right', width: '*' },
-                        { binding: 'itemnm', header: '품명', align: 'left', width: 150 },
-                        { binding: 'spec', header: '규격', align: 'center', width: 100 },
+                        { binding: 'misdate', header: '매입일자', align: 'center', width: 110 },
+                        { binding: 'misgubun', header: '매입구분', align: 'center', width: 120 },
+                        { binding: 'companycode', header: '거래처코드', align: 'center', width: 100},
+                        { binding: 'companyname', header: '거래처명', align: 'left', width: '*' },
+                        { binding: 'itemnm', header: '품명', align: 'left', width: 200 },
+                        { binding: 'spec', header: '규격', align: 'center', width: 80 },
+                        { binding: 'qty', header: '수량', align: 'right', width: 80 },
+                        { binding: 'uamt', header: '단가', align: 'right', width: 100 },
                         { binding: 'supplycost', header: '공급가', align: 'right', width: 120, aggregate: 'Sum' },
-                        { binding: 'taxtotal', header: '부가세', align: 'right', width: 120, aggregate: 'Sum' },
+                        { binding: 'taxtotal', header: '부가세', align: 'right', width: 110, aggregate: 'Sum' },
                         { binding: 'totalamt', header: '합계', align: 'right', width: 120, aggregate: 'Sum' },
+                        { binding: 'artnm', header: '비용항목', align: 'left', width: 120 },
+                        { binding: 'divinm', header: '부서', align: 'center', width: 100 },
+                        { binding: 'taxrenm', header: '공제구분', align: 'center', width: 100 },
+                        { binding: 'bhflag', header: '발행구분', align: 'center', width: 90 },
                     ]
                 });
                 this.grid1.rowHeaders.columns.splice(0, 1);
@@ -372,11 +403,13 @@
                     isReadOnly: true,
                     itemsSource: _this.viewData2,
                     columns: [
-                        { binding: 'saupnum', header: '사업자등록번호', align: 'center', width: '*' },
+                        { binding: 'cltcd', header: '거래처코드', align: 'center', width: 110 },
+                        { binding: 'saupnum', header: '사업자등록번호', align: 'center', width: 160 },
                         { binding: 'clientName', header: '상호', align: 'left', width: '*'},
-                        { binding: 'cnt', header: '매수', align: 'right', width: '*' },
-                        { binding: 'supplycost', header: '공급가액', align: 'right', width: '*', aggregate: 'Sum' },
-                        { binding: 'taxtotal', header: '세액', align: 'right', width: 150, aggregate: 'Sum' },
+                        { binding: 'cnt', header: '매수', align: 'right', width: 90 },
+                        { binding: 'supplycost', header: '공급가액', align: 'right', width: 140, aggregate: 'Sum' },
+                        { binding: 'taxtotal', header: '세액', align: 'right', width: 130, aggregate: 'Sum' },
+                        { binding: 'totalamt', header: '합계', align: 'right', width: 140, aggregate: 'Sum' },
                     ]
                 });
                 this.grid2.rowHeaders.columns.splice(0, 1);
@@ -398,8 +431,10 @@
                     searchfrdate: $('#searchfrdate').val(),
                     searchtodate: $('#searchtodate').val(),
                     cltcd: $('#cboCompany').val().trim() === '' ? '' : $('#cboCompanyHidden').val(),
-                    purchase_type: $('#purchase_type').val(),
-                    //taxtype: $('input[name=taxtype]:checked').val(),
+                    gubun: $('#purchase_type').val() || '',
+                    divicd: $('#divicd').val() || '',
+                    artcd: $('#artcd').val() || '',
+                    taxreclafi: $('#taxreclafi').val() || '',
                     spjangcd: getSpjangcdFromSession(),
                 }
 
@@ -419,8 +454,7 @@
                     searchfrdate2: $('#searchfrdate2').val(),
                     searchtodate2: $('#searchtodate2').val(),
                     cltcd2: $('#cboCompany2').val().trim() === '' ? '' : $('#cboCompanyHidden2').val(),
-                    purchase2: $('#purchase_type2').val(),
-                    //taxtype2: $('input[name=taxtype2]:checked').val(),
+                    gubun2: $('#purchase_type2').val() || '',
                     spjangcd: getSpjangcdFromSession(),
                 }
 
@@ -442,10 +476,10 @@
             page = new purchaseList();
 
             $('#cboCompany').click(function(){
-                companyPopupOpen('cboCompany', 'cboCompanyHidden');
+                clientPopupOpen('cboCompany', 'cboCompanyHidden');
             });
             $('#cboCompany2').click(function(){
-                companyPopupOpen('cboCompany2', 'cboCompanyHidden2');
+                clientPopupOpen('cboCompany2', 'cboCompanyHidden2');
             });
 
             $('#btnSearch').click(function(){

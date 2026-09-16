@@ -222,6 +222,18 @@ public class WebRequestController {
         return result;
     }
 
+    // ── 발신번호로 고객 찾기 (인터넷전화 수신 시 통화메모 자동입력) ──
+    @GetMapping("/caller_info")
+    public AjaxResult callerInfo(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "callnum")  String callnum) {
+        AjaxResult result = new AjaxResult();
+        Map<String, Object> info = webRequestService.findCallerInfo(spjangcd, callnum);
+        result.data    = info;                 // 못 찾으면 null — 화면은 번호만 채운다
+        result.success = true;
+        return result;
+    }
+
     // ── 팝업: 호기 검색 ───────────────────────────────────────
     @GetMapping("/popup/equpnm")
     public AjaxResult popupEqupnm(

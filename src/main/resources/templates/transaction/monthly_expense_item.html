@@ -1,0 +1,181 @@
+<html layout:decorate="~{layout_page}">
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>비용항목별 월별현황</h2>
+        <a title="북마크" class="bookmark toggle">내 메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+        <li>출금 관리</li>
+        <li>비용항목별 월별현황</li>
+      </ul>
+    </div>
+
+    <section class="section">
+      <div class="section-top">
+        <div class="search-wrap">
+          <dl>
+            <dt>연도<span class="eq">*</span></dt>
+            <dd>
+              <select id="cboYear" name="cboYear"></select>
+              <input type="hidden" id="spjangcdHidden">
+            </dd>
+          </dl>
+          <dl>
+            <!-- 파워빌더 화면은 이 칸이 '거래처' 로 되어 있지만 실제로는 비용항목명을 찾는다 -->
+            <dt>비용항목</dt>
+            <dd>
+              <input class="form-control2" type="text" id="artnm" name="artnm" placeholder="비용항목명" style="width:180px"/>
+            </dd>
+          </dl>
+          <dl>
+            <dt>&nbsp;</dt>
+            <dd>
+              <li>
+                <a class="btn btn-delete" title="검색" id="btnSearch">
+                  <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                  검색
+                </a>
+              </li>
+            </dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="tab-wrap">
+        <ul class="tab-links">
+          <li><a href="#tab_category" style="border-radius: 6px 0 0 0;">비용항목별</a></li>
+          <li><a href="#tab_item" style="border-radius: 0 6px 0 0;">비용항목상세</a></li>
+        </ul>
+        <div>
+          <section class="tab-item" id="tab_category" style="border-top-left-radius: 0;">
+            <div class="container-fluid">
+              <div id="categoryGrid" style="height: 700px;"></div>
+            </div>
+          </section>
+          <section class="tab-item" id="tab_item" style="border-top-left-radius: 0; display: none;">
+            <div class="container-fluid">
+              <div id="itemGrid" style="height: 700px;"></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+  </div>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <script type="text/javascript">
+    class MonthlyExpenseItemPage {
+      constructor() {
+        this.categoryGrid = null;
+        this.itemGrid = null;
+        this.spjangcd = $('#spjangcdHidden');
+        this.init();
+      }
+
+      init() {
+        const monthColumns = Array.from({length: 12}, (_, i) => ({
+          binding: `mon${i + 1}`,
+          header: `${i + 1}월`,
+          width: 120,
+          align: 'right',
+          format: 'n0',
+          allowSorting: false
+        }));
+
+        const tailColumns = [
+          {binding: 'total_sum', header: '합계', width: 140, align: 'right', format: 'n0', allowSorting: false},
+          {binding: 'avg_amt', header: '평균', width: 130, align: 'right', format: 'n0', allowSorting: false}
+        ];
+
+        const gridOption = (columns) => ({
+          frozenColumns: 2,
+          autoGenerateColumns: false,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          headersVisibility: wijmo.grid.HeadersVisibility.Column,
+          isReadOnly: true,
+          showMarquee: true,
+          formatItem: (sender, e) => {
+            if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader) {
+              e.cell.style.textAlign = 'center';
+            }
+          },
+          columns: columns
+        });
+
+        this.categoryGrid = new wijmo.grid.FlexGrid('#categoryGrid', gridOption([
+          {binding: 'code', header: '코드', width: 90, align: 'center'},
+          {binding: 'artnm', header: '비용항목', width: 200, align: 'left'},
+          ...monthColumns,
+          ...tailColumns
+        ]));
+        new FlexGridContextMenu(this.categoryGrid);
+        this.categoryGrid.downloadFileName = '비용항목별 월별현황';
+
+        this.itemGrid = new wijmo.grid.FlexGrid('#itemGrid', gridOption([
+          {binding: 'code', header: '코드', width: 90, align: 'center'},
+          {binding: 'artnm', header: '비용항목', width: 200, align: 'left'},
+          {binding: 'gartnm', header: '대분류', width: 140, align: 'left'},
+          ...monthColumns,
+          ...tailColumns
+        ]));
+        new FlexGridContextMenu(this.itemGrid);
+        this.itemGrid.downloadFileName = '비용항목상세 월별현황';
+
+        // 합계 행
+        [this.categoryGrid, this.itemGrid].forEach(grid => {
+          grid.columnFooters.rows.push(new wijmo.grid.Row());
+          grid.bottomLeftCells.setCellData(0, 0, '합 계');
+          grid.loadedRows.addHandler(() => {
+            const rows = grid.rows;
+            const footer = grid.columnFooters.rows[0];
+            const getSum = (field) => rows.map(r => +r.dataItem[field] || 0).reduce((a, b) => a + b, 0);
+            const data = {artnm: '합 계', total_sum: getSum('total_sum')};
+            monthColumns.forEach(col => { data[col.binding] = getSum(col.binding); });
+            footer.dataItem = data;
+          });
+        });
+      }
+
+      searchMainData() {
+        let _this = this;
+        const url = '/api/transaction/monthly_expense_item';
+        const data = {
+          'cboYear': $('#cboYear').val(),
+          'artnm': $('#artnm').val() || '',
+          spjangcd: this.spjangcd.val()
+        };
+
+        AjaxUtil.getAsyncData(url + '/category', data, function (result) {
+          if (result != null) _this.categoryGrid.itemsSource = result.data;
+        });
+        AjaxUtil.getAsyncData(url + '/item', data, function (result) {
+          if (result != null) _this.itemGrid.itemsSource = result.data;
+        });
+      }
+    }
+
+    let page = null;
+
+    $(document).ready(function (e) {
+      const spjangcd = sessionStorage.getItem('spjangcd');
+      if (spjangcd) $('#spjangcdHidden').val(spjangcd);
+
+      AjaxUtil.fillSelectOptions($('#cboYear'), 'data_year', '', false);
+
+      page = new MonthlyExpenseItemPage();
+      page.searchMainData();
+
+      $('#btnSearch').click(function () { page.searchMainData(); });
+      $('#artnm').on('keypress', function (e) {
+        if (e.keyCode === 13) page.searchMainData();
+      });
+    })
+  </script>
+</th:block>
+
+<input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+</html>

@@ -28,32 +28,8 @@
                             <input type="hidden" id="spjangcdHidden">
                         </dd>
                     </dl>
-                    <dl>
-                        <dt>
-                            <label for="btnAccountName">
-                                계좌명
-                            </label>
-                        </dt>
-                        <dd>
-                            <div class="srch-box">
-                                <input type="text" id="btnAccountName" name="btnAccountName" placeholder="해당 칸을 클릭해서 검색하세요."  style="width:225px">
-                                <input type="hidden" id="cboBankId">
-                            </div>
-                        </dd>
-                    </dl>
-                    <dl>
-                        <dt>
-                            <label for="cboDepositType">
-                                입급 형태<span class="eq"></span>
-                            </label>
-                        </dt>
-                        <dd>
-                            <div class="srch-box">
-                                <select id="cboDepositType" name="cboDepositType">
-                                </select>
-                            </div>
-                        </dd>
-                    </dl>
+                    <!-- 계좌명·입금형태·어음번호는 sports 의 입출금 테이블 기준 조건이라 뺐다.
+                         파워빌더 '비용지급현황' 의 조회조건은 기간·거래처·적요 세 가지다. -->
                     <dl>
                         <dt>
                             <label for="txtDescription">
@@ -66,19 +42,6 @@
                             </div>
                         </dd>
                     </dl>
-                    <dl>
-                        <dt>
-                            <label for="txtEumnum">
-                                어음번호
-                            </label>
-                        </dt>
-                        <dd>
-                            <div class="srch-box">
-                                <input class="form-control2" type="text" id="txtEumnum" name="txtEumnum" placeholder="어음번호" style="width:200px"/>
-                            </div>
-                        </dd>
-                    </dl>
-
                     <dl>
                         <dt>
                             조회기간<span class="eq">*</span>
@@ -121,8 +84,8 @@
 <th:block layout:fragment="scripts">
     <!--<th:block th:replace="common/columns_setting :: columns_setting"></th:block>-->
     <th:block th:replace="common/multiform_material :: multiform_material"></th:block>
-    <th:block th:replace="common/popup_company_all :: popup_company_all"></th:block>
-    <th:block th:replace="common/popup_account :: popup_account" />
+    <!-- 거래처는 사업체 DB(TB_XCLIENT) 기준 -->
+    <th:block th:replace="common/popup_client :: popup_client"></th:block>
 
     <script type="text/javascript">
         class PaymentList {
@@ -151,25 +114,28 @@
                             const row = sender.rows[e.row];
                             if (row instanceof wijmo.grid.GroupRow) {
                                 const group = row.dataItem;
-                                const sumAccOut = wijmo.getAggregate(wijmo.Aggregate.Sum, group.items, 'accout');
+                                const sumAccOut = wijmo.getAggregate(wijmo.Aggregate.Sum, group.items, 'sndamt');
                                 e.cell.innerHTML = `<b>${group.name}</b> (월 계: ${sumAccOut.toLocaleString()}원)`;
                                 e.cell.colSpan = sender.columns.length;
                             }
                         }
                     },
                     columns: [
-                        {binding: 'trdate', header: '일자', width: 120, align: 'left'},
-                        {binding: 'ioid', header: '코드', width: 100, align: 'right',visible: false },
-                        {binding: 'CompanyName', header: '거래처명', width: '*', align: 'center'},
-                        {binding: 'accout', header: '금액', width: 130, align: 'right'},
-                        {binding: 'deposit_type', header: '입급형태', width: 80, align: 'center'},
+                        {binding: 'snddate_fmt', header: '지급일자', width: 110, align: 'center'},
+                        {binding: 'sndnum', header: '지급번호', width: 90, align: 'center'},
+                        {binding: 'cltcd', header: '거래처코드', width: 100, align: 'center'},
+                        {binding: 'cltnm', header: '거래처명', width: '*', align: 'left'},
+                        {binding: 'sndamt', header: '지급액', width: 130, align: 'right'},
+                        {binding: 'gubun', header: '지급구분', width: 130, align: 'center'},
                         {binding: 'banknm', header: '은행', width: 100, align: 'center'},
-                        {binding: 'accnum', header: '계좌', width: 180, align: 'center'},
-                        {binding: 'eumnum', header: '어음번호', width: 180, align: 'center'},
-                        {binding: 'eumtodt', header: '만기일자', width: 120, align: 'center'},
-                        {binding: 'tradenm', header: '거래구분', width: 100, align: 'center'},
-                        {binding: 'remark1', header: '적요', width: 170},
-                        {binding: 'memo', header: '메모', width: 190}
+                        {binding: 'accnum', header: '결제계좌', width: 160, align: 'center'},
+                        {binding: 'hamt', header: '현금', width: 110, align: 'right'},
+                        {binding: 'bamt', header: '예금', width: 110, align: 'right'},
+                        {binding: 'gamt', header: '기타', width: 110, align: 'right'},
+                        {binding: 'sunamt', header: '선급금', width: 110, align: 'right'},
+                        {binding: 'remark', header: '적요', width: 200},
+                        {binding: 'mijdate', header: '매입일자', width: 110, align: 'center'},
+                        {binding: 'acccd', header: '계정과목', width: 100, align: 'center'}
                     ],
                     itemsSource: this.viewData, // 데이터를 설정할 배열
                 });
@@ -189,14 +155,14 @@
                     const getSum = (field) => rows.map(r => +r.dataItem[field] || 0).reduce((a, b) => a + b, 0);
 
                     footer.dataItem = {
-                        CompanyName: "합계",
-                        accout: getSum('accout'),
+                        cltnm: "합계",
+                        sndamt: getSum('sndamt'),
                     };
                 });
 
 
                 // 엔터키 검색
-                $('#txtDescription, #txtEumnum').on('keypress', function (e) {
+                $('#txtDescription').on('keypress', function (e) {
                     if (e.keyCode === 13) {
                         _this.searchMainData();
                     }
@@ -210,11 +176,8 @@
                 let data = {
                     'srchStartDt' : $("#srchStartDt").val(),
                     'srchEndDt' : $("#srchEndDt").val(),
-                    'AccountName' : $("#cboBankId").val(), //계좌명(accid로 검색)
-                    'cboDepositType' : $('#cboDepositType').val(),  //입금형태
-                    'cboCompany': $("#cboCompanyHidden").val(),
+                    'cltcd': $("#cboCompanyHidden").val(),
                     'txtDescription' : $("#txtDescription").val(),
-                    'txtEumnum' :$('#txtEumnum').val(),
                     spjangcd: this.spjangcd.val()  //사업장 코드
                 }
                 let fnsuccess = function(result) {
@@ -222,7 +185,7 @@
                         _this.viewData = new wijmo.collections.CollectionView(result.data);
 
                         _this.viewData.groupDescriptions.push(
-                            new wijmo.collections.PropertyGroupDescription('trdate', (item, prop) => {
+                            new wijmo.collections.PropertyGroupDescription('snddate_fmt', (item, prop) => {
                                 if (!item[prop]) return '';
                                 const date = new Date(item[prop]);
                                 const year = date.getFullYear();
@@ -249,8 +212,6 @@
 
             page = new PaymentList();
 
-            AjaxUtil.fillSelectOptions($('#cboYear'), 'data_year', '', false);
-            AjaxUtil.fillSelectOptions($('#cboDepositType'), 'system_code', 'all', false, 'deposit_type', '');
 
             let today = new Date();
             let monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -278,39 +239,13 @@
             });
 
             $('#btnCompanySearch').click(function () {
-                let poppage = new PopCompComponentAll();
-                let $poppage = $(poppage);
-                let searchcallback = function (items) {
-                    //console.log('items : ',items);
-                    document.getElementById('btnCompanySearch').value = items.compname;
-                    document.getElementById('cboCompanyHidden').value = items.id;
-                };
-
-                poppage.show(searchcallback);
+                clientPopupOpen('btnCompanySearch', 'cboCompanyHidden');
             });
 
             $('#btnCompanySearch').on('input', function () {
                 const val = $(this).val();
                 if (val === '') {
                     $('#cboCompanyHidden').val('');
-                }
-            });
-
-            //계좌 팝업
-            $('#btnAccountName').click(function () {
-                let poppage = new PopAccountComponent();
-                let searchcallback = function (items) {
-                    //console.log('btnAccountName items : ', items);
-                    document.getElementById('btnAccountName').value = items.accountName;
-                    document.getElementById('cboBankId').value = items.accid;
-                };
-                poppage.show(searchcallback);
-            });
-
-            $('#btnAccountName').on('input', function () {
-                const val = $(this).val();
-                if (val === '') {
-                    $('#cboBankId').val('');
                 }
             });
 
@@ -323,7 +258,7 @@
             // 초기화 버튼 클릭 이벤트
             $('#btnClear').click(function () {
 
-                document.getElementById('cboCompany').value = '';
+                document.getElementById('btnCompanySearch').value = '';
                 document.getElementById('cboCompanyHidden').value = '';
             });
 

@@ -1,0 +1,312 @@
+<html layout:decorate="~{layout_page}">
+<th:block layout:fragment="content">
+    <div class="layout-contents">
+        <div class="page-title-wrap">
+            <div class="left">
+                <h2>매입매출년마감</h2>
+                <a title="북마크" class="bookmark toggle">
+                    내 메뉴
+                </a>
+            </div>
+            <ul class="page-navi">
+                <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+                <li>출금관리</li>
+                <li>매입매출년마감</li>
+            </ul>
+        </div>
+
+        <section class="section">
+            <div class="section-top">
+                <div class="search-wrap">
+                    <dl>
+                        <dt><label for="curYear">현재년도</label></dt>
+                        <dd>
+                            <div class="srch-box">
+                                <input class="form-control2" type="text" id="curYear" maxlength="4"
+                                       style="width:90px; text-align:center" readonly/>
+                            </div>
+                        </dd>
+                    </dl>
+                    <dl>
+                        <dt><label for="endYear">이월년도</label></dt>
+                        <dd>
+                            <div class="srch-box">
+                                <input class="form-control2" type="text" id="endYear" maxlength="4"
+                                       style="width:90px; text-align:center"/>
+                            </div>
+                        </dd>
+                    </dl>
+                    <dl>
+                        <dt>&nbsp;</dt>
+                        <dd>
+                            <ul>
+                                <li>
+                                    <a class="btn btn-delete" title="조회" id="btnSearch">
+                                        <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                                        조회
+                                    </a>
+                                </li>
+                            </ul>
+                        </dd>
+                    </dl>
+                    <dl>
+                        <dt>&nbsp;</dt>
+                        <dd><span id="statusText" style="line-height:36px; font-weight:600"></span></dd>
+                    </dl>
+                </div>
+                <div class="button-wrap" style="border-top:none; text-align: right;">
+                    <ul>
+                        <li>
+                            <a class="btn btn-excell" title="이월대상 미리보기" id="btnPreview">
+                                <img th:src="@{/images/icon/btn-srch.svg}" alt="미리보기 아이콘">
+                                이월대상 보기
+                            </a>
+                        </li>
+                        <li>
+                            <a class="btn btn-edit" title="마감" id="btnClose">
+                                <img th:src="@{/images/icon/ico-save.svg}" alt="마감 아이콘">
+                                마 감
+                            </a>
+                        </li>
+                        <li>
+                            <a class="btn btn-delete" title="마감취소" id="btnCancel">
+                                <img th:src="@{/images/icon/ico-delete.svg}" alt="마감취소 아이콘">
+                                마감취소
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="tab-wrap">
+                <ul class="tab-links">
+                    <li><a href="#tabSales" title="미수금마감이월" id="salesTabLink">미수금마감이월</a></li>
+                    <li><a href="#tabPurchase" title="미지급마감이월" id="purchaseTabLink">미지급마감이월</a></li>
+                </ul>
+                <div class="tab-contents">
+                    <section class="tab-item" id="tabSales">
+                        <div class="container-fluid">
+                            <p id="salesCaption" style="margin:6px 0; color:#777"></p>
+                            <div id="theGridSales" style="height:700px"></div>
+                        </div>
+                    </section>
+                    <section class="tab-item" id="tabPurchase">
+                        <div class="container-fluid">
+                            <p id="purchaseCaption" style="margin:6px 0; color:#777"></p>
+                            <div id="theGridPurchase" style="height:700px"></div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+    </div>
+</th:block>
+
+<th:block layout:fragment="scripts">
+    <script type="text/javascript">
+
+        /**
+         * 매입매출년마감 — 파워빌더 화면 두 개를 탭으로 합쳤다.
+         *   미수금마감이월(w_tb_da023_end) : TB_DA023 → TB_DA023_END
+         *   미지급마감이월(w_tb_ca640_end) : TB_CA640 → TB_CA640_END
+         *
+         * 마감은 원본을 지우지 않고 복사만 한다. 마감취소는 그 해 이월자료를 지운다.
+         */
+        class YearEndClosePage {
+
+            constructor() {
+                this.url = '/api/tran/yearamt';
+                this.tab = 'sales';           // 지금 보고 있는 탭
+                this.mode = {sales: 'closed', purchase: 'closed'};  // closed=마감자료 / preview=이월대상
+                this.salesData = new wijmo.collections.CollectionView([]);
+                this.purchaseData = new wijmo.collections.CollectionView([]);
+                this.init();
+            }
+
+            init() {
+                const _this = this;
+
+                this.gridSales = new wijmo.grid.FlexGrid('#theGridSales', {
+                    autoGenerateColumns: false,
+                    selectionMode: wijmo.grid.SelectionMode.Row,
+                    isReadOnly: true,
+                    showMarquee: true,
+                    itemsSource: this.salesData,
+                    columns: [
+                        {binding: 'year', header: '년도', align: 'center', width: 70},
+                        {binding: 'cltcd', header: '코드', align: 'center', width: 120},
+                        {binding: 'cltnm', header: '거래처명', align: 'left', width: 200},
+                        {binding: 'actcd', header: '현장코드', align: 'center', width: 120},
+                        {binding: 'actnm', header: '현장명', align: 'left', width: '*'},
+                        {binding: 'misdate_fmt', header: '매출일자', align: 'center', width: 100},
+                        {binding: 'misnum', header: '번호', align: 'center', width: 60},
+                        {binding: 'remark', header: '적요', align: 'left', width: 220},
+                        {binding: 'misamt', header: '합계', align: 'right', width: 120, format: 'n0', aggregate: 'Sum'},
+                        {binding: 'iamt', header: '입금처리금액', align: 'right', width: 130, format: 'n0', aggregate: 'Sum'},
+                        {binding: 'spjangcd', header: '사업장', align: 'center', width: 80}
+                    ]
+                });
+                this.gridSales.rowHeaders.columns.splice(0, 1);
+                new FlexGridContextMenu(this.gridSales);
+                this.gridSales.downloadFileName = '미수금마감이월';
+                this.gridSales.columnFooters.rows.push(new wijmo.grid.GroupRow());
+
+                this.gridPurchase = new wijmo.grid.FlexGrid('#theGridPurchase', {
+                    autoGenerateColumns: false,
+                    selectionMode: wijmo.grid.SelectionMode.Row,
+                    isReadOnly: true,
+                    showMarquee: true,
+                    itemsSource: this.purchaseData,
+                    columns: [
+                        {binding: 'year', header: '년도', align: 'center', width: 70},
+                        {binding: 'cltcd', header: '코드', align: 'center', width: 120},
+                        {binding: 'cltnm', header: '거래처명', align: 'left', width: '*'},
+                        {binding: 'mijdate_fmt', header: '발생일자', align: 'center', width: 100},
+                        {binding: 'mijnum', header: '번호', align: 'center', width: 60},
+                        {binding: 'remark', header: '적요', align: 'left', width: 260},
+                        {binding: 'mijamt', header: '미지급금', align: 'right', width: 130, format: 'n0', aggregate: 'Sum'},
+                        {binding: 'iamt', header: '지급처리금액', align: 'right', width: 130, format: 'n0', aggregate: 'Sum'}
+                    ]
+                });
+                this.gridPurchase.rowHeaders.columns.splice(0, 1);
+                new FlexGridContextMenu(this.gridPurchase);
+                this.gridPurchase.downloadFileName = '미지급마감이월';
+                this.gridPurchase.columnFooters.rows.push(new wijmo.grid.GroupRow());
+
+                $('#endYear').on('keypress', function (e) {
+                    if (e.keyCode === 13) _this.search();
+                });
+            }
+
+            year() {
+                return $('#endYear').val();
+            }
+
+            /** 마감 여부를 위쪽에 보여준다 */
+            refreshStatus() {
+                const _this = this;
+                AjaxUtil.getAsyncData(this.url + '/status',
+                    {year: this.year(), spjangcd: getSpjangcdFromSession()},
+                    function (result) {
+                        const d = (result && result.data) || {};
+                        const s = Number(d.sales) || 0;
+                        const p = Number(d.purchase) || 0;
+                        $('#statusText').html(
+                            '미수금 ' + (s > 0 ? '<span style="color:#1a7f37">마감 ' + s + '건</span>' : '미마감') +
+                            ' &nbsp;/&nbsp; 미지급 ' + (p > 0 ? '<span style="color:#1a7f37">마감 ' + p + '건</span>' : '미마감'));
+                        _this.closedCount = {sales: s, purchase: p};
+                    });
+            }
+
+            /** 마감된 이월자료를 본다 */
+            search() {
+                this.mode[this.tab] = 'closed';
+                this.load('/read');
+                this.refreshStatus();
+            }
+
+            /** 마감을 누르면 들어갈 자료를 미리 본다 */
+            preview() {
+                this.mode[this.tab] = 'preview';
+                this.load('/preview');
+            }
+
+            load(path) {
+                const _this = this;
+                const tab = this.tab;
+                const data = {year: this.year(), spjangcd: getSpjangcdFromSession()};
+
+                AjaxUtil.getAsyncData(this.url + '/' + tab + path, data, function (result) {
+                    const rows = (result && Array.isArray(result.data)) ? result.data : [];
+                    const view = new wijmo.collections.CollectionView(rows);
+                    const label = _this.mode[tab] === 'preview'
+                        ? '이월대상 ' + rows.length + '건 — 아직 저장된 자료가 아닙니다'
+                        : _this.year() + '년 이월자료 ' + rows.length + '건';
+
+                    if (tab === 'sales') {
+                        _this.salesData = view;
+                        _this.gridSales.itemsSource = view;
+                        $('#salesCaption').text(label);
+                    } else {
+                        _this.purchaseData = view;
+                        _this.gridPurchase.itemsSource = view;
+                        $('#purchaseCaption').text(label);
+                    }
+                });
+            }
+
+            close() {
+                const _this = this;
+                const tab = this.tab;
+                const name = tab === 'sales' ? '미수금' : '미지급';
+
+                Alert.confirm('',
+                    this.year() + '년으로 ' + name + ' 잔액을 이월합니다.\n' +
+                    '원본 전표는 그대로 두고 이월자료만 만듭니다. 진행할까요?',
+                    function () {
+                        AjaxUtil.postAsyncData(_this.url + '/' + tab + '/close',
+                            {year: _this.year(), spjangcd: getSpjangcdFromSession()},
+                            function (result) {
+                                Alert.alert('', (result && result.message) || '마감에 실패했습니다.');
+                                if (result && result.success) _this.search();
+                            });
+                    });
+            }
+
+            cancel() {
+                const _this = this;
+                const tab = this.tab;
+                const name = tab === 'sales' ? '미수금' : '미지급';
+
+                Alert.confirm('',
+                    this.year() + '년 ' + name + ' 이월자료를 모두 지웁니다. 진행할까요?',
+                    function () {
+                        AjaxUtil.postAsyncData(_this.url + '/' + tab + '/cancel',
+                            {year: _this.year(), spjangcd: getSpjangcdFromSession()},
+                            function (result) {
+                                Alert.alert('', (result && result.message) || '마감취소에 실패했습니다.');
+                                if (result && result.success) _this.search();
+                            });
+                    });
+            }
+        }
+
+        let page = null;
+
+        $(document).ready(function () {
+
+            const thisYear = new Date().getFullYear();
+            $('#curYear').val(thisYear);
+            $('#endYear').val(thisYear + 1);
+
+            page = new YearEndClosePage();
+
+            $('#btnSearch').click(function () {
+                page.search();
+            });
+            $('#btnPreview').click(function () {
+                page.preview();
+            });
+            $('#btnClose').click(function () {
+                page.close();
+            });
+            $('#btnCancel').click(function () {
+                page.cancel();
+            });
+
+            $('#salesTabLink').click(function () {
+                page.tab = 'sales';
+                page.search();
+            });
+            $('#purchaseTabLink').click(function () {
+                page.tab = 'purchase';
+                page.search();
+            });
+
+            page.search();
+        });
+    </script>
+</th:block>
+
+<input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+</html>

@@ -23,22 +23,21 @@ public class VendorBalanceDetailController {
     @Autowired
     VendorBalanceDetailService vendorBalanceDetailService;
 
-    // 거래처별 잔액 명세(출금) 리스트 조회
-    @DecryptField(columns  = {"accnum"})
+    // 미지급금 잔액명세 (파워빌더 '거래처별잔액명세서' w_tb_ca642w_03)
+    // 지급 기간(rsdate/redate)은 파워빌더처럼 따로 받을 수 있고, 안 주면 매입 기간과 같다.
     @GetMapping("/read")
-    public AjaxResult getEquipmentRunChart(
-            @RequestParam(value="srchStartDt", required=false) String start,
-            @RequestParam(value="srchEndDt", required=false) String end,
-            @RequestParam(value="cboCompany", required=false) String company,
-            @RequestParam(value = "spjangcd") String spjangcd,
-            HttpServletRequest request) {
-
-        //log.info("거래처잔액 명세(입금 관리) read ---  :start:{}, end:{} ,company:{}, spjangcd:{} ", start_date, end_date, company, spjangcd);
+    public AjaxResult getVendorBalanceDetail(
+            @RequestParam(value = "srchStartDt", required = false) String start,
+            @RequestParam(value = "srchEndDt", required = false) String end,
+            @RequestParam(value = "rsdate", required = false) String rsdate,
+            @RequestParam(value = "redate", required = false) String redate,
+            @RequestParam(value = "cltcd", required = false, defaultValue = "") String cltcd,
+            @RequestParam(value = "gubun", required = false, defaultValue = "") String gubun,
+            @RequestParam(value = "spjangcd") String spjangcd) {
 
         AjaxResult result = new AjaxResult();
-
-        result.data = vendorBalanceDetailService.getPaymentList(start, end, company,spjangcd);
-
+        result.data = vendorBalanceDetailService.getPaymentList(
+                spjangcd, start, end, rsdate, redate, cltcd, gubun);
         return result;
     }
 }

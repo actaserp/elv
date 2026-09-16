@@ -6,231 +6,156 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
-import java.time.YearMonth;
-import java.time.format.DateTimeFormatter;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 미지급금 잔액명세 — 파워빌더 '거래처별잔액명세서'(w_tb_ca642w_03) 와 같은 자료를 본다.
+ *
+ * 세 갈래를 붙인다.
+ *   1) 전일잔액 : 마감이월(TB_CA640_END) + 그 해 1월 1일 ~ 조회 시작 전일 매입 중
+ *                 지급이 한 번도 붙지 않은 건
+ *   2) 매입     : 조회기간 TB_CA640
+ *   3) 지급     : 지급기간 TB_CA642 를 전표(snddate+sndnum) 단위로 합산, 할인(plamt) 차감
+ *
+ * 잔액(누적)은 파워빌더에서 데이터윈도우가 계산한다. 여기서는 같은 정렬(거래처 → 일자 → 전표번호 → 구분)로
+ * 누적합을 내서 같은 값이 나오게 했다.
+ *
+ * 지급 기간은 매입 기간과 별도 파라미터다(파워빌더 as_rsdate/as_redate). 화면에서 따로 주지 않으면
+ * 매입 기간과 같은 값을 쓴다.
+ *
+ * 주의: 1)의 '지급이 붙지 않은 건' 판정은 파워빌더가 거래처코드를 정확히 지정했을 때만 동작한다.
+ * 거래처를 비우고 전체 조회하면 그 조건이 아무 것도 걸러내지 못해 이미 지급된 매입까지 전일잔액에 들어간다.
+ * (파워빌더 원본의 동작을 그대로 옮긴 것이다. 이 화면은 거래처를 지정해서 보는 화면이다)
+ */
 @Slf4j
 @Service
 public class VendorBalanceDetailService {
+
   @Autowired
   SqlRunner sqlRunner;
 
-  public List<Map<String, Object>> getPaymentList(String start, String end, String company, String spjangcd) {
-
-    if (company == null || company.trim().isEmpty()) {
-      return Collections.emptyList();
-    }
-
-    MapSqlParameterSource paramMap = new MapSqlParameterSource();
-    paramMap.addValue("company", Integer.parseInt(company));
-    paramMap.addValue("spjangcd", spjangcd);
-
-    DateTimeFormatter inputFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    DateTimeFormatter dbFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
-
-    LocalDate startDate = LocalDate.parse(start, inputFormatter);
-    LocalDate endDate = LocalDate.parse(end, inputFormatter);
-
-    String formattedStart = startDate.format(dbFormatter);
-    String formattedEnd = endDate.format(dbFormatter);
-    String baseDate = startDate.minusDays(1).format(dbFormatter);
-    String baseYm = YearMonth.from(startDate).format(DateTimeFormatter.ofPattern("yyyyMM"));
-
-    paramMap.addValue("start", formattedStart);
-    paramMap.addValue("end", formattedEnd);
-    paramMap.addValue("baseDate", baseDate);
-    paramMap.addValue("baseYm", baseYm);
-
-    String sql = """
-        WITH lastym AS (
-            SELECT cltcd, MAX(yyyymm) AS yyyymm
-            FROM tb_yearamt
-            WHERE yyyymm < :baseYm
-              AND ioflag = '1'
-              AND cltcd = :company
-              AND spjangcd = :spjangcd
-            GROUP BY cltcd
-        ),
-        last_amt AS (
-            SELECT y.cltcd, y.yearamt, y.yyyymm
-            FROM tb_yearamt y
-            JOIN lastym m ON y.cltcd = m.cltcd AND y.yyyymm = m.yyyymm
-            WHERE y.ioflag = '1'
-              AND y.spjangcd = :spjangcd
-        ),
-        post_txns AS (
-            SELECT
-                c.id AS cltcd,
-                SUM(COALESCE(s.totalamt, 0)) AS extra_purchase,
-                SUM(COALESCE(b.accout, 0)) AS extra_payment
-            FROM company c
-            LEFT JOIN tb_invoicement s ON c.id = s.cltcd
-                AND s.misdate BETWEEN 
-                    TO_CHAR((SELECT TO_DATE(MAX(yyyymm), 'YYYYMM') + interval '1 month' FROM last_amt), 'YYYYMMDD')
-                    AND TO_CHAR(TO_DATE(:start, 'YYYYMMDD') - interval '1 day', 'YYYYMMDD')
-                AND s.spjangcd = :spjangcd
-            LEFT JOIN tb_banktransit b ON c.id = b.cltcd
-                AND b.trdate BETWEEN 
-                    TO_CHAR((SELECT TO_DATE(MAX(yyyymm), 'YYYYMM') + interval '1 month' FROM last_amt), 'YYYYMMDD')
-                    AND TO_CHAR(TO_DATE(:start, 'YYYYMMDD') - interval '1 day', 'YYYYMMDD')
-                AND b.ioflag = '1'
-                AND b.spjangcd = :spjangcd
-            WHERE c.id = :company
-            GROUP BY c.id
-        ),
-        uncalculated_txns AS (
-            SELECT
-                c.id AS cltcd,
-                SUM(COALESCE(s.totalamt, 0)) AS total_purchase,
-                SUM(COALESCE(b.accout, 0)) AS total_payment
-            FROM company c
-            LEFT JOIN tb_invoicement s ON c.id = s.cltcd
-                AND s.misdate < :start
-                AND s.spjangcd = :spjangcd
-            LEFT JOIN tb_banktransit b ON c.id = b.cltcd
-                AND b.trdate < :start
-                AND b.ioflag = '1'
-                AND b.spjangcd = :spjangcd
-            WHERE NOT EXISTS (
-                SELECT 1 FROM last_amt y WHERE y.cltcd = c.id
-            ) AND c.id = :company
-            GROUP BY c.id
-        ),
-        final_prev_amt AS (
-            SELECT
-                y.cltcd,
-                y.yearamt + COALESCE(p.extra_purchase, 0) - COALESCE(p.extra_payment, 0) AS amount
-            FROM last_amt y
-            LEFT JOIN post_txns p ON y.cltcd = p.cltcd
-            UNION
-            SELECT
-                u.cltcd,
-                COALESCE(u.total_purchase, 0) - COALESCE(u.total_payment, 0)
-            FROM uncalculated_txns u
-        ),
-        union_data_raw AS (
-            -- 전잔액
-            SELECT
-                c.id,
-                c."Name" AS comp_name,
-                TO_DATE(:baseDate, 'YYYYMMDD') AS date,
-                '전잔액' AS summary,
-                f.amount AS amount,
-                NULL::text AS itemnm,
-                NULL::text AS misgubun,
-                NULL::text AS iotype,
-                NULL::text AS banknm,
-                NULL::text AS accnum,
-                NULL::text AS eumnum,
-                NULL::text AS eumtodt,
-                NULL::text AS tradenm,
-                NULL::numeric AS accout,
-                NULL::numeric AS totalamt,
-                NULL::text AS memo,
-                NULL::text AS remark1,
-                0 AS remaksseq
-            FROM company c
-            JOIN final_prev_amt f ON c.id = f.cltcd
-            WHERE c.id = :company AND c.spjangcd = :spjangcd
-            UNION ALL
-            -- 매입
-            SELECT
-                s.cltcd,
-                c."Name" AS comp_name,
-                TO_DATE(s.misdate, 'YYYYMMDD'),
-                '매입',
-                NULL::numeric AS amount,
-                CONCAT(
-                    MAX(CASE WHEN d.misseq::int = 1 THEN d.itemnm END),
-                    CASE WHEN COUNT(DISTINCT d.itemnm) > 1 THEN ' 외 ' || (COUNT(DISTINCT d.itemnm) - 1) || '건' ELSE '' END
-                ) AS itemnm,
-                sc."Value" AS misgubun,
-                NULL::text AS iotype,
-                NULL::text AS banknm,
-                NULL::text AS accnum,
-                NULL::text AS eumnum,
-                NULL::text AS eumtodt,
-                NULL::text AS tradenm,
-                NULL::numeric AS accout,
-                s.totalamt AS totalamt,
-                NULL::text AS memo,
-                s.remark1,
-                1 AS remaksseq
-            FROM tb_invoicement s
-            LEFT JOIN tb_invoicedetail d ON s.misdate = d.misdate AND s.misnum = d.misnum AND s.spjangcd = d.spjangcd
-            LEFT JOIN sys_code sc ON sc."Code" = s.misgubun::text
-            JOIN company c ON c.id = s.cltcd AND c.spjangcd = s.spjangcd
-            WHERE s.misdate BETWEEN :start AND :end
-              AND s.spjangcd = :spjangcd
-              AND s.cltcd = :company
-            GROUP BY s.cltcd, c."Name", s.misdate, s.misnum, s.totalamt, s.misgubun, sc."Value", s.remark1
-            UNION ALL
-            -- 지급액
-            SELECT
-                b.cltcd,
-                c."Name" AS comp_name,
-                TO_DATE(b.trdate, 'YYYYMMDD'),
-                '지급액',
-                NULL::numeric AS amount,
-                NULL::text AS itemnm,
-                NULL::text AS misgubun,
-                sc."Value" AS iotype,
-                b.banknm,
-                b.accnum,
-                b.eumnum,
-                TO_CHAR(TO_DATE(NULLIF(b.eumtodt, ''), 'YYYYMMDD'), 'YYYY-MM-DD'),
-                tt.tradenm,
-                b.accout,
-                NULL::numeric AS totalamt,
-                b.memo,
-                b.remark1,
-                2 AS remaksseq
-            FROM tb_banktransit b
-            JOIN company c ON c.id = b.cltcd 
-            LEFT JOIN sys_code sc ON sc."Code" = b.iotype AND "CodeType" = 'deposit_type'
-            LEFT JOIN tb_trade tt ON tt.trid = b.trid AND tt.spjangcd = b.spjangcd
-            WHERE TO_DATE(b.trdate, 'YYYYMMDD') BETWEEN TO_DATE(:start, 'YYYYMMDD') AND TO_DATE(:end, 'YYYYMMDD')
-              AND b.cltcd = :company
-              AND b.spjangcd = :spjangcd
-              AND b.ioflag = '1'
-        ),
-        union_data AS (
-            SELECT *, ROW_NUMBER() OVER (PARTITION BY id, date ORDER BY remaksseq) AS rn
-            FROM union_data_raw
-        )
-        SELECT
-            x.id AS cltid,
-            x.comp_name,
-            x.date,
-            x.summary,
-            x.amount,
-            x.accout,
-            x.totalamt,
-            SUM(COALESCE(x.amount, 0) + COALESCE(x.totalamt, 0) - COALESCE(x.accout, 0))
-              OVER (PARTITION BY x.id ORDER BY x.date, x.remaksseq ROWS UNBOUNDED PRECEDING) AS balance,
-            x.itemnm,
-            x.misgubun,
-            x.iotype,
-            x.banknm,
-            x.accnum,
-            x.eumnum,
-            x.eumtodt,
-            x.tradenm,
-            x.memo,
-            x.remark1
-        FROM union_data x
-        ORDER BY x.id, x.date, x.remaksseq
-        """;
-
-    List<Map<String, Object>> items = this.sqlRunner.getRows(sql, paramMap);
-//    log.info("미지급금 잔액 명세서 read SQL: {}", sql);
-//    log.info("SQL Parameters: {}", paramMap.getValues());
-    return items;
+  /** spjangcd 로 custcd 조회 (파워빌더의 as_custcd) */
+  public String getCustcd(String spjangcd) {
+    MapSqlParameterSource param = new MapSqlParameterSource();
+    param.addValue("spjangcd", spjangcd);
+    Map<String, Object> row = sqlRunner.getRow(
+            "SELECT custcd FROM tb_xa012 WHERE spjangcd = :spjangcd", param);
+    if (row == null || row.get("custcd") == null) return null;
+    return String.valueOf(row.get("custcd")).trim();
   }
 
-}
+  public List<Map<String, Object>> getPaymentList(
+          String spjangcd, String start, String end, String cltcd, String gubun) {
+    return getPaymentList(spjangcd, start, end, null, null, cltcd, gubun);
+  }
 
+  /**
+   * @param start   매입 조회 시작일
+   * @param end     매입 조회 종료일
+   * @param rsdate  지급 조회 시작일 (null 이면 start)
+   * @param redate  지급 조회 종료일 (null 이면 end)
+   * @param cltcd   거래처코드. 빈 값이면 전체
+   * @param gubun   매입구분. 빈 값이면 전체
+   */
+  public List<Map<String, Object>> getPaymentList(
+          String spjangcd, String start, String end, String rsdate, String redate,
+          String cltcd, String gubun) {
+
+    String custcd = getCustcd(spjangcd);
+    if (custcd == null) return List.of();
+
+    String stdate = start == null ? "" : start.replaceAll("-", "");
+    String enddate = end == null ? "" : end.replaceAll("-", "");
+
+    MapSqlParameterSource p = new MapSqlParameterSource();
+    p.addValue("custcd", custcd);
+    p.addValue("spjangcd", spjangcd);
+    p.addValue("stdate", stdate);
+    p.addValue("enddate", enddate);
+    p.addValue("rsdate", (rsdate == null || rsdate.isBlank()) ? stdate : rsdate.replaceAll("-", ""));
+    p.addValue("redate", (redate == null || redate.isBlank()) ? enddate : redate.replaceAll("-", ""));
+    p.addValue("cltcd", cltcd == null ? "" : cltcd.trim());
+    p.addValue("gubun", gubun == null ? "" : gubun.trim());
+
+    // 거래처명은 파워빌더가 dbo.df_nm_rtn('tb_xclient', ...) 로 가져온다. 같은 값이라 조인으로 대체했다.
+    String sql = """
+        SELECT a.cltcd,
+               ISNULL(x.cltnm, a.cltnm) AS cltnm,
+               CASE WHEN a.mijdate = '' THEN ''
+                    ELSE STUFF(STUFF(a.mijdate, 5, 0, '-'), 8, 0, '-') END AS misdate,
+               a.mijnum AS misnum,
+               a.mijdate2 AS misdate2,
+               CASE a.sort WHEN '1' THEN '전일잔액' WHEN '2' THEN '매입' ELSE '지급' END AS summary,
+               a.remark,
+               ISNULL(a.mijamt, 0) AS misamt,
+               ISNULL(a.rcvamt, 0) AS rcvamt,
+               SUM(ISNULL(a.mijamt, 0) - ISNULL(a.rcvamt, 0))
+                   OVER (PARTITION BY a.cltcd ORDER BY a.mijdate, a.mijnum, a.sort
+                         ROWS UNBOUNDED PRECEDING) AS balance,
+               a.sort
+          FROM (
+                -- 1) 전일잔액
+                SELECT '1' AS sort, z.custcd, z.spjangcd, z.cltcd, MAX(z.cltnm) AS cltnm,
+                       '' AS mijdate, '' AS mijnum, '' AS mijdate2,
+                       '전일잔액' AS remark,
+                       SUM(z.beamt) AS mijamt, 0 AS rcvamt
+                  FROM (
+                        SELECT custcd, spjangcd, cltcd, '' AS cltnm, mijamt AS beamt
+                          FROM TB_CA640_END WITH(NOLOCK)
+                         WHERE custcd = :custcd AND spjangcd = :spjangcd
+                           AND year = LEFT(:stdate, 4)
+                           AND cltcd LIKE :cltcd + '%'
+                           AND ISNULL(gubun, '') LIKE :gubun + '%'
+                        UNION ALL
+                        SELECT custcd, spjangcd, cltcd, cltnm, SUM(mijamt)
+                          FROM TB_CA640 m WITH(NOLOCK)
+                         WHERE custcd = :custcd AND spjangcd = :spjangcd
+                           AND mijdate BETWEEN LEFT(:stdate, 4) + '0101'
+                                           AND CONVERT(varchar(8), DATEADD(day, -1, CONVERT(datetime, :stdate)), 112)
+                           AND cltcd LIKE :cltcd + '%'
+                           AND ISNULL(gubun, '') LIKE :gubun + '%'
+                           -- 지급이 한 번이라도 붙은 매입은 전일잔액에서 뺀다(파워빌더와 동일)
+                           AND (:cltcd = '' OR m.mijdate + m.mijnum NOT IN (
+                                   SELECT s.mijdate + s.mijnum FROM TB_CA642 s WITH(NOLOCK)
+                                    WHERE s.custcd = :custcd AND s.spjangcd = :spjangcd AND s.cltcd = :cltcd))
+                         GROUP BY custcd, spjangcd, cltcd, cltnm, remark
+                       ) z
+                 GROUP BY z.custcd, z.spjangcd, z.cltcd
+
+                UNION ALL
+
+                -- 2) 매입
+                SELECT '2', custcd, spjangcd, cltcd, cltnm,
+                       mijdate, mijnum, mijdate,
+                       ISNULL(remark, ''), mijamt, 0
+                  FROM TB_CA640 WITH(NOLOCK)
+                 WHERE custcd = :custcd AND spjangcd = :spjangcd
+                   AND mijdate BETWEEN :stdate AND :enddate
+                   AND cltcd LIKE :cltcd + '%'
+                   AND ISNULL(gubun, '') LIKE :gubun + '%'
+
+                UNION ALL
+
+                -- 3) 지급 (전표 단위 합산, 할인 차감)
+                SELECT '3', custcd, spjangcd, cltcd, '',
+                       snddate, '', MAX(mijdate),
+                       '',
+                       0,
+                       SUM(ISNULL(hamt,0)) + SUM(ISNULL(eamt,0)) + SUM(ISNULL(samt,0)) + SUM(ISNULL(bamt,0))
+                     + SUM(ISNULL(damt,0)) + SUM(ISNULL(gamt,0)) + SUM(ISNULL(sunamt,0)) - SUM(ISNULL(plamt,0))
+                  FROM TB_CA642 WITH(NOLOCK)
+                 WHERE custcd = :custcd AND spjangcd = :spjangcd
+                   AND snddate BETWEEN :rsdate AND :redate
+                   AND cltcd LIKE :cltcd + '%'
+                 GROUP BY custcd, spjangcd, cltcd, snddate, sndnum
+               ) a
+          LEFT JOIN TB_XCLIENT x WITH(NOLOCK)
+            ON x.custcd = a.custcd AND x.cltcd = a.cltcd
+         WHERE (:cltcd = '' OR a.cltcd = :cltcd OR ISNULL(x.cltnm, '') LIKE '%' + :cltcd + '%')
+         ORDER BY a.cltcd, a.mijdate, a.mijnum, a.sort
+        """;
+
+    return sqlRunner.getRows(sql, p);
+  }
+}

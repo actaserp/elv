@@ -1,0 +1,171 @@
+<html layout:decorate="~{layout_page}">
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>년도별 매출현황</h2>
+        <a title="북마크" class="bookmark toggle">내 메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+        <li>입출금입력</li>
+        <li>년도별 매출현황</li>
+      </ul>
+    </div>
+
+    <section class="section">
+      <div class="section-top">
+        <div class="search-wrap">
+          <dl>
+            <dt>연도<span class="eq">*</span></dt>
+            <dd>
+              <select id="cboYear" name="cboYear"></select>
+              <input type="hidden" id="spjangcdHidden">
+            </dd>
+          </dl>
+          <dl>
+            <dt>부서</dt>
+            <dd>
+              <select class="form-control2" id="divicd" name="divicd"></select>
+            </dd>
+          </dl>
+          <dl>
+            <dt>&nbsp;</dt>
+            <dd>
+              <li>
+                <a class="btn btn-delete" title="검색" id="btnSearch">
+                  <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                  검색
+                </a>
+              </li>
+            </dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="container-fluid">
+        <h3 style="margin:10px 0 6px 2px; font-size:14px;">연도별 매출액 · 증가율</h3>
+        <div id="summaryGrid" style="height: 140px;"></div>
+
+        <h3 style="margin:18px 0 6px 2px; font-size:14px;">최근 4년 월별 매출액</h3>
+        <div id="monthlyGrid" style="height: 260px;"></div>
+      </div>
+    </section>
+  </div>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <script type="text/javascript">
+    class YearlySalesListPage {
+      constructor() {
+        this.summaryGrid = null;
+        this.monthlyGrid = null;
+        this.spjangcd = $('#spjangcdHidden');
+        this.init();
+      }
+
+      init() {
+        const year = parseInt($('#cboYear').val() || new Date().getFullYear(), 10);
+
+        // 연도별 매출액·증가율 (행: 금액 / 증가율)
+        this.summaryGrid = new wijmo.grid.FlexGrid('#summaryGrid', {
+          autoGenerateColumns: false,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          headersVisibility: wijmo.grid.HeadersVisibility.Column,
+          isReadOnly: true,
+          columns: [
+            {binding: 'gubun', header: '구분', width: 100, align: 'center'},
+            {binding: 'gubun1', header: `${year}년`, width: '*', align: 'right'},
+            {binding: 'gubun2', header: `${year - 1}년`, width: '*', align: 'right'},
+            {binding: 'gubun3', header: `${year - 2}년`, width: '*', align: 'right'},
+            {binding: 'gubun4', header: `${year - 3}년`, width: '*', align: 'right'}
+          ],
+          // 금액은 정수, 증가율은 백분율로 보여준다
+          formatItem: (sender, e) => {
+            if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader) {
+              e.cell.style.textAlign = 'center';
+              return;
+            }
+            if (e.panel.cellType !== wijmo.grid.CellType.Cell) return;
+            const item = sender.rows[e.row] ? sender.rows[e.row].dataItem : null;
+            const col = sender.columns[e.col];
+            if (!item || !col || col.binding === 'gubun') return;
+            const v = +item[col.binding] || 0;
+            e.cell.textContent = (item.gubun === '증가율')
+                ? (v * 100).toFixed(1) + '%'
+                : wijmo.Globalize.format(v, 'n0');
+          }
+        });
+        new FlexGridContextMenu(this.summaryGrid);
+        this.summaryGrid.downloadFileName = '년도별 매출현황';
+
+        // 최근 4년 × 12개월
+        const monthColumns = Array.from({length: 12}, (_, i) => ({
+          binding: `mon${i + 1}`,
+          header: `${i + 1}월`,
+          width: 120,
+          align: 'right',
+          format: 'n0',
+          allowSorting: false
+        }));
+
+        this.monthlyGrid = new wijmo.grid.FlexGrid('#monthlyGrid', {
+          frozenColumns: 1,
+          autoGenerateColumns: false,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          headersVisibility: wijmo.grid.HeadersVisibility.Column,
+          isReadOnly: true,
+          formatItem: (sender, e) => {
+            if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader) {
+              e.cell.style.textAlign = 'center';
+            }
+          },
+          columns: [
+            {binding: 'misyear', header: '연도', width: 110, align: 'center'},
+            ...monthColumns,
+            {binding: 'total_sum', header: '합계', width: 140, align: 'right', format: 'n0', allowSorting: false},
+            {binding: 'avg_amt', header: '평균', width: 130, align: 'right', format: 'n0', allowSorting: false}
+          ]
+        });
+        new FlexGridContextMenu(this.monthlyGrid);
+        this.monthlyGrid.downloadFileName = '최근 4년 월별 매출액';
+      }
+
+      searchMainData() {
+        let _this = this;
+        const base = {
+          'cboYear': $('#cboYear').val(),
+          spjangcd: this.spjangcd.val()
+        };
+
+        AjaxUtil.getAsyncData('/api/transaction/yearly_sales_list/summary', base, function (result) {
+          if (result != null) _this.summaryGrid.itemsSource = result.data;
+        });
+
+        const monthlyParam = Object.assign({}, base, {'divicd': $('#divicd').val() || ''});
+        AjaxUtil.getAsyncData('/api/transaction/yearly_sales_list/monthly', monthlyParam, function (result) {
+          if (result != null) _this.monthlyGrid.itemsSource = result.data;
+        });
+      }
+    }
+
+    let page = null;
+
+    $(document).ready(function (e) {
+      const spjangcd = sessionStorage.getItem('spjangcd');
+      if (spjangcd) $('#spjangcdHidden').val(spjangcd);
+
+      AjaxUtil.fillSelectOptions($('#cboYear'), 'data_year', '', false);
+      AjaxUtil.fillSelectOptions($('#divicd'), 'depart', 'all', false);
+
+      page = new YearlySalesListPage();
+      page.searchMainData();
+
+      $('#btnSearch').click(function () { page.searchMainData(); });
+      $('#cboYear').change(function () { page.searchMainData(); });
+    })
+  </script>
+</th:block>
+
+<input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+</html>

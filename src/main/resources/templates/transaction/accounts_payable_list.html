@@ -24,10 +24,24 @@
               거래처
             </dt>
             <dd>
-              <input type="text" id="btnCompanySearch" name="btnCompanySearch" placeholder="입력 후 엔터를 눌러 검색하세요."/>
+              <input type="text" id="btnCompanySearch" name="btnCompanySearch" placeholder="해당 칸을 클릭해서 검색하세요."/>
               <input type="hidden" id="cboCompanyHidden">
-              <input type="hidden"  id="cltflag" name="cltflag"/>
               <input type="hidden" id="spjangcdHidden">
+            </dd>
+          </dl>
+          <dl>
+            <dt>매입구분</dt>
+            <dd>
+              <select class="form-control2" id="gubun" name="gubun"></select>
+            </dd>
+          </dl>
+          <dl>
+            <dt>&nbsp;</dt>
+            <dd>
+              <label style="display:inline-flex; align-items:center; gap:4px;">
+                <input type="checkbox" id="balanceOnly" name="balanceOnly" checked>
+                잔액체크
+              </label>
             </dd>
           </dl>
           <dl>
@@ -85,8 +99,8 @@
 
 <th:block layout:fragment="scripts">
     <th:block th:replace="common/multiform_material :: multiform_material"></th:block>
-    <th:block th:replace="common/popup_company :: popup_company"></th:block>
-  <th:block th:replace="common/popup_company_employee_bank_card.html :: popup_company"></th:block>
+    <!-- 거래처는 사업체 DB(TB_XCLIENT) 기준 -->
+    <th:block th:replace="common/popup_client :: popup_client"></th:block>
     <script type="text/javascript">
       class production_require {
         constructor() {
@@ -114,11 +128,10 @@
             },
             columns: [
               {binding: 'cltcd', header: '코드', width: 130, align: 'center'},
-              {binding: 'cltflag', header: '거래처구분 코드', width: 130, visible: false},
               {binding: 'cltname', header: '거래처명', width: 320, align: 'center'},
               {binding: 'payable', header: '전잔액', width: 220, align: 'right'},
               {binding: 'purchase', header: '매입액', width: 200, align: 'right'},
-              {binding: 'AmountPaid', header: '지급액', width: 200, align: 'right'},
+              {binding: 'amount_paid', header: '지급액', width: 200, align: 'right'},
               {binding: 'balance', header: '잔액', width: 210, align: 'right'}
             ]
           });
@@ -135,15 +148,15 @@
 
             const code = selectedItem.code || selectedItem.cltcd;
             const name = selectedItem.clt_name || selectedItem.cltname;
-            const cltflag = selectedItem.cltflag || selectedItem.cltflag;
+            
 
             // ✅ input에 값 설정
             document.getElementById('cboCompanyHidden').value = code;
-            document.getElementById('cltflag').value = cltflag;
+            
             document.getElementById('btnCompanySearch').value = name;
 
             // 상세 데이터 다시 조회
-            _this.loadDetailData(code, cltflag);
+            _this.loadDetailData(code);
 
             // 탭 전환
             _this.switchToDetailTab();
@@ -162,7 +175,7 @@
               clt_name: '합 계',
               payable: getSum('payable'),
               purchase: getSum('purchase'),
-              AmountPaid: getSum('AmountPaid'),
+              amount_paid: getSum('amount_paid'),
             };
           });
 
@@ -179,7 +192,7 @@
               if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader) {
                 e.cell.style.textAlign = 'center';
               }
-              if (e.panel.cellType === wijmo.grid.CellType.Cell && col.binding === 'date') {
+              if (e.panel.cellType === wijmo.grid.CellType.Cell && col.binding === 'misdate') {
                 if (item?.summary === '전잔액') {
                   e.cell.textContent = '전잔액';  // 날짜 대신 전잔액 표시
                   e.cell.style.textAlign = 'center';
@@ -189,20 +202,13 @@
               }
             },
             columns: [
-              {binding: 'comp_name', header: '거래처명', width: 150, align: 'center'},
-              {binding: 'date', header: '일자', width: 100, align: 'center'},
-              {binding: 'summary', header: '구분', width: 70, align: 'center'},
-              {binding: 'total_amount', header: '금액', width: 150, align: 'right'},
+              {binding: 'misdate', header: '일자', width: 110, align: 'center'},
+              {binding: 'summary', header: '구분', width: 90, align: 'center'},
+              {binding: 'misnum', header: '전표번호', width: 90, align: 'center'},
+              {binding: 'misamt', header: '매입액', width: 150, align: 'right'},
+              {binding: 'rcvamt', header: '지급액', width: 150, align: 'right'},
               {binding: 'balance', header: '잔액', width: 150, align: 'right'},
-              {binding: 'itemnm', header: '품목', width: 120, align: 'center'},
-              {binding: 'iotype', header: '입금형태', width: 70, align: 'center'},
-              {binding: 'banknm', header: '은행', width: 120, align: 'center'},
-              {binding: 'accnum', header: '계좌', width: 180, align: 'center'},
-              {binding: 'eumnum', header: '어음번호', width: 150, align: 'center'},
-              {binding: 'eumtodt', header: '만기일', width: 120, align: 'center'},
-              {binding: 'tradenm', header: '거래구분', width: 120, align: 'center'},
-              {binding: 'remark1', header: '적요', width: 200, align: 'center'},
-              {binding: 'memo', header: '메모', width: 200, align: 'center'}
+              {binding: 'remark', header: '적요', width: '*', align: 'left'}
             ],
             itemsSource: this.viewData,
           });
@@ -229,15 +235,14 @@
 
             // 매입 합계
             SalesTotal.dataItem = {
-              comp_name: '합계',
               summary: '매입계',
-              total_amount: getSumBySummary('total_amount', '매입')
+              misamt: getSumBySummary('misamt', '매입')
             };
 
             // 지급 합계
             DepositTotal.dataItem = {
               summary: '지급계',
-              total_amount: getSumBySummary('total_amount', '지급')
+              rcvamt: getSumBySummary('rcvamt', '지급')
             };
           });
         }
@@ -249,8 +254,9 @@
           let data = {
             'srchStartDt': $("#srchStartDt").val(),
             'srchEndDt': $("#srchEndDt").val(),
-            'companyCode': cboCompany,
-            'cltflag' : $("#cltflag").val(),
+            'cltcd': cboCompany,
+            'gubun': $("#gubun").val() || '',
+            'balanceOnly': $('#balanceOnly').is(':checked'),
             spjangcd: this.spjangcd.val()
           };
           let result = AjaxUtil.getSyncData(url + "/read", data);
@@ -260,15 +266,14 @@
           }
         }
 
-        loadDetailData(code, cltflag) {
+        loadDetailData(code) {
           let _this = this;
           let url = '/api/transaction/accounts_payable_list/DetailList';
           let param = {
             'srchStartDt': $("#srchStartDt").val(),
             'srchEndDt': $("#srchEndDt").val(),
-            'cboCompany': $("#cboCompanyHidden").val(),
-            'code': code, // 🔥 여기 코드 필터
-            'cltflag':cltflag,
+            'code': code,                       // 거래처코드
+            'gubun': $("#gubun").val() || '',
             spjangcd: this.spjangcd.val()
           };
 
@@ -286,30 +291,6 @@
 
       }
 
-      function companyPopupOpenCustom(intputId, hiddenid, hiddenflag){
-
-        const value = document.getElementById(intputId).value;
-
-        let poppage = new PopCompComponentCustom(value);
-
-        let result = AjaxUtil.getSyncData('/api/popup/search_Comp_Custom', { item2 : value, spjangcd : getSpjangcdFromSession() });
-
-        let searchcallback = function (items) {
-
-          document.getElementById(intputId).focus();
-
-          document.getElementById(intputId).value = items.item2;
-          document.getElementById(hiddenid).value = items.id;
-          document.getElementById(hiddenflag).value = items.cltflag;
-        };
-        if(result && result.data.length === 1){
-          searchcallback(result.data[0]);   ``
-          return;
-        }
-
-        poppage.show(searchcallback, result.data);
-      }
-
       let page = null;
 
       $(document).ready(function (e) {
@@ -319,8 +300,9 @@
         }
         page = new production_require();
 
-        AjaxUtil.fillSelectOptions($('#cboCompany'), 'company', 'all', '', 'sale');
-        AjaxUtil.fillSelectOptions($('#cboYear'), 'data_year', '', false);
+        // 매입구분 = TB_CA510 com_cls '113'
+        AjaxUtil.fillSelectOptions($('#gubun'), 'purchase_gubun', 'all', false);
+
 
         let today = new Date();
         let monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -333,12 +315,7 @@
         // 검색
         $('#btnSearch').click(function (e) {
           const companyCode = $('#cboCompanyHidden').val();
-          if ($('#cboCompany').val() !== '' && $('#cboCompanyHidden').val() === '') {
-          // 집계 조회
           page.searchMainData();
-          } else {
-            page.searchMainData();
-          }
           //상세 데이터도 같이 조회
           if (companyCode !== '') {
             page.loadDetailData(companyCode);
@@ -348,11 +325,11 @@
           }
         });
 
-        $('#btnCompanySearch').on('click keydown', function (e) {
+        $('#btnCompanySearch').on('click', function (e) {
           if (e.type === 'keydown' && (e.key === 'Enter' || e.keyCode === 13)) {
             e.preventDefault();
 
-            companyPopupOpenCustom('btnCompanySearch', 'cboCompanyHidden', 'cltflag');
+            clientPopupOpen('btnCompanySearch', 'cboCompanyHidden');
           }
         });
 
@@ -360,7 +337,7 @@
           const val = $(this).val();
           if (val === '') {
             $('#cboCompanyHidden').val('');
-            $('#cltflag').val('');
+            
           }
         });
 
@@ -373,8 +350,7 @@
 
         // 초기화 버튼 클릭 이벤트
         $('#btnClear').click(function () {
-
-          document.getElementById('cboCompany').value = '';
+          document.getElementById('btnCompanySearch').value = '';
           document.getElementById('cboCompanyHidden').value = '';
         });
       })

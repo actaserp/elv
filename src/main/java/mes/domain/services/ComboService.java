@@ -102,6 +102,15 @@ public class ComboService {
 		this._dicFunc_.put("sales_gubun", this.sales_gubun); // 매출 구분 (TB_DA020)
 		this._dicFunc_.put("site_gubun", this.site_gubun);   // 현장구분 (TB_CA510, com_cls='813')
 		this._dicFunc_.put("sales_perid", this.sales_perid); // 매출 담당자 (TB_JA001)
+		this._dicFunc_.put("cardco", this.cardco);           // 카드사 (tb_xcard)
+		this._dicFunc_.put("purchase_gubun", this.purchase_gubun); // 매입구분 (TB_CA510 com_cls='113')
+		this._dicFunc_.put("expense_art", this.expense_art);       // 비용항목 (TB_CA648)
+		this._dicFunc_.put("tax_deduct", this.tax_deduct);         // 부가세 공제구분 (TB_IZ903)
+		this._dicFunc_.put("expense_gflag", this.expense_gflag);   // 비용분류=손익항목분류 (TB_CA510 com_cls='802')
+		this._dicFunc_.put("sales_type", this.sales_type);        // 매출구분 (TB_CA510 com_cls='013')
+		this._dicFunc_.put("tax_gubun", this.tax_gubun);          // 과세구분 (TB_CA510 com_cls='006')
+		this._dicFunc_.put("wkact", this.wkact);                  // 회사구분 (TB_E018_1)
+		this._dicFunc_.put("deposit_bank", this.deposit_bank);    // 입금은행=자사계좌 (tb_aa040)
 	}
 
 	public List<Map<String, Object>> getComboList(String comboType, String cond1, String cond2, String cond3){
@@ -1008,8 +1017,120 @@ public class ComboService {
 		return this.sqlRunner.getRows(sql, dicParam);
 	};
 
+	// 매입구분 콤보 - TB_CA510 com_cls='113' (01 매입세금계산서 / 02 매입계산서 / 03 매입카드 / 04 기타)
+	// '00' 은 분류명 자체('매입구분')라 제외한다.
+	ComboDataFunction purchase_gubun = (String cond1, String cond2, String cond3) -> {
+		String sql = """
+				SELECT DISTINCT com_code AS value, com_cnam AS text
+				FROM TB_CA510 WITH(NOLOCK)
+				WHERE com_cls = '113' AND com_code <> '00'
+				ORDER BY com_code
+				""";
+		return this.sqlRunner.getRows(sql, new MapSqlParameterSource());
+	};
+
+	// 비용항목 콤보 - TB_CA648 (파워빌더 '비용발생현황' 의 비용항목 조회조건)
+	ComboDataFunction expense_art = (String cond1, String cond2, String cond3) -> {
+		String tenantId = TenantContext.get();
+		String sql = """
+				SELECT artcd AS value, artnm AS text
+				FROM TB_CA648 WITH(NOLOCK)
+				WHERE spjangcd = :spjangcd AND ISNULL(useyn, '1') = '1'
+				ORDER BY artcd
+				""";
+		MapSqlParameterSource dicParam = new MapSqlParameterSource();
+		dicParam.addValue("spjangcd", tenantId);
+		return this.sqlRunner.getRows(sql, dicParam);
+	};
+
+	// 매출구분 콤보 - TB_CA510 com_cls='013'
+	// (11 유지보수 / 12 수리공사 / 13 부품교체 / 14 기타매출 / 15 리모델링 / 16 MMPR 인건비(현대) / 17 기술용역)
+	// '00' 은 분류명 자체('매출구분')라 제외한다.
+	ComboDataFunction sales_type = (String cond1, String cond2, String cond3) -> {
+		String sql = """
+				SELECT DISTINCT com_code AS value, com_cnam AS text
+				FROM TB_CA510 WITH(NOLOCK)
+				WHERE com_cls = '013' AND com_code <> '00'
+				ORDER BY com_code
+				""";
+		return this.sqlRunner.getRows(sql, new MapSqlParameterSource());
+	};
+
+	// 과세구분 콤보 - TB_CA510 com_cls='006' (01 과세 / 02 영세 / 03 면세)
+	ComboDataFunction tax_gubun = (String cond1, String cond2, String cond3) -> {
+		String sql = """
+				SELECT DISTINCT com_code AS value, com_cnam AS text
+				FROM TB_CA510 WITH(NOLOCK)
+				WHERE com_cls = '006' AND com_code <> '00'
+				ORDER BY com_code
+				""";
+		return this.sqlRunner.getRows(sql, new MapSqlParameterSource());
+	};
+
+	// 회사구분 콤보 - TB_E018_1 (경기: 001 자사 / 002 현대 / 003 현대(대행서비스) / 004 기타)
+	ComboDataFunction wkact = (String cond1, String cond2, String cond3) -> {
+		String tenantId = TenantContext.get();
+		String sql = """
+				SELECT wkactcd AS value, wkactnm AS text
+				FROM TB_E018_1 WITH(NOLOCK)
+				WHERE spjangcd = :spjangcd AND ISNULL(useyn, '1') = '1'
+				ORDER BY wkactcd
+				""";
+		MapSqlParameterSource dicParam = new MapSqlParameterSource();
+		dicParam.addValue("spjangcd", tenantId);
+		return this.sqlRunner.getRows(sql, dicParam);
+	};
+
+	// 입금은행 콤보 - 자사 계좌(tb_aa040). '계좌번호 관리' 화면이 쓰는 그 테이블이다.
+	// TB_DA023.bankcd 는 은행코드(bank, 2자리) + 계좌코드(bankcd, 3자리)를 붙인 5자리다. 예: '03B01'
+	ComboDataFunction deposit_bank = (String cond1, String cond2, String cond3) -> {
+		String sql = """
+				SELECT a.bank + a.bankcd AS value,
+				       ISNULL(b.banknm, '') + ' ' + ISNULL(a.accnum, '') AS text
+				FROM tb_aa040 a WITH(NOLOCK)
+				LEFT JOIN tb_xbank b WITH(NOLOCK) ON b.bankcd = a.bank
+				WHERE a.spjangcd = :spjangcd AND a.useyn = '1'
+				ORDER BY a.bank, a.bankcd
+				""";
+		MapSqlParameterSource dicParam = new MapSqlParameterSource();
+		dicParam.addValue("spjangcd", TenantContext.get());
+		return this.sqlRunner.getRows(sql, dicParam);
+	};
+
+	// 비용분류 콤보 - TB_CA510 com_cls='802' 손익항목분류
+	// (1 원재료비 / 2 인건비 / 3 활동비 / 4 유지비 / 5 기타경비). '00' 은 분류명 자체라 뺀다.
+	ComboDataFunction expense_gflag = (String cond1, String cond2, String cond3) -> {
+		String sql = """
+				SELECT DISTINCT com_code AS value, com_cnam AS text
+				FROM TB_CA510 WITH(NOLOCK)
+				WHERE com_cls = '802' AND com_code <> '00'
+				ORDER BY com_code
+				""";
+		return this.sqlRunner.getRows(sql, new MapSqlParameterSource());
+	};
+
+	// 부가세 공제구분 콤보 - TB_IZ903 (10 공제 / 31~36 불공제 / 51 공통)
+	ComboDataFunction tax_deduct = (String cond1, String cond2, String cond3) -> {
+		String sql = """
+				SELECT cd AS value, nm AS text
+				FROM TB_IZ903 WITH(NOLOCK)
+				ORDER BY cd
+				""";
+		return this.sqlRunner.getRows(sql, new MapSqlParameterSource());
+	};
+
+	// 카드사 콤보 - tb_xcard (신용카드 등록 화면). 등록된 적 없어 카드사 드롭다운이 비어 있었다.
+	ComboDataFunction cardco = (String cond1, String cond2, String cond3) -> {
+		String sql = """
+				SELECT cd AS value, nm AS text
+				FROM tb_xcard WITH(NOLOCK)
+				ORDER BY cd
+				""";
+		return this.sqlRunner.getRows(sql, new MapSqlParameterSource());
+	};
+
 	// 현장구분 콤보 - TB_CA510 (com_cls='813')
-	ComboDataFunction site_gubun = (String cond1, String cond2, String cond3) -> {
+	ComboDataFunction site_gubun =(String cond1, String cond2, String cond3) -> {
 		String sql = """
 				SELECT DISTINCT com_code AS value, com_cnam AS text
 				FROM TB_CA510 WITH(NOLOCK)
