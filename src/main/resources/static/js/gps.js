@@ -68,12 +68,16 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
 // ─────────────────────────────────────────────────────────────
 var gpsWatchId = null;
 var gpsAccuracy = null;   // 마지막 측위의 오차 반경(m). 출퇴근 등록 시 참고용.
+// 출퇴근 시도 기록(commute_log)에 그 순간 GPS 상태를 남기기 위한 값
+var gpsLastFixAt = null;  // 마지막으로 좌표를 받은 시각 (ms)
+var gpsLastError = null;  // 마지막 GPS 오류 {code, message, at} — 1 권한거부 / 2 측위실패 / 3 타임아웃
 
 const handleGpsPosition = (position) => {
     // 1) 좌표부터 확보한다. Geocoder 상태와 무관하다.
     latitude    = position.coords.latitude;
     longitude   = position.coords.longitude;
     gpsAccuracy = position.coords.accuracy;
+    gpsLastFixAt = Date.now();
     console.log(`GPS Coordinates: Lat ${latitude}, Lon ${longitude}, 정확도 ${gpsAccuracy}m`);
 
     // 2) 주소를 이미 확보했고 거의 움직이지 않았으면 변환을 건너뛴다 (카카오 API 호출 절감)
@@ -89,6 +93,7 @@ const handleGpsPosition = (position) => {
 const handleGpsError = (error) => {
     // 권한 거부(1) / 측위 실패(2) / 타임아웃(3)
     console.warn('GPS 접근 실패 code=' + error.code, error.message);
+    gpsLastError = {code: error.code, message: error.message, at: Date.now()};
     // gpsInfo 는 건드리지 않는다. 이전에 확보한 주소가 있으면 그대로 유지된다.
 
     // 권한 거부가 아닌 일시적 실패(2,3)면 구독을 유지한다. 곧 다시 콜백이 온다.

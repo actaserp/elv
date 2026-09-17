@@ -1086,7 +1086,8 @@ public class ComboService {
 	ComboDataFunction deposit_bank = (String cond1, String cond2, String cond3) -> {
 		String sql = """
 				SELECT a.bank + a.bankcd AS value,
-				       ISNULL(b.banknm, '') + ' ' + ISNULL(a.accnum, '') AS text
+				       ISNULL(b.banknm, '') + ' ' + ISNULL(a.accnum, '') AS text,
+				       ISNULL(a.accnum, '') AS accnum
 				FROM tb_aa040 a WITH(NOLOCK)
 				LEFT JOIN tb_xbank b WITH(NOLOCK) ON b.bankcd = a.bank
 				WHERE a.spjangcd = :spjangcd AND a.useyn = '1'

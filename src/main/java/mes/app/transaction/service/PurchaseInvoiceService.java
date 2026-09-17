@@ -361,7 +361,7 @@ public class PurchaseInvoiceService {
      * 파워빌더도 화면에서 번호를 만들기 때문에 같은 순간에 저장하면 겹칠 수 있다.
      * 그래서 잠금을 걸고 뽑은 뒤, 이미 있는 번호면 다시 뽑는다 (업무일지 채번과 같은 방식).
      */
-    private String nextMijnum(String spjangcd, String custcd, String mijdate) {
+    public String nextMijnum(String spjangcd, String custcd, String mijdate) {
         MapSqlParameterSource p = base(spjangcd, custcd);
         p.addValue("mijdate", mijdate);
 

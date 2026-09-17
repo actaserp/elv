@@ -439,6 +439,140 @@
     window.location.reload();
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // 출퇴근 시도 기록 (본사 commute_log, source=CLIENT)
+  //
+  // 버튼을 누른 순간부터 화면에서 막힌 이유·요청·응답·통신 실패까지 단계마다 남긴다.
+  // 예전에는 화면에서 막히면(위치정보 없음 등) 서버에 아무 흔적이 없어
+  // "아침에 눌렀는데 안 됐다" 는 문의를 확인할 수 없었다.
+  //
+  // 기록은 폰(localStorage)에 먼저 쌓고 서버로 보낸다. 로그인이 풀려 못 보낸 기록은
+  // 다시 로그인해 이 화면이 열릴 때 보낸다.
+  // ─────────────────────────────────────────────────────────────
+  const COMMUTE_TRACE_KEY = 'commuteTraceQueue';
+  const COMMUTE_TRACE_MAX = 100;
+  let commuteAttempt  = null;   // 지금 누른 버튼 {id, action, office, workym, workday}
+  let commuteFlushing = false;
+  let geoPermission   = null;   // granted / denied / prompt (지원 브라우저만)
+
+  function newAttemptId() {
+    try {
+      if (window.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    } catch (e) { /* 구형 WebView */ }
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function localIsoTime(d) {
+    const p = (n, l) => String(n).padStart(l || 2, '0');
+    const off = -d.getTimezoneOffset();
+    const sign = off >= 0 ? '+' : '-';
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes())
+      + ':' + p(d.getSeconds()) + '.' + p(d.getMilliseconds(), 3) + sign + p(Math.floor(Math.abs(off) / 60)) + ':' + p(Math.abs(off) % 60);
+  }
+
+  /** 그 순간 화면 상태 — 왜 막혔는지 판단하는 재료 */
+  function commuteSnapshot() {
+    const now = Date.now();
+    const savedUser = localStorage.getItem('commuteUser');
+    const gpsErr = (typeof gpsLastError !== 'undefined') ? gpsLastError : null;
+    return {
+      gpsCoord: latitude != null && longitude != null,
+      gpsAccuracyM: (typeof gpsAccuracy !== 'undefined' && gpsAccuracy != null) ? Math.round(gpsAccuracy) : null,
+      gpsFixAgoSec: (typeof gpsLastFixAt !== 'undefined' && gpsLastFixAt) ? Math.round((now - gpsLastFixAt) / 1000) : null,
+      gpsWatching: (typeof gpsWatchId !== 'undefined') && gpsWatchId !== null,
+      gpsLastError: gpsErr ? {code: gpsErr.code, message: gpsErr.message, agoSec: Math.round((now - gpsErr.at) / 1000)} : null,
+      geoPermission: geoPermission,
+      address: !!(document.getElementById('gpsInfo').innerText || '').trim(),
+      userLoaded: !!currentUserInfo,
+      officeTime: (document.getElementById('officeTime') || {}).textContent || null,
+      hasCheckedOut: hasCheckedOut,
+      otherUserOnDevice: !!(savedUser && currentUserInfo && savedUser !== currentUserInfo),
+      savedCommuteDate: localStorage.getItem('commuteDate'),
+      workcd: (document.getElementById('selectWorkcd') || {}).value || '',
+      online: navigator.onLine,
+      visibility: document.visibilityState
+    };
+  }
+
+  function commuteTrace(stage, extra) {
+    try {
+      const a = commuteAttempt || {};
+      const item = Object.assign({
+        _k: newAttemptId(),
+        attemptId: a.id || null,
+        action: a.action || null,
+        office: a.office || null,
+        workym: a.workym || null,
+        workday: a.workday || null,
+        stage: stage,
+        clientTime: localIsoTime(new Date()),
+        latitude: latitude,
+        longitude: longitude,
+        gpsInfo: (document.getElementById('gpsInfo').innerText || '').trim()
+      }, extra || {});
+      item.detail = JSON.stringify(commuteSnapshot());
+
+      let q = [];
+      try { q = JSON.parse(localStorage.getItem(COMMUTE_TRACE_KEY) || '[]'); } catch (e) { q = []; }
+      q.push(item);
+      if (q.length > COMMUTE_TRACE_MAX) q = q.slice(q.length - COMMUTE_TRACE_MAX);
+      localStorage.setItem(COMMUTE_TRACE_KEY, JSON.stringify(q));
+    } catch (e) {
+      console.warn('출퇴근 기록 저장 실패', e);
+    }
+    flushCommuteTrace();
+  }
+
+  function flushCommuteTrace() {
+    if (commuteFlushing) return;
+    let q = [];
+    try { q = JSON.parse(localStorage.getItem(COMMUTE_TRACE_KEY) || '[]'); } catch (e) { q = []; }
+    if (q.length === 0) return;
+
+    commuteFlushing = true;
+    const batch = q.slice(0, 50);
+    $.ajax({
+      url: withCtx('/api/mobile_main/commute_client_log'),
+      type: 'POST',
+      contentType: 'application/json',
+      dataType: 'json',
+      global: false,
+      timeout: 10000,
+      headers: {'X-CSRF-TOKEN': $('[name=_csrf]').val()},
+      data: JSON.stringify(batch)
+    }).done(function (res) {
+      // 로그인 화면 HTML 이 200 으로 오는 경우를 성공으로 보지 않는다
+      if (!res || typeof res !== 'object' || res.success !== true) return;
+      const sent = new Set(batch.map(b => b._k));
+      let now = [];
+      try { now = JSON.parse(localStorage.getItem(COMMUTE_TRACE_KEY) || '[]'); } catch (e) { now = []; }
+      localStorage.setItem(COMMUTE_TRACE_KEY, JSON.stringify(now.filter(x => !sent.has(x._k))));
+    }).always(function () {
+      commuteFlushing = false;
+    });
+  }
+
+  function commuteAjaxFailure(req, status, error) {
+    commuteTrace('AJAX_ERROR', {
+      message: 'HTTP ' + (req ? req.status : ''),
+      error: (status || '') + ' ' + (error || '') + ' ' + ((req && req.responseText) || '').slice(0, 300)
+    });
+    AjaxUtil.failureCallback(req, status, error);
+  }
+
+  // 화면이 열리면 전에 못 보낸 기록부터 보내고, 위치권한 상태를 알아둔다
+  $(function () {
+    flushCommuteTrace();
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({name: 'geolocation'}).then(function (st) {
+          geoPermission = st.state;
+          st.onchange = function () { geoPermission = st.state; };
+        }).catch(function () { /* 미지원 */ });
+      }
+    } catch (e) { /* 미지원 */ }
+  });
+
   // ✅ 출퇴근 등록 메인 함수
   function submitCommute(office) {
     const now     = new Date();
@@ -450,9 +584,13 @@
     const isIn  = office === 'inOfficeIn'  || office === 'outOfficeIn';
     const isOut = office === 'inOfficeOut' || office === 'outOfficeOut';
 
+    commuteAttempt = {id: newAttemptId(), action: isIn ? 'IN' : 'OUT', office: office, workym: year + month, workday: date};
+    commuteTrace('CLICK');
+
     // ✅ 외부 출퇴근 시 근태구분 필수 체크
     if ((office === 'outOfficeIn' || office === 'outOfficeOut') &&
             document.getElementById('selectWorkcd').value === "") {
+      commuteTrace('BLOCK_WORKCD', {message: '근태구분을 선택하여주십시오'});
       Alert.alert('', '근태구분을 선택하여주십시오');
       return;
     }
@@ -464,19 +602,24 @@
       if (alreadyIn) {
         // ✅ 이미 출근기록 있음 → idx=1 퇴근 완료 여부 먼저 확인
         if (!hasCheckedOut) {
+          commuteTrace('BLOCK_NOT_CHECKED_OUT', {message: '퇴근 후 추가근무 출근이 가능합니다.'});
           Alert.alert('', '퇴근 후 추가근무 출근이 가능합니다.');
           return;
         }
         // 퇴근 완료된 경우 → 추가근무 여부 확인 팝업
+        commuteTrace('OVERTIME_CONFIRM');
         Alert.confirm(
                 '',
                 '이미 출근기록이 있습니다. \n추가근무 출근이신가요?',
                 function () {
                   // 확인 → 추가근무 출근 처리
+                  commuteAttempt.action = 'OVERTIME_IN';
+                  commuteTrace('OVERTIME_OK');
                   callCommuteApi(office, year, month, date, weekNum, true);
                 },
                 function () {
                   // 취소 → 아무것도 안 함
+                  commuteTrace('OVERTIME_CANCEL');
                 }
         );
       } else {
@@ -490,6 +633,7 @@
     // ✅ 퇴근 버튼 클릭
     if (isOut) {
       if (document.getElementById('officeTime').textContent === '--:--') {
+        commuteTrace('BLOCK_NO_CHECKIN', {message: '출근기록이 없습니다.'});
         Alert.alert('', '출근기록이 없습니다.');
         return;
       }
@@ -505,6 +649,7 @@
       // 출근 API
       // ✅ 유저 정보 로드 전 출근 시도 차단
       if (!currentUserInfo) {
+        commuteTrace('BLOCK_USERINFO', {message: '사용자 정보를 불러오는 중입니다.'});
         Alert.alert('', '사용자 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
         return;
       }
@@ -512,6 +657,7 @@
       // ✅ 위치정보(GPS) 조회 전 출근 시도 차단
       if (latitude == null || longitude == null) {
         // 새로고침하면 인앱 브라우저의 위치 권한이 초기화돼 요청창이 다시 뜬다. 재시도만 한다.
+        commuteTrace('BLOCK_GPS', {message: '위치정보를 불러오는 중입니다.'});
         Alert.alert('', '위치정보를 불러오는 중입니다.\n잠시 후 다시 시도해주세요.', getGPSLocation);
         return;
       }
@@ -519,6 +665,7 @@
       // ✅ 주소(gpsInfo) 바인드 전 출근 차단 (좌표는 있어도 역지오코딩이 늦어 address 가 비는 문제 방지)
       const inAddress = document.getElementById('gpsInfo').innerText.trim();
       if (!inAddress) {
+        commuteTrace('BLOCK_ADDRESS', {message: '주소정보를 불러오는 중입니다.'});
         Alert.alert('', '주소정보를 불러오는 중입니다.\n잠시 후 다시 시도해주세요.', getGPSLocation);
         return;
       }
@@ -528,6 +675,7 @@
 
       if (savedUser && savedUser !== currentUserInfo) {
         const savedUserName = localStorage.getItem('commuteUserName');
+        commuteTrace('BLOCK_OTHER_USER', {message: '이 기기는 [' + savedUserName + '] 님이 출근 중입니다.'});
         Alert.alert('',
                 `이 기기는 [${savedUserName}] 님이 출근 중입니다.\n퇴근 후 사용 가능합니다.`
         );
@@ -545,11 +693,14 @@
         longitude:  longitude,
         gpsInfo:    inAddress,
         remark:     document.getElementById('remarkInput').value.trim(),
-        isOvertime: isOvertime  // ✅ 추가근무 여부 전달
+        isOvertime: isOvertime,  // ✅ 추가근무 여부 전달
+        attemptId:  commuteAttempt ? commuteAttempt.id : ''
       };
 
+      commuteTrace('REQUEST');
       AjaxUtil.postAsyncData('/api/mobile_main/submitCommute', data, function (result) {
         if (result != null) {
+          commuteTrace(result.success ? 'RESPONSE_OK' : 'RESPONSE_FAIL', {message: result.message || ''});
           if (result.success) {
             // ✅ ID와 표시용 이름 분리해서 저장
             localStorage.setItem('commuteUser', currentUserInfo);
@@ -576,15 +727,17 @@
             Alert.alert('', result.message || '출근 등록에 실패하였습니다.');
           }
         } else {
+          commuteTrace('RESPONSE_NULL');
           Alert.alert('', '오류가 발생하였습니다.');
         }
-      });
+      }, commuteAjaxFailure);
 
     } else {
       // 퇴근 API
       // ✅ 위치정보(GPS 좌표) 바인드 전 퇴근 차단
       if (latitude == null || longitude == null) {
         // 새로고침하면 인앱 브라우저의 위치 권한이 초기화돼 요청창이 다시 뜬다. 재시도만 한다.
+        commuteTrace('BLOCK_GPS', {message: '위치정보를 불러오는 중입니다.'});
         Alert.alert('', '위치정보를 불러오는 중입니다.\n잠시 후 다시 시도해주세요.', getGPSLocation);
         return;
       }
@@ -592,6 +745,7 @@
       // ✅ 주소(gpsInfo) 바인드 전 퇴근 차단 (좌표는 있어도 주소 역지오코딩이 늦어 out_address 가 비는 문제 방지)
       const outAddress = document.getElementById('gpsInfo').innerText.trim();
       if (!outAddress) {
+        commuteTrace('BLOCK_ADDRESS', {message: '주소정보를 불러오는 중입니다.'});
         Alert.alert('', '주소정보를 불러오는 중입니다.\n잠시 후 다시 시도해주세요.', getGPSLocation);
         return;
       }
@@ -604,10 +758,18 @@
         remark:    document.getElementById('remarkInput').value.trim(),
         gpsInfo:   outAddress,
         latitude:  latitude,
-        longitude: longitude
+        longitude: longitude,
+        attemptId: commuteAttempt ? commuteAttempt.id : ''
       };
 
+      commuteTrace('REQUEST');
       AjaxUtil.postAsyncData('/api/mobile_main/modifyCommute', data, function (result) {
+        if (result == null) {
+          commuteTrace('RESPONSE_NULL');
+          Alert.alert('', '오류가 발생하였습니다.');
+          return;
+        }
+        commuteTrace(result.success ? 'RESPONSE_OK' : 'RESPONSE_FAIL', {message: result.message || ''});
         if (result.success) {
           // ✅ 퇴근 성공 시 로컬스토리지 초기화
           localStorage.removeItem('commuteUser');
@@ -620,7 +782,7 @@
         } else {
           Alert.alert('', result.message || '퇴근 등록에 실패하였습니다.');
         }
-      });
+      }, commuteAjaxFailure);
     }
   }
 </script>

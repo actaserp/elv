@@ -3,6 +3,12 @@
   <style>
     .wj-header { text-align: center !important; }
 
+    /* 월별 표 — 건수 있는 칸만 눈에 띄게, 0 은 흐리게 */
+    #monthGrid .wj-cell.month-has { color: #c0392b; font-weight: 600; }
+    #monthGrid .wj-cell.month-zero { color: #b5b9c0; }
+    #monthGrid .wj-cell.month-total { background: #f4f6f9; font-weight: 600; }
+    #monthGrid .wj-colheaders .wj-cell { background: #e6ebf2; font-weight: 600; }
+
     .chart-summary {
       margin: 4px 0 10px;
       color: #666;
@@ -41,7 +47,8 @@
     <div class="tab-wrap">
       <ul class="tab-links">
         <li><a href="#tabList" title="처리목록" id="listTabLink">처리목록</a></li>
-        <li><a href="#tabChart" title="월별 호기별 현황" id="chartTabLink">월별 호기별 현황</a></li>
+        <li><a href="#tabMonthGrid" title="월별 호기별 현황" id="monthGridTabLink">월별 호기별 현황</a></li>
+        <li><a href="#tabChart" title="현황 그래프" id="chartTabLink">현황 그래프</a></li>
       </ul>
 
       <div class="tab-contents">
@@ -91,7 +98,57 @@
           </section>
         </section>
 
-        <!-- ── 탭 2: 월별 호기별 고장처리 건수 그래프 ── -->
+        <!-- ── 탭 2: 월별 호기별 고장처리 건수 표 ── -->
+        <section class="tab-item" id="tabMonthGrid">
+          <section class="section">
+            <div class="section-top">
+              <div class="search-wrap">
+                <dl>
+                  <dt><label for="cboGridYear">조회년도</label></dt>
+                  <dd>
+                    <div class="srch-box">
+                      <select id="cboGridYear" class="form-control2" style="width: 110px;"></select>
+                    </div>
+                  </dd>
+                </dl>
+                <dl>
+                  <dt><label for="txtGridActnm">현장명</label></dt>
+                  <dd>
+                    <div class="srch-box">
+                      <input type="text" id="txtGridActnm" class="form-control2" placeholder="현장명 검색"/>
+                    </div>
+                  </dd>
+                </dl>
+                <dl>
+                  <dt><label for="txtGridEqupnm">호기명</label></dt>
+                  <dd>
+                    <div class="srch-box">
+                      <input type="text" id="txtGridEqupnm" class="form-control2" placeholder="호기명 검색"/>
+                    </div>
+                  </dd>
+                </dl>
+                <dl>
+                  <dt><span class="eq"></span></dt>
+                  <dd>
+                    <li>
+                      <a class="btn btn-delete" title="검색" id="btnGridSearch">
+                        <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                        검색
+                      </a>
+                    </li>
+                  </dd>
+                </dl>
+              </div>
+            </div>
+
+            <div class="container-fluid">
+              <p class="chart-summary" id="gridSummary"></p>
+              <div id="monthGrid" style="height: 600px;"></div>
+            </div>
+          </section>
+        </section>
+
+        <!-- ── 탭 3: 월별 호기별 고장처리 건수 그래프 ── -->
         <section class="tab-item" id="tabChart">
           <section class="section">
             <div class="section-top">
@@ -211,6 +268,7 @@
         $year.append($('<option>').val(String(y)).text(y + '년'));
       }
       $year.val(String(yyyy));
+      $('#cboGridYear').html($year.html()).val(String(yyyy));
 
       searchMainData();
     }
@@ -366,10 +424,125 @@
         (others.length > 0 ? ' (건수 상위 ' + CHART_TOP_N + '개 호기만 따로 표시)' : ''));
     }
 
+    // ───────────────────────────────────────────────────────────
+    //  탭 2 — 월별 호기별 고장처리 건수 표
+    //  행 = 호기(현장+호기), 열 = 1~12월 + 합계, 맨 아래 합계 행. 그래프 탭과 같은 API 를 쓴다.
+    // ───────────────────────────────────────────────────────────
+    let monthGrid = null;
+
+    function ensureMonthGrid() {
+      if (monthGrid) return monthGrid;
+
+      const cols = [
+        {binding: 'no',     header: 'No',     width: 55,  align: 'center', allowSorting: false},
+        {binding: 'actnm',  header: '현장명', width: 260, align: 'left'},
+        {binding: 'equpnm', header: '호기명', width: 120, align: 'center'}
+      ];
+      for (let m = 1; m <= 12; m++) {
+        cols.push({binding: 'm' + m, header: m + '월', width: 62, align: 'center', dataType: wijmo.DataType.Number,
+                   format: 'n0', aggregate: 'Sum'});
+      }
+      cols.push({binding: 'total', header: '합계', width: 80, align: 'center', dataType: wijmo.DataType.Number,
+                 format: 'n0', aggregate: 'Sum'});
+
+      monthGrid = new wijmo.grid.FlexGrid('#monthGrid', {
+        autoGenerateColumns: false,
+        isReadOnly: true,
+        selectionMode: wijmo.grid.SelectionMode.Row,
+        showMarquee: true,
+        frozenColumns: 3,
+        columns: cols,
+        itemsSource: new wijmo.collections.CollectionView([]),
+        formatItem: function (s, e) {
+          if (e.panel !== s.cells && e.panel !== s.columnFooters) return;
+          // 셀 DOM 이 다른 열에 재사용되므로 붙였다 뗐다를 매번 모두 한다
+          const binding = s.columns[e.col].binding;
+          const isMonth = /^m\d+$/.test(binding);
+          const v = Number(e.panel.getCellData(e.row, e.col, false)) || 0;
+          wijmo.toggleClass(e.cell, 'month-total', binding === 'total');
+          wijmo.toggleClass(e.cell, 'month-has', isMonth && v > 0);
+          wijmo.toggleClass(e.cell, 'month-zero', isMonth && v === 0);
+        }
+      });
+      monthGrid.rowHeaders.columns.splice(0, 1);
+      monthGrid.columnFooters.rows.push(new wijmo.grid.GroupRow());
+      monthGrid.columnFooters.setCellData(0, 1, '합계');
+      new FlexGridContextMenu(monthGrid);
+      return monthGrid;
+    }
+
+    function searchMonthGrid() {
+      const year = $('#cboGridYear').val();
+      const data = {
+        year     : year,
+        actnm    : $('#txtGridActnm').val().trim(),
+        equpnm   : $('#txtGridEqupnm').val().trim(),
+        spjangcd : sessionStorage.getItem('spjangcd')
+      };
+
+      AjaxUtil.getAsyncData('/api/AS/web_handle/monthly_equp', data, function (result) {
+        if (!result || result.success === false) {
+          Alert.alert('', (result && result.message) || '조회 중 오류가 발생하였습니다.');
+          return;
+        }
+        drawMonthGrid(year, result.data || []);
+      });
+    }
+
+    function drawMonthGrid(year, rows) {
+      const grid = ensureMonthGrid();
+
+      const equpMap = new Map();
+      rows.forEach(r => {
+        const key = (r.actcd || '') + '|' + (r.equpcd || '');
+        if (!equpMap.has(key)) {
+          const item = {actnm: r.actnm || '', equpnm: r.equpnm || r.equpcd || '(호기 없음)', total: 0};
+          for (let m = 1; m <= 12; m++) item['m' + m] = 0;
+          equpMap.set(key, item);
+        }
+        const item = equpMap.get(key);
+        const m = Number(r.mm);
+        const c = Number(r.cnt) || 0;
+        if (m >= 1 && m <= 12) {
+          item['m' + m] += c;
+          item.total += c;
+        }
+      });
+
+      const items = Array.from(equpMap.values())
+        .sort((a, b) => a.actnm.localeCompare(b.actnm) || a.equpnm.localeCompare(b.equpnm, undefined, {numeric: true}));
+      items.forEach((it, i) => { it.no = i + 1; });
+
+      grid.itemsSource = new wijmo.collections.CollectionView(items);
+      grid.downloadFileName = '월별_호기별_고장처리현황_' + year;
+
+      const total = items.reduce((s, it) => s + it.total, 0);
+      $('#gridSummary').text(year + '년 고장처리 ' + total.toLocaleString() + '건 · 호기 ' + items.length + '개');
+    }
+
     $(document.body).ready(function () {
       $('#btnSearch').click(function () { searchMainData(); });
       $('#txtActnm').on('keypress', function (e) {
         if (e.keyCode === 13) searchMainData();
+      });
+
+      $('#btnGridSearch').click(function () { searchMonthGrid(); });
+      $('#txtGridActnm, #txtGridEqupnm').on('keypress', function (e) {
+        if (e.keyCode === 13) searchMonthGrid();
+      });
+      $('#cboGridYear').on('change', function () { searchMonthGrid(); });
+
+      // 숨은 탭에서는 그리드 크기를 잴 수 없어 탭이 보인 뒤에 만들거나 다시 맞춘다
+      let monthGridLoaded = false;
+      $('#monthGridTabLink').click(function () {
+        setTimeout(function () {
+          if (!monthGridLoaded) {
+            monthGridLoaded = true;
+            searchMonthGrid();
+          } else if (monthGrid) {
+            monthGrid.invalidate();
+          }
+        }, 0);
       });
 
       $('#btnChartSearch').click(function () { searchChartData(); });

@@ -38,6 +38,9 @@ public class MobileMainController {
     TenantUserService tenantUserService;
 
     @Autowired
+    mes.app.mobile.Service.CommuteLogService commuteLogService;
+
+    @Autowired
     @Qualifier("mainSqlRunner")
     SqlRunner mainSqlRunner;
 
@@ -131,8 +134,30 @@ public class MobileMainController {
         return result;
     }
 
+    // 출근 — 시도·결과를 CommuteLogService 가 남긴다
     @PostMapping("/submitCommute")
     public AjaxResult submitCommute(
+            @RequestParam(value = "weekNum")                      Integer weekNum,
+            @RequestParam(value = "office")                       String  office,
+            @RequestParam(value = "workym",     required = false) String  workym,
+            @RequestParam(value = "workday",    required = false) String  workday,
+            @RequestParam(value = "isHoly",     required = false) String  isHoly,
+            @RequestParam(value = "workcd",     required = false) String  workcd,
+            @RequestParam(value = "latitude",   required = false) String  latitude,
+            @RequestParam(value = "longitude",  required = false) String  longitude,
+            @RequestParam(value = "gpsInfo",    required = false) String  gpsInfo,
+            @RequestParam(value = "remark",     required = false) String  remark,
+            @RequestParam(value = "isOvertime", required = false, defaultValue = "false") Boolean isOvertime,
+            @RequestParam(value = "attemptId",  required = false) String  attemptId,
+            HttpServletRequest request,
+            Authentication auth) {
+        return commuteLogService.record(Boolean.TRUE.equals(isOvertime) ? "OVERTIME_IN" : "IN", attemptId,
+                request, auth, office, workym, workday, latitude, longitude, gpsInfo,
+                () -> submitCommuteInner(weekNum, office, workym, workday, isHoly, workcd,
+                        latitude, longitude, gpsInfo, remark, isOvertime, request, auth));
+    }
+
+    private AjaxResult submitCommuteInner(
             @RequestParam(value = "weekNum")                      Integer weekNum,
             @RequestParam(value = "office")                       String  office,
             @RequestParam(value = "workym",     required = false) String  workym,
@@ -166,6 +191,11 @@ public class MobileMainController {
         String    formattedCurrTime = currentTime.format(timeFormatter);
 
         int nextIdx = !isOvertime ? 1 : mobileMainService.findMaxIdx(spjangcd, perId, workym, workday) + 1;
+
+        // 시도 기록이 저장 직후 이 키로 tb_pb201 을 다시 읽어 실제로 들어갔는지 확인한다
+        request.setAttribute(mes.app.mobile.Service.CommuteLogService.ATTR_SPJANGCD, spjangcd);
+        request.setAttribute(mes.app.mobile.Service.CommuteLogService.ATTR_PERID, perId);
+        request.setAttribute(mes.app.mobile.Service.CommuteLogService.ATTR_IDX, nextIdx);
 
         int    jitime      = 0;
         String finalWorkcd = workcd;
@@ -201,15 +231,34 @@ public class MobileMainController {
             result.success = true;
             result.message = isOvertime ? "추가근무 출근이 등록되었습니다." : "출근등록이 완료되었습니다.";
         } catch (Exception e) {
-            e.printStackTrace();
+            // 예전 e.printStackTrace() 는 서버 콘솔에만 찍혀 error.log 에서 찾을 수 없었다
+            log.error("[Commute] 출근 저장 실패 perid={} work={}{}", perId, workym, workday, e);
             result.success = false;
-            result.message = "오류가 발생하였습니다.";
+            result.message = "오류가 발생하였습니다: " + e.getMessage();
         }
         return result;
     }
 
+    // 퇴근 — 시도·결과를 CommuteLogService 가 남긴다
     @PostMapping("/modifyCommute")
     public AjaxResult modifyCommute(
+            @RequestParam(value = "office")                       String office,
+            @RequestParam(value = "workym",    required = false)  String workym,
+            @RequestParam(value = "workday",   required = false)  String workday,
+            @RequestParam(value = "remark",    required = false)  String remark,
+            @RequestParam(value = "workcd",    required = false)  String workcd,
+            @RequestParam(value = "latitude",  required = false)  String latitude,
+            @RequestParam(value = "longitude", required = false)  String longitude,
+            @RequestParam(value = "gpsInfo",   required = false)  String gpsInfo,
+            @RequestParam(value = "attemptId", required = false)  String attemptId,
+            HttpServletRequest request,
+            Authentication auth) {
+        return commuteLogService.record("OUT", attemptId, request, auth, office, workym, workday, latitude, longitude, gpsInfo,
+                () -> modifyCommuteInner(office, workym, workday, remark, workcd, latitude, longitude, gpsInfo,
+                        request, auth));
+    }
+
+    private AjaxResult modifyCommuteInner(
             @RequestParam(value = "office")                       String office,
             @RequestParam(value = "workym",    required = false)  String workym,
             @RequestParam(value = "workday",   required = false)  String workday,
@@ -253,6 +302,11 @@ public class MobileMainController {
         }
 
         int     targetIdx       = ((Number) entity.get("idx")).intValue();
+
+        // 시도 기록이 저장 직후 이 키로 tb_pb201 을 다시 읽어 퇴근시간이 들어갔는지 확인한다
+        request.setAttribute(mes.app.mobile.Service.CommuteLogService.ATTR_SPJANGCD, spjangcd);
+        request.setAttribute(mes.app.mobile.Service.CommuteLogService.ATTR_PERID, perId);
+        request.setAttribute(mes.app.mobile.Service.CommuteLogService.ATTR_IDX, targetIdx);
         boolean isOvertimeOut   = targetIdx >= 2;
         String  entityWorkcd    = entity.get("workcd")    != null ? entity.get("workcd").toString()    : null;
         String  entityHoliyn    = entity.get("holiyn")    != null ? entity.get("holiyn").toString()    : null;
@@ -374,6 +428,7 @@ public class MobileMainController {
             result.success = true;
             result.message = isOvertimeOut ? "추가근무 퇴근처리가 완료되었습니다." : "퇴근처리가 마무리되었습니다.";
         } catch (Exception e) {
+            log.error("[Commute] 퇴근 저장 실패 perid={} work={}{}", perId, workym, workday, e);
             result.success = false;
             result.message = "오류가 발생하였습니다: " + e.getMessage();
         }
