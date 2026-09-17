@@ -520,7 +520,11 @@
     } catch (e) {
       console.warn('출퇴근 기록 저장 실패', e);
     }
-    flushCommuteTrace();
+    // 중간 단계(CLICK·REQUEST·OVERTIME_CONFIRM/OK)는 폰에 쌓아만 두고,
+    // 결과가 정해진 단계에서 한 번에 보낸다 — 버튼 한 번에 전송 1회, 출퇴근 요청과 겹치지 않음
+    if (/^(BLOCK_|RESPONSE_|AJAX_ERROR|OVERTIME_CANCEL)/.test(stage)) {
+      flushCommuteTrace();
+    }
   }
 
   function flushCommuteTrace() {
