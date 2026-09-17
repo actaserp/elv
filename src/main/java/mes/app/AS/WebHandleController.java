@@ -104,17 +104,33 @@ public class WebHandleController {
     // ── 월별 호기별 고장처리 건수 (고장처리현황 그래프 탭) ────
     @GetMapping("/monthly_equp")
     public AjaxResult getMonthlyEqupCount(
-            @RequestParam(value = "year")                        String year,
+            @RequestParam(value = "fromDate")                    String fromDate,
+            @RequestParam(value = "toDate")                      String toDate,
             @RequestParam(value = "actnm",  required = false)    String actnm,
             @RequestParam(value = "equpnm", required = false)    String equpnm,
             @RequestParam(value = "spjangcd")                    String spjangcd) {
         AjaxResult result = new AjaxResult();
-        if (year == null || !year.trim().matches("\\d{4}")) {
+        String from = fromDate == null ? "" : fromDate.replace("-", "").trim();
+        String to   = toDate   == null ? "" : toDate.replace("-", "").trim();
+        if (!from.matches("\\d{8}") || !to.matches("\\d{8}")) {
             result.success = false;
-            result.message = "조회년도를 확인해주세요.";
+            result.message = "조회기간을 확인해주세요.";
             return result;
         }
-        result.data = webHandleService.getMonthlyEqupCount(spjangcd, year, actnm, equpnm);
+        if (from.compareTo(to) > 0) {
+            result.success = false;
+            result.message = "조회기간 시작일이 종료일보다 늦습니다.";
+            return result;
+        }
+        // 월이 열(column)이 되므로 너무 긴 기간은 막는다
+        int months = (Integer.parseInt(to.substring(0, 4)) - Integer.parseInt(from.substring(0, 4))) * 12
+                + Integer.parseInt(to.substring(4, 6)) - Integer.parseInt(from.substring(4, 6)) + 1;
+        if (months > 24) {
+            result.success = false;
+            result.message = "조회기간은 24개월 이내로 선택해주세요.";
+            return result;
+        }
+        result.data = webHandleService.getMonthlyEqupCount(spjangcd, from, to, actnm, equpnm);
         return result;
     }
 

@@ -212,14 +212,16 @@ public class WebHandleService {
         return this.sqlRunner.getRows(sql, param);
     }
 
-    // ── 월별 호기별 고장처리 건수 (고장처리현황 > 월별 그래프 탭) ──
-    // 처리일자(compdate) 기준으로 센다. 호기명은 현장마다 '1-1' 처럼 겹치므로 현장+호기 코드로 묶는다.
+    // ── 월별 호기별 고장처리 건수 (고장처리현황 > 월별 호기별 현황·현황 그래프 탭) ──
+    // 처리일자(compdate) 기준, 조회기간(yyyyMMdd~yyyyMMdd) 안의 건을 년월(ym = yyyyMM)별로 센다.
+    // 호기명은 현장마다 '1-1' 처럼 겹치므로 현장+호기 코드로 묶는다.
     public List<Map<String, Object>> getMonthlyEqupCount(
-            String spjangcd, String year, String actnm, String equpnm) {
+            String spjangcd, String fromDate, String toDate, String actnm, String equpnm) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);
-        param.addValue("yearLike", (year == null ? "" : year.trim()) + "%");
+        param.addValue("fromDate", fromDate);
+        param.addValue("toDate", toDate);
         param.addValue("actnm", actnm == null ? "" : actnm.trim());
         param.addValue("equpnm", equpnm == null ? "" : equpnm.trim());
 
@@ -228,16 +230,16 @@ public class WebHandleService {
                        MAX(ISNULL(e.actnm, ''))  AS actnm,
                        ISNULL(e.equpcd, '')      AS equpcd,
                        MAX(ISNULL(e.equpnm, '')) AS equpnm,
-                       CAST(SUBSTRING(e.compdate, 5, 2) AS int) AS mm,
+                       LEFT(e.compdate, 6)       AS ym,
                        COUNT(*) AS cnt
                   FROM TB_E411 e WITH(NOLOCK)
                  WHERE e.spjangcd = :spjangcd
-                   AND e.compdate LIKE :yearLike
+                   AND e.compdate BETWEEN :fromDate AND :toDate
                    AND LEN(e.compdate) = 8
                    AND (:actnm  = '' OR ISNULL(e.actnm, '')  LIKE '%' + :actnm  + '%')
                    AND (:equpnm = '' OR ISNULL(e.equpnm, '') LIKE '%' + :equpnm + '%')
-                 GROUP BY e.actcd, ISNULL(e.equpcd, ''), CAST(SUBSTRING(e.compdate, 5, 2) AS int)
-                 ORDER BY e.actcd, equpcd, mm
+                 GROUP BY e.actcd, ISNULL(e.equpcd, ''), LEFT(e.compdate, 6)
+                 ORDER BY e.actcd, equpcd, ym
                 """;
         return this.sqlRunner.getRows(sql, param);
     }

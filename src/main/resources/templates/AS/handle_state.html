@@ -34,7 +34,7 @@
     <!-- Page Title -->
     <div class="page-title-wrap">
       <div class="left">
-        <h2>고장처리현황</h2>
+        <h2>고장처리현황1</h2>
         <a title="북마크" class="bookmark toggle">내메뉴</a>
       </div>
       <ul class="page-navi">
@@ -104,10 +104,12 @@
             <div class="section-top">
               <div class="search-wrap">
                 <dl>
-                  <dt><label for="cboGridYear">조회년도</label></dt>
+                  <dt><label for="gridFromDate">조회기간</label></dt>
                   <dd>
-                    <div class="srch-box">
-                      <select id="cboGridYear" class="form-control2" style="width: 110px;"></select>
+                    <div class="srch-box" style="display: flex; align-items: center; gap: 5px;">
+                      <input type="date" id="gridFromDate" class="form-control2" style="width: 140px;">
+                      <span>~</span>
+                      <input type="date" id="gridToDate" class="form-control2" style="width: 140px;">
                     </div>
                   </dd>
                 </dl>
@@ -154,10 +156,12 @@
             <div class="section-top">
               <div class="search-wrap">
                 <dl>
-                  <dt><label for="cboYear">조회년도</label></dt>
+                  <dt><label for="chartFromDate">조회기간</label></dt>
                   <dd>
-                    <div class="srch-box">
-                      <select id="cboYear" class="form-control2" style="width: 110px;"></select>
+                    <div class="srch-box" style="display: flex; align-items: center; gap: 5px;">
+                      <input type="date" id="chartFromDate" class="form-control2" style="width: 140px;">
+                      <span>~</span>
+                      <input type="date" id="chartToDate" class="form-control2" style="width: 140px;">
                     </div>
                   </dd>
                 </dl>
@@ -262,13 +266,9 @@
       new FlexGridContextMenu(theGrid);
       theGrid.downloadFileName = '고장처리현황';
 
-      // 조회년도: 올해부터 10년 전까지, 기본은 올해
-      const $year = $('#cboYear');
-      for (let y = yyyy; y >= yyyy - 9; y--) {
-        $year.append($('<option>').val(String(y)).text(y + '년'));
-      }
-      $year.val(String(yyyy));
-      $('#cboGridYear').html($year.html()).val(String(yyyy));
+      // 월별 표·그래프 탭 조회기간: 기본 올해 1월 1일 ~ 오늘
+      $('#gridFromDate, #chartFromDate').val(`${yyyy}-01-01`);
+      $('#gridToDate, #chartToDate').val(`${yyyy}-${mm}-${dd}`);
 
       searchMainData();
     }
@@ -313,13 +313,38 @@
     // ───────────────────────────────────────────────────────────
     //  탭 2 — 월별 호기별 고장처리 건수
     //
-    //  X축 1~12월, 호기마다 한 계열로 쌓은 막대. 막대 전체 높이가 그 달의 합계다.
+    //  X축은 조회기간에 걸친 월, 호기마다 한 계열로 쌓은 막대. 막대 전체 높이가 그 달의 합계다.
     //  한 해에 호기가 150개가 넘어(경기 2026년 157개) 계열을 다 그리면 읽을 수 없으므로
     //  건수가 많은 호기부터 CHART_TOP_N 개만 따로 그리고 나머지는 '기타'로 묶는다.
     //  현장명·호기명으로 좁히면 그 안에서 같은 규칙을 적용한다.
     // ───────────────────────────────────────────────────────────
     const CHART_TOP_N = 10;
     let monthlyChart = null;
+
+    // 조회기간 입력 → {from, to, label} (yyyyMMdd). 잘못됐으면 알리고 null
+    function readPeriod(fromSel, toSel) {
+      const from = ($(fromSel).val() || '').replaceAll('-', '');
+      const to   = ($(toSel).val() || '').replaceAll('-', '');
+      if (from.length !== 8 || to.length !== 8) { Alert.alert('', '조회기간을 입력해주세요.'); return null; }
+      if (from > to) { Alert.alert('', '조회기간 시작일이 종료일보다 늦습니다.'); return null; }
+      const fmt = s => `${s.substring(0, 4)}.${s.substring(4, 6)}.${s.substring(6, 8)}`;
+      return {from: from, to: to, label: fmt(from) + ' ~ ' + fmt(to)};
+    }
+
+    // 조회기간에 걸친 월 목록. 한 해 안이면 '3월', 해를 넘기면 '25.12월' 처럼 연도를 붙인다
+    function monthsOf(period) {
+      const list = [];
+      let y = Number(period.from.substring(0, 4)), m = Number(period.from.substring(4, 6));
+      const ey = Number(period.to.substring(0, 4)), em = Number(period.to.substring(4, 6));
+      const sameYear = y === ey;
+      while (y < ey || (y === ey && m <= em)) {
+        const ym = String(y) + String(m).padStart(2, '0');
+        list.push({ym: ym, label: sameYear ? m + '월' : String(y).substring(2) + '.' + m + '월'});
+        m++;
+        if (m > 12) { m = 1; y++; }
+      }
+      return list;
+    }
 
     function ensureChart() {
       if (monthlyChart) return monthlyChart;
@@ -339,9 +364,11 @@
     }
 
     function searchChartData() {
-      const year = $('#cboYear').val();
+      const period = readPeriod('#chartFromDate', '#chartToDate');
+      if (!period) return;
       const data = {
-        year     : year,
+        fromDate : period.from,
+        toDate   : period.to,
         actnm    : $('#txtChartActnm').val().trim(),
         equpnm   : $('#txtChartEqupnm').val().trim(),
         spjangcd : sessionStorage.getItem('spjangcd')
@@ -352,12 +379,14 @@
           Alert.alert('', (result && result.message) || '조회 중 오류가 발생하였습니다.');
           return;
         }
-        drawChart(year, result.data || []);
+        drawChart(period, result.data || []);
       });
     }
 
-    function drawChart(year, rows) {
+    function drawChart(period, rows) {
       const chart = ensureChart();
+      const months = monthsOf(period);
+      const monthIndex = new Map(months.map((mo, i) => [mo.ym, i]));
 
       // 호기(현장+호기코드)별로 월별 건수를 모은다
       const equpMap = new Map();
@@ -365,13 +394,13 @@
         const key = (r.actcd || '') + '|' + (r.equpcd || '');
         if (!equpMap.has(key)) {
           const equp = r.equpnm || r.equpcd || '(호기 없음)';
-          equpMap.set(key, {name: (r.actnm || '') + ' / ' + equp, months: new Array(12).fill(0), total: 0});
+          equpMap.set(key, {name: (r.actnm || '') + ' / ' + equp, months: new Array(months.length).fill(0), total: 0});
         }
         const e = equpMap.get(key);
-        const m = Number(r.mm);
+        const i = monthIndex.get(String(r.ym));
         const c = Number(r.cnt) || 0;
-        if (m >= 1 && m <= 12) {
-          e.months[m - 1] += c;
+        if (i !== undefined) {
+          e.months[i] += c;
           e.total += c;
         }
       });
@@ -382,7 +411,7 @@
       if (equps.length === 0) {
         $('#monthlyChart').hide();
         $('#monthlyChartEmpty').show();
-        $('#chartSummary').text(year + '년');
+        $('#chartSummary').text(period.label);
         return;
       }
       $('#monthlyChartEmpty').hide();
@@ -391,10 +420,10 @@
       const shown = equps.slice(0, CHART_TOP_N);
       const others = equps.slice(CHART_TOP_N);
 
-      // FlexChart 에 넣을 12개월 행
+      // FlexChart 에 넣을 월별 행 (조회기간에 걸친 달마다 하나)
       const items = [];
-      for (let i = 0; i < 12; i++) {
-        const item = {month: (i + 1) + '월'};
+      for (let i = 0; i < months.length; i++) {
+        const item = {month: months[i].label};
         shown.forEach((e, idx) => { item['s' + idx] = e.months[i]; });
         if (others.length > 0) {
           item.etc = others.reduce((s, e) => s + e.months[i], 0);
@@ -418,32 +447,37 @@
       }
       chart.itemsSource = items;
       chart.endUpdate();
+      chart.invalidate();   // '조회 내역 없음'에서 다시 보일 때 크기를 다시 잰다
 
       $('#chartSummary').text(
-        year + '년 고장처리 ' + total.toLocaleString() + '건 · 호기 ' + equps.length + '개' +
+        period.label + ' 고장처리 ' + total.toLocaleString() + '건 · 호기 ' + equps.length + '개' +
         (others.length > 0 ? ' (건수 상위 ' + CHART_TOP_N + '개 호기만 따로 표시)' : ''));
     }
 
     // ───────────────────────────────────────────────────────────
     //  탭 2 — 월별 호기별 고장처리 건수 표
-    //  행 = 호기(현장+호기), 열 = 1~12월 + 합계, 맨 아래 합계 행. 그래프 탭과 같은 API 를 쓴다.
+    //  행 = 호기(현장+호기), 열 = 조회기간에 걸친 월 + 합계, 맨 아래 합계 행. 그래프 탭과 같은 API 를 쓴다.
+    //  월 열은 조회할 때마다 기간에 맞춰 다시 만든다 (m + yyyyMM).
     // ───────────────────────────────────────────────────────────
     let monthGrid = null;
 
-    function ensureMonthGrid() {
-      if (monthGrid) return monthGrid;
-
+    function monthGridColumns(months) {
       const cols = [
         {binding: 'no',     header: 'No',     width: 55,  align: 'center', allowSorting: false},
         {binding: 'actnm',  header: '현장명', width: 260, align: 'left'},
         {binding: 'equpnm', header: '호기명', width: 120, align: 'center'}
       ];
-      for (let m = 1; m <= 12; m++) {
-        cols.push({binding: 'm' + m, header: m + '월', width: 62, align: 'center', dataType: wijmo.DataType.Number,
-                   format: 'n0', aggregate: 'Sum'});
-      }
+      months.forEach(mo => {
+        cols.push({binding: 'm' + mo.ym, header: mo.label, width: mo.label.length > 3 ? 74 : 62, align: 'center',
+                   dataType: wijmo.DataType.Number, format: 'n0', aggregate: 'Sum'});
+      });
       cols.push({binding: 'total', header: '합계', width: 80, align: 'center', dataType: wijmo.DataType.Number,
                  format: 'n0', aggregate: 'Sum'});
+      return cols;
+    }
+
+    function ensureMonthGrid() {
+      if (monthGrid) return monthGrid;
 
       monthGrid = new wijmo.grid.FlexGrid('#monthGrid', {
         autoGenerateColumns: false,
@@ -451,7 +485,7 @@
         selectionMode: wijmo.grid.SelectionMode.Row,
         showMarquee: true,
         frozenColumns: 3,
-        columns: cols,
+        columns: monthGridColumns([]),
         itemsSource: new wijmo.collections.CollectionView([]),
         formatItem: function (s, e) {
           if (e.panel !== s.cells && e.panel !== s.columnFooters) return;
@@ -472,9 +506,11 @@
     }
 
     function searchMonthGrid() {
-      const year = $('#cboGridYear').val();
+      const period = readPeriod('#gridFromDate', '#gridToDate');
+      if (!period) return;
       const data = {
-        year     : year,
+        fromDate : period.from,
+        toDate   : period.to,
         actnm    : $('#txtGridActnm').val().trim(),
         equpnm   : $('#txtGridEqupnm').val().trim(),
         spjangcd : sessionStorage.getItem('spjangcd')
@@ -485,26 +521,27 @@
           Alert.alert('', (result && result.message) || '조회 중 오류가 발생하였습니다.');
           return;
         }
-        drawMonthGrid(year, result.data || []);
+        drawMonthGrid(period, result.data || []);
       });
     }
 
-    function drawMonthGrid(year, rows) {
+    function drawMonthGrid(period, rows) {
       const grid = ensureMonthGrid();
+      const months = monthsOf(period);
 
       const equpMap = new Map();
       rows.forEach(r => {
         const key = (r.actcd || '') + '|' + (r.equpcd || '');
         if (!equpMap.has(key)) {
           const item = {actnm: r.actnm || '', equpnm: r.equpnm || r.equpcd || '(호기 없음)', total: 0};
-          for (let m = 1; m <= 12; m++) item['m' + m] = 0;
+          months.forEach(mo => { item['m' + mo.ym] = 0; });
           equpMap.set(key, item);
         }
         const item = equpMap.get(key);
-        const m = Number(r.mm);
+        const field = 'm' + r.ym;
         const c = Number(r.cnt) || 0;
-        if (m >= 1 && m <= 12) {
-          item['m' + m] += c;
+        if (field in item) {
+          item[field] += c;
           item.total += c;
         }
       });
@@ -513,11 +550,17 @@
         .sort((a, b) => a.actnm.localeCompare(b.actnm) || a.equpnm.localeCompare(b.equpnm, undefined, {numeric: true}));
       items.forEach((it, i) => { it.no = i + 1; });
 
+      // 기간에 맞춰 월 열을 다시 만든다
+      grid.beginUpdate();
+      grid.columns.clear();
+      monthGridColumns(months).forEach(def => grid.columns.push(new wijmo.grid.Column(def)));
       grid.itemsSource = new wijmo.collections.CollectionView(items);
-      grid.downloadFileName = '월별_호기별_고장처리현황_' + year;
+      grid.endUpdate();
+      grid.columnFooters.setCellData(0, 1, '합계');
+      grid.downloadFileName = '월별_호기별_고장처리현황_' + period.from + '_' + period.to;
 
       const total = items.reduce((s, it) => s + it.total, 0);
-      $('#gridSummary').text(year + '년 고장처리 ' + total.toLocaleString() + '건 · 호기 ' + items.length + '개');
+      $('#gridSummary').text(period.label + ' 고장처리 ' + total.toLocaleString() + '건 · 호기 ' + items.length + '개');
     }
 
     $(document.body).ready(function () {
@@ -530,7 +573,6 @@
       $('#txtGridActnm, #txtGridEqupnm').on('keypress', function (e) {
         if (e.keyCode === 13) searchMonthGrid();
       });
-      $('#cboGridYear').on('change', function () { searchMonthGrid(); });
 
       // 숨은 탭에서는 그리드 크기를 잴 수 없어 탭이 보인 뒤에 만들거나 다시 맞춘다
       let monthGridLoaded = false;
@@ -549,7 +591,6 @@
       $('#txtChartActnm, #txtChartEqupnm').on('keypress', function (e) {
         if (e.keyCode === 13) searchChartData();
       });
-      $('#cboYear').on('change', function () { searchChartData(); });
 
       // 숨겨진 탭 안에서는 차트 크기를 잴 수 없어 탭이 보인 뒤에 그리거나 다시 맞춘다
       let chartLoaded = false;
