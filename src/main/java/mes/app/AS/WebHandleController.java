@@ -101,6 +101,23 @@ public class WebHandleController {
         return result;
     }
 
+    // ── 월별 호기별 고장처리 건수 (고장처리현황 그래프 탭) ────
+    @GetMapping("/monthly_equp")
+    public AjaxResult getMonthlyEqupCount(
+            @RequestParam(value = "year")                        String year,
+            @RequestParam(value = "actnm",  required = false)    String actnm,
+            @RequestParam(value = "equpnm", required = false)    String equpnm,
+            @RequestParam(value = "spjangcd")                    String spjangcd) {
+        AjaxResult result = new AjaxResult();
+        if (year == null || !year.trim().matches("\\d{4}")) {
+            result.success = false;
+            result.message = "조회년도를 확인해주세요.";
+            return result;
+        }
+        result.data = webHandleService.getMonthlyEqupCount(spjangcd, year, actnm, equpnm);
+        return result;
+    }
+
     // ── 고장처리결과 저장 (TB_E411 INSERT) ───────────────────
     @PostMapping("/save")
     public AjaxResult save(

@@ -212,6 +212,36 @@ public class WebHandleService {
         return this.sqlRunner.getRows(sql, param);
     }
 
+    // ── 월별 호기별 고장처리 건수 (고장처리현황 > 월별 그래프 탭) ──
+    // 처리일자(compdate) 기준으로 센다. 호기명은 현장마다 '1-1' 처럼 겹치므로 현장+호기 코드로 묶는다.
+    public List<Map<String, Object>> getMonthlyEqupCount(
+            String spjangcd, String year, String actnm, String equpnm) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("yearLike", (year == null ? "" : year.trim()) + "%");
+        param.addValue("actnm", actnm == null ? "" : actnm.trim());
+        param.addValue("equpnm", equpnm == null ? "" : equpnm.trim());
+
+        String sql = """
+                SELECT e.actcd,
+                       MAX(ISNULL(e.actnm, ''))  AS actnm,
+                       ISNULL(e.equpcd, '')      AS equpcd,
+                       MAX(ISNULL(e.equpnm, '')) AS equpnm,
+                       CAST(SUBSTRING(e.compdate, 5, 2) AS int) AS mm,
+                       COUNT(*) AS cnt
+                  FROM TB_E411 e WITH(NOLOCK)
+                 WHERE e.spjangcd = :spjangcd
+                   AND e.compdate LIKE :yearLike
+                   AND LEN(e.compdate) = 8
+                   AND (:actnm  = '' OR ISNULL(e.actnm, '')  LIKE '%' + :actnm  + '%')
+                   AND (:equpnm = '' OR ISNULL(e.equpnm, '') LIKE '%' + :equpnm + '%')
+                 GROUP BY e.actcd, ISNULL(e.equpcd, ''), CAST(SUBSTRING(e.compdate, 5, 2) AS int)
+                 ORDER BY e.actcd, equpcd, mm
+                """;
+        return this.sqlRunner.getRows(sql, param);
+    }
+
     // ── 고장처리결과 등록 (TB_E411 INSERT) ───────────────────
     public void saveComp(
             String custcd, String spjangcd, String compdate, String comptime,

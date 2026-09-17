@@ -259,6 +259,15 @@ public class BaroCardService {
 
 			log.info("카드 cdflag 업데이트 건수: {}", updateCount);
 
+			// 등록 쪽과 같이, 바로빌은 해지됐는데 카드 상태가 안 바뀌면 실패로 알린다.
+			// 예전에는 건수를 보지 않고 성공으로 띄워 화면의 연동 표시가 실제와 어긋났다.
+			if (updateCount == 0) {
+				result.success = false;
+				result.message = "바로빌 카드연동은 해지됐지만 카드 상태 갱신에 실패했습니다.";
+				result.data = apiResult;
+				return result;
+			}
+
 			result.success = true;
 			result.message = "카드연동 해지가 완료되었습니다.";
 			result.data = apiResult;

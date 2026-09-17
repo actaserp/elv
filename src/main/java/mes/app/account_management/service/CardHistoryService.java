@@ -311,11 +311,11 @@ public class CardHistoryService {
 
 				for (CardApprovalLog logItem : logs) {
 
-					// 취소 / 거절 건 제외
-					if ("취소".equals(logItem.getApprovalType()) ||
-							"거절".equals(logItem.getApprovalType())) {
-						continue;
-					}
+					// 취소·거절 건도 저장한다. 파워빌더는 ovrs_use_yn 을 '유효' 표시로 써서 정상 '1', 취소·거절 '0' 으로 넣고
+					// 같은 승인번호의 원 승인건도 '0' 으로 바꾼다(아래 수집 뒤 일괄 처리).
+					// 예전에는 취소건을 그냥 건너뛰어 원 승인건이 유효로 남았고, 취소된 결제가 비용처리 대상이 됐다.
+					boolean isVoid = "취소".equals(logItem.getApprovalType())
+							|| "거절".equals(logItem.getApprovalType());
 
 					String useDT = logItem.getUseDT(); // YYYYMMDDHHMMSS
 					String apvDt = "";
@@ -359,13 +359,22 @@ public class CardHistoryService {
 					dicParam.addValue("apvDt", apvDt);
 					dicParam.addValue("apvTm", apvTm);
 					dicParam.addValue("apvCanYn", "Y");
-					dicParam.addValue("buySum", toBigDecimal(logItem.getApprovalAmount()));
-					dicParam.addValue("splyAmt", toBigDecimal(logItem.getAmount()));
-					dicParam.addValue("vatAmt", toBigDecimal(logItem.getTax()));
+					BigDecimal buySum = toBigDecimal(logItem.getApprovalAmount());
+					BigDecimal vatAmt = toBigDecimal(logItem.getTax());
+					BigDecimal splyAmt = toBigDecimal(logItem.getAmount());
+					// 공급가가 0 으로 오면 승인금액 − 부가세로 채운다 (파워빌더와 동일)
+					if (splyAmt.signum() == 0) splyAmt = buySum.subtract(vatAmt);
+
+					dicParam.addValue("buySum", buySum);
+					dicParam.addValue("splyAmt", splyAmt);
+					dicParam.addValue("vatAmt", vatAmt);
 					dicParam.addValue("srvFee", toBigDecimal(logItem.getServiceCharge()));
 					dicParam.addValue("comm", toBigDecimal(logItem.getTotalAmount()));
 					dicParam.addValue("currCd", logItem.getCurrencyCode());
-					dicParam.addValue("currAmt", toBigDecimal(logItem.getForeignApprovalAmount()));
+					// curr_amt 는 카드거래정보등록 비용처리에서 '할인금액'으로 빼는 칸이다 (결제금액 = 공급 + 부가세 − curr_amt).
+					// 외화승인금액을 넣으면 해외결제 비용이 그만큼 줄어들어 파워빌더처럼 0 으로 둔다.
+					dicParam.addValue("currAmt", BigDecimal.ZERO);
+					dicParam.addValue("ovrsUseYn", isVoid ? "0" : "1");
 					dicParam.addValue("itlmMmsCnt", logItem.getInstallmentMonths());
 					dicParam.addValue("mestNm", logItem.getUseStoreName());
 					dicParam.addValue("mestBizNo", logItem.getUseStoreCorpNum());
@@ -384,7 +393,7 @@ public class CardHistoryService {
             srv_fee, comm, curr_cd, curr_amt,
             itlm_mms_cnt, mest_nm, mest_biz_no, mest_repr_nm,
             mest_tel_no, mest_addr_1, card_tpbz_cd, card_tpbz_nm,
-            flag
+            flag, ovrs_use_yn
         ) VALUES (
             :custcd, :spjangcd, :bnkcode, :bizNo,
             :cardNo, :apvNo, :apvDt, :apvTm,
@@ -392,12 +401,18 @@ public class CardHistoryService {
             :srvFee, :comm, :currCd, :currAmt,
             :itlmMmsCnt, :mestNm, :mestBizNo, :mestReprNm,
             :mestTelNo, :mestAddr1, :cardTpbzCd, :cardTpbzNm,
-            :flag
+            :flag, :ovrsUseYn
         )
         """;
 
 					try {
-						this.sqlRunner.execute(insertSql, dicParam);
+						// SqlRunner.execute 는 오류를 삼키고 0 을 돌려준다. 0 이면 저장 건수에 넣지 않는다
+						if (this.sqlRunner.execute(insertSql, dicParam) == 0) {
+							log.error("[DB 저장 실패] approvalNum={}, useKey={}, cardNum={}",
+									nvl(logItem.getApprovalNum()), nvl(logItem.getUseKey()),
+									maskCardNum(logItem.getCardNum()));
+							continue;
+						}
 						totalSavedCount++;
 					} catch (Exception e) {
 						log.error("[DB 저장 실패] approvalNum={}, useKey={}, cardNum={}",
@@ -417,6 +432,8 @@ public class CardHistoryService {
 				currentPage++;
 			}
 
+			invalidateCanceledApprovals(custcd, spjangcd, cardNum);
+
 			log.info("========== 카드내역 조회 종료 - 총 저장건수: {} ==========", totalSavedCount);
 
 		} catch (Exception e) {
@@ -425,6 +442,40 @@ public class CardHistoryService {
 		}
 
 		return totalSavedCount;
+	}
+
+	/**
+	 * 취소·거절이 들어온 승인번호의 원 승인건을 무효('0')로 바꾼다.
+	 * 파워빌더는 수집 중에 한 번, 수집이 끝난 뒤 기간 안의 취소·거절 목록으로 한 번 더 처리한다.
+	 * 바로빌이 최신순으로 주면 취소건이 원 승인건보다 먼저 오기 때문에 수집 뒤 한 번에 맞추는 게 안전하다.
+	 * 이미 비용처리(flag='1')된 건은 무효로만 바꾸고 비용은 건드리지 않는다 — 로그로 남긴다.
+	 */
+	private void invalidateCanceledApprovals(String custcd, String spjangcd, String cardNum) {
+		MapSqlParameterSource p = new MapSqlParameterSource();
+		p.addValue("custcd", custcd);
+		p.addValue("spjangcd", spjangcd);
+		p.addValue("cardNo", cardNum);
+
+		String target = """
+			FROM TB_bank_cdsave a
+			WHERE a.custcd = :custcd AND a.spjangcd = :spjangcd AND a.card_no = :cardNo
+			  AND ISNULL(a.ovrs_use_yn, '') <> '0'
+			  AND ISNULL(a.card_tpbz_nm, '') NOT IN ('취소', '거절')
+			  AND EXISTS (SELECT 1 FROM TB_bank_cdsave c
+			               WHERE c.custcd = a.custcd AND c.spjangcd = a.spjangcd
+			                 AND c.card_no = a.card_no AND c.apv_no = a.apv_no
+			                 AND c.card_tpbz_nm IN ('취소', '거절'))
+			""";
+
+		Map<String, Object> processed = sqlRunner.getRow(
+				"SELECT COUNT(*) AS cnt " + target + " AND ISNULL(a.flag, '') = '1'", p);
+		if (processed != null && ((Number) processed.get("cnt")).intValue() > 0) {
+			log.warn("[카드 취소] 이미 비용처리된 승인건 {}건이 취소됐습니다. 비용취소가 필요합니다 - cardNum={}",
+					processed.get("cnt"), maskCardNum(cardNum));
+		}
+
+		int n = sqlRunner.execute("UPDATE a SET ovrs_use_yn = '0' " + target, p);
+		if (n > 0) log.info("[카드 취소] 원 승인건 {}건 무효 처리 - cardNum={}", n, maskCardNum(cardNum));
 	}
 
 	private BigDecimal toBigDecimal(String value) {

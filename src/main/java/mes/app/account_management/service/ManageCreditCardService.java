@@ -56,6 +56,8 @@ public class ManageCreditCardService {
 				a.cardperid AS cdperid,
 				a.cardid   AS cardwebid,
 				a.cardpw   AS cardwebpw,
+				ISNULL(a.usestdate, '')  AS usestdate,
+				ISNULL(a.connection, '') AS connection,
 				d.cdcode   AS barocd
 			  FROM tb_iz010 a
 			  OUTER APPLY (SELECT TOP 1 b.banknm
@@ -151,6 +153,10 @@ public class ManageCreditCardService {
 		dicParam.addValue("cardid", param.get("cardwebid"));
 		dicParam.addValue("cardpw", param.get("cardwebpw"));
 		dicParam.addValue("baroid", param.get("baroid"));
+		// 파워빌더 화면에 있는데 예전 웹 화면에 없던 칸 (성명·정지일자·제출자와의 관계)
+		dicParam.addValue("cardperson", str(param.get("cardperson")));
+		dicParam.addValue("usestdate", str(param.get("usestdate")).replace("-", ""));
+		dicParam.addValue("connection", str(param.get("connection")));
 
 		// 기존 레코드 존재 여부 (PK: custcd + spjangcd + cardnum)
 		// 예전 코드는 COUNT(*) 에 별칭이 없어 get("cnt") 가 null → 저장이 항상 실패했다.
@@ -164,8 +170,8 @@ public class ManageCreditCardService {
 		// SqlRunner.execute 는 SQL 오류를 삼키고 0 을 돌려준다. 0 이면 실패로 본다.
 		int affected;
 		if (count > 0) {
-			// 성명(cardperson/cardperid)은 화면에 입력칸이 없어 건드리지 않는다.
-			// 예전 코드는 여기에 빈 값을 넣어 파워빌더가 넣은 사용자명을 지웠다.
+			// 성명은 cardperson 에만 쓴다. 경기 자료는 이름이 cardperid 에 들어 있어 그 값은 건드리지 않는다
+			// (화면은 cardperson 이 비면 cardperid 를 보여주므로 비워도 이름이 사라지지 않는다).
 			affected = this.sqlRunner.execute("""
 				UPDATE tb_iz010
 				   SET cardnm    = :cardnm,
@@ -183,7 +189,10 @@ public class ManageCreditCardService {
 				       remark    = :remark,
 				       cardid    = :cardid,
 				       cardpw    = :cardpw,
-				       baroid    = :baroid
+				       baroid    = :baroid,
+				       cardperson = :cardperson,
+				       usestdate = :usestdate,
+				       connection = :connection
 				 WHERE custcd = :custcd AND spjangcd = :spjangcd AND cardnum = :cardnum
 				""", dicParam);
 		} else {
@@ -194,14 +203,16 @@ public class ManageCreditCardService {
 				    isudate, expedate, stldate,
 				    useyn, cdflag,
 				    stlbank, stlacc, stlbanknm,
-				    remark, cardid, cardpw, baroid
+				    remark, cardid, cardpw, baroid,
+				    cardperson, usestdate, connection
 				) VALUES (
 				    :custcd, :spjangcd, :cardnum,
 				    :cardnm, :cardco, :cardclafi,
 				    :isudate, :expedate, :stldate,
 				    :useyn, :cdflag,
 				    :stlbank, :stlacc, :stlbanknm,
-				    :remark, :cardid, :cardpw, :baroid
+				    :remark, :cardid, :cardpw, :baroid,
+				    :cardperson, :usestdate, :connection
 				)
 				""", dicParam);
 		}

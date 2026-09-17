@@ -2,6 +2,24 @@
 <head>
   <style>
     .wj-header { text-align: center !important; }
+
+    .chart-summary {
+      margin: 4px 0 10px;
+      color: #666;
+      font-size: 13px;
+    }
+
+    #monthlyChart {
+      height: 560px;
+    }
+
+    #monthlyChartEmpty {
+      display: none;
+      height: 560px;
+      line-height: 560px;
+      text-align: center;
+      color: #999;
+    }
   </style>
 </head>
 
@@ -20,49 +38,111 @@
       </ul>
     </div>
 
-    <section class="section">
-      <div class="section-top">
-        <div class="search-wrap">
-          <!-- 조회기간 -->
-          <dl>
-            <dt><label>조회기간</label></dt>
-            <dd>
-              <div class="srch-box" style="display: flex; align-items: center; gap: 5px;">
-                <input type="date" id="startDate" class="form-control2" style="width: 140px;">
-                <span>~</span>
-                <input type="date" id="endDate" class="form-control2" style="width: 140px;">
-              </div>
-            </dd>
-          </dl>
-          <!-- 현장명 -->
-          <dl>
-            <dt><label>현장명</label></dt>
-            <dd>
-              <div class="srch-box">
-                <input type="text" id="txtActnm" class="form-control2" placeholder="현장명 검색"/>
-              </div>
-            </dd>
-          </dl>
-          <!-- 검색버튼 -->
-          <dl>
-            <dt><span class="eq"></span></dt>
-            <dd>
-              <li>
-                <a class="btn btn-delete" title="검색" id="btnSearch">
-                  <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
-                  검색
-                </a>
-              </li>
-            </dd>
-          </dl>
-        </div>
-      </div>
+    <div class="tab-wrap">
+      <ul class="tab-links">
+        <li><a href="#tabList" title="처리목록" id="listTabLink">처리목록</a></li>
+        <li><a href="#tabChart" title="월별 호기별 현황" id="chartTabLink">월별 호기별 현황</a></li>
+      </ul>
 
-      <!-- 그리드 -->
-      <div class="container-fluid">
-        <div id="theGrid" style="height: 600px;"></div>
+      <div class="tab-contents">
+        <!-- ── 탭 1: 처리목록 (기존 화면) ── -->
+        <section class="tab-item" id="tabList">
+          <section class="section">
+            <div class="section-top">
+              <div class="search-wrap">
+                <!-- 조회기간 -->
+                <dl>
+                  <dt><label>조회기간</label></dt>
+                  <dd>
+                    <div class="srch-box" style="display: flex; align-items: center; gap: 5px;">
+                      <input type="date" id="startDate" class="form-control2" style="width: 140px;">
+                      <span>~</span>
+                      <input type="date" id="endDate" class="form-control2" style="width: 140px;">
+                    </div>
+                  </dd>
+                </dl>
+                <!-- 현장명 -->
+                <dl>
+                  <dt><label>현장명</label></dt>
+                  <dd>
+                    <div class="srch-box">
+                      <input type="text" id="txtActnm" class="form-control2" placeholder="현장명 검색"/>
+                    </div>
+                  </dd>
+                </dl>
+                <!-- 검색버튼 -->
+                <dl>
+                  <dt><span class="eq"></span></dt>
+                  <dd>
+                    <li>
+                      <a class="btn btn-delete" title="검색" id="btnSearch">
+                        <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                        검색
+                      </a>
+                    </li>
+                  </dd>
+                </dl>
+              </div>
+            </div>
+
+            <div class="container-fluid">
+              <div id="theGrid" style="height: 600px;"></div>
+            </div>
+          </section>
+        </section>
+
+        <!-- ── 탭 2: 월별 호기별 고장처리 건수 그래프 ── -->
+        <section class="tab-item" id="tabChart">
+          <section class="section">
+            <div class="section-top">
+              <div class="search-wrap">
+                <dl>
+                  <dt><label for="cboYear">조회년도</label></dt>
+                  <dd>
+                    <div class="srch-box">
+                      <select id="cboYear" class="form-control2" style="width: 110px;"></select>
+                    </div>
+                  </dd>
+                </dl>
+                <dl>
+                  <dt><label for="txtChartActnm">현장명</label></dt>
+                  <dd>
+                    <div class="srch-box">
+                      <input type="text" id="txtChartActnm" class="form-control2" placeholder="현장명 검색"/>
+                    </div>
+                  </dd>
+                </dl>
+                <dl>
+                  <dt><label for="txtChartEqupnm">호기명</label></dt>
+                  <dd>
+                    <div class="srch-box">
+                      <input type="text" id="txtChartEqupnm" class="form-control2" placeholder="호기명 검색"/>
+                    </div>
+                  </dd>
+                </dl>
+                <dl>
+                  <dt><span class="eq"></span></dt>
+                  <dd>
+                    <li>
+                      <a class="btn btn-delete" title="검색" id="btnChartSearch">
+                        <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                        검색
+                      </a>
+                    </li>
+                  </dd>
+                </dl>
+              </div>
+            </div>
+
+            <div class="container-fluid">
+              <p class="chart-summary" id="chartSummary"></p>
+              <div id="monthlyChart"></div>
+              <div id="monthlyChartEmpty">조회된 고장처리 내역이 없습니다.</div>
+            </div>
+          </section>
+        </section>
       </div>
-    </section>
+    </div>
   </div>
 
   <footer style="margin-top: 24px;">
@@ -125,6 +205,13 @@
       new FlexGridContextMenu(theGrid);
       theGrid.downloadFileName = '고장처리현황';
 
+      // 조회년도: 올해부터 10년 전까지, 기본은 올해
+      const $year = $('#cboYear');
+      for (let y = yyyy; y >= yyyy - 9; y--) {
+        $year.append($('<option>').val(String(y)).text(y + '년'));
+      }
+      $year.val(String(yyyy));
+
       searchMainData();
     }
 
@@ -165,10 +252,143 @@
       theGrid.refresh();
     }
 
+    // ───────────────────────────────────────────────────────────
+    //  탭 2 — 월별 호기별 고장처리 건수
+    //
+    //  X축 1~12월, 호기마다 한 계열로 쌓은 막대. 막대 전체 높이가 그 달의 합계다.
+    //  한 해에 호기가 150개가 넘어(경기 2026년 157개) 계열을 다 그리면 읽을 수 없으므로
+    //  건수가 많은 호기부터 CHART_TOP_N 개만 따로 그리고 나머지는 '기타'로 묶는다.
+    //  현장명·호기명으로 좁히면 그 안에서 같은 규칙을 적용한다.
+    // ───────────────────────────────────────────────────────────
+    const CHART_TOP_N = 10;
+    let monthlyChart = null;
+
+    function ensureChart() {
+      if (monthlyChart) return monthlyChart;
+
+      monthlyChart = new wijmo.chart.FlexChart('#monthlyChart', {
+        chartType: wijmo.chart.ChartType.Column,
+        stacking: wijmo.chart.Stacking.Stacked,
+        bindingX: 'month',
+        legend: { position: wijmo.chart.Position.Right },
+        axisX: { title: '월' },
+        axisY: { title: '처리건수', format: 'n0', min: 0 },
+        tooltip: { content: '<b>{seriesName}</b><br/>{x} : {y}건' },
+        palette: ['#2f6fdd', '#e8793b', '#3aa37a', '#c94c7c', '#8a63d2',
+                  '#d9a520', '#2aa6b8', '#b5553c', '#5f7d2f', '#6b7a99', '#b8bec9']
+      });
+      return monthlyChart;
+    }
+
+    function searchChartData() {
+      const year = $('#cboYear').val();
+      const data = {
+        year     : year,
+        actnm    : $('#txtChartActnm').val().trim(),
+        equpnm   : $('#txtChartEqupnm').val().trim(),
+        spjangcd : sessionStorage.getItem('spjangcd')
+      };
+
+      AjaxUtil.getAsyncData('/api/AS/web_handle/monthly_equp', data, function (result) {
+        if (!result || result.success === false) {
+          Alert.alert('', (result && result.message) || '조회 중 오류가 발생하였습니다.');
+          return;
+        }
+        drawChart(year, result.data || []);
+      });
+    }
+
+    function drawChart(year, rows) {
+      const chart = ensureChart();
+
+      // 호기(현장+호기코드)별로 월별 건수를 모은다
+      const equpMap = new Map();
+      rows.forEach(r => {
+        const key = (r.actcd || '') + '|' + (r.equpcd || '');
+        if (!equpMap.has(key)) {
+          const equp = r.equpnm || r.equpcd || '(호기 없음)';
+          equpMap.set(key, {name: (r.actnm || '') + ' / ' + equp, months: new Array(12).fill(0), total: 0});
+        }
+        const e = equpMap.get(key);
+        const m = Number(r.mm);
+        const c = Number(r.cnt) || 0;
+        if (m >= 1 && m <= 12) {
+          e.months[m - 1] += c;
+          e.total += c;
+        }
+      });
+
+      const equps = Array.from(equpMap.values()).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+      const total = equps.reduce((s, e) => s + e.total, 0);
+
+      if (equps.length === 0) {
+        $('#monthlyChart').hide();
+        $('#monthlyChartEmpty').show();
+        $('#chartSummary').text(year + '년');
+        return;
+      }
+      $('#monthlyChartEmpty').hide();
+      $('#monthlyChart').show();
+
+      const shown = equps.slice(0, CHART_TOP_N);
+      const others = equps.slice(CHART_TOP_N);
+
+      // FlexChart 에 넣을 12개월 행
+      const items = [];
+      for (let i = 0; i < 12; i++) {
+        const item = {month: (i + 1) + '월'};
+        shown.forEach((e, idx) => { item['s' + idx] = e.months[i]; });
+        if (others.length > 0) {
+          item.etc = others.reduce((s, e) => s + e.months[i], 0);
+        }
+        items.push(item);
+      }
+
+      // 건수가 작으면 0.5 같은 눈금이 생겨 1 단위로 고정하고, 크면 차트가 알아서 정하게 둔다
+      const maxMonth = Math.max(...items.map(it =>
+        Object.keys(it).filter(k => k !== 'month').reduce((s, k) => s + (it[k] || 0), 0)));
+
+      chart.beginUpdate();
+      chart.axisY.majorUnit = maxMonth <= 10 ? 1 : null;
+      chart.series.clear();
+      shown.forEach((e, idx) => {
+        chart.series.push(new wijmo.chart.Series({name: e.name + ' (' + e.total + ')', binding: 's' + idx}));
+      });
+      if (others.length > 0) {
+        const etcTotal = others.reduce((s, e) => s + e.total, 0);
+        chart.series.push(new wijmo.chart.Series({name: '기타 호기 ' + others.length + '개 (' + etcTotal + ')', binding: 'etc'}));
+      }
+      chart.itemsSource = items;
+      chart.endUpdate();
+
+      $('#chartSummary').text(
+        year + '년 고장처리 ' + total.toLocaleString() + '건 · 호기 ' + equps.length + '개' +
+        (others.length > 0 ? ' (건수 상위 ' + CHART_TOP_N + '개 호기만 따로 표시)' : ''));
+    }
+
     $(document.body).ready(function () {
       $('#btnSearch').click(function () { searchMainData(); });
       $('#txtActnm').on('keypress', function (e) {
         if (e.keyCode === 13) searchMainData();
+      });
+
+      $('#btnChartSearch').click(function () { searchChartData(); });
+      $('#txtChartActnm, #txtChartEqupnm').on('keypress', function (e) {
+        if (e.keyCode === 13) searchChartData();
+      });
+      $('#cboYear').on('change', function () { searchChartData(); });
+
+      // 숨겨진 탭 안에서는 차트 크기를 잴 수 없어 탭이 보인 뒤에 그리거나 다시 맞춘다
+      let chartLoaded = false;
+      $('#chartTabLink').click(function () {
+        setTimeout(function () {
+          if (!chartLoaded) {
+            chartLoaded = true;
+            searchChartData();
+          } else if (monthlyChart) {
+            monthlyChart.invalidate();
+          }
+        }, 0);
       });
     });
 

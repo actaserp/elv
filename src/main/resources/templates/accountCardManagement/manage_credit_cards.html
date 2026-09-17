@@ -95,7 +95,8 @@
                   카드연동등록
                 </a>
               </li>
-              <li>
+              <!-- 카드연동수정: 처리 로직(JS·API)이 없어 숨겨 둔다 -->
+              <li style="display:none">
                 <a class="btn btn-edit" id="btn_baro_edit" title="카드연동수정">
                   카드연동수정
                 </a>
@@ -110,14 +111,15 @@
                   카드연동해지
                 </a>
               </li>
-              <li>
+              <!-- 카드연동해지취소: 처리 로직(JS·API)이 없어 숨겨 둔다 -->
+              <li style="display:none">
                 <a class="btn btn-edit" id="btn_baro_cancel_restore" title="카드연동해지취소">
                   카드연동해지취소
                 </a>
               </li>
 
             </ul>
-           <!-- <ul>
+            <ul>
               <li>
                 <a class="btn btn-excell" title="신규등록" id="Newbtn">
                   <img src="/images/icon/ico-plus.svg" alt="등록 아이콘">
@@ -136,7 +138,7 @@
                   삭제
                 </a>
               </li>
-            </ul>-->
+            </ul>
           </div>
           <form id="CategoryForm">
             <!-- Hidden Fields -->
@@ -182,13 +184,14 @@
                     </select>
                   </td>
                 </tr>
-<!--                <tr>-->
-<!--                  <th><label for="cdpernm">성명</label></th>-->
-<!--                  <td colspan="3">-->
-<!--                    <select id="cdpernm" name = "cdpernm" >-->
-<!--                    </select>-->
-<!--                  </td>-->
-<!--                </tr>-->
+                <tr>
+                  <!-- 파워빌더 d_ 화면의 '성명'. 경기 자료는 이름이 cardperid 에 들어 있고 cardperson 은 비어 있어
+                       보여줄 때는 cardperson 이 비면 cardperid 를 쓰고, 저장은 cardperson 에 한다 -->
+                  <th><label for="cardperson">성명</label></th>
+                  <td colspan="3">
+                    <input type="text" id="cardperson" name="cardperson" class="wp100" maxlength="30" placeholder="카드 사용자"/>
+                  </td>
+                </tr>
                 <tr>
                   <th><label for="regAsName">발급일자</label></th>
                   <td>
@@ -240,17 +243,16 @@
                     <input type="checkbox" id="baroflag" name="baroflag" class="wp100" style="display: flex; justify-content: center; align-items: center; " />
                   </td>
                 </tr>
-                <!--<tr>
-                  <th><label for="stldate">정지일자</label></th>
-                  <td >
-                    <input type="date" id="stldate" name="stldate" class="wp100" placeholder="정지일자" />
+                <tr>
+                  <th><label for="usestdate">정지일자</label></th>
+                  <td>
+                    <input type="date" id="usestdate" name="usestdate" class="wp100"/>
                   </td>
-
-                  <th><label for="">제출자와의 관계</label></th>
-                  <td >
-                    <input type="text" id="" name="" class="wp100" placeholder="제출자와의 관계" />
+                  <th><label for="connection">제출자와의 관계</label></th>
+                  <td>
+                    <input type="text" id="connection" name="connection" class="wp100" maxlength="30" placeholder="제출자와의 관계"/>
                   </td>
-                </tr>-->
+                </tr>
                 <tr>
                   <th><label for="cardwebid">홈페이지 아이디</label></th>
                   <td>
@@ -313,9 +315,11 @@
       },
       columns: [
        {binding: 'cardnum', header: '카드번호', width: 250, align: 'center'},
-       {binding: 'cardnm', header: '카드명', width: 150, align: 'center' },
+       // 파워빌더 화면 기준 cardnm 은 카드 별칭이 아니라 카드사명이다 (경기 4건 모두 '우리카드')
+       {binding: 'cardnm', header: '카드사', width: 150, align: 'center' },
        {binding: 'cdpernm', header: '성명', width: 150, align: 'center'},
-       {binding: 'cardco', header: '코드번호', width: 100, align: 'center'}
+       {binding: 'cardco', header: '카드사코드', width: 100, align: 'center'},
+       {binding: 'useyn', header: '사용', width: 70, align: 'center'}
       ],
       itemsSource: this.viewData, // 데이터를 설정할 배열
      });
@@ -348,8 +352,10 @@
        $('#cardco').val(selectedItem.cardco);                // 카드사
        // 카드 구분 (법인/개인)
        $("input[name='cardType'][value='" + selectedItem.cardclafi + "']").prop('checked', true);
-       // 성명
-       $('#cdpernm').val(selectedItem.cdperid);
+       // 성명 / 정지일자 / 제출자와의 관계
+       $('#cardperson').val(selectedItem.cdpernm || '');
+       $('#usestdate').val(formatDate(selectedItem.usestdate));
+       $('#connection').val(selectedItem.connection || '');
        // 발급일자 / 만기일자
        $('#regAsName').val(formatDate(selectedItem.isudate));
        $('#expdate').val(formatDate(selectedItem.expedate));
@@ -408,7 +414,8 @@
       cardType: $('input[name="cardType"]:checked').val(), // 카드구분
       cardnum: $('#cardnum').val(),                       // 카드번호
       cardco: $('#cardco').val(),                         // 카드사 코드
-      cardnm: $('#cardco option:selected').text(),        // 카드사 이름
+      // 카드사를 안 고르면 옵션 글자 '선택'이 그대로 저장되던 것을 막는다
+      cardnm: $('#cardco').val() ? $('#cardco option:selected').text() : '', // 카드사 이름
       regAsName: $('#regAsName').val()?.replace(/-/g, ''),// 발급일자
       expdate: $('#expdate').val()?.replace(/-/g, ''),    // 만기일자
       ACCID: $('#ACCID').val(),                           // 결제 계좌 코드
@@ -422,8 +429,9 @@
       cardwebpw: $('#cardwebpw').val(),                   // 홈페이지 비밀번호
       barocd: $('#barocd').val(),                         // 바로빌카드 코드
       baroid: $('#baroid').val(),                         // 바로빌 아이디
-      cdpernm: $('#cdpernm option:selected').text(),      // 성명(카드 사용직원명)
-      cdperid: $('#cdpernm').val(),                       // 성명(카드 사용직원)
+      cardperson: $('#cardperson').val(),                 // 성명
+      usestdate: ($('#usestdate').val() || '').replace(/-/g, ''), // 정지일자
+      connection: $('#connection').val(),                 // 제출자와의 관계
       remark :$('#remark').val(),                         //  비고
      };
 
@@ -524,8 +532,7 @@
     BaroURL(){
      let _this = this;
      let data = {
-      spjangcd: 'ZZ',
-      //spjangcd: sessionStorage.getItem('spjangcd'),
+      spjangcd: getSpjangcdFromSession(),
      };
 
      let fnsuccess = function (result) {
@@ -558,8 +565,7 @@
     BaroStopCard(){
      let _this = this;
      let data = {
-      spjangcd: 'ZZ',
-      //spjangcd: sessionStorage.getItem('spjangcd'),
+      spjangcd: getSpjangcdFromSession(),
       cardnum: $('#cardnum').val(),
      };
 
