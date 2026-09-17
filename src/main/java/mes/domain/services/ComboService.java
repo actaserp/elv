@@ -228,18 +228,17 @@ public class ComboService {
 	};
 	
 	ComboDataFunction data_year=(String cond1, String cond2, String cond3) -> {
-		String sql = """
-				select to_char(current_date, 'YYYY') as value , to_char(current_date,'YYYY') as text  
-				union all
-				select to_char((current_date -  interval '1 year'), 'YYYY') as value , to_char(current_date-  interval '1 year','YYYY') as text  
-				union all
-				select to_char((current_date -  interval '2 year'), 'YYYY') as value , to_char(current_date-  interval '2 year','YYYY') as text  
-				""";
-		MapSqlParameterSource dicParam = new MapSqlParameterSource();
-        dicParam.addValue("cond1", cond1);
-        dicParam.addValue("cond2", cond2);
-        dicParam.addValue("cond3", cond3);
-        return this.sqlRunner.getRows(sql, dicParam);
+		// 올해·작년·재작년. DB 를 거치지 않는다
+		// (예전 PostgreSQL 문법 쿼리가 사업체 MSSQL 로 라우팅돼 오류 → 빈 목록이 되던 문제)
+		int year = java.time.LocalDate.now().getYear();
+		List<Map<String, Object>> rows = new ArrayList<>();
+		for (int i = 0; i < 3; i++) {
+			Map<String, Object> row = new HashMap<>();
+			row.put("value", String.valueOf(year - i));
+			row.put("text", String.valueOf(year - i));
+			rows.add(row);
+		}
+		return rows;
 	};
 	
 	ComboDataFunction defect_type=(String cond1, String cond2, String cond3) -> {

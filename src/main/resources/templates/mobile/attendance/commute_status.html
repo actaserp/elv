@@ -10,15 +10,7 @@
   .tab-bar button.active { color:#03428E; border-bottom:3px solid #03428E; margin-bottom:-2px; }
 
   /* 검색바 */
-  .search-row { display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; align-items:center; }
-  .search-row input, .search-row select {
-    flex:1; min-width:100px; border:1px solid #ddd;
-    border-radius:8px; font-size:13px;
-  }
-  .search-row button {
-    padding:9px 16px; background:#03428E; color:#fff;
-    border:none; border-radius:8px; font-size:13px; cursor:pointer; white-space:nowrap;
-  }
+  .search-wrap { margin-bottom:12px; }
 
   /* 카드 */
   .att-card {
@@ -125,11 +117,34 @@
 
       <!-- ─── 일별 탭 ─── -->
       <div id="tabDaily">
-        <div class="search-row">
-          <input type="date" id="dailyDate">
-          <select id="dailyWorkcd"><option value="">근태구분 전체</option></select>
-          <select id="dailyDepart"><option value="">부서 전체</option></select>
-          <button onclick="loadDaily()">조회</button>
+        <div class="search-wrap">
+          <div class="srch-tit aco-hd">
+            <p>기본검색</p>
+            <a href="#" title="열기/닫기" class="btn-aco">
+              <img th:src="@{/assets_mobile/images/icon/ico-down.svg}" alt="열기/닫기">
+            </a>
+          </div>
+          <div class="srch-cont aco-cont">
+            <dl>
+              <dt>조회일자</dt>
+              <dd><input type="date" id="dailyDate" style="width:100%;"></dd>
+            </dl>
+            <dl>
+              <dt>근태구분</dt>
+              <dd><select id="dailyWorkcd" style="width:100%;"><option value="">전체</option></select></dd>
+            </dl>
+            <dl>
+              <dt>부서</dt>
+              <dd><select id="dailyDepart" style="width:100%;"><option value="">전체</option></select></dd>
+            </dl>
+            <dl>
+              <dt>팀</dt>
+              <dd><select id="dailyTeam" style="width:100%;"><option value="">전체</option></select></dd>
+            </dl>
+            <div class="srch-btn">
+              <button class="btn-dark" onclick="handleSearch('daily')">조회</button>
+            </div>
+          </div>
         </div>
 
         <!-- 요약 -->
@@ -145,11 +160,34 @@
 
       <!-- ─── 월별 탭 ─── -->
       <div id="tabMonthly" style="display:none;">
-        <div class="search-row">
-          <input type="month" id="monthlyYM">
-          <select id="monthlyPerson"><option value="">사원 전체</option></select>
-          <select id="monthlyDepart"><option value="">부서 전체</option></select>
-          <button onclick="loadMonthly()">조회</button>
+        <div class="search-wrap">
+          <div class="srch-tit aco-hd">
+            <p>기본검색</p>
+            <a href="#" title="열기/닫기" class="btn-aco">
+              <img th:src="@{/assets_mobile/images/icon/ico-down.svg}" alt="열기/닫기">
+            </a>
+          </div>
+          <div class="srch-cont aco-cont">
+            <dl>
+              <dt>조회년월</dt>
+              <dd><input type="month" id="monthlyYM" style="width:100%;"></dd>
+            </dl>
+            <dl>
+              <dt>사원</dt>
+              <dd><select id="monthlyPerson" style="width:100%;"><option value="">전체</option></select></dd>
+            </dl>
+            <dl>
+              <dt>부서</dt>
+              <dd><select id="monthlyDepart" style="width:100%;"><option value="">전체</option></select></dd>
+            </dl>
+            <dl>
+              <dt>팀</dt>
+              <dd><select id="monthlyTeam" style="width:100%;"><option value="">전체</option></select></dd>
+            </dl>
+            <div class="srch-btn">
+              <button class="btn-dark" onclick="handleSearch('monthly')">조회</button>
+            </div>
+          </div>
         </div>
         <div id="monthlyList"><div class="empty-msg">년월을 선택하고 조회하세요.</div></div>
       </div>
@@ -182,13 +220,20 @@
 
     // 근태구분 콤보
     AjaxUtil.fillSelectOptions($('#dailyWorkcd'), 'workcd', 'all', false, 'work_division', '');
-
     // 부서 콤보
     $.get('/api/clock/DayMonthly/departList', { spjangcd: spjangcd }, function(res) {
       if (!res || !res.data) return;
       res.data.forEach(function(d) {
         $('#dailyDepart, #monthlyDepart').append(
           '<option value="' + d.value + '">' + d.text + '</option>');
+      });
+    });
+
+    // 팀 콤보 (TB_PZ012) — 웹 근태현황과 동일. 사원 소속팀은 TB_JA001.officecd
+    $.get('/api/clock/DayMonthly/teamList', { spjangcd: spjangcd }, function(res) {
+      if (!res || !res.data) return;
+      res.data.forEach(function(d) {
+        $('#dailyTeam, #monthlyTeam').append($('<option>').val(d.value).text(d.text));
       });
     });
 
@@ -215,11 +260,21 @@
     }
   }
 
+  // 조회 버튼: 조회 후 그 탭의 검색창만 접는다
+  // (다른 화면처럼 .btn-aco 를 모두 click 하면 숨겨진 다른 탭의 검색창이 열려버린다)
+  function handleSearch(tab) {
+    const $wrap = $(tab === 'daily' ? '#tabDaily' : '#tabMonthly').find('.search-wrap');
+    if (tab === 'daily') loadDaily(); else loadMonthly();
+    $wrap.find('.aco-cont').slideUp();
+    $wrap.find('.aco-hd').removeClass('active');
+  }
+
   // ─── 일별 조회 ───
   function loadDaily() {
     const date    = $('#dailyDate').val();
     const workcd  = $('#dailyWorkcd').val();
     const depart  = $('#dailyDepart').val();
+    const team    = $('#dailyTeam').val();
 
     if (!date) { Alert.alert('', '날짜를 선택해주세요.'); return; }
 
@@ -227,6 +282,7 @@
       serchday:      date,
       work_division: workcd,
       depart:        depart,
+      officecd:      team,
       spjangcd:      spjangcd
     }, function(res) {
       const list = document.getElementById('dailyList');
@@ -294,6 +350,7 @@
     const ym     = $('#monthlyYM').val();
     const person = $('#monthlyPerson').val();
     const depart = $('#monthlyDepart').val();
+    const team   = $('#monthlyTeam').val();
 
     if (!ym) { Alert.alert('', '년월을 선택해주세요.'); return; }
 
@@ -301,6 +358,7 @@
       startdate:   ym,
       person_name: person,
       depart:      depart,
+      officecd:    team,
       spjangcd:    spjangcd
     }, function(res) {
       const list = document.getElementById('monthlyList');
