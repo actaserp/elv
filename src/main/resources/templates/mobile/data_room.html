@@ -37,6 +37,21 @@
   .file-size { font-size:11px; color:#999; flex-shrink:0; }
   .btn-file-dl { padding:5px 12px; background:#546e7a; color:#fff; border:none; border-radius:6px; font-size:12px; cursor:pointer; flex-shrink:0; }
   .img-preview { width:100%; border-radius:8px; margin:8px 0; display:block; }
+
+  /* ── AI 스마트 검색 ── */
+  .ai-search { margin:10px 12px 6px; padding:12px; border-radius:12px; background:#f5f9ff; border:1px solid #c7d8fb; }
+  .ai-search-label { font-size:14px; font-weight:700; color:#1e4fa8; margin-bottom:8px; }
+  .ai-search-line { display:flex; gap:6px; }
+  .ai-search-line input { flex:1; min-width:0; height:40px; padding:0 12px; border:1px solid #c7d8fb; border-radius:8px; font-size:14px; background:#fff; }
+  .ai-search-line button { height:40px; padding:0 16px; border:none; border-radius:8px; background:#2c4f9e; color:#fff; font-size:14px; font-weight:600; white-space:nowrap; }
+  .ai-search-hint { font-size:12px; color:#6b7280; margin-top:6px; }
+  .ai-rel { font-size:11px; padding:2px 8px; border-radius:10px; background:#2c4f9e; color:#fff; font-weight:700; flex-shrink:0; margin-left:8px; }
+  .ai-where { font-size:11px; color:#6b7280; margin-top:4px; }
+  .ai-snippet { font-size:13px; color:#374151; margin-top:6px; line-height:1.45; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .ai-snippet mark, .card-title mark { background:#fff1a8; color:inherit; padding:0 1px; }
+  .ai-back { display:inline-block; margin-left:8px; color:#2c4f9e; font-weight:600; cursor:pointer; }
+  .ai-skel { height:74px; border-radius:10px; margin-bottom:10px; background:linear-gradient(90deg,#eef2f7 25%,#f7f9fc 37%,#eef2f7 63%); background-size:400% 100%; animation:aiSkel 1.2s ease infinite; }
+  @keyframes aiSkel { 0% { background-position:100% 50%; } 100% { background-position:0 50%; } }
 </style>
 <head>
   <meta charset="UTF-8">
@@ -54,6 +69,7 @@
   <script type="text/javascript" th:src="@{/js/ax5commUtil.js}"></script>
   <script th:src="@{/js/common.js}"></script>
   <script th:src="@{/js/Mobile.js}"></script>
+  <script th:src="@{/js/ai_fault.js}"></script>
 </head>
 <body>
 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
@@ -72,6 +88,15 @@
   <div th:insert="~{mobile/mobile_menu :: mobile_menu}"></div>
   <div class="mobile-layout-contents" style="display:block;">
     <div class="layout-contents">
+      <!-- 기술자료 지능형 검색: 증상·상황 문장으로 제목·내용·첨부파일명을 찾는다 -->
+      <div class="ai-search">
+        <div class="ai-search-label">🤖 AI 스마트 검색</div>
+        <div class="ai-search-line">
+          <input type="search" id="aiQuery" placeholder="예) 카 내 조명이 자꾸 꺼져요" enterkeyhint="search">
+          <button type="button" onclick="aiSearch()">검색</button>
+        </div>
+        <div class="ai-search-hint">무엇이 궁금하신가요? 제목을 몰라도 증상이나 상황을 문장으로 입력하세요.</div>
+      </div>
       <div class="search-wrap">
         <div class="srch-tit aco-hd">
           <p>기본검색</p>
@@ -158,6 +183,87 @@
         document.getElementById('cardList').innerHTML = '<div class="empty-msg">조회 중 오류가 발생하였습니다.</div>';
       }
     });
+  }
+
+  // ── AI 스마트 검색 ────────────────────────────────────────
+  //  2자 미만이면 기존 제목검색으로 처리, 3초 넘게 응답이 없으면 기본검색 안내 (정의서 4-4)
+  var _aiResults = [];
+  var _aiQueryText = '';
+  var _aiSeq = 0;
+  var AI_WHERE = {title: '제목에서 일치', content: '내용에서 일치', attachment: '첨부파일 내 일치'};
+
+  $(document).on('keypress', '#aiQuery', function (e) { if (e.keyCode === 13) { e.preventDefault(); aiSearch(); } });
+
+  function aiHighlight(text, terms) {
+    let html = esc(text || '');
+    (terms || []).filter(Boolean).sort(function (a, b) { return b.length - a.length; }).forEach(function (t) {
+      const re = new RegExp(esc(t).replace(/[.*+?^${}()|\[\]\\]/g, '\\$&'), 'gi');
+      html = html.replace(re, function (m) { return '<mark>' + m + '</mark>'; });
+    });
+    return html;
+  }
+
+  function aiSearch() {
+    const input = document.getElementById('aiQuery');
+    input.blur();
+    const q = input.value.trim();
+    if (q.replace(/\s/g, '').length < 2) {
+      // 너무 짧으면 기존 제목검색으로
+      document.getElementById('searchKeyword').value = q;
+      searchList();
+      return;
+    }
+    const my = ++_aiSeq;
+    _aiQueryText = q;
+    document.getElementById('resultCount').textContent = 'AI 검색 중…';
+    document.getElementById('cardList').innerHTML = '<div class="ai-skel"></div><div class="ai-skel"></div><div class="ai-skel"></div>';
+
+    AiFault.post('/api/ai/doc/search', {query: q, topN: 10, source: 'MOBILE'}, function (data) {
+      if (my !== _aiSeq) return;
+      renderAiResults((data && data.results) || []);
+    }, function (err) {
+      if (my !== _aiSeq) return;
+      document.getElementById('resultCount').innerHTML = '';
+      document.getElementById('cardList').innerHTML =
+        '<div class="empty-msg">' + (err === 'timeout' ? 'AI 검색 응답이 늦어지고 있습니다.' : 'AI 검색을 할 수 없습니다.') +
+        '<br>아래 기본검색으로 다시 시도해보세요.</div>';
+    }, 3000);
+  }
+
+  function renderAiResults(list) {
+    _aiResults = list;
+    const container = document.getElementById('cardList');
+    const countEl = document.getElementById('resultCount');
+    countEl.innerHTML = '"' + esc(_aiQueryText) + '" AI 검색 ' + list.length + '건' +
+      '<span class="ai-back" onclick="aiBack()">전체 목록</span>';
+    if (list.length === 0) {
+      container.innerHTML = '<div class="empty-msg">관련 자료를 찾지 못했습니다.<br>기본검색으로 다시 시도해보세요.</div>';
+      return;
+    }
+    container.innerHTML = list.map(function (item, i) {
+      return '<div class="site-card" onclick="openAiResult(' + i + ')">'
+        + '  <div class="card-header">'
+        + '    <span class="card-title">' + aiHighlight(item.title, item.terms) + '</span>'
+        + '    <span class="ai-rel">관련도 ' + item.relevance + '%</span>'
+        + '  </div>'
+        + (item.snippet ? '  <div class="ai-snippet">' + aiHighlight(item.snippet, item.terms) + '</div>' : '')
+        + '  <div class="ai-where">' + (AI_WHERE[item.matched_in] || '') + ' · ' + esc(formatDate(item.write_date_time)) + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function openAiResult(i) {
+    const item = _aiResults[i];
+    if (!item) return;
+    AiFault.log({source: 'MOBILE', feature: 'DOC', event: 'CLICK', query_text: _aiQueryText,
+                 final_value: String(item.id), rank_no: i + 1, top_score: item.relevance, result_cnt: _aiResults.length});
+    openDetail(item.id, item.title);
+  }
+
+  function aiBack() {
+    _aiSeq++;
+    document.getElementById('aiQuery').value = '';
+    searchList();
   }
 
   function formatDate(d) {

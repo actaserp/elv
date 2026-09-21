@@ -263,6 +263,8 @@
                         <input type="hidden" id="contcd">
                         <input type="text" id="contnm" placeholder="고장내용 선택" readonly class="readonly" onclick="openContnmPopup()">
                       </div>
+                      <!-- AI 추천 배지: 고장 상세내용을 입력하면 나타남 -->
+                      <div id="aiContBadge"></div>
                     </td>
                   </tr>
                   <tr>
@@ -419,11 +421,27 @@
 </th:block>
 
 <th:block layout:fragment="scripts">
+  <script th:src="@{/js/ai_fault.js}"></script>
   <script type="text/javascript">
 
     var selectedRecedate = null;
     var selectedRecenum  = null;
     var spjangcd = sessionStorage.getItem('spjangcd');
+
+    // AI 고장내용 추천 — 상세내용 입력 시 고장내용 칸 아래 배지. 실패해도 기존 입력은 그대로
+    var aiClassify = null;
+    $(function () {
+      AiFault.get('/api/ai/index_status', {which: 'classify', build: true});   // 분류 색인 미리 준비
+      aiClassify = AiFault.attachClassify({
+        text: '#contents',
+        host: '#aiContBadge',
+        source: 'WEB',
+        apply: function (code, name) {
+          document.getElementById('contcd').value = code;
+          document.getElementById('contnm').value = name;
+        }
+      });
+    });
     var _custcd  = '';
     var smsGrid, smsData;
 
@@ -570,6 +588,7 @@
       document.getElementById('contnm').value    = item.contnm   || '';
       document.getElementById('contents').value  = item.contents || '';
       document.getElementById('remark').value    = item.remark   || '';
+      if (aiClassify) aiClassify.reset();
       document.getElementById('actpushid').value = item.pushid   || '';
     }
 
@@ -631,6 +650,13 @@
         remark    : document.getElementById('remark').value
       }, function (result) {
         if (result && result.success) {
+          // AI 추천을 보여줬는지 · 최종 고장내용이 추천과 같은지 기록 (채택률 통계)
+          // 접수키는 서버가 돌려준 값(신규는 새로 채번된 번호)을 쓴다
+          if (aiClassify) {
+            const saved = result.data || {};
+            const savedNum = saved.recenum || document.getElementById('hidRecenum').value || '';
+            aiClassify.saveLog(contcd, (saved.recedate || recedate) + '-' + savedNum);
+          }
           Alert.alert('', result.message, function () { searchList(); searchCount(); });
         } else {
           Alert.alert('', result.message || '저장 중 오류가 발생하였습니다.');
@@ -667,6 +693,7 @@
         document.getElementById(id).value = '';
       });
       document.querySelectorAll('.recv-card').forEach(c => c.classList.remove('selected'));
+      if (aiClassify) aiClassify.reset();
     }
 
     // ── 통화메모 저장 ─────────────────────────────────────────

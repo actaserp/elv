@@ -1,0 +1,475 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<head>
+  <style>
+    .wj-header { text-align: center !important; }
+    .ai-note { color: #6b7280; font-size: 12px; margin: 2px 0 10px; line-height: 1.5; }
+    .ai-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 12px; }
+    .ai-panel { border: 1px solid #dfe3ea; border-radius: 8px; padding: 10px 12px; background: #fff; min-width: 0; margin-bottom: 12px; }
+    .ai-panel h4 { font-size: 14px; font-weight: 600; margin: 0 0 8px; color: #1f2937; display: flex; align-items: center; gap: 8px; }
+    .ai-panel h4 .sub { font-weight: 400; color: #888; font-size: 12px; }
+    .ai-panel h4 .right { margin-left: auto; display: flex; gap: 6px; }
+    .ai-inline { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+    .ai-inline input[type=text] { height: 32px; padding: 0 8px; border: 1px solid #cfd6df; border-radius: 4px; }
+    .ai-btn { height: 32px; padding: 0 12px; border: 1px solid #cfd6df; border-radius: 4px; background: #fff; cursor: pointer; font-size: 13px; }
+    .ai-btn.primary { background: #2f6fdd; border-color: #2f6fdd; color: #fff; }
+    .ai-btn.danger { color: #c0392b; }
+    .ai-btn:disabled { opacity: .5; cursor: default; }
+    .ai-selected { font-weight: 600; color: #2f6fdd; }
+    .kpi-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+    .kpi-card { border: 1px solid #dfe3ea; border-radius: 8px; padding: 12px 14px; background: #fff; }
+    .kpi-card .kpi-label { font-size: 13px; color: #6b7280; }
+    .kpi-card .kpi-value { font-size: 24px; font-weight: 700; color: #1f2937; margin-top: 2px; }
+    .kpi-card .kpi-value small { font-size: 13px; font-weight: 500; color: #6b7280; margin-left: 2px; }
+    .test-box textarea { width: 100%; min-height: 70px; padding: 8px; border: 1px solid #cfd6df; border-radius: 4px; resize: vertical; }
+    .result-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .result-table th, .result-table td { border: 1px solid #e3e7ee; padding: 7px 9px; text-align: left; }
+    .result-table th { background: #f4f6f9; font-weight: 600; }
+    .conf-bar { display: inline-block; height: 8px; border-radius: 4px; background: #2f6fdd; vertical-align: middle; margin-right: 6px; }
+    .conf-bar.mid { background: #e8793b; }
+    .conf-bar.low { background: #b8bec9; }
+    .tag-shown { color: #17794a; font-weight: 600; }
+    .tag-hidden { color: #9ca3af; }
+    .settings-table td { padding: 6px 8px; }
+    .settings-table input { width: 80px; height: 30px; padding: 0 6px; border: 1px solid #cfd6df; border-radius: 4px; text-align: right; }
+    .warn-box { display: none; background: #fff7e6; border: 1px solid #f3c48f; color: #8a4b00; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; font-size: 13px; }
+    @media (max-width: 1100px) { .ai-split { grid-template-columns: minmax(0, 1fr); } .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+</head>
+
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>고장유형분류체계관리</h2>
+        <a title="북마크" class="bookmark toggle">내메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img src="/images/icon/ico-nav-home.svg" alt="홈아이콘"></li>
+        <li>관리자운영</li>
+        <li>고장유형분류체계관리</li>
+      </ul>
+    </div>
+
+    <div class="warn-box" id="tableWarn">
+      AI 테이블이 아직 없습니다. 본사 DB 에 <b>20260917_elv_ai_tables_create.sql</b> 을 실행해야 키워드 저장·설정·통계가 동작합니다.
+      (과거 이력 기반 추천과 분류 테스트는 지금도 동작합니다)
+    </div>
+
+    <div class="tab-wrap">
+      <ul class="tab-links">
+        <li><a href="#tabKeyword" id="keywordTabLink">분류체계 · 키워드</a></li>
+        <li><a href="#tabTest" id="testTabLink">분류 테스트</a></li>
+        <li><a href="#tabStats" id="statsTabLink">채택 통계 · 설정</a></li>
+      </ul>
+
+      <div class="tab-contents">
+        <!-- ── 탭 1: 분류체계 · 키워드 ── -->
+        <section class="tab-item" id="tabKeyword">
+          <p class="ai-note">
+            고장접수의 <b>고장 상세내용</b>을 보고 <b>고장내용</b>을 추천합니다. 키워드가 들어 있으면 신뢰도 100% 로 먼저 추천하고,
+            없으면 과거 접수 이력에서 비슷한 문장을 찾아 추천합니다. 고장내용 코드 자체는 기존 코드관리에서 관리합니다.
+          </p>
+          <div class="ai-split">
+            <div class="ai-panel">
+              <h4>고장내용 코드 <span class="sub" id="codeCount"></span></h4>
+              <div id="codeGrid" style="height: 640px;"></div>
+            </div>
+            <div>
+              <div class="ai-panel">
+                <h4>키워드 <span class="ai-selected" id="selectedCode">← 고장내용을 선택하세요</span></h4>
+                <div class="ai-inline">
+                  <input type="text" id="txtKeyword" placeholder="키워드 입력 (예: 갇힘, 안닫힘)" maxlength="50" style="width: 240px;">
+                  <button type="button" class="ai-btn primary" id="btnAddKeyword" disabled>추가</button>
+                  <button type="button" class="ai-btn" id="btnToggleKeyword" disabled>사용/중지</button>
+                  <button type="button" class="ai-btn danger" id="btnDeleteKeyword" disabled>삭제</button>
+                </div>
+                <div id="keywordGrid" style="height: 250px;"></div>
+              </div>
+              <div class="ai-panel">
+                <h4>이력에서 찾은 키워드 후보
+                  <span class="sub">이 고장내용 접수에 자주 나오고 다른 고장내용에는 드문 단어</span>
+                  <span class="right">
+                    <button type="button" class="ai-btn" id="btnCandidates" disabled>후보 찾기</button>
+                    <button type="button" class="ai-btn primary" id="btnAddCandidates" disabled>선택 추가</button>
+                  </span>
+                </h4>
+                <div id="candidateGrid" style="height: 290px;"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── 탭 2: 분류 테스트 ── -->
+        <section class="tab-item" id="tabTest">
+          <div class="ai-panel test-box">
+            <h4>분류 테스트 <span class="sub">고장 상세내용을 넣어 어떤 고장내용이 추천되는지 확인합니다</span>
+              <span class="right"><span class="sub" id="classifyIndexInfo"></span>
+                <button type="button" class="ai-btn" id="btnClassifyReindex">이력 다시 읽기</button></span>
+            </h4>
+            <textarea id="txtTest" placeholder="예) 3층 문이 안 닫혀요 / 운행중 덜컹거림 / 사람 갇힘"></textarea>
+            <div class="ai-inline" style="margin-top: 8px;">
+              <button type="button" class="ai-btn primary" id="btnTest">분류하기</button>
+              <span class="sub ai-note" style="margin: 0;">노출 기준: 신뢰도 <b id="testThreshold">60</b>% 이상 (80% 이상 녹색, 그 아래 주황)</span>
+            </div>
+            <table class="result-table" id="testResult" style="display: none;">
+              <thead><tr><th style="width: 50px;">순위</th><th>고장내용</th><th style="width: 220px;">신뢰도</th><th>근거</th><th style="width: 90px;">화면 노출</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <p class="ai-note" id="testEmpty" style="display: none;">추천할 수 있는 고장내용이 없습니다. (문장이 너무 짧거나 비슷한 과거 접수가 없음)</p>
+          </div>
+        </section>
+
+        <!-- ── 탭 3: 채택 통계 · 설정 ── -->
+        <section class="tab-item" id="tabStats">
+          <section class="section">
+            <div class="section-top">
+              <div class="search-wrap">
+                <dl>
+                  <dt><label>조회기간</label></dt>
+                  <dd>
+                    <div class="srch-box" style="display: flex; align-items: center; gap: 5px;">
+                      <input type="date" id="statFrom" class="form-control2" style="width: 140px;">
+                      <span>~</span>
+                      <input type="date" id="statTo" class="form-control2" style="width: 140px;">
+                    </div>
+                  </dd>
+                </dl>
+                <dl>
+                  <dt><span class="eq"></span></dt>
+                  <dd><li><a class="btn btn-delete" id="btnStats"><img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘"> 검색</a></li></dd>
+                </dl>
+              </div>
+            </div>
+            <div class="container-fluid">
+              <p class="ai-note">고장접수를 <b>저장할 때</b> 추천을 보여줬는지, 최종 선택한 고장내용이 추천과 같은지 기록합니다. 채택률 = 추천과 같은 값으로 저장한 비율.</p>
+              <div class="kpi-row">
+                <div class="kpi-card"><div class="kpi-label">저장 건수</div><div class="kpi-value" id="kSaves">-</div></div>
+                <div class="kpi-card"><div class="kpi-label">추천 노출</div><div class="kpi-value" id="kShown">-</div></div>
+                <div class="kpi-card"><div class="kpi-label">추천 채택</div><div class="kpi-value" id="kAdopted">-</div></div>
+                <div class="kpi-card"><div class="kpi-label">채택률</div><div class="kpi-value" id="kRate">-</div></div>
+              </div>
+              <div class="ai-split">
+                <div class="ai-panel">
+                  <h4>자주 정정되는 추천 <span class="sub">추천 → 실제 저장 (키워드 보강 대상)</span></h4>
+                  <div id="correctionGrid" style="height: 300px;"></div>
+                </div>
+                <div class="ai-panel">
+                  <h4>일자별 채택</h4>
+                  <div id="dailyGrid" style="height: 300px;"></div>
+                </div>
+              </div>
+              <div class="ai-panel">
+                <h4>설정 <span class="right"><button type="button" class="ai-btn primary" id="btnSaveSettings">저장</button></span></h4>
+                <table class="settings-table">
+                  <tr><td>고장내용 추천 노출 최소 신뢰도</td><td><input type="number" id="setClassify" min="0" max="100"> %</td>
+                    <td class="ai-note" style="margin: 0;">경기 과거 접수로 측정: 60% 기준 약 83% 건에 추천이 뜨고 그중 약 81% 가 실제 고장내용과 일치</td></tr>
+                </table>
+              </div>
+            </div>
+          </section>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <footer style="margin-top: 24px;">
+    <p>Copyrightⓒ 0000 corp. All rights reserved.</p>
+  </footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <script th:src="@{/js/ai_fault.js}"></script>
+  <script type="text/javascript">
+    let codeGrid, keywordGrid, candidateGrid, correctionGrid, dailyGrid;
+    let selected = null;         // 선택한 고장내용 {contcd, contnm}
+    let codeNames = {};
+
+    const esc = AiFault.esc;
+    const toInput = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    // timestamptz 는 숫자(ms) 또는 문자열로 온다
+    const fmtTs = v => {
+      if (!v) return '';
+      const d = typeof v === 'number' ? new Date(v) : null;
+      return d ? toInput(d) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
+               : String(v).replace('T', ' ').substring(0, 16);
+    };
+
+    function grid(sel, columns, extra) {
+      const g = new wijmo.grid.FlexGrid(sel, Object.assign({
+        autoGenerateColumns: false, isReadOnly: true,
+        selectionMode: wijmo.grid.SelectionMode.Row,
+        headersVisibility: wijmo.grid.HeadersVisibility.Column,
+        columns: columns, itemsSource: new wijmo.collections.CollectionView([])
+      }, extra || {}));
+      return g;
+    }
+
+    document.readyState === 'complete' ? init() : window.onload = init;
+
+    function init() {
+      codeGrid = grid('#codeGrid', [
+        {binding: 'contcd', header: '코드', width: 70, align: 'center'},
+        {binding: 'contnm', header: '고장내용', width: '*', minWidth: 160},
+        {binding: 'useyn', header: '사용', width: 60, align: 'center'},
+        {binding: 'rece_cnt', header: '접수건수', width: 90, align: 'right', format: 'n0', dataType: wijmo.DataType.Number},
+        {binding: 'kw_cnt', header: '키워드', width: 70, align: 'center', dataType: wijmo.DataType.Number}
+      ], {
+        formatItem: function (s, e) {
+          if (e.panel !== s.cells) return;
+          const b = s.columns[e.col].binding;
+          if (b === 'useyn') e.cell.textContent = s.rows[e.row].dataItem.useyn === '1' ? '사용' : '미사용';
+        }
+      });
+      codeGrid.selectionChanged.addHandler(function () {
+        const item = codeGrid.selectedItems[0];
+        if (!item || (selected && selected.contcd === item.contcd)) return;
+        selectCode(item);
+      });
+
+      keywordGrid = grid('#keywordGrid', [
+        {binding: 'keyword', header: '키워드', width: '*'},
+        {binding: 'use_yn', header: '사용', width: 70, align: 'center'},
+        {binding: '_created', header: '등록일시', width: 140, align: 'center'}
+      ], {
+        formatItem: function (s, e) {
+          if (e.panel !== s.cells) return;
+          const item = s.rows[e.row].dataItem;
+          const b = s.columns[e.col].binding;
+          if (b === 'use_yn') { e.cell.textContent = item.use_yn === 'Y' ? '사용' : '중지'; e.cell.style.color = item.use_yn === 'Y' ? '' : '#9ca3af'; }
+          if (b === '_created') e.cell.textContent = fmtTs(item._created);
+        }
+      });
+
+      candidateGrid = new wijmo.grid.FlexGrid('#candidateGrid', {
+        autoGenerateColumns: false,
+        headersVisibility: wijmo.grid.HeadersVisibility.Column,
+        selectionMode: wijmo.grid.SelectionMode.Row,
+        columns: [
+          {binding: 'checked', header: '선택', width: 55, dataType: wijmo.DataType.Boolean},
+          {binding: 'keyword', header: '단어', width: '*', isReadOnly: true},
+          {binding: 'code_cnt', header: '이 고장내용', width: 95, align: 'right', format: 'n0', isReadOnly: true},
+          {binding: 'all_cnt', header: '전체', width: 80, align: 'right', format: 'n0', isReadOnly: true},
+          {binding: 'precision', header: '비중', width: 70, align: 'right', isReadOnly: true}
+        ],
+        itemsSource: new wijmo.collections.CollectionView([]),
+        formatItem: function (s, e) {
+          if (e.panel === s.cells && s.columns[e.col].binding === 'precision') e.cell.textContent = s.rows[e.row].dataItem.precision + '%';
+        }
+      });
+
+      correctionGrid = grid('#correctionGrid', [
+        {binding: 'suggested_nm', header: 'AI 추천', width: '*'},
+        {binding: 'final_nm', header: '실제 저장', width: '*'},
+        {binding: 'cnt', header: '건수', width: 70, align: 'right'}
+      ]);
+      dailyGrid = grid('#dailyGrid', [
+        {binding: 'ymd', header: '일자', width: 110, align: 'center'},
+        {binding: 'shown', header: '추천 노출', width: '*', align: 'right'},
+        {binding: 'adopted', header: '채택', width: '*', align: 'right'},
+        {binding: 'rate', header: '채택률', width: '*', align: 'right'}
+      ]);
+
+      const today = new Date();
+      const from = new Date(today); from.setDate(from.getDate() - 29);
+      $('#statFrom').val(toInput(from));
+      $('#statTo').val(toInput(today));
+
+      loadSettings();
+      loadCodes();
+    }
+
+    // ── 설정 ──
+    let settings = {};
+    function loadSettings() {
+      AiFault.get('/api/ai/settings', {}, function (data) {
+        settings = data || {};
+        $('#tableWarn').toggle(settings.tablesReady === false);
+        $('#setClassify').val(settings.classify_threshold);
+        $('#testThreshold').text(settings.classify_threshold);
+      });
+    }
+
+    // ── 코드 · 키워드 ──
+    function loadCodes() {
+      AjaxUtil.getAsyncData('/api/ai/classify/codes', {}, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '조회 중 오류가 발생하였습니다.'); return; }
+        const rows = res.data || [];
+        codeNames = {};
+        rows.forEach(r => { codeNames[r.contcd] = r.contnm; });
+        const keep = selected && selected.contcd;
+        codeGrid.itemsSource = new wijmo.collections.CollectionView(rows);
+        $('#codeCount').text(rows.length + '개');
+        if (keep) {
+          const idx = rows.findIndex(r => r.contcd === keep);
+          if (idx >= 0) codeGrid.select(new wijmo.grid.CellRange(idx, 0, idx, codeGrid.columns.length - 1), true);
+        }
+      });
+    }
+
+    function selectCode(item) {
+      selected = {contcd: item.contcd, contnm: item.contnm};
+      $('#selectedCode').text(item.contcd + ' ' + item.contnm);
+      $('#btnAddKeyword, #btnToggleKeyword, #btnDeleteKeyword, #btnCandidates').prop('disabled', false);
+      candidateGrid.itemsSource = new wijmo.collections.CollectionView([]);
+      $('#btnAddCandidates').prop('disabled', true);
+      loadKeywords();
+    }
+
+    function loadKeywords() {
+      if (!selected) return;
+      AiFault.get('/api/ai/classify/keywords', {contcd: selected.contcd}, function (rows) {
+        keywordGrid.itemsSource = new wijmo.collections.CollectionView(rows || []);
+      }, function (msg) { Alert.alert('', msg || '키워드 조회 중 오류가 발생하였습니다.'); });
+    }
+
+    function afterKeywordChange() {
+      loadKeywords();
+      loadCodes();
+    }
+
+    function addKeyword() {
+      if (!selected) return;
+      const kw = $('#txtKeyword').val().trim();
+      if (!kw) { Alert.alert('', '키워드를 입력해주세요.'); return; }
+      AjaxUtil.postAsyncData('/api/ai/classify/keyword/save', {contcd: selected.contcd, keyword: kw, useYn: 'Y'}, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '저장 중 오류가 발생하였습니다.'); return; }
+        $('#txtKeyword').val('').focus();
+        afterKeywordChange();
+      });
+    }
+
+    function toggleKeyword() {
+      const item = keywordGrid.selectedItems[0];
+      if (!item) { Alert.alert('', '키워드를 선택해주세요.'); return; }
+      AjaxUtil.postAsyncData('/api/ai/classify/keyword/save', {
+        id: item.id, contcd: item.contcd, keyword: item.keyword, useYn: item.use_yn === 'Y' ? 'N' : 'Y'
+      }, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '저장 중 오류가 발생하였습니다.'); return; }
+        afterKeywordChange();
+      });
+    }
+
+    function deleteKeyword() {
+      const item = keywordGrid.selectedItems[0];
+      if (!item) { Alert.alert('', '키워드를 선택해주세요.'); return; }
+      Alert.confirm('', '키워드 "' + item.keyword + '" 를 삭제하시겠습니까?', function () {
+        AjaxUtil.postAsyncData('/api/ai/classify/keyword/delete', {id: item.id}, function (res) {
+          if (!res || res.success === false) { Alert.alert('', (res && res.message) || '삭제 중 오류가 발생하였습니다.'); return; }
+          afterKeywordChange();
+        });
+      });
+    }
+
+    function findCandidates() {
+      if (!selected) return;
+      AjaxUtil.getAsyncData('/api/ai/classify/keyword_candidates', {contcd: selected.contcd}, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '조회 중 오류가 발생하였습니다.'); return; }
+        const rows = (res.data || []).map(r => Object.assign({checked: false}, r));
+        candidateGrid.itemsSource = new wijmo.collections.CollectionView(rows);
+        $('#btnAddCandidates').prop('disabled', rows.length === 0);
+        if (rows.length === 0) Alert.alert('', '뚜렷한 키워드 후보가 없습니다. (접수 건수가 적거나 다른 고장내용과 표현이 겹침)');
+      });
+    }
+
+    function addCandidates() {
+      if (!selected) return;
+      candidateGrid.finishEditing();
+      const picked = (candidateGrid.itemsSource.items || []).filter(r => r.checked).map(r => r.keyword);
+      if (picked.length === 0) { Alert.alert('', '추가할 단어를 선택해주세요.'); return; }
+      AjaxUtil.postAsyncData('/api/ai/classify/keyword/add_many', {contcd: selected.contcd, keywords: picked.join(',')}, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '저장 중 오류가 발생하였습니다.'); return; }
+        const d = res.data || {};
+        Alert.alert('', d.added + '개 추가' + (d.skipped ? ', ' + d.skipped + '개는 이미 있어 건너뜀' : '') + '했습니다.');
+        const rows = (candidateGrid.itemsSource.items || []).filter(r => !r.checked);
+        candidateGrid.itemsSource = new wijmo.collections.CollectionView(rows);
+        afterKeywordChange();
+      });
+    }
+
+    // ── 분류 테스트 ──
+    function runTest() {
+      const text = $('#txtTest').val().trim();
+      if (!text) { Alert.alert('', '고장 상세내용을 입력해주세요.'); return; }
+      AjaxUtil.postAsyncData('/api/ai/classify/suggest', {text: text}, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '분류 중 오류가 발생하였습니다.'); return; }
+        const data = res.data || {};
+        const threshold = Number(data.threshold) || 60;
+        $('#testThreshold').text(threshold);
+        if (data.indexSize != null) $('#classifyIndexInfo').text('학습 이력 ' + Number(data.indexSize).toLocaleString() + '건');
+        const list = data.candidates || [];
+        const $tb = $('#testResult tbody').empty();
+        list.forEach(function (c, i) {
+          const cls = c.confidence >= 80 ? '' : c.confidence >= threshold ? 'mid' : 'low';
+          const basis = c.basis === 'KEYWORD'
+            ? '키워드 <b>"' + esc(c.keyword) + '"</b> 포함'
+            : '비슷한 과거 접수 ' + c.neighbors + '건 · 가장 비슷한 문장 유사도 ' + c.similarity + '%';
+          $tb.append('<tr><td style="text-align:center">' + (i + 1) + '</td><td>' + esc(c.name) + ' <span class="ai-note">(' + esc(c.code) + ')</span></td>' +
+            '<td><span class="conf-bar ' + cls + '" style="width:' + Math.max(4, c.confidence * 1.4) + 'px"></span>' + c.confidence + '%</td>' +
+            '<td>' + basis + '</td><td>' + (c.confidence >= threshold ? '<span class="tag-shown">노출</span>' : '<span class="tag-hidden">미노출</span>') + '</td></tr>');
+        });
+        $('#testResult').toggle(list.length > 0);
+        $('#testEmpty').toggle(list.length === 0);
+      });
+    }
+
+    function classifyReindex() {
+      AjaxUtil.postAsyncData('/api/ai/classify/reindex', {}, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '처리 중 오류가 발생하였습니다.'); return; }
+        const s = res.data || {};
+        $('#classifyIndexInfo').text('학습 이력 ' + Number(s.size).toLocaleString() + '건 · ' + s.builtAt);
+        Alert.alert('', '과거 접수 ' + Number(s.size).toLocaleString() + '건을 다시 읽었습니다.');
+      });
+    }
+
+    // ── 통계 · 설정 ──
+    function loadStats() {
+      const from = $('#statFrom').val(), to = $('#statTo').val();
+      if (!from || !to) { Alert.alert('', '조회기간을 입력해주세요.'); return; }
+      AjaxUtil.getAsyncData('/api/ai/classify/stats', {fromDate: from, toDate: to}, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '조회 중 오류가 발생하였습니다.'); return; }
+        const d = res.data || {};
+        $('#tableWarn').toggle(d.logReady === false);
+        const s = d.summary || {};
+        const shown = Number(s.shown || 0), adopted = Number(s.adopted || 0);
+        $('#kSaves').html(Number(s.saves || 0).toLocaleString() + '<small>건</small>');
+        $('#kShown').html(shown.toLocaleString() + '<small>건</small>');
+        $('#kAdopted').html(adopted.toLocaleString() + '<small>건</small>');
+        $('#kRate').html(shown ? (adopted * 100 / shown).toFixed(1) + '<small>%</small>' : '-');
+        correctionGrid.itemsSource = new wijmo.collections.CollectionView(d.corrections || []);
+        dailyGrid.itemsSource = new wijmo.collections.CollectionView((d.daily || []).map(r =>
+          Object.assign({}, r, {rate: Number(r.shown) ? (Number(r.adopted) * 100 / Number(r.shown)).toFixed(1) + '%' : '-'})));
+      });
+    }
+
+    function saveSettings() {
+      AjaxUtil.postAsyncData('/api/ai/settings/save', {classify_threshold: $('#setClassify').val()}, function (res) {
+        Alert.alert('', (res && res.message) || '저장 중 오류가 발생하였습니다.');
+        if (res && res.success !== false) loadSettings();
+      });
+    }
+
+    $(document.body).ready(function () {
+      $('#btnAddKeyword').click(addKeyword);
+      $('#txtKeyword').on('keypress', function (e) { if (e.keyCode === 13) addKeyword(); });
+      $('#btnToggleKeyword').click(toggleKeyword);
+      $('#btnDeleteKeyword').click(deleteKeyword);
+      $('#btnCandidates').click(findCandidates);
+      $('#btnAddCandidates').click(addCandidates);
+      $('#btnTest').click(runTest);
+      $('#txtTest').on('keydown', function (e) { if (e.keyCode === 13 && (e.ctrlKey || e.metaKey)) runTest(); });
+      $('#btnClassifyReindex').click(classifyReindex);
+      $('#btnStats').click(loadStats);
+      $('#btnSaveSettings').click(saveSettings);
+
+      // 숨은 탭 안의 그리드는 탭이 보인 뒤 크기를 다시 맞춘다
+      let statsLoaded = false;
+      $('#keywordTabLink').click(() => setTimeout(() => [codeGrid, keywordGrid, candidateGrid].forEach(g => g && g.invalidate()), 0));
+      $('#statsTabLink').click(() => setTimeout(() => {
+        [correctionGrid, dailyGrid].forEach(g => g && g.invalidate());
+        if (!statsLoaded) { statsLoaded = true; loadStats(); }
+      }, 0));
+    });
+  </script>
+</th:block>
+
+</html>

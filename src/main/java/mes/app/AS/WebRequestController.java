@@ -94,12 +94,15 @@ public class WebRequestController {
                 log.warn("[고장접수] custcd 미전달 → 서버 보정: {}", custcd);
             }
 
-            webRequestService.save(spjangcd, custcd,
+            String savedRecenum = webRequestService.save(spjangcd, custcd,
                     recedate, recenum, recetime,
                     hitchdate, hitchhour,
                     actcd, actnm, equpcd, equpnm,
                     reperid, perid,
                     contcd, contents, remark);
+            // 화면이 방금 저장된 접수키를 알 수 있게 돌려준다 (AI 추천 기록의 접수 연결용)
+            result.data = Map.of("recedate", recedate == null ? "" : recedate,
+                                 "recenum", savedRecenum == null ? "" : savedRecenum);
             result.success = true;
             result.message = (recenum == null || recenum.isBlank())
                     ? "고장접수가 등록되었습니다." : "고장접수가 수정되었습니다.";

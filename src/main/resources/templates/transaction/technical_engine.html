@@ -1,0 +1,314 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<head>
+  <style>
+    .wj-header { text-align: center !important; }
+    .ai-note { color: #6b7280; font-size: 12px; margin: 2px 0 10px; line-height: 1.5; }
+    .ai-panel { border: 1px solid #dfe3ea; border-radius: 8px; padding: 10px 12px; background: #fff; min-width: 0; margin-bottom: 12px; }
+    .ai-panel h4 { font-size: 14px; font-weight: 600; margin: 0 0 8px; color: #1f2937; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ai-panel h4 .sub { font-weight: 400; color: #888; font-size: 12px; }
+    .ai-panel h4 .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+    .ai-btn { height: 32px; padding: 0 12px; border: 1px solid #cfd6df; border-radius: 4px; background: #fff; cursor: pointer; font-size: 13px; }
+    .ai-btn.primary { background: #2f6fdd; border-color: #2f6fdd; color: #fff; }
+    .status-bar { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; background: #f6f8fb; border: 1px solid #e3e7ee; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; }
+    .status-bar b { font-size: 16px; color: #1f2937; }
+    .status-bar .right { margin-left: auto; }
+    .empty-docs { display: none; background: #eef4ff; border: 1px solid #c7d8fb; color: #1e4fa8; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; font-size: 13px; }
+    .warn-box { display: none; background: #fff7e6; border: 1px solid #f3c48f; color: #8a4b00; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; font-size: 13px; }
+    .search-line { display: flex; gap: 8px; max-width: 900px; }
+    .search-line input { flex: 1; height: 38px; padding: 0 12px; border: 1px solid #cfd6df; border-radius: 6px; font-size: 14px; }
+    .doc-card { border: 1px solid #e3e7ee; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; max-width: 900px; }
+    .doc-card .head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+    .doc-card .rel { font-weight: 700; color: #2f6fdd; min-width: 44px; }
+    .doc-card .title { font-weight: 600; }
+    .doc-card .meta { color: #6b7280; font-size: 12px; margin-left: auto; }
+    .doc-card .snippet { margin-top: 6px; font-size: 13px; color: #374151; }
+    .doc-card mark { background: #fff1a8; padding: 0 1px; }
+    .where { font-size: 11px; border-radius: 10px; padding: 1px 7px; border: 1px solid #d1d5db; color: #4b5563; }
+    .kpi-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+    .kpi-card { border: 1px solid #dfe3ea; border-radius: 8px; padding: 12px 14px; background: #fff; }
+    .kpi-card .kpi-label { font-size: 13px; color: #6b7280; }
+    .kpi-card .kpi-value { font-size: 24px; font-weight: 700; color: #1f2937; margin-top: 2px; }
+    .kpi-card .kpi-value small { font-size: 13px; font-weight: 500; color: #6b7280; margin-left: 2px; }
+    .ai-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 12px; }
+    .settings-table td { padding: 6px 8px; font-size: 13px; }
+    .settings-table input[type=number] { width: 80px; height: 30px; padding: 0 6px; border: 1px solid #cfd6df; border-radius: 4px; text-align: right; }
+    @media (max-width: 1100px) { .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ai-split { grid-template-columns: minmax(0, 1fr); } }
+  </style>
+</head>
+
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>기술자료검색엔진관리</h2>
+        <a title="북마크" class="bookmark toggle">내메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img src="/images/icon/ico-nav-home.svg" alt="홈아이콘"></li>
+        <li>관리자운영</li>
+        <li>기술자료검색엔진관리</li>
+      </ul>
+    </div>
+
+    <div class="warn-box" id="tableWarn">
+      AI 테이블이 아직 없습니다. 본사 DB 에 <b>20260917_elv_ai_tables_create.sql</b> 을 실행해야 검색 로그·설정이 동작합니다.
+    </div>
+    <div class="empty-docs" id="emptyDocs">
+      자료실에 등록된 자료가 없습니다. 자료실에 기술자료(제목·내용·첨부)를 등록하면 모바일 자료실의 AI 검색에서 찾을 수 있습니다.
+    </div>
+
+    <div class="status-bar">
+      <span>검색 대상 자료 <b id="stSize">-</b> 건</span>
+      <span>색인 시각 <b id="stBuilt" style="font-size: 13px;">-</b></span>
+      <span class="ai-note" style="margin: 0;">자료실의 제목·내용·첨부파일명을 색인합니다. 첨부파일 본문(PDF·이미지)은 아직 대상이 아닙니다. 6시간마다 자동으로 다시 읽습니다.</span>
+      <span class="right"><button type="button" class="ai-btn" id="btnReindex">지금 다시 읽기</button></span>
+    </div>
+
+    <div class="tab-wrap">
+      <ul class="tab-links">
+        <li><a href="#tabTest" id="testTabLink">검색 테스트</a></li>
+        <li><a href="#tabLogs" id="logsTabLink">검색 로그</a></li>
+        <li><a href="#tabSettings" id="settingsTabLink">설정</a></li>
+      </ul>
+
+      <div class="tab-contents">
+        <!-- ── 탭 1: 검색 테스트 ── -->
+        <section class="tab-item" id="tabTest">
+          <div class="ai-panel">
+            <h4>검색 테스트 <span class="sub">기사가 증상·상황으로 물어봤을 때 어떤 자료가 나오는지 확인합니다 (노출 기준 무시, 로그 미기록)</span></h4>
+            <div class="search-line">
+              <input type="text" id="txtQuery" placeholder="예) 도어 안 닫힐 때 점검 순서 / 카 내 조명이 자꾸 꺼져요">
+              <button type="button" class="ai-btn primary" id="btnSearch" style="height: 38px;">검색</button>
+            </div>
+            <p class="ai-note" id="searchInfo" style="margin-top: 8px;"></p>
+            <div id="searchResult"></div>
+          </div>
+        </section>
+
+        <!-- ── 탭 2: 검색 로그 ── -->
+        <section class="tab-item" id="tabLogs">
+          <section class="section">
+            <div class="section-top">
+              <div class="search-wrap">
+                <dl>
+                  <dt><label>조회기간</label></dt>
+                  <dd>
+                    <div class="srch-box" style="display: flex; align-items: center; gap: 5px;">
+                      <input type="date" id="logFrom" class="form-control2" style="width: 140px;">
+                      <span>~</span>
+                      <input type="date" id="logTo" class="form-control2" style="width: 140px;">
+                    </div>
+                  </dd>
+                </dl>
+                <dl>
+                  <dt><label for="logNoResult">결과 없음만</label></dt>
+                  <dd><div class="srch-box" style="padding-top: 6px;"><input type="checkbox" id="logNoResult"></div></dd>
+                </dl>
+                <dl>
+                  <dt><span class="eq"></span></dt>
+                  <dd><li><a class="btn btn-delete" id="btnLogs"><img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘"> 검색</a></li></dd>
+                </dl>
+              </div>
+            </div>
+            <div class="container-fluid">
+              <div class="kpi-row">
+                <div class="kpi-card"><div class="kpi-label">검색 수</div><div class="kpi-value" id="kSearches">-</div></div>
+                <div class="kpi-card"><div class="kpi-label">결과 없음</div><div class="kpi-value" id="kNoResult">-</div></div>
+                <div class="kpi-card"><div class="kpi-label">결과 클릭</div><div class="kpi-value" id="kClicks">-</div></div>
+                <div class="kpi-card"><div class="kpi-label">검색한 사용자</div><div class="kpi-value" id="kUsers">-</div></div>
+              </div>
+              <div class="ai-split">
+                <div class="ai-panel">
+                  <h4>자주 나온 "결과 없음" 질문 <span class="sub">자료 보강 대상</span></h4>
+                  <div id="noResultGrid" style="height: 420px;"></div>
+                </div>
+                <div class="ai-panel">
+                  <h4>검색 기록</h4>
+                  <div id="logGrid" style="height: 420px;"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <!-- ── 탭 3: 설정 ── -->
+        <section class="tab-item" id="tabSettings">
+          <div class="ai-panel">
+            <h4>설정 <span class="right"><button type="button" class="ai-btn primary" id="btnSaveSettings">저장</button></span></h4>
+            <table class="settings-table">
+              <tr><td>검색 결과 노출 최소 관련도</td><td><input type="number" id="setDoc" min="0" max="100"> %</td>
+                <td class="ai-note" style="margin: 0;">이보다 낮은 자료는 모바일 AI 검색 결과에 표시하지 않습니다</td></tr>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <footer style="margin-top: 24px;">
+    <p>Copyrightⓒ 0000 corp. All rights reserved.</p>
+  </footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <script th:src="@{/js/ai_fault.js}"></script>
+  <script type="text/javascript">
+    let logGrid, noResultGrid;
+    let settings = {};
+    const esc = AiFault.esc;
+    const toInput = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const fmtTs = v => {
+      if (!v) return '';
+      const d = typeof v === 'number' ? new Date(v) : new Date(String(v).replace(' ', 'T'));
+      return isNaN(d) ? String(v) : toInput(d) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    };
+    const WHERE = {title: '제목 일치', content: '내용 일치', attachment: '첨부파일명 일치'};
+
+    /** 발췌문 안의 검색어를 표시 (HTML 이스케이프 후 mark) */
+    function highlight(text, terms) {
+      let html = esc(text || '');
+      (terms || []).filter(t => t && t.length >= 1).sort((a, b) => b.length - a.length).forEach(function (t) {
+        const re = new RegExp(esc(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        html = html.replace(re, m => '<mark>' + m + '</mark>');
+      });
+      return html;
+    }
+
+    document.readyState === 'complete' ? init() : window.onload = init;
+
+    function init() {
+      const today = new Date();
+      const from = new Date(today); from.setDate(from.getDate() - 29);
+      $('#logFrom').val(toInput(from));
+      $('#logTo').val(toInput(today));
+
+      noResultGrid = new wijmo.grid.FlexGrid('#noResultGrid', {
+        autoGenerateColumns: false, isReadOnly: true, headersVisibility: wijmo.grid.HeadersVisibility.Column,
+        columns: [
+          {binding: 'query_text', header: '질문', width: '*'},
+          {binding: 'cnt', header: '횟수', width: 60, align: 'right'},
+          {binding: 'last_at', header: '최근', width: 130, align: 'center'}
+        ],
+        itemsSource: new wijmo.collections.CollectionView([]),
+        formatItem: function (s, e) {
+          if (e.panel === s.cells && s.columns[e.col].binding === 'last_at') e.cell.textContent = fmtTs(s.rows[e.row].dataItem.last_at);
+        }
+      });
+      logGrid = new wijmo.grid.FlexGrid('#logGrid', {
+        autoGenerateColumns: false, isReadOnly: true, headersVisibility: wijmo.grid.HeadersVisibility.Column,
+        columns: [
+          {binding: '_created', header: '일시', width: 130, align: 'center'},
+          {binding: 'user_name', header: '사용자', width: 80, align: 'center'},
+          {binding: 'event', header: '구분', width: 60, align: 'center'},
+          {binding: 'query_text', header: '질문', width: '*', minWidth: 160},
+          {binding: 'result_cnt', header: '결과수', width: 65, align: 'right'},
+          {binding: 'top_score', header: '최고관련도', width: 85, align: 'right'},
+          {binding: 'final_value', header: '클릭한 자료', width: 90, align: 'center'},
+          {binding: 'rank_no', header: '순위', width: 55, align: 'center'}
+        ],
+        itemsSource: new wijmo.collections.CollectionView([]),
+        formatItem: function (s, e) {
+          if (e.panel !== s.cells) return;
+          const b = s.columns[e.col].binding;
+          const item = s.rows[e.row].dataItem || {};
+          if (b === '_created') e.cell.textContent = fmtTs(item._created);
+          if (b === 'event') e.cell.textContent = item.event === 'SEARCH' ? '검색' : item.event === 'CLICK' ? '클릭' : item.event;
+        }
+      });
+
+      loadStatus(true);
+      loadSettings();
+    }
+
+    function showStatus(s) {
+      if (!s || s.size < 0) return;
+      $('#stSize').text(Number(s.size).toLocaleString());
+      $('#stBuilt').text(s.builtAt);
+      $('#emptyDocs').toggle(Number(s.size) === 0);
+    }
+
+    function loadStatus(build) {
+      AiFault.get('/api/ai/index_status', {which: 'doc', build: build}, showStatus);
+    }
+
+    function reindex() {
+      AjaxUtil.postAsyncData('/api/ai/doc/reindex', {}, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '처리 중 오류가 발생하였습니다.'); return; }
+        showStatus(res.data);
+        Alert.alert('', '자료 ' + Number(res.data.size).toLocaleString() + '건을 다시 읽었습니다.');
+      });
+    }
+
+    function loadSettings() {
+      AiFault.get('/api/ai/settings', {}, function (d) {
+        settings = d || {};
+        $('#tableWarn').toggle(settings.tablesReady === false);
+        $('#setDoc').val(settings.doc_threshold);
+      });
+    }
+
+    function saveSettings() {
+      AjaxUtil.postAsyncData('/api/ai/settings/save', {doc_threshold: $('#setDoc').val()}, function (res) {
+        Alert.alert('', (res && res.message) || '저장 중 오류가 발생하였습니다.');
+        if (res && res.success !== false) loadSettings();
+      });
+    }
+
+    function search() {
+      const q = $('#txtQuery').val().trim();
+      if (q.replace(/\s/g, '').length < 2) { Alert.alert('', '두 글자 이상 입력해주세요.'); return; }
+      AjaxUtil.postAsyncData('/api/ai/doc/search', {query: q, topN: 20, source: 'WEB', test: true}, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '검색 중 오류가 발생하였습니다.'); return; }
+        const d = res.data || {};
+        const list = d.results || [];
+        const threshold = Number(settings.doc_threshold || 0);
+        $('#searchInfo').text('자료 ' + Number(d.indexSize || 0).toLocaleString() + '건 중 ' + list.length + '건 · 모바일 노출 기준 ' + threshold + '% 이상');
+        const $r = $('#searchResult').empty();
+        if (list.length === 0) { $r.html('<p class="ai-note">관련 자료를 찾지 못했습니다.</p>'); return; }
+        list.forEach(function (x) {
+          const below = Number(x.relevance) < threshold;
+          $r.append(
+            '<div class="doc-card"' + (below ? ' style="opacity:.55"' : '') + '>' +
+            '<div class="head"><span class="rel">' + x.relevance + '%</span><span class="title">' + highlight(x.title, x.terms) + '</span>' +
+            '<span class="where">' + (WHERE[x.matched_in] || '') + '</span>' + (below ? '<span class="ai-note">(노출 기준 미만)</span>' : '') +
+            '<span class="meta">' + esc(x.write_date_time || '') + ' · ' + esc(x.user || '') + '</span></div>' +
+            (x.snippet ? '<div class="snippet">' + highlight(x.snippet, x.terms) + '</div>' : '') +
+            '</div>');
+        });
+      });
+    }
+
+    function loadLogs() {
+      const from = $('#logFrom').val(), to = $('#logTo').val();
+      if (!from || !to) { Alert.alert('', '조회기간을 입력해주세요.'); return; }
+      AjaxUtil.getAsyncData('/api/ai/doc/logs', {fromDate: from, toDate: to, noResultOnly: $('#logNoResult').is(':checked')}, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '조회 중 오류가 발생하였습니다.'); return; }
+        const d = res.data || {};
+        $('#tableWarn').toggle(d.logReady === false);
+        const s = d.summary || {};
+        $('#kSearches').html(Number(s.searches || 0).toLocaleString() + '<small>회</small>');
+        $('#kNoResult').html(Number(s.no_result || 0).toLocaleString() + '<small>회</small>');
+        $('#kClicks').html(Number(s.clicks || 0).toLocaleString() + '<small>회</small>');
+        $('#kUsers').html(Number(s.users || 0).toLocaleString() + '<small>명</small>');
+        noResultGrid.itemsSource = new wijmo.collections.CollectionView(d.topNoResult || []);
+        logGrid.itemsSource = new wijmo.collections.CollectionView(d.rows || []);
+      });
+    }
+
+    $(document.body).ready(function () {
+      $('#btnReindex').click(reindex);
+      $('#btnSearch').click(search);
+      $('#txtQuery').on('keypress', function (e) { if (e.keyCode === 13) search(); });
+      $('#btnLogs').click(loadLogs);
+      $('#btnSaveSettings').click(saveSettings);
+
+      let logsLoaded = false;
+      $('#logsTabLink').click(() => setTimeout(() => {
+        [logGrid, noResultGrid].forEach(g => g && g.invalidate());
+        if (!logsLoaded) { logsLoaded = true; loadLogs(); }
+      }, 0));
+    });
+  </script>
+</th:block>
+
+</html>

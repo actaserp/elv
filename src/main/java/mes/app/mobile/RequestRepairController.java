@@ -143,12 +143,15 @@ public class RequestRepairController {
             //   reperid = 통보자(화면 선택). 미선택 시 로그인 사용자로 대체
             String repIdVal = (reperid != null && !reperid.isBlank()) ? reperid : username;
 
-            requestRepairService.saveRepair(
+            String savedRecenum = requestRepairService.saveRepair(
                     custcd, spjangcd, recedate, recetime,
                     hitchdate, hitchhour,
                     actcd, actnm, equpcd, equpnm,
                     contcd, contents, remark, perid, bigo, repIdVal
             );
+            // 화면이 방금 저장된 접수키를 알 수 있게 돌려준다 (AI 추천 기록의 접수 연결용)
+            result.data = Map.of("recedate", recedate == null ? "" : recedate,
+                                 "recenum", savedRecenum == null ? "" : savedRecenum);
             result.success = true;
             result.message = "고장접수가 등록되었습니다.";
         } catch (Exception e) {

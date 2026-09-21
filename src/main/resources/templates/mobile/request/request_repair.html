@@ -84,6 +84,7 @@
     <script th:src="@{/js/common.js}"></script>
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
     <script th:src="@{/js/Mobile.js}"></script>
+    <script th:src="@{/js/ai_fault.js}"></script>
     <script src="https://kit.fontawesome.com/84dc79ac13.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 </head>
@@ -146,6 +147,8 @@
                 <div class="form-row">
                     <label>고장상세내용</label>
                     <input type="text" id="regContentsDetail" placeholder="고장상세내용 입력">
+                    <!-- AI 고장유형 분석: 상세내용을 입력하면 고장내용 추천이 나타나고, 누르면 위 고장내용에 들어간다 -->
+                    <div id="aiContBadge"></div>
                 </div>
                 <div class="form-row">
                     <label>비고</label>
@@ -239,7 +242,22 @@
         document.getElementById('regRecetime').value  = time;
         document.getElementById('regHitchdate').value = today;
         document.getElementById('regHitchhour').value = time;
+
+        // 분류 색인을 미리 준비 (첫 추천 지연 방지)
+        AiFault.get('/api/ai/index_status', {which: 'classify', build: true});
+        aiClassify = AiFault.attachClassify({
+            text: '#regContentsDetail',
+            host: '#aiContBadge',
+            source: 'MOBILE',
+            apply: function (code, name) {
+                document.getElementById('regContcd').value   = code;
+                document.getElementById('regContents').value = name;
+            }
+        });
     });
+
+    /* AI 고장내용 추천 (실패해도 기존 입력 흐름은 그대로) */
+    var aiClassify = null;
 
     /* ── 현장 선택 팝업 ── */
     function openActPopup() {
@@ -341,6 +359,12 @@
 
         AjaxUtil.postAsyncData('/api/request_repair/save', data, function (result) {
             if (result && result.success) {
+                // AI 추천 노출·채택 여부 기록 (채택률 통계)
+                // 접수키는 서버가 돌려준 값(새로 채번된 접수번호)을 쓴다
+                if (aiClassify) {
+                    const saved = result.data || {};
+                    aiClassify.saveLog(data.contcd, (saved.recedate || data.recedate) + '-' + (saved.recenum || ''));
+                }
                 Alert.alert('', result.message, function () {
                     location.href = window.CTX_PATH + '/mobile/request/request_status';
                 });

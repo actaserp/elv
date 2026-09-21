@@ -1,0 +1,438 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<head>
+  <style>
+    .wj-header { text-align: center !important; }
+
+    .ai-note { color: #777; font-size: 12px; margin: 2px 0 10px; }
+
+    /* KPI 카드 */
+    .kpi-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+    .kpi-card { border: 1px solid #dfe3ea; border-radius: 8px; padding: 14px 16px; background: #fff; }
+    .kpi-card .kpi-label { font-size: 13px; color: #6b7280; }
+    .kpi-card .kpi-value { font-size: 26px; font-weight: 700; color: #1f2937; margin-top: 4px; line-height: 1.2; }
+    .kpi-card .kpi-value small { font-size: 14px; font-weight: 500; color: #6b7280; margin-left: 2px; }
+    .kpi-card .kpi-sub { font-size: 12px; color: #6b7280; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kpi-card.accent .kpi-value { color: #c0392b; }
+
+    /* Top10 + 차트 */
+    .ai-row { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 0.75fr); gap: 12px; margin-bottom: 14px; }
+    .ai-panel { border: 1px solid #dfe3ea; border-radius: 8px; padding: 10px 12px; background: #fff; min-width: 0; }
+    .ai-panel h4 { font-size: 14px; font-weight: 600; margin: 0 0 8px; color: #1f2937; }
+    .ai-panel h4 span { font-weight: 400; color: #888; font-size: 12px; margin-left: 4px; }
+    .ai-empty { display: none; text-align: center; color: #999; padding: 120px 0; }
+
+    @media (max-width: 1400px) {
+      .ai-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+      .ai-row .ai-panel:first-child { grid-column: 1 / -1; }
+    }
+    @media (max-width: 900px) {
+      .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .ai-row { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    #top10Grid, #detailGrid, #historyGrid { font-size: 13px; }
+    .wj-cell.rec-yes { color: #c0392b; font-weight: 600; }
+    .wj-cell.rec-no  { color: #6b7280; }
+    .wj-cell.score-high { color: #c0392b; font-weight: 600; }
+
+    /* 처리이력 팝업 — 페이지 스크롤과 무관하게 화면 가운데 */
+    #historyWrapper { position: fixed; width: min(1300px, 94vw); max-height: 88vh; overflow-y: auto; }
+    #historyWrapper .popup-title h3 { font-size: 22px; }
+    #historySummary { color: #555; font-size: 13px; margin-bottom: 8px; }
+  </style>
+</head>
+
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>AI고장분석대시보드</h2>
+        <a title="북마크" class="bookmark toggle">내메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img src="/images/icon/ico-nav-home.svg" alt="홈아이콘"></li>
+        <li>관리자운영</li>
+        <li>AI고장분석대시보드</li>
+      </ul>
+    </div>
+
+    <section class="section">
+      <div class="section-top">
+        <div class="search-wrap">
+          <dl>
+            <dt><label>조회기간</label></dt>
+            <dd>
+              <div class="srch-box" style="display: flex; align-items: center; gap: 5px;">
+                <input type="date" id="fromDate" class="form-control2" style="width: 140px;">
+                <span>~</span>
+                <input type="date" id="toDate" class="form-control2" style="width: 140px;">
+              </div>
+            </dd>
+          </dl>
+          <dl>
+            <dt><label for="txtActnm">현장명</label></dt>
+            <dd>
+              <div class="srch-box">
+                <input type="text" id="txtActnm" class="form-control2" placeholder="현장명 검색"/>
+              </div>
+            </dd>
+          </dl>
+          <dl>
+            <dt><label for="cboThreshold">반복기준</label></dt>
+            <dd>
+              <div class="srch-box">
+                <select id="cboThreshold" class="form-control2" style="width: 110px;">
+                  <option value="2">2회 이상</option>
+                  <option value="3">3회 이상</option>
+                  <option value="5">5회 이상</option>
+                </select>
+              </div>
+            </dd>
+          </dl>
+          <dl>
+            <dt><label for="cboGroupBy">묶음기준</label></dt>
+            <dd>
+              <div class="srch-box">
+                <select id="cboGroupBy" class="form-control2" style="width: 120px;">
+                  <option value="greg">고장부위</option>
+                  <option value="cont">고장내용</option>
+                </select>
+              </div>
+            </dd>
+          </dl>
+          <dl>
+            <dt><span class="eq"></span></dt>
+            <dd>
+              <li>
+                <a class="btn btn-delete" title="검색" id="btnSearch">
+                  <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                  검색
+                </a>
+              </li>
+            </dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="container-fluid">
+        <p class="ai-note" id="searchNote">
+          같은 호기에서 같은 고장부위(또는 고장내용)가 조회기간 안에 반복기준 이상 발생한 경우를 반복고장으로 봅니다. 완료일자 기준.
+        </p>
+
+        <div class="kpi-row">
+          <div class="kpi-card">
+            <div class="kpi-label">총 고장건수</div>
+            <div class="kpi-value" id="kpiTotal">-</div>
+          </div>
+          <div class="kpi-card accent">
+            <div class="kpi-label">반복고장 건수</div>
+            <div class="kpi-value" id="kpiRepeat">-</div>
+            <div class="kpi-sub" id="kpiRepeatSub"></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">반복고장 비율</div>
+            <div class="kpi-value" id="kpiRate">-</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">최다 반복 호기</div>
+            <div class="kpi-value" id="kpiTopCnt">-</div>
+            <div class="kpi-sub" id="kpiTopEqup"></div>
+          </div>
+        </div>
+
+        <div class="ai-row">
+          <div class="ai-panel">
+            <h4>반복고장 TOP 10<span>행 클릭 시 처리이력</span></h4>
+            <div id="top10Grid" style="height: 340px;"></div>
+          </div>
+          <div class="ai-panel">
+            <h4 id="partChartTitle">고장부위별 발생빈도<span>상위 10개</span></h4>
+            <div id="partChart" style="height: 340px;"></div>
+            <div class="ai-empty" id="partChartEmpty">조회된 고장처리 내역이 없습니다.</div>
+          </div>
+          <div class="ai-panel">
+            <h4>처리결과 비율</h4>
+            <div id="resultChart" style="height: 340px;"></div>
+            <div class="ai-empty" id="resultChartEmpty">조회된 고장처리 내역이 없습니다.</div>
+          </div>
+        </div>
+
+        <div class="ai-panel">
+          <h4>호기별 반복고장 상세<span id="detailCount"></span></h4>
+          <div id="detailGrid" style="height: 460px;"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 처리이력 팝업 -->
+  <div class="popup-overlay" id="historyOverlay"></div>
+  <div class="popup-wrapper" id="historyWrapper">
+    <div class="popup-title">
+      <h3>반복고장 처리이력</h3>
+      <a onclick="closeHistory()" title="팝업닫기" class="btn-popup-close">
+        <img th:src="@{/images/icon/btn-popup-close.svg}" alt="닫기">
+      </a>
+    </div>
+    <div class="popup-contents">
+      <div id="historySummary"></div>
+      <div id="historyGrid" style="height: 480px;"></div>
+    </div>
+  </div>
+
+  <footer style="margin-top: 24px;">
+    <p>Copyrightⓒ 0000 corp. All rights reserved.</p>
+  </footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <script type="text/javascript">
+
+    let top10Grid, detailGrid, historyGrid, partChart, resultChart;
+    let lastQuery = null;   // 팝업 조회에 같은 조건을 쓰기 위해 보관
+
+    const fmtYmd = v => {
+      const s = v == null ? '' : String(v);
+      return s.length === 8 ? `${s.substring(0, 4)}-${s.substring(4, 6)}-${s.substring(6, 8)}` : s;
+    };
+    const fmtHm = v => {
+      const s = v == null ? '' : String(v).replace(/:/g, '');
+      return s.length >= 4 ? `${s.substring(0, 2)}:${s.substring(2, 4)}` : s;
+    };
+    const toInput = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    document.readyState === 'complete' ? init() : window.onload = init;
+
+    function init() {
+      // 기본 조회기간: 최근 1년 (반복 여부는 기간이 짧으면 거의 드러나지 않는다)
+      const today = new Date();
+      const from = new Date(today);
+      from.setFullYear(from.getFullYear() - 1);
+      from.setDate(from.getDate() + 1);
+      $('#fromDate').val(toInput(from));
+      $('#toDate').val(toInput(today));
+
+      const repeatColumns = function (withRecommend) {
+        const cols = [
+          {binding: 'rank',     header: '순위',     width: 55,  align: 'center'},
+          {binding: 'actnm',    header: '현장명',   width: '2*', minWidth: 140},
+          {binding: 'equpnm',   header: '호기명',   width: 100, align: 'center'},
+          {binding: 'partnm',   header: '고장부위', width: '*', minWidth: 100},
+          {binding: 'cnt',      header: '발생횟수', width: 80,  align: 'center', dataType: wijmo.DataType.Number, format: 'n0'},
+          {binding: 'lastdate', header: '최근발생', width: 100, align: 'center'}
+        ];
+        if (withRecommend) {
+          cols.push({binding: 'cnt90',     header: '최근90일', width: 80,  align: 'center', dataType: wijmo.DataType.Number, format: 'n0'});
+          cols.push({binding: 'score',     header: '우선순위', width: 80,  align: 'center', dataType: wijmo.DataType.Number, format: 'n0'});
+          cols.push({binding: 'recommend', header: '예방점검', width: 85,  align: 'center'});
+        } else {
+          cols.push({binding: 'score',     header: '우선순위', width: 80,  align: 'center', dataType: wijmo.DataType.Number, format: 'n0'});
+        }
+        return cols;
+      };
+
+      const formatRepeat = function (s, e) {
+        if (e.panel !== s.cells) return;
+        const binding = s.columns[e.col].binding;
+        const item = s.rows[e.row].dataItem || {};
+        if (binding === 'lastdate') e.cell.textContent = fmtYmd(item.lastdate);
+        wijmo.toggleClass(e.cell, 'rec-yes', binding === 'recommend' && item.recommend === '권장');
+        wijmo.toggleClass(e.cell, 'rec-no', binding === 'recommend' && item.recommend !== '권장');
+        wijmo.toggleClass(e.cell, 'score-high', binding === 'score' && Number(item.score) >= 80);
+      };
+
+      const makeRepeatGrid = function (selector, withRecommend) {
+        const grid = new wijmo.grid.FlexGrid(selector, {
+          autoGenerateColumns: false,
+          isReadOnly: true,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          headersVisibility: wijmo.grid.HeadersVisibility.Column,
+          columns: repeatColumns(withRecommend),
+          itemsSource: new wijmo.collections.CollectionView([]),
+          formatItem: formatRepeat
+        });
+        // 행 클릭 → 처리이력 팝업
+        grid.hostElement.addEventListener('click', function (e) {
+          const ht = grid.hitTest(e);
+          if (ht.panel !== grid.cells || ht.row < 0) return;
+          const item = grid.rows[ht.row].dataItem;
+          if (item) openHistory(item);
+        });
+        return grid;
+      };
+
+      top10Grid = makeRepeatGrid('#top10Grid', false);
+      detailGrid = makeRepeatGrid('#detailGrid', true);
+      new FlexGridContextMenu(detailGrid);
+
+      partChart = new wijmo.chart.FlexChart('#partChart', {
+        chartType: wijmo.chart.ChartType.Bar,
+        bindingX: 'partnm',
+        legend: {position: wijmo.chart.Position.None},
+        series: [{binding: 'cnt', name: '발생건수'}],
+        palette: ['#2f6fdd'],
+        tooltip: {content: '<b>{x}</b><br/>{y}건'},
+        dataLabel: {content: '{y}', position: wijmo.chart.LabelPosition.Right}
+      });
+
+      resultChart = new wijmo.chart.FlexPie('#resultChart', {
+        binding: 'cnt',
+        bindingName: 'resultnm',
+        innerRadius: 0.55,
+        legend: {position: wijmo.chart.Position.Bottom},
+        palette: ['#3aa37a', '#e8793b', '#c94c7c', '#d9a520', '#6b7a99', '#2aa6b8'],
+        tooltip: {content: '<b>{name}</b><br/>{value}건 ({p:n1}%)'},
+        dataLabel: {content: '{p:n0}%', position: wijmo.chart.PieLabelPosition.Inside}
+      });
+
+      historyGrid = new wijmo.grid.FlexGrid('#historyGrid', {
+        autoGenerateColumns: false,
+        isReadOnly: true,
+        headersVisibility: wijmo.grid.HeadersVisibility.Column,
+        columns: [
+          {binding: 'compdate',   header: '완료일자',   width: 100, align: 'center'},
+          {binding: 'comptime',   header: '완료시간',   width: 75,  align: 'center'},
+          {binding: 'contnm',     header: '고장내용',   width: 130},
+          {binding: 'contents',   header: '고장상세',   width: 170},
+          {binding: 'greginm',    header: '고장부위',   width: 100},
+          {binding: 'reginm',     header: '부위상세',   width: 110},
+          {binding: 'remonm',     header: '고장원인',   width: 100},
+          {binding: 'resunm',     header: '처리내용',   width: 110},
+          {binding: 'resuremark', header: '처리상세',   width: '*', minWidth: 160},
+          {binding: 'resultnm',   header: '처리결과',   width: 85,  align: 'center'},
+          {binding: 'pernm',      header: '처리자',     width: 75,  align: 'center'}
+        ],
+        itemsSource: new wijmo.collections.CollectionView([]),
+        formatItem: function (s, e) {
+          if (e.panel !== s.cells) return;
+          const binding = s.columns[e.col].binding;
+          const item = s.rows[e.row].dataItem || {};
+          if (binding === 'compdate') e.cell.textContent = fmtYmd(item.compdate);
+          if (binding === 'comptime') e.cell.textContent = fmtHm(item.comptime);
+        }
+      });
+
+      search();
+    }
+
+    function search() {
+      const fromDate = ($('#fromDate').val() || '').replaceAll('-', '');
+      const toDate = ($('#toDate').val() || '').replaceAll('-', '');
+      if (!fromDate || !toDate) {
+        Alert.alert('', '조회기간을 입력해주세요.');
+        return;
+      }
+      if (fromDate > toDate) {
+        Alert.alert('', '조회기간 시작일이 종료일보다 늦습니다.');
+        return;
+      }
+
+      const query = {
+        fromDate: fromDate,
+        toDate: toDate,
+        actnm: $('#txtActnm').val().trim(),
+        threshold: $('#cboThreshold').val(),
+        groupBy: $('#cboGroupBy').val(),
+        spjangcd: sessionStorage.getItem('spjangcd')
+      };
+
+      AjaxUtil.getAsyncData('/api/ai/dashboard/summary', query, function (result) {
+        if (!result || result.success === false || !result.data) {
+          Alert.alert('', (result && result.message) || '조회 중 오류가 발생하였습니다.');
+          return;
+        }
+        lastQuery = query;
+        render(result.data, query);
+      });
+    }
+
+    function render(data, query) {
+      const kpi = data.kpi || {};
+      const partLabel = query.groupBy === 'cont' ? '고장내용' : '고장부위';
+
+      $('#kpiTotal').html(Number(kpi.total || 0).toLocaleString() + '<small>건</small>');
+      $('#kpiRepeat').html(Number(kpi.repeatCnt || 0).toLocaleString() + '<small>건</small>');
+      $('#kpiRepeatSub').text('호기·' + partLabel + ' 조합 ' + Number(kpi.repeatGroups || 0).toLocaleString() + '개');
+      $('#kpiRate').html(Number(kpi.repeatRate || 0).toFixed(1) + '<small>%</small>');
+      if (kpi.topEqup) {
+        $('#kpiTopCnt').html(kpi.topCnt + '<small>회</small>');
+        $('#kpiTopEqup').text(kpi.topEqup + ' · ' + kpi.topPart).attr('title', kpi.topEqup + ' · ' + kpi.topPart);
+      } else {
+        $('#kpiTopCnt').text('-');
+        $('#kpiTopEqup').text('').attr('title', '');
+      }
+
+      const numbered = rows => (rows || []).map((r, i) => Object.assign({rank: i + 1}, r));
+      const detail = numbered(data.detail);
+
+      top10Grid.columns.getColumn('partnm').header = partLabel;
+      detailGrid.columns.getColumn('partnm').header = partLabel;
+      top10Grid.itemsSource = new wijmo.collections.CollectionView(detail.slice(0, 10));
+      detailGrid.itemsSource = new wijmo.collections.CollectionView(detail);
+      detailGrid.downloadFileName = '반복고장_상세_' + query.fromDate + '_' + query.toDate;
+      $('#detailCount').text(detail.length.toLocaleString() + '건 · 반복기준 ' + query.threshold + '회 이상');
+
+      // 부위별 발생빈도: 전체 고장 기준, 상위 10개
+      $('#partChartTitle').html(partLabel + '별 발생빈도<span>상위 10개 · 전체 고장 기준</span>');
+      const parts = (data.partDist || []).slice(0, 10);
+      toggleEmpty('#partChart', '#partChartEmpty', parts.length === 0);
+      // 가로 막대는 첫 항목이 맨 아래에 그려지므로 뒤집어서 많은 순서가 위로 오게 한다
+      partChart.itemsSource = parts.slice().reverse();
+      partChart.invalidate();
+
+      const results = data.resultRatio || [];
+      toggleEmpty('#resultChart', '#resultChartEmpty', results.length === 0);
+      resultChart.itemsSource = results;
+      resultChart.invalidate();
+    }
+
+    function toggleEmpty(chartSel, emptySel, isEmpty) {
+      $(chartSel).toggle(!isEmpty);
+      $(emptySel).toggle(isEmpty);
+    }
+
+    function openHistory(item) {
+      if (!lastQuery) return;
+      const param = {
+        fromDate: lastQuery.fromDate,
+        toDate: lastQuery.toDate,
+        groupBy: lastQuery.groupBy,
+        actcd: item.actcd,
+        equpcd: item.equpcd,
+        gkey: item.gkey,
+        spjangcd: lastQuery.spjangcd
+      };
+      AjaxUtil.getAsyncData('/api/ai/dashboard/history', param, function (result) {
+        if (!result || result.success === false) {
+          Alert.alert('', (result && result.message) || '조회 중 오류가 발생하였습니다.');
+          return;
+        }
+        $('#historySummary').text(
+          item.actnm + ' ' + item.equpnm + ' · ' + item.partnm + ' · ' +
+          fmtYmd(lastQuery.fromDate) + ' ~ ' + fmtYmd(lastQuery.toDate) + ' · ' + (result.data || []).length + '건');
+        $('#historyOverlay, #historyWrapper').show();
+        historyGrid.itemsSource = new wijmo.collections.CollectionView(result.data || []);
+        historyGrid.invalidate();
+      });
+    }
+
+    function closeHistory() {
+      $('#historyOverlay, #historyWrapper').hide();
+    }
+
+    $(document.body).ready(function () {
+      $('#btnSearch').click(search);
+      $('#txtActnm').on('keypress', function (e) {
+        if (e.keyCode === 13) search();
+      });
+      $('#cboThreshold, #cboGroupBy').on('change', search);
+      $('#historyOverlay').on('click', closeHistory);
+      $(document).on('keydown', function (e) {
+        if (e.key === 'Escape') closeHistory();
+      });
+    });
+
+  </script>
+</th:block>
+
+</html>

@@ -60,6 +60,32 @@
     /* ── 등록 폼 직접 노출 ── */
     .reg-wrap { padding: 16px 16px 100px; }
 
+    /* ── AI 참고자료 카드 ── */
+    .ai-card { border: 1px solid #c7d8fb; background: #f5f9ff; border-radius: 12px; margin: 4px 0 14px; overflow: hidden; }
+    .ai-card-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; }
+    .ai-card-title { font-weight: 700; font-size: 14px; color: #1e4fa8; white-space: nowrap; }
+    .ai-card-sum { font-size: 12px; color: #6b7280; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ai-card-toggle { font-size: 12px; color: #1e4fa8; white-space: nowrap; }
+    .ai-card-body { padding: 0 12px 12px; }
+    .ai-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+    .ai-tabs button { flex: 1; height: 34px; border: 1px solid #c7d8fb; background: #fff; color: #1e4fa8; border-radius: 8px; font-size: 13px; font-weight: 600; }
+    .ai-tabs button.active { background: #2f6fdd; border-color: #2f6fdd; color: #fff; }
+    .ai-item { background: #fff; border: 1px solid #e3e7ee; border-radius: 10px; padding: 9px 11px; margin-bottom: 6px; cursor: pointer; }
+    .ai-item-top { display: flex; gap: 6px; align-items: baseline; font-size: 12px; color: #6b7280; }
+    .ai-item-top .sim { font-weight: 700; color: #2f6fdd; font-size: 13px; }
+    .ai-item-top .date { margin-left: auto; white-space: nowrap; }
+    .ai-item-main { font-size: 13px; color: #1f2937; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ai-item-main b { color: #111827; }
+    .ai-badge-res { font-size: 11px; border-radius: 9px; padding: 0 6px; border: 1px solid #9fd9b9; color: #17794a; background: #e7f6ee; }
+    .ai-badge-res.warn { border-color: #f3c48f; color: #b25b00; background: #fff3e6; }
+    .ai-empty { font-size: 13px; color: #9ca3af; text-align: center; padding: 14px 0; }
+    .ai-skel { height: 48px; border-radius: 10px; margin-bottom: 6px;
+               background: linear-gradient(90deg, #eef2f7 25%, #f7f9fc 37%, #eef2f7 63%); background-size: 400% 100%;
+               animation: aiSkel 1.2s ease infinite; }
+    @keyframes aiSkel { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+    .ai-detail-grid { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 6px 10px; font-size: 14px; }
+    .ai-detail-grid span:nth-child(odd) { color: #6b7280; }
+
     /* ── 바텀시트 팝업 공통 ── */
     .popup-overlay {
         display: none;
@@ -223,6 +249,7 @@
     <script th:src="@{/js/common.js}"></script>
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
     <script th:src="@{/js/Mobile.js}"></script>
+    <script th:src="@{/js/ai_fault.js}"></script>
     <script src="https://kit.fontawesome.com/84dc79ac13.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 </head>
@@ -320,6 +347,23 @@
                     <label>고장상세내용</label>
                     <input type="text" id="regContents" placeholder="고장접수 선택 시 자동입력" readonly style="background:#f5f5f5; color:#666;">
                 </div>
+
+                <!-- ── AI 참고자료 (고장접수 선택 후 표시) ── -->
+                <div class="ai-card" id="aiCard" style="display:none;">
+                    <div class="ai-card-head" onclick="toggleAiCard()">
+                        <span class="ai-card-title">🤖 AI 참고자료</span>
+                        <span class="ai-card-sum" id="aiCardSum"></span>
+                        <span class="ai-card-toggle" id="aiCardToggle">접기 ▲</span>
+                    </div>
+                    <div class="ai-card-body" id="aiCardBody">
+                        <div class="ai-tabs">
+                            <button type="button" class="active" data-tab="unit" onclick="switchAiTab('unit')">동일호기 이력</button>
+                            <button type="button" data-tab="similar" onclick="switchAiTab('similar')">유사사례 Top 3</button>
+                        </div>
+                        <div class="ai-tab-pane" id="aiPaneUnit"></div>
+                        <div class="ai-tab-pane" id="aiPaneSimilar" style="display:none;"></div>
+                    </div>
+                </div>
                 <div class="form-row">
                     <label>고장부위</label>
                     <input type="text" id="regContremark" placeholder="고장부위 선택" readonly onclick="openGreginmPopup()">
@@ -401,6 +445,17 @@
 </div>
 
 <!-- ── 고장접수 선택 팝업 ── -->
+<!-- AI 참고자료 상세 팝업 -->
+<div class="popup-overlay" id="aiCasePopup">
+    <div class="popup-sheet">
+        <div class="popup-header">
+            <span id="aiCasePopupTitle">처리 사례</span>
+            <button class="popup-close" onclick="closePopup('aiCasePopup')">×</button>
+        </div>
+        <div class="popup-body" id="aiCasePopupBody"></div>
+    </div>
+</div>
+
 <div class="popup-overlay" id="repairPopup">
     <div class="popup-sheet">
         <div class="popup-header">
@@ -669,6 +724,9 @@
 
         // ★ 현장 담당자 자동 바인드 (TB_E601.perid)
         bindActManager(item.actcd);
+
+        // AI 참고자료 (동일호기 이력 + 유사사례)
+        loadAiCard(item);
     }
 
     // 고장접수에서 불러온 필드 readonly 스타일 적용
@@ -1124,6 +1182,7 @@
         document.getElementById('regMgrPerid').value   = '';
         document.getElementById('regMgrPernm').value   = '';
         document.getElementById('selectedRepairCard').style.display = 'none';
+        hideAiCard();
         removeRepairFile();
 
         // 현장/호기 readonly 해제
@@ -1139,7 +1198,138 @@
     function openPopup(id)  { document.getElementById(id).classList.add('active');    }
     function closePopup(id) { document.getElementById(id).classList.remove('active'); }
 
-    ['actPopup', 'equpPopup', 'repairPopup', 'greginmPopup', 'reginmPopup', 'remonmPopup', 'facnmPopup', 'resunmPopup', 'resultnmPopup', 'processorPopup'].forEach(function (id) {
+    /* ── AI 참고자료 카드 ──────────────────────────────────────
+     * 고장접수를 고르면 두 조회를 동시에 보낸다: 같은 호기 처리이력 / 증상이 비슷한 다른 처리사례.
+     * 3초 안에 못 받으면 그 탭은 "불러오지 못함"으로 두고, 둘 다 실패하면 카드를 숨긴다 (입력 흐름 방해 금지).
+     */
+    var aiReq = 0;
+    var aiData = {unit: [], similar: []};
+    var aiRefKey = '';
+
+    function aiEsc(s) { return AiFault.esc(s); }
+
+    // 화면이 열릴 때 유사사례 색인을 미리 준비시킨다 — 색인이 없거나 오래됐으면 첫 조회가 3초를 넘길 수 있다
+    $(function () { if (window.AiFault) AiFault.get('/api/ai/index_status', {which: 'case', build: true}); });
+
+    function hideAiCard() {
+        aiReq++;
+        document.getElementById('aiCard').style.display = 'none';
+    }
+
+    function toggleAiCard(forceOpen) {
+        const body = document.getElementById('aiCardBody');
+        const open = forceOpen === true ? true : body.style.display === 'none';
+        body.style.display = open ? '' : 'none';
+        document.getElementById('aiCardToggle').textContent = open ? '접기 ▲' : '펼치기 ▼';
+    }
+
+    function switchAiTab(tab) {
+        document.querySelectorAll('.ai-tabs button').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === tab); });
+        document.getElementById('aiPaneUnit').style.display    = tab === 'unit' ? '' : 'none';
+        document.getElementById('aiPaneSimilar').style.display = tab === 'similar' ? '' : 'none';
+    }
+
+    function loadAiCard(item) {
+        if (!window.AiFault || !item || !item.recedate) return;
+        const my = ++aiReq;
+        aiRefKey = item.recedate + '-' + (item.recenum || '');
+        aiData = {unit: [], similar: []};
+        const skel = '<div class="ai-skel"></div><div class="ai-skel"></div>';
+        document.getElementById('aiPaneUnit').innerHTML = skel;
+        document.getElementById('aiPaneSimilar').innerHTML = skel;
+        document.getElementById('aiCardSum').textContent = '불러오는 중…';
+        document.getElementById('aiCard').style.display = '';
+        toggleAiCard(true);
+        switchAiTab('unit');
+
+        let pending = 2, unitOk = false, simOk = false, unitCnt = 0, simCnt = 0;
+        const done = function () {
+            if (my !== aiReq || --pending > 0) return;
+            if (!unitOk && !simOk) { hideAiCard(); return; }
+            document.getElementById('aiCardSum').textContent = '같은 호기 ' + unitCnt + '건 · 유사사례 ' + simCnt + '건';
+            // 참고할 게 거의 없으면 접어서 입력을 방해하지 않는다
+            if (unitCnt === 0 && simCnt === 0) toggleAiCard();
+            else if (unitCnt === 0) switchAiTab('similar');
+            AiFault.log({source: 'MOBILE', feature: 'CASE', event: 'OPEN', ref_key: aiRefKey,
+                         query_text: (item.contnm || '') + ' ' + (item.contents || ''), result_cnt: simCnt,
+                         top_score: simCnt ? aiData.similar[0].similarity : '', detail: 'unit=' + unitCnt});
+        };
+
+        // 동일호기 이력은 지금 처리하려는 건과 같은 접수에서 나온 처리건이 있으면 빼고 보여준다
+        AiFault.get('/api/ai/similar/unit_history', {actcd: item.actcd, equpcd: item.equpcd || '', limit: 6}, function (rows) {
+            if (my !== aiReq) return;
+            rows = (rows || []).filter(r => !(r.recedate === item.recedate && r.recenum === item.recenum)).slice(0, 5);
+            aiData.unit = rows;
+            unitOk = true; unitCnt = rows.length;
+            renderAiList('aiPaneUnit', rows, false);
+            done();
+        }, function () {
+            if (my !== aiReq) return;
+            document.getElementById('aiPaneUnit').innerHTML = '<div class="ai-empty">이력을 불러오지 못했습니다.</div>';
+            done();
+        }, 3000);
+
+        AiFault.post('/api/ai/similar/cases', {recedate: item.recedate, recenum: item.recenum, topN: 3}, function (data) {
+            if (my !== aiReq) return;
+            const rows = (data && data.cases) || [];
+            aiData.similar = rows;
+            simOk = true; simCnt = rows.length;
+            renderAiList('aiPaneSimilar', rows, true);
+            done();
+        }, function () {
+            if (my !== aiReq) return;
+            document.getElementById('aiPaneSimilar').innerHTML = '<div class="ai-empty">유사사례를 불러오지 못했습니다.</div>';
+            done();
+        }, 3000);
+    }
+
+    function renderAiList(paneId, rows, similar) {
+        const pane = document.getElementById(paneId);
+        if (!rows.length) {
+            pane.innerHTML = '<div class="ai-empty">' + (similar ? '비슷한 처리사례가 없습니다.' : '최근 처리이력 없음') + '</div>';
+            return;
+        }
+        pane.innerHTML = rows.map(function (r, i) {
+            const res = r.resultnm || '';
+            const resCls = res && res !== '처리완료' ? ' warn' : '';
+            const action = [r.resunm, r.resuremark].filter(Boolean).join(' · ') || '-';
+            return '<div class="ai-item" onclick="openAiCase(\'' + (similar ? 'similar' : 'unit') + '\',' + i + ')">' +
+                '<div class="ai-item-top">' +
+                (similar ? '<span class="sim">' + r.similarity + '%</span>' : '') +
+                '<span>' + aiEsc(similar ? (r.actnm + ' ' + r.equpnm) : (r.contnm || '고장내용 없음')) + '</span>' +
+                (res ? '<span class="ai-badge-res' + resCls + '">' + aiEsc(res) + '</span>' : '') +
+                '<span class="date">' + formatDate(r.compdate) + '</span></div>' +
+                '<div class="ai-item-main">' + (similar ? '<b>' + aiEsc(r.contnm || '') + '</b> ' + aiEsc(r.contents || '') + ' → ' : '') +
+                (r.greginm ? '[' + aiEsc(r.greginm) + '] ' : '') + aiEsc(action) + '</div>' +
+                '</div>';
+        }).join('');
+    }
+
+    function openAiCase(kind, idx) {
+        const r = (aiData[kind] || [])[idx];
+        if (!r) return;
+        const row = function (label, value) { return '<span>' + label + '</span><span>' + (aiEsc(value) || '-') + '</span>'; };
+        document.getElementById('aiCasePopupTitle').textContent = kind === 'similar' ? '유사 처리사례 (' + r.similarity + '%)' : '같은 호기 처리이력';
+        document.getElementById('aiCasePopupBody').innerHTML =
+            '<div class="ai-detail-grid">' +
+            row('완료일자', formatDate(r.compdate) + (r.comptime ? ' ' + formatTime(r.comptime) : '')) +
+            row('현장 / 호기', (r.actnm || '') + ' ' + (r.equpnm || '')) +
+            row('고장내용', r.contnm) +
+            row('고장상세', r.contents) +
+            row('고장부위', [r.greginm, r.reginm].filter(Boolean).join(' / ')) +
+            row('고장원인', [r.remonm, r.remoremark].filter(Boolean).join(' / ')) +
+            row('처리내용', r.resunm) +
+            row('처리상세', r.resuremark) +
+            row('처리결과', r.resultnm) +
+            row('처리자', r.pernm) +
+            '</div>';
+        openPopup('aiCasePopup');
+        AiFault.log({source: 'MOBILE', feature: 'CASE', event: 'CLICK', ref_key: aiRefKey,
+                     final_value: (kind === 'similar' ? 'S:' : 'U:') + r.compdate + '-' + r.compnum,
+                     rank_no: idx + 1, top_score: kind === 'similar' ? r.similarity : ''});
+    }
+
+    ['actPopup', 'equpPopup', 'repairPopup', 'aiCasePopup', 'greginmPopup', 'reginmPopup', 'remonmPopup', 'facnmPopup', 'resunmPopup', 'resultnmPopup', 'processorPopup'].forEach(function (id) {
         document.getElementById(id).addEventListener('click', function (e) {
             if (e.target === this) closePopup(id);
         });

@@ -165,7 +165,8 @@ public class RequestRepairService {
 
         return this.sqlRunner.getRows(sql, param);
     }
-    public void saveRepair(
+    /** @return 새로 채번한 접수번호 */
+    public String saveRepair(
             String custcd,
             String spjangcd,
             String recedate,
@@ -241,6 +242,7 @@ public class RequestRepairService {
                 """;
 
         namedParameterJdbcTemplate.update(sql, param);
+        return recenum;
     }
 
     // ── 고장접수 수정 (TB_E401 UPDATE) ───────────────────────

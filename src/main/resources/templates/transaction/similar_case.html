@@ -1,0 +1,435 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<head>
+  <style>
+    .wj-header { text-align: center !important; }
+    .ai-note { color: #6b7280; font-size: 12px; margin: 2px 0 10px; line-height: 1.5; }
+    .ai-panel { border: 1px solid #dfe3ea; border-radius: 8px; padding: 10px 12px; background: #fff; min-width: 0; margin-bottom: 12px; }
+    .ai-panel h4 { font-size: 14px; font-weight: 600; margin: 0 0 8px; color: #1f2937; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ai-panel h4 .sub { font-weight: 400; color: #888; font-size: 12px; }
+    .ai-panel h4 .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+    .ai-btn { height: 32px; padding: 0 12px; border: 1px solid #cfd6df; border-radius: 4px; background: #fff; cursor: pointer; font-size: 13px; }
+    .ai-btn.primary { background: #2f6fdd; border-color: #2f6fdd; color: #fff; }
+    .ai-btn.danger { color: #c0392b; }
+    .status-bar { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; background: #f6f8fb; border: 1px solid #e3e7ee; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; }
+    .status-bar b { font-size: 16px; color: #1f2937; }
+    .status-bar .right { margin-left: auto; }
+    .kpi-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+    .kpi-card { border: 1px solid #dfe3ea; border-radius: 8px; padding: 12px 14px; background: #fff; }
+    .kpi-card .kpi-label { font-size: 13px; color: #6b7280; }
+    .kpi-card .kpi-value { font-size: 24px; font-weight: 700; color: #1f2937; margin-top: 2px; }
+    .kpi-card .kpi-value small { font-size: 13px; font-weight: 500; color: #6b7280; margin-left: 2px; }
+    .test-form { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px 10px; align-items: center; max-width: 900px; margin-bottom: 10px; }
+    .test-form input, .test-form select { height: 32px; padding: 0 8px; border: 1px solid #cfd6df; border-radius: 4px; }
+    .case-card { border: 1px solid #e3e7ee; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+    .case-card .head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+    .case-card .sim { font-weight: 700; color: #2f6fdd; min-width: 48px; }
+    .case-card .meta { color: #6b7280; font-size: 12px; }
+    .case-card .body { margin-top: 6px; font-size: 13px; display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 3px 8px; }
+    .case-card .body span:nth-child(odd) { color: #6b7280; }
+    .same-code { font-size: 11px; color: #17794a; border: 1px solid #9fd9b9; background: #e7f6ee; border-radius: 10px; padding: 1px 7px; }
+    .wj-cell.st-ex { color: #c0392b; font-weight: 600; }
+    .wj-cell.st-none { color: #9ca3af; }
+    .settings-table td { padding: 6px 8px; font-size: 13px; }
+    .settings-table input[type=number] { width: 80px; height: 30px; padding: 0 6px; border: 1px solid #cfd6df; border-radius: 4px; text-align: right; }
+    .warn-box { display: none; background: #fff7e6; border: 1px solid #f3c48f; color: #8a4b00; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; font-size: 13px; }
+    @media (max-width: 1100px) { .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+</head>
+
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>유사사례DB관리</h2>
+        <a title="북마크" class="bookmark toggle">내메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img src="/images/icon/ico-nav-home.svg" alt="홈아이콘"></li>
+        <li>관리자운영</li>
+        <li>유사사례DB관리</li>
+      </ul>
+    </div>
+
+    <div class="warn-box" id="tableWarn">
+      AI 테이블이 아직 없습니다. 본사 DB 에 <b>20260917_elv_ai_tables_create.sql</b> 을 실행해야 사례 제외·설정·통계가 동작합니다.
+    </div>
+
+    <div class="status-bar">
+      <span>추천 대상 사례 <b id="stSize">-</b> 건</span>
+      <span>색인 시각 <b id="stBuilt" style="font-size: 13px;">-</b></span>
+      <span class="ai-note" style="margin: 0;">처리내용이 있고 접수와 연결된 고장처리 건 (최근 10만 건). 6시간마다 자동으로 다시 읽습니다.</span>
+      <span class="right"><button type="button" class="ai-btn" id="btnReindex">지금 다시 읽기</button></span>
+    </div>
+
+    <div class="tab-wrap">
+      <ul class="tab-links">
+        <li><a href="#tabCases" id="casesTabLink">사례 DB</a></li>
+        <li><a href="#tabTest" id="testTabLink">추천 테스트</a></li>
+        <li><a href="#tabStats" id="statsTabLink">열람 통계 · 설정</a></li>
+      </ul>
+
+      <div class="tab-contents">
+        <!-- ── 탭 1: 사례 DB ── -->
+        <section class="tab-item" id="tabCases">
+          <section class="section">
+            <div class="section-top">
+              <div class="search-wrap">
+                <dl>
+                  <dt><label>완료기간</label></dt>
+                  <dd>
+                    <div class="srch-box" style="display: flex; align-items: center; gap: 5px;">
+                      <input type="date" id="caseFrom" class="form-control2" style="width: 140px;">
+                      <span>~</span>
+                      <input type="date" id="caseTo" class="form-control2" style="width: 140px;">
+                    </div>
+                  </dd>
+                </dl>
+                <dl>
+                  <dt><label for="caseActnm">현장명</label></dt>
+                  <dd><div class="srch-box"><input type="text" id="caseActnm" class="form-control2" placeholder="현장명"></div></dd>
+                </dl>
+                <dl>
+                  <dt><label for="caseKeyword">내용</label></dt>
+                  <dd><div class="srch-box"><input type="text" id="caseKeyword" class="form-control2" placeholder="고장·원인·처리 내용"></div></dd>
+                </dl>
+                <dl>
+                  <dt><label for="caseExOnly">제외만</label></dt>
+                  <dd><div class="srch-box" style="padding-top: 6px;"><input type="checkbox" id="caseExOnly"></div></dd>
+                </dl>
+                <dl>
+                  <dt><span class="eq"></span></dt>
+                  <dd><li><a class="btn btn-delete" id="btnCaseSearch"><img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘"> 검색</a></li></dd>
+                </dl>
+              </div>
+            </div>
+            <div class="container-fluid">
+              <div class="ai-panel">
+                <h4>고장처리 사례 <span class="sub" id="caseCount"></span>
+                  <span class="right">
+                    <button type="button" class="ai-btn danger" id="btnExclude">추천에서 제외</button>
+                    <button type="button" class="ai-btn" id="btnInclude">제외 해제</button>
+                  </span>
+                </h4>
+                <p class="ai-note">내용이 부실하거나 잘못 입력된 사례를 제외하면 모바일 고장처리등록의 유사사례 추천에 나오지 않습니다. (여러 행 선택 가능)</p>
+                <div id="caseGrid" style="height: 560px;"></div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <!-- ── 탭 2: 추천 테스트 ── -->
+        <section class="tab-item" id="tabTest">
+          <div class="ai-panel">
+            <h4>추천 테스트 <span class="sub">고장접수에서 기사에게 보여줄 유사사례를 미리 확인합니다 (노출 기준 무시하고 모두 표시)</span></h4>
+            <div class="test-form">
+              <label for="testCont">고장내용</label>
+              <select id="testCont"><option value="">(선택 안 함)</option></select>
+              <label for="testText">고장상세내용</label>
+              <input type="text" id="testText" placeholder="예) 5층 문 안닫힘 / 운행중 소음">
+              <label for="testTop">표시 건수</label>
+              <select id="testTop" style="width: 100px;"><option>3</option><option selected>5</option><option>10</option></select>
+            </div>
+            <button type="button" class="ai-btn primary" id="btnTest">찾기</button>
+            <span class="ai-note" id="testInfo" style="margin-left: 8px;"></span>
+            <div id="testResult" style="margin-top: 12px;"></div>
+          </div>
+        </section>
+
+        <!-- ── 탭 3: 열람 통계 · 설정 ── -->
+        <section class="tab-item" id="tabStats">
+          <section class="section">
+            <div class="section-top">
+              <div class="search-wrap">
+                <dl>
+                  <dt><label>조회기간</label></dt>
+                  <dd>
+                    <div class="srch-box" style="display: flex; align-items: center; gap: 5px;">
+                      <input type="date" id="statFrom" class="form-control2" style="width: 140px;">
+                      <span>~</span>
+                      <input type="date" id="statTo" class="form-control2" style="width: 140px;">
+                    </div>
+                  </dd>
+                </dl>
+                <dl>
+                  <dt><span class="eq"></span></dt>
+                  <dd><li><a class="btn btn-delete" id="btnStats"><img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘"> 검색</a></li></dd>
+                </dl>
+              </div>
+            </div>
+            <div class="container-fluid">
+              <div class="kpi-row">
+                <div class="kpi-card"><div class="kpi-label">참고카드 열람</div><div class="kpi-value" id="kOpens">-</div></div>
+                <div class="kpi-card"><div class="kpi-label">사례 클릭</div><div class="kpi-value" id="kClicks">-</div></div>
+                <div class="kpi-card"><div class="kpi-label">클릭률 (접수 기준)</div><div class="kpi-value" id="kRate">-</div></div>
+                <div class="kpi-card"><div class="kpi-label">추천 사례 없음</div><div class="kpi-value" id="kNoCase">-</div></div>
+              </div>
+              <div class="ai-panel">
+                <h4>최근 기록</h4>
+                <div id="logGrid" style="height: 320px;"></div>
+              </div>
+              <div class="ai-panel">
+                <h4>설정 <span class="right"><button type="button" class="ai-btn primary" id="btnSaveSettings">저장</button></span></h4>
+                <table class="settings-table">
+                  <tr><td>유사사례 노출 최소 유사도</td><td><input type="number" id="setCase" min="0" max="100"> %</td>
+                    <td class="ai-note" style="margin: 0;">이보다 낮은 사례는 기사 화면에 표시하지 않습니다</td></tr>
+                  <tr><td>현장명 마스킹</td><td><label><input type="checkbox" id="setMask"> 사용</label></td>
+                    <td class="ai-note" style="margin: 0;">다른 현장 사례의 현장명을 "햇○○아파트" 처럼 가립니다</td></tr>
+                </table>
+              </div>
+            </div>
+          </section>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <footer style="margin-top: 24px;">
+    <p>Copyrightⓒ 0000 corp. All rights reserved.</p>
+  </footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <script th:src="@{/js/ai_fault.js}"></script>
+  <script type="text/javascript">
+    let caseGrid, logGrid;
+    const esc = AiFault.esc;
+    const toInput = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const fmtYmd = v => { const s = v == null ? '' : String(v); return s.length === 8 ? `${s.substring(0, 4)}-${s.substring(4, 6)}-${s.substring(6, 8)}` : s; };
+    const fmtTs = v => {
+      if (!v) return '';
+      const d = typeof v === 'number' ? new Date(v) : new Date(String(v).replace(' ', 'T'));
+      return isNaN(d) ? String(v) : toInput(d) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    };
+
+    document.readyState === 'complete' ? init() : window.onload = init;
+
+    function init() {
+      const today = new Date();
+      const from = new Date(today); from.setMonth(from.getMonth() - 3);
+      $('#caseFrom').val(toInput(from));
+      $('#caseTo').val(toInput(today));
+      const sFrom = new Date(today); sFrom.setDate(sFrom.getDate() - 29);
+      $('#statFrom').val(toInput(sFrom));
+      $('#statTo').val(toInput(today));
+
+      caseGrid = new wijmo.grid.FlexGrid('#caseGrid', {
+        autoGenerateColumns: false, isReadOnly: true,
+        selectionMode: wijmo.grid.SelectionMode.ListBox,
+        headersVisibility: wijmo.grid.HeadersVisibility.Column,
+        columns: [
+          {binding: 'status', header: '추천', width: 80, align: 'center'},
+          {binding: 'compdate', header: '완료일자', width: 100, align: 'center'},
+          {binding: 'actnm', header: '현장명', width: 180},
+          {binding: 'equpnm', header: '호기', width: 80, align: 'center'},
+          {binding: 'contnm', header: '고장내용', width: 120},
+          {binding: 'contents', header: '고장상세', width: 150},
+          {binding: 'greginm', header: '고장부위', width: 95},
+          {binding: 'remonm', header: '고장원인', width: 95},
+          {binding: 'resunm', header: '처리내용', width: 100},
+          {binding: 'resuremark', header: '처리상세', width: '*', minWidth: 160},
+          {binding: 'resultnm', header: '처리결과', width: 80, align: 'center'},
+          {binding: 'exclude_reason', header: '제외사유', width: 130}
+        ],
+        itemsSource: new wijmo.collections.CollectionView([]),
+        formatItem: function (s, e) {
+          if (e.panel !== s.cells) return;
+          const b = s.columns[e.col].binding;
+          const item = s.rows[e.row].dataItem || {};
+          if (b === 'compdate') e.cell.textContent = fmtYmd(item.compdate);
+          wijmo.toggleClass(e.cell, 'st-ex', b === 'status' && item.excluded);
+          wijmo.toggleClass(e.cell, 'st-none', b === 'status' && !item.excluded && !item.indexed);
+        }
+      });
+      new FlexGridContextMenu(caseGrid);
+
+      logGrid = new wijmo.grid.FlexGrid('#logGrid', {
+        autoGenerateColumns: false, isReadOnly: true,
+        headersVisibility: wijmo.grid.HeadersVisibility.Column,
+        columns: [
+          {binding: '_created', header: '일시', width: 140, align: 'center'},
+          {binding: 'user_name', header: '사용자', width: 90, align: 'center'},
+          {binding: 'event', header: '구분', width: 70, align: 'center'},
+          {binding: 'ref_key', header: '접수', width: 120, align: 'center'},
+          {binding: 'query_text', header: '고장내용', width: '*'},
+          {binding: 'result_cnt', header: '사례수', width: 70, align: 'right'},
+          {binding: 'final_value', header: '클릭한 사례', width: 140, align: 'center'},
+          {binding: 'rank_no', header: '순위', width: 60, align: 'center'},
+          {binding: 'top_score', header: '유사도', width: 70, align: 'right'}
+        ],
+        itemsSource: new wijmo.collections.CollectionView([]),
+        formatItem: function (s, e) {
+          if (e.panel !== s.cells) return;
+          const b = s.columns[e.col].binding;
+          const item = s.rows[e.row].dataItem || {};
+          if (b === '_created') e.cell.textContent = fmtTs(item._created);
+          if (b === 'event') e.cell.textContent = item.event === 'OPEN' ? '열람' : item.event === 'CLICK' ? '클릭' : item.event;
+        }
+      });
+
+      loadStatus(true);
+      loadSettings();
+      loadCodes();
+      searchCases();
+    }
+
+    function loadStatus(build) {
+      AiFault.get('/api/ai/index_status', {which: 'case', build: build}, function (s) {
+        if (!s || s.size < 0) return;
+        $('#stSize').text(Number(s.size).toLocaleString());
+        $('#stBuilt').text(s.builtAt);
+      });
+    }
+
+    function reindex() {
+      AjaxUtil.postAsyncData('/api/ai/similar/reindex', {}, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '처리 중 오류가 발생하였습니다.'); return; }
+        $('#stSize').text(Number(res.data.size).toLocaleString());
+        $('#stBuilt').text(res.data.builtAt);
+        Alert.alert('', '사례 ' + Number(res.data.size).toLocaleString() + '건을 다시 읽었습니다.');
+      });
+    }
+
+    let settings = {};
+    function loadSettings() {
+      AiFault.get('/api/ai/settings', {}, function (d) {
+        settings = d || {};
+        $('#tableWarn').toggle(settings.tablesReady === false);
+        $('#setCase').val(settings.case_threshold);
+        $('#setMask').prop('checked', settings.mask_site === 'Y');
+      });
+    }
+
+    function saveSettings() {
+      AjaxUtil.postAsyncData('/api/ai/settings/save', {
+        case_threshold: $('#setCase').val(), mask_site: $('#setMask').is(':checked') ? 'Y' : 'N'
+      }, function (res) {
+        Alert.alert('', (res && res.message) || '저장 중 오류가 발생하였습니다.');
+        if (res && res.success !== false) loadSettings();
+      });
+    }
+
+    function loadCodes() {
+      AiFault.get('/api/ai/classify/codes', {}, function (rows) {
+        (rows || []).filter(r => r.useyn === '1').forEach(r => $('#testCont').append($('<option>').val(r.contcd).text(r.contnm)));
+      });
+    }
+
+    // ── 사례 DB ──
+    function searchCases() {
+      const from = $('#caseFrom').val(), to = $('#caseTo').val();
+      if (!from || !to) { Alert.alert('', '완료기간을 입력해주세요.'); return; }
+      AjaxUtil.getAsyncData('/api/ai/similar/case_list', {
+        fromDate: from, toDate: to, actnm: $('#caseActnm').val(), keyword: $('#caseKeyword').val(),
+        excludedOnly: $('#caseExOnly').is(':checked')
+      }, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '조회 중 오류가 발생하였습니다.'); return; }
+        const rows = (res.data || []).map(r => Object.assign(r, {status: r.excluded ? '제외' : r.indexed ? '대상' : '처리내용 없음'}));
+        caseGrid.itemsSource = new wijmo.collections.CollectionView(rows);
+        caseGrid.downloadFileName = '유사사례DB';
+        const ex = rows.filter(r => r.excluded).length;
+        $('#caseCount').text(rows.length.toLocaleString() + '건' + (rows.length >= 3000 ? ' (최대 3,000건까지 표시)' : '') + ' · 제외 ' + ex + '건');
+      });
+    }
+
+    function setExcluded(exclude) {
+      const items = caseGrid.selectedItems.filter(i => i.excluded !== exclude);
+      if (items.length === 0) {
+        Alert.alert('', exclude ? '제외할 사례를 선택해주세요. (이미 제외된 건은 건너뜁니다)' : '제외 해제할 사례를 선택해주세요.');
+        return;
+      }
+      const go = function (reason) {
+        let done = 0, failed = null;
+        const next = function (i) {
+          if (i >= items.length) {
+            Alert.alert('', failed ? failed : (exclude ? done + '건을 추천에서 제외했습니다.' : done + '건의 제외를 해제했습니다.'));
+            searchCases();
+            return;
+          }
+          AiFault.post('/api/ai/similar/exclude', {
+            compdate: items[i].compdate, compnum: items[i].compnum, exclude: exclude, reason: reason || ''
+          }, function () { done++; next(i + 1); }, function (msg) { failed = msg || '처리 중 오류가 발생하였습니다.'; next(items.length); });
+        };
+        next(0);
+      };
+      if (exclude) {
+        const reason = window.prompt(items.length + '건을 추천에서 제외합니다. 제외 사유 (선택)', '내용 부실');
+        if (reason === null) return;
+        go(reason);
+      } else {
+        Alert.confirm('', items.length + '건의 제외를 해제하시겠습니까?', function () { go(''); });
+      }
+    }
+
+    // ── 추천 테스트 ──
+    function runTest() {
+      const text = $('#testText').val().trim();
+      const contcd = $('#testCont').val();
+      const contnm = contcd ? $('#testCont option:selected').text() : '';
+      if (!text && !contcd) { Alert.alert('', '고장내용이나 고장상세내용을 입력해주세요.'); return; }
+      AjaxUtil.postAsyncData('/api/ai/similar/cases', {
+        contcd: contcd, text: (contnm + ' ' + text).trim(), topN: $('#testTop').val(), excludeSameUnit: false, test: true
+      }, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '처리 중 오류가 발생하였습니다.'); return; }
+        const d = res.data || {};
+        const cases = d.cases || [];
+        $('#testInfo').text('사례 ' + Number(d.indexSize || 0).toLocaleString() + '건 중 ' + cases.length + '건 · 기사 화면 노출 기준 ' + (settings.case_threshold || '-') + '% 이상');
+        const $r = $('#testResult').empty();
+        if (cases.length === 0) { $r.html('<p class="ai-note">비슷한 사례가 없습니다.</p>'); return; }
+        cases.forEach(function (c) {
+          const below = Number(c.similarity) < Number(settings.case_threshold || 0);
+          $r.append(
+            '<div class="case-card"' + (below ? ' style="opacity:.55"' : '') + '>' +
+            '<div class="head"><span class="sim">' + c.similarity + '%</span><b>' + esc(c.contnm) + '</b> ' + esc(c.contents || '') +
+            (c.same_code ? ' <span class="same-code">같은 고장내용</span>' : '') +
+            (below ? ' <span class="ai-note">(노출 기준 미만)</span>' : '') +
+            '<span class="meta">' + fmtYmd(c.compdate) + ' · ' + esc(c.actnm) + ' ' + esc(c.equpnm) + ' · ' + esc(c.pernm) + '</span></div>' +
+            '<div class="body">' +
+            '<span>고장부위</span><span>' + esc([c.greginm, c.reginm].filter(Boolean).join(' / ') || '-') + '</span>' +
+            '<span>고장원인</span><span>' + esc([c.remonm, c.remoremark].filter(Boolean).join(' / ') || '-') + '</span>' +
+            '<span>처리</span><span><b>' + esc(c.resunm || '') + '</b> ' + esc(c.resuremark || '') + '</span>' +
+            '<span>처리결과</span><span>' + esc(c.resultnm || '-') + '</span>' +
+            '</div></div>');
+        });
+      });
+    }
+
+    // ── 통계 ──
+    function loadStats() {
+      const from = $('#statFrom').val(), to = $('#statTo').val();
+      if (!from || !to) { Alert.alert('', '조회기간을 입력해주세요.'); return; }
+      AjaxUtil.getAsyncData('/api/ai/similar/stats', {fromDate: from, toDate: to}, function (res) {
+        if (!res || res.success === false) { Alert.alert('', (res && res.message) || '조회 중 오류가 발생하였습니다.'); return; }
+        const d = res.data || {};
+        $('#tableWarn').toggle(d.logReady === false);
+        const s = d.summary || {};
+        const openR = Number(s.open_receipts || 0), clickR = Number(s.click_receipts || 0);
+        $('#kOpens').html(Number(s.opens || 0).toLocaleString() + '<small>회</small>');
+        $('#kClicks').html(Number(s.clicks || 0).toLocaleString() + '<small>회</small>');
+        $('#kRate').html(openR ? (clickR * 100 / openR).toFixed(1) + '<small>%</small>' : '-');
+        $('#kNoCase').html(Number(s.no_case || 0).toLocaleString() + '<small>회</small>');
+        logGrid.itemsSource = new wijmo.collections.CollectionView(d.recent || []);
+      });
+    }
+
+    $(document.body).ready(function () {
+      $('#btnReindex').click(reindex);
+      $('#btnCaseSearch').click(searchCases);
+      $('#caseActnm, #caseKeyword').on('keypress', function (e) { if (e.keyCode === 13) searchCases(); });
+      $('#btnExclude').click(() => setExcluded(true));
+      $('#btnInclude').click(() => setExcluded(false));
+      $('#btnTest').click(runTest);
+      $('#testText').on('keypress', function (e) { if (e.keyCode === 13) runTest(); });
+      $('#btnStats').click(loadStats);
+      $('#btnSaveSettings').click(saveSettings);
+
+      let statsLoaded = false;
+      $('#casesTabLink').click(() => setTimeout(() => caseGrid && caseGrid.invalidate(), 0));
+      $('#statsTabLink').click(() => setTimeout(() => {
+        logGrid && logGrid.invalidate();
+        if (!statsLoaded) { statsLoaded = true; loadStats(); }
+      }, 0));
+    });
+  </script>
+</th:block>
+
+</html>

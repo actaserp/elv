@@ -91,7 +91,8 @@ public class WebRequestService {
     }
 
     // ── 고장접수 저장 (TB_E401 INSERT / UPDATE) ───────────────
-    public void save(String spjangcd, String custcd,
+    /** @return 저장된 접수번호 (신규면 새로 채번한 번호) */
+    public String save(String spjangcd, String custcd,
                      String recedate, String recenum, String recetime,
                      String hitchdate, String hitchhour,
                      String actcd, String actnm,
@@ -213,6 +214,7 @@ public class WebRequestService {
 
             namedParameterJdbcTemplate.update(sql, param);
         }
+        return recenum;
     }
 
     // ── 고장접수 삭제 (TB_E401 DELETE) ───────────────────────
@@ -444,7 +446,14 @@ public class WebRequestService {
     }
 
     // ── PushID 조회 (TB_JA001) ────────────────────────────────
+    // 현재 6개 사업체 DB 에는 TB_JA001.pushid 컬럼이 없다.
+    // 컬럼 없이 조회하면 SQL 오류가 나므로 먼저 컬럼 유무를 확인하고, 없으면 조용히 빈 값을 돌려준다.
+    // (화면에서는 숨은 값으로만 쓰고 저장에는 들어가지 않는다)
     public String getPushId(String spjangcd, String pernm) {
+
+        Map<String, Object> col = sqlRunner.getRow(
+                "SELECT COL_LENGTH('TB_JA001', 'pushid') AS has_col", new MapSqlParameterSource());
+        if (col == null || col.get("has_col") == null) return null;
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd", spjangcd);

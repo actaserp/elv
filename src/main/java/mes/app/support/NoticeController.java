@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import mes.app.ai.service.AiIndexService;
+import mes.app.common.TenantContext;
 import mes.app.common.service.FileService;
 import mes.app.support.service.NoticeService;
 import mes.domain.entity.Board;
@@ -27,6 +29,10 @@ public class NoticeController {
 
 	@Autowired
 	private NoticeService noticeService;
+
+	// 자료 등록·수정·삭제 뒤 AI 기술자료 검색 색인을 다음 검색 때 새로 만들게 한다
+	@Autowired
+	private AiIndexService aiIndexService;
 
 	// 공지사항 목록 조회
 	@GetMapping("/read")
@@ -91,6 +97,7 @@ public class NoticeController {
 			result.message = "저장에 실패했습니다. 로그를 확인하세요.";
 		} else {
 			result.data = savedId;
+			aiIndexService.invalidateDocIndex(TenantContext.getDbKey());
 		}
 		return result;
 	}
@@ -99,6 +106,7 @@ public class NoticeController {
 	@PostMapping("/delete")
 	public AjaxResult deleteBoard(@RequestParam("id") Integer id) {
 		this.noticeService.deleteNotice(id);
+		aiIndexService.invalidateDocIndex(TenantContext.getDbKey());
 		return new AjaxResult();
 	}
 }
