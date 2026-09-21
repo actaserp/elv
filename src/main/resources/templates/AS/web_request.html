@@ -1106,13 +1106,16 @@
     function sendSms()          { Alert.alert('', '문자전송 기능은 추후 구현 예정입니다.'); }
 
     // ── 상태 배지 ─────────────────────────────────────────────
+    // TB_E401.resultck : 접수 시 '0', 고장처리등록이 저장되면 '1', 처리 취소 시 NULL
+    // (위쪽 접수/완료 건수 카드와 같은 기준)
+    function isDone(status) {
+      return String(status == null ? '' : status).trim() === '1';
+    }
     function getStatusBadgeClass(status) {
-      const map = { '1':'badge-recv','2':'badge-process','3':'badge-done','4':'badge-callback' };
-      return map[status] || 'badge-recv';
+      return isDone(status) ? 'badge-process' : 'badge-recv';
     }
     function getStatusNm(status) {
-      const map = { '1':'접수중','2':'처리중','3':'완료','4':'콜백' };
-      return map[status] || '접수중';
+      return isDone(status) ? '처리완료' : '접수중';
     }
 
     // ── 날짜/시간 유틸 ───────────────────────────────────────
