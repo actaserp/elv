@@ -1,5 +1,7 @@
 package mes.app.account_management;
 
+import mes.app.annotation.ApiProduct;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,7 @@ import java.util.function.Supplier;
  * 사업체 DB 에 컬럼·테이블이 없어 어디서도 동작하지 않았다.
  */
 @Slf4j
+@ApiProduct(ApiProduct.P05)
 @RestController
 @RequestMapping("/api/account_management/card_history")
 public class CardHistoryController {

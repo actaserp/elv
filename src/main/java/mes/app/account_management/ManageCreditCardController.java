@@ -1,5 +1,7 @@
 package mes.app.account_management;
 
+import mes.app.annotation.ApiProduct;
+
 import lombok.extern.slf4j.Slf4j;
 import mes.app.account_management.service.BaroCardService;
 import mes.app.account_management.service.ManageCreditCardService;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+@ApiProduct(ApiProduct.P05)
 @RestController
 @Slf4j
 @RequestMapping("/api/account_management/manageCreditCard") //신용카드 등록

@@ -1,5 +1,7 @@
 package mes.app.transaction;
 
+import mes.app.annotation.ApiProduct;
+
 import lombok.extern.slf4j.Slf4j;
 import mes.app.transaction.service.CompBalanceDetailService;
 import mes.domain.model.AjaxResult;
@@ -13,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
+@ApiProduct(ApiProduct.P05)
 @RestController
 @RequestMapping("/api/transaction/CompBalanceDetail")
 public class CompBalanceDetailController {

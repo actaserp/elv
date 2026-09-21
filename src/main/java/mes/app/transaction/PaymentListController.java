@@ -1,5 +1,7 @@
 package mes.app.transaction;
 
+import mes.app.annotation.ApiProduct;
+
 import lombok.extern.slf4j.Slf4j;
 import mes.app.transaction.service.PaymentListService;
 import mes.domain.model.AjaxResult;
@@ -20,6 +22,7 @@ import java.util.Map;
  * 예전 화면에 있던 계좌명·입금형태·어음번호 조건은 sports 의 입출금 테이블 기준이라 없앴다.
  */
 @Slf4j
+@ApiProduct(ApiProduct.P05)
 @RestController
 @RequestMapping("/api/transaction/payment_list")
 public class PaymentListController {

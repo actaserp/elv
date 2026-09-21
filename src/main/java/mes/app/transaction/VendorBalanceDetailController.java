@@ -1,5 +1,7 @@
 package mes.app.transaction;
 
+import mes.app.annotation.ApiProduct;
+
 import lombok.extern.slf4j.Slf4j;
 import mes.app.aspect.DecryptField;
 import mes.app.transaction.service.VendorBalanceDetailService;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import javax.servlet.http.HttpServletRequest;
 
 @Slf4j
+@ApiProduct(ApiProduct.P05)
 @RestController
 @RequestMapping("/api/transaction/vendor_balance_detail")
 public class VendorBalanceDetailController {

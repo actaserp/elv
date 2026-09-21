@@ -1,5 +1,7 @@
 package mes.app.account_management;
 
+import mes.app.annotation.ApiProduct;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +22,7 @@ import java.util.Map;
  * 어디서도 동작하지 않았다. 지금은 CardPaymentService 가 TB_CA642 로 지급한다.
  */
 @Slf4j
+@ApiProduct(ApiProduct.P05)
 @RestController
 @RequestMapping("/api/account_management/card_assignment")
 public class CardAssignmentController {

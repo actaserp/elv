@@ -1,5 +1,7 @@
 package mes.app.transaction;
 
+import mes.app.annotation.ApiProduct;
+
 import lombok.extern.slf4j.Slf4j;
 import mes.app.transaction.service.ExpenseAccountSetupService;
 import mes.domain.entity.User;
@@ -18,6 +20,7 @@ import java.util.Map;
  * 예전에는 대분류가 본사 sys_code, 세부 저장이 JPA(본사 tb_ca648)로 갈라져 있었다.
  */
 @Slf4j
+@ApiProduct(ApiProduct.P05)
 @RestController
 @RequestMapping("/api/transaction/ExpenseAccountSetup")
 public class ExpenseAccountSetupController {

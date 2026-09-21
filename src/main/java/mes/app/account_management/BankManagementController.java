@@ -1,5 +1,7 @@
 package mes.app.account_management;
 
+import mes.app.annotation.ApiProduct;
+
 import lombok.extern.slf4j.Slf4j;
 import mes.app.account_management.service.BankManagementService;
 import mes.domain.model.AjaxResult;
@@ -12,6 +14,7 @@ import java.util.Map;
  * 계좌번호 관리 (파워빌더 w_s004, 사업체 DB TB_AA040)
  */
 @Slf4j
+@ApiProduct(ApiProduct.P05)
 @RestController
 @RequestMapping("/api/account_management/bank_management")
 public class BankManagementController {

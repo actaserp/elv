@@ -2,6 +2,7 @@ package mes.app.ai;
 
 import lombok.extern.slf4j.Slf4j;
 import mes.app.ai.service.*;
+import mes.app.annotation.ApiProduct;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
@@ -12,16 +13,19 @@ import java.util.*;
 import java.util.function.Supplier;
 
 /**
- * AI 기반 고장분석 API
+ * AI 기반 고장분석 API — 상품 P04 로 사용량 집계
  *
  * /api/ai/classify/*  고장유형 자동분류 (고장유형분류체계관리 · 고장접수 추천 배지)
  * /api/ai/similar/*   유사 고장사례 (유사사례DB관리 · 모바일 고장처리등록 참고카드)
  * /api/ai/doc/*       기술자료 검색 (기술자료검색엔진관리 · 모바일 자료실 AI 검색)
- * /api/ai/log         화면에서 보내는 사용 기록 (저장 시 채택 여부, 카드 열람·클릭, 검색 결과 클릭)
+ *
+ * 화면이 뒤에서 보내는 사용 기록(/api/ai/log)과 색인 준비(/api/ai/index_status)는
+ * 사용량에 넣지 않으려고 {@link AiSupportController} 로 뺐다.
  *
  * 사업체·사업장은 요청 파라미터가 아니라 로그인 세션 값으로 정한다.
  */
 @Slf4j
+@ApiProduct(ApiProduct.P04)
 @RestController
 @RequestMapping("/api/ai")
 public class AiFaultController {
@@ -157,24 +161,6 @@ public class AiFaultController {
         }, "저장되었습니다.");
     }
 
-    /** which = classify / case / doc. build=true 면 없을 때 만들어서 돌려준다 */
-    @GetMapping("/index_status")
-    public AjaxResult indexStatus(@RequestParam("which") String which,
-                                  @RequestParam(value = "build", defaultValue = "false") boolean build) {
-        return run(() -> {
-            String dbKey = store.dbKey();
-            if (build) {
-                return switch (which) {
-                    case "classify" -> indexService.classifier(dbKey, store.spjangcd()).status();
-                    case "case" -> indexService.caseIndex(dbKey, store.spjangcd()).status();
-                    default -> indexService.docIndex(dbKey).status();
-                };
-            }
-            Map<String, Object> s = indexService.peekStatus(dbKey, which);
-            return s == null ? Map.of("size", -1) : s;
-        });
-    }
-
     // ── 유사 고장사례 ───────────────────────────────────────
 
     @GetMapping("/similar/unit_history")
@@ -252,27 +238,6 @@ public class AiFaultController {
                               @RequestParam("toDate") String toDate,
                               @RequestParam(value = "noResultOnly", defaultValue = "false") boolean noResultOnly) {
         return run(() -> docSearchService.logs(fromDate, toDate, noResultOnly));
-    }
-
-    // ── 화면 사용 기록 ──────────────────────────────────────
-
-    private static final Set<String> FEATURES = Set.of("CLASSIFY", "CASE", "DOC");
-    private static final Set<String> EVENTS = Set.of("SAVE", "OPEN", "CLICK");
-
-    @PostMapping("/log")
-    public AjaxResult log(@RequestParam Map<String, Object> params, Authentication auth) {
-        AjaxResult result = new AjaxResult();
-        String feature = String.valueOf(params.getOrDefault("feature", ""));
-        String event = String.valueOf(params.getOrDefault("event", ""));
-        if (!FEATURES.contains(feature) || !EVENTS.contains(event)) {
-            result.success = false;
-            result.message = "잘못된 기록입니다.";
-            return result;
-        }
-        Map<String, Object> values = new HashMap<>(params);
-        values.remove("_csrf");
-        store.logEvent(values, auth);
-        return result;
     }
 
     // ── 공통 ────────────────────────────────────────────────

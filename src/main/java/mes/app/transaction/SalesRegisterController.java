@@ -1,5 +1,7 @@
 package mes.app.transaction;
 
+import mes.app.annotation.ApiProduct;
+
 import lombok.extern.slf4j.Slf4j;
 import mes.app.transaction.service.SalesRegisterService;
 import mes.domain.entity.User;
@@ -20,6 +22,7 @@ import java.util.Map;
  * 팝빌 전자세금계산서 쪽은 기존 SalesInvoiceController(/api/tran/sales)가 그대로 들고 있다.
  */
 @Slf4j
+@ApiProduct(ApiProduct.P05)
 @RestController
 @RequestMapping("/api/tran/sales_register")
 public class SalesRegisterController {

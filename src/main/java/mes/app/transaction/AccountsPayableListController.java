@@ -1,5 +1,7 @@
 package mes.app.transaction;
 
+import mes.app.annotation.ApiProduct;
+
 import lombok.extern.slf4j.Slf4j;
 import mes.app.transaction.service.AccountsPayableListService;
 import mes.domain.model.AjaxResult;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 나눠 쓰던 구조라 없앴다. 사업체 DB 는 TB_XCLIENT 하나로 관리한다.
  */
 @Slf4j
+@ApiProduct(ApiProduct.P05)
 @RestController
 @RequestMapping("/api/transaction/accounts_payable_list")
 public class AccountsPayableListController {

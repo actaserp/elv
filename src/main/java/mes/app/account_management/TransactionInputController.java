@@ -1,5 +1,7 @@
 package mes.app.account_management;
 
+import mes.app.annotation.ApiProduct;
+
 import lombok.extern.slf4j.Slf4j;
 import mes.app.account_management.service.TransactionInputService;
 import mes.app.util.UtilClass;
@@ -14,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@ApiProduct(ApiProduct.P05)
 @RestController("accountMgmtTransactionInputController")
 @RequestMapping("/api/account_management/input")
 @Slf4j

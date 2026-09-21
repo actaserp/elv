@@ -19,7 +19,7 @@ import java.lang.annotation.Target;
  *   <li>P01 - 엘리베이터 유지보수 통합관리 (API 5만건 포함 / 초과 4원)</li>
  *   <li>P02 - 모바일 현장업무</li>
  *   <li>P03 - 기사 운영·차량운행 관리</li>
- *   <li>P04 - AI 기반 고장분석 (미구현)</li>
+ *   <li>P04 - AI 기반 고장분석 (AiFaultController, AiFaultDashboardController)</li>
  *   <li>P05 - 계산서·은행거래·미수관리</li>
  * </ul>
  *

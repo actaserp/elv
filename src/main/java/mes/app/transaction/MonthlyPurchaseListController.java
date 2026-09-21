@@ -1,5 +1,7 @@
 package mes.app.transaction;
 
+import mes.app.annotation.ApiProduct;
+
 import lombok.extern.slf4j.Slf4j;
 import mes.app.transaction.service.MonthlyPurchaseListService;
 import mes.domain.model.AjaxResult;
@@ -19,6 +21,7 @@ import java.util.Map;
  * 지급·미지급 탭은 파워빌더 원본을 못 받아 매입 탭과 같은 모양으로 맞춰 만든 것이다.
  */
 @Slf4j
+@ApiProduct(ApiProduct.P05)
 @RestController
 @RequestMapping("/api/transaction/monthly_purchase_list")
 public class MonthlyPurchaseListController {

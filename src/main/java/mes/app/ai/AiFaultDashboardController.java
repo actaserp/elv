@@ -2,6 +2,7 @@ package mes.app.ai;
 
 import lombok.extern.slf4j.Slf4j;
 import mes.app.ai.service.AiFaultDashboardService;
+import mes.app.annotation.ApiProduct;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +15,7 @@ import java.time.format.DateTimeParseException;
  * AI고장분석대시보드 (관리자운영 > ai_support) — 반복고장 패턴분석
  */
 @Slf4j
+@ApiProduct(ApiProduct.P04)
 @RestController
 @RequestMapping("/api/ai/dashboard")
 public class AiFaultDashboardController {

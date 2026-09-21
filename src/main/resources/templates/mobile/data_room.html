@@ -41,9 +41,10 @@
   /* ── AI 스마트 검색 ── */
   .ai-search { margin:10px 12px 6px; padding:12px; border-radius:12px; background:#f5f9ff; border:1px solid #c7d8fb; }
   .ai-search-label { font-size:14px; font-weight:700; color:#1e4fa8; margin-bottom:8px; }
-  .ai-search-line { display:flex; gap:6px; }
-  .ai-search-line input { flex:1; min-width:0; height:40px; padding:0 12px; border:1px solid #c7d8fb; border-radius:8px; font-size:14px; background:#fff; }
-  .ai-search-line button { height:40px; padding:0 16px; border:none; border-radius:8px; background:#2c4f9e; color:#fff; font-size:14px; font-weight:600; white-space:nowrap; }
+  /* 모바일 공통 CSS 의 버튼 폭 규칙이 입력칸을 눌러버려서, 입력칸이 남은 폭을 다 쓰고 버튼은 고정폭이 되게 명시한다 */
+  .ai-search .ai-search-line { display:flex !important; gap:6px; align-items:center; width:100%; }
+  .ai-search .ai-search-line input { flex:1 1 auto !important; width:auto !important; min-width:0; height:40px; padding:0 12px; border:1px solid #c7d8fb; border-radius:8px; font-size:14px; background:#fff; color:#222; box-sizing:border-box; }
+  .ai-search .ai-search-line button { flex:0 0 68px !important; width:68px !important; height:40px; padding:0; border:none; border-radius:8px; background:#2c4f9e; color:#fff; font-size:14px; font-weight:600; white-space:nowrap; }
   .ai-search-hint { font-size:12px; color:#6b7280; margin-top:6px; }
   .ai-rel { font-size:11px; padding:2px 8px; border-radius:10px; background:#2c4f9e; color:#fff; font-weight:700; flex-shrink:0; margin-left:8px; }
   .ai-where { font-size:11px; color:#6b7280; margin-top:4px; }

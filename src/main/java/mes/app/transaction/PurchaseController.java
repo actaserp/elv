@@ -1,5 +1,7 @@
 package mes.app.transaction;
 
+import mes.app.annotation.ApiProduct;
+
 
 import mes.app.transaction.service.PurchaseService;
 import mes.domain.model.AjaxResult;
@@ -17,6 +19,7 @@ import java.util.Map;
  *
  * 조회조건은 파워빌더와 같다. 빈 값이면 전체를 뜻한다(파워빌더는 '%').
  */
+@ApiProduct(ApiProduct.P05)
 @RestController
 @RequestMapping("/api/purchase/list")
 public class PurchaseController {

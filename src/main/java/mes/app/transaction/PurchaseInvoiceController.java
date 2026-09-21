@@ -1,5 +1,7 @@
 package mes.app.transaction;
 
+import mes.app.annotation.ApiProduct;
+
 import lombok.extern.slf4j.Slf4j;
 import mes.app.transaction.service.PurchaseInvoiceService;
 import mes.domain.entity.User;
@@ -18,6 +20,7 @@ import java.util.Map;
  * 자동지급처리, 부가세 자료 생성, 자재입고 연동은 넣지 않았다.
  */
 @Slf4j
+@ApiProduct(ApiProduct.P05)
 @RestController
 @RequestMapping("/api/tran/purchase")
 public class PurchaseInvoiceController {
