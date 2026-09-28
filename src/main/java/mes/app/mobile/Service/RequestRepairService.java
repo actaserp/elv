@@ -42,6 +42,12 @@ public class RequestRepairService {
     }
 
     // ── 고장접수 목록 조회 (TB_E401) ─────────────────────────
+    /**
+     * 고장접수 목록.
+     *
+     * @param perid 현장담당기사(TB_E401.perid = 화면의 '통보자') 사번. 비우면 전체 접수건
+     *              — 예전에는 접수자(reperid, 전화 받은 사람)가 본인인 건만 보여서 기사는 자기 건도 못 봤다.
+     */
     public List<Map<String, Object>> getRepairList(
             String fromDate, String toDate, String actnm, String resultck, String spjangcd, String perid) {
 
@@ -83,8 +89,12 @@ public class RequestRepairService {
                                      AND ct.spjangcd = e.spjangcd
                 WHERE e.spjangcd = :spjangcd
                   AND e.recedate BETWEEN :fromDate AND :toDate
-                  AND e.reperid  = :perid
                 """;
+
+        // 현장담당기사(통보자) 지정 시에만 거른다. 비우면 전체 접수건
+        if (perid != null && !perid.isBlank()) {
+            sql += " AND e.perid = :perid";
+        }
 
         if (actnm != null && !actnm.isBlank()) {
             sql += " AND e.actnm LIKE :actnm";

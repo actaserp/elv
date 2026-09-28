@@ -130,6 +130,17 @@
                             </select>
                         </dd>
                     </dl>
+                    <dl>
+                        <dt>담당기사</dt>
+                        <dd>
+                            <label style="display:flex; align-items:center; gap:6px; margin-bottom:6px; font-size:13px; color:#444;">
+                                <input type="checkbox" id="searchMyOnly" checked onchange="toggleMyOnly()"> 내 담당건만 보기
+                            </label>
+                            <input type="text" id="searchPernm" placeholder="담당기사 선택 (비우면 전체)" readonly
+                                   onclick="openSearchPerPopup()">
+                            <input type="hidden" id="searchPerid">
+                        </dd>
+                    </dl>
                     <div class="srch-btn">
                         <button class="btn-dark" onclick="handleSearch()">조회</button>
                     </div>
@@ -210,7 +221,7 @@
             </div>
             <div class="form-row">
                 <label>담당기사</label>
-                <input type="text" id="editRepernm" placeholder="통보자 선택" readonly onclick="openPerPopup()">
+                <input type="text" id="editRepernm" placeholder="통보자(현장담당기사) 선택" readonly onclick="openPerPopup()">
                 <input type="hidden" id="editPerid">
             </div>
             <button class="form-save-btn" onclick="updateRepair()">수정 저장</button>
@@ -259,7 +270,7 @@
 <div class="popup-overlay" id="perPopup">
     <div class="popup-sheet">
         <div class="popup-header">
-            <span>통보자 선택</span>
+            <span>통보자(현장담당기사) 선택</span>
             <button class="popup-close" onclick="closePopup('perPopup')">×</button>
         </div>
         <input type="text" class="popup-search-input" id="perSearchInput" placeholder="이름 검색"
@@ -283,6 +294,7 @@
         const dd    = String(today.getDate()).padStart(2, '0');
         document.getElementById('searchFromDate').value = `${yyyy}-${mm}-01`;
         document.getElementById('searchToDate').value   = `${yyyy}-${mm}-${dd}`;
+        toggleMyOnly();   // 기본은 '내 담당건만' 체크 상태
         searchRepairList();
     });
 
@@ -298,11 +310,16 @@
         const actnm    = document.getElementById('searchActnm').value.trim();
         const resultck = document.getElementById('searchResultck').value;
 
+        // 담당기사(통보자) 조건 — 체크 시 본인, 해제 후 선택 시 그 기사, 둘 다 아니면 전체
+        const myOnly = document.getElementById('searchMyOnly').checked ? '1' : '0';
+
         AjaxUtil.getAsyncData('/api/request_repair/read', {
             fromDate : fromDate,
             toDate   : toDate,
             actnm    : actnm,
             resultck : resultck,
+            myOnly   : myOnly,
+            perid    : myOnly === '1' ? '' : document.getElementById('searchPerid').value,
             spjangcd : _spjangcd
         }, function (result) {
             if (result != null && result.data != null) {
@@ -368,7 +385,7 @@
         html += `<div class="detail-section-title">담당자 정보</div>`;
         html += buildDetailRows([
             { label: '접수자', value: item.repernm || item.reperid },
-            { label: '통보자', value: item.pernm   || item.perid   },
+            { label: '통보자(현장담당기사)', value: item.pernm   || item.perid   },
             { label: '부서명', value: item.divinm  },
         ]);
 
@@ -584,6 +601,26 @@
         closePopup('contnmPopup');
     }
 
+    /* ── 검색조건: 담당기사(통보자) ── */
+    var _perPopupTarget = 'edit';   // 'edit' = 수정 폼의 통보자, 'search' = 검색조건의 담당기사
+
+    function toggleMyOnly() {
+        const my = document.getElementById('searchMyOnly').checked;
+        const el = document.getElementById('searchPernm');
+        el.disabled = my;                       // 내 담당건만이면 기사 선택은 잠근다
+        el.style.background = my ? '#f0f0f0' : '';
+        if (my) {
+            el.value = '';
+            document.getElementById('searchPerid').value = '';
+        }
+    }
+
+    function openSearchPerPopup() {
+        if (document.getElementById('searchMyOnly').checked) return;
+        _perPopupTarget = 'search';
+        openPerPopup();
+    }
+
     /* ── 통보자 선택 팝업 ── */
     function openPerPopup() {
         document.getElementById('perSearchInput').value = '';
@@ -623,8 +660,15 @@
     }
 
     function setPerData(item) {
-        document.getElementById('editPerid').value   = (item.code || '').replace(/^p/, '');
-        document.getElementById('editRepernm').value = item.name || '';
+        const code = (item.code || '').replace(/^p/, '');
+        if (_perPopupTarget === 'search') {
+            document.getElementById('searchPerid').value = code;
+            document.getElementById('searchPernm').value = item.name || '';
+        } else {
+            document.getElementById('editPerid').value   = code;
+            document.getElementById('editRepernm').value = item.name || '';
+        }
+        _perPopupTarget = 'edit';
         closePopup('perPopup');
     }
 

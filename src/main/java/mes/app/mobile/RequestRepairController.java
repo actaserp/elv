@@ -43,6 +43,9 @@ public class RequestRepairController {
             @RequestParam(value = "toDate",    required = false) String toDate,
             @RequestParam(value = "actnm",     required = false) String actnm,
             @RequestParam(value = "resultck",  required = false) String resultck,
+            // 현장담당기사(통보자) 사번. myOnly='1' 이면 로그인 사용자로 대체, 둘 다 없으면 전체
+            @RequestParam(value = "perid",     required = false) String paramPerid,
+            @RequestParam(value = "myOnly",    required = false, defaultValue = "0") String myOnly,
             HttpServletRequest request,
             Authentication auth) {
 
@@ -59,7 +62,16 @@ public class RequestRepairController {
 
         String spjangcd = (String) userInfo.get("spjangcd");
         // TB_E401.perid는 p 없는 형태 (ex: HY010405)
-        String perid = ((String) userInfo.get("perid")).replaceFirst("^p", "");
+        String myPerid = ((String) userInfo.get("perid")).replaceFirst("^p", "");
+
+        String perid;
+        if ("1".equals(myOnly)) {
+            perid = myPerid;                                        // 내 담당건만
+        } else if (paramPerid != null && !paramPerid.isBlank()) {
+            perid = paramPerid.trim().replaceFirst("^p", "");       // 특정 기사 담당건
+        } else {
+            perid = null;                                           // 전체
+        }
 
         result.data = requestRepairService.getRepairList(fromDate, toDate, actnm, resultck, spjangcd, perid);
         return result;
