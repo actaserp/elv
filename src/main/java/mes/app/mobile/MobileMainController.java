@@ -49,6 +49,15 @@ public class MobileMainController {
     @GetMapping("/read_userInfo")
     public AjaxResult getUserInfo(HttpServletRequest request, Authentication auth) {
         AjaxResult result = new AjaxResult();
+        // 로그인이 풀린 요청은 Security 가 401 로 막지만, 설정이 다시 열리더라도
+        // 500(ClassCastException)으로 터지지 않도록 여기서도 한 번 더 막는다.
+        // 500 이 나면 화면이 로그인 만료를 알아채지 못해 기본값이 그대로 남는다.
+        if (!(auth != null && auth.getPrincipal() instanceof User)) {
+            result.success = false;
+            result.code    = "UNAUTHORIZED";
+            result.message = "로그인이 필요합니다.";
+            return result;
+        }
         User user       = (User) auth.getPrincipal();
         String username = user.getUsername();
         // TenantUserService에서 사업체DB 기준 사원 정보 조회
@@ -173,6 +182,12 @@ public class MobileMainController {
             Authentication auth) {
 
         AjaxResult result = new AjaxResult();
+        if (!(auth != null && auth.getPrincipal() instanceof User)) {
+            result.success = false;
+            result.code    = "UNAUTHORIZED";
+            result.message = "로그인이 필요합니다.";
+            return result;
+        }
         User user       = (User) auth.getPrincipal();
         String username = user.getUsername();
 
@@ -271,6 +286,12 @@ public class MobileMainController {
             Authentication auth) {
 
         AjaxResult result = new AjaxResult();
+        if (!(auth != null && auth.getPrincipal() instanceof User)) {
+            result.success = false;
+            result.code    = "UNAUTHORIZED";
+            result.message = "로그인이 필요합니다.";
+            return result;
+        }
         User user       = (User) auth.getPrincipal();
         String username = user.getUsername();
 

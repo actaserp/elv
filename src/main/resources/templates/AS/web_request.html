@@ -18,7 +18,7 @@
     .stat-badge strong { font-size: 15px; font-weight: 700; color: #2c4f9e; }
     .stat-badge.recv strong { color: #e65100; }
     .stat-badge.rece strong { color: #1565c0; }
-    .stat-badge.cb   strong { color: #6a1b9a; }
+    .stat-badge.callback strong { color: #6a1b9a; }
     .stat-badge.done strong { color: #2e7d32; }
 
     /* ── 섹션 타이틀 ── */
@@ -99,6 +99,46 @@
     #memoList { flex: 1; overflow-y: auto; min-height: 60px; }
     #memoList > div { padding: 7px 4px; border-bottom: 1px solid #f0f0f0; cursor: pointer; font-size: 12px; }
     #memoList > div:hover { background: #f5f7fa; }
+    /* ── 인터넷전화 수신 알림 ── */
+    .cti-dot { display:inline-flex; align-items:center; gap:5px; margin-left:auto; font-size:12px; color:#888; white-space:nowrap; }
+    .cti-dot i { width:7px; height:7px; border-radius:50%; background:#c9c9c9; display:inline-block; }
+    .cti-dot.on  i { background:#2e7d32; box-shadow:0 0 0 3px rgba(46,125,50,.15); }
+    .cti-dot.on    { color:#2e7d32; }
+    .cti-dot.off i { background:#c62828; }
+    .cti-dot.off   { color:#c62828; }
+
+    /* 이 화면은 탭(iframe .nth-tabs-frame) 안에서 돌아간다.
+       iframe 아래쪽 30px 정도가 탭 영역(overflow:auto)에 잘려서 안 보이므로,
+       화면 하단에 붙일 때는 그만큼 더 띄운다. 창 크기와 무관한 고정값이다. */
+    .cti-toast-wrap { position:fixed; right:18px; bottom:50px; z-index:9999; display:flex; flex-direction:column; gap:10px; max-width:340px; }
+    .cti-toast { background:#fff; border:1px solid #dfe3e8; border-left:4px solid #e65100; border-radius:9px; box-shadow:0 6px 20px rgba(0,0,0,.16); padding:12px 14px; animation:ctiIn .22s ease-out; }
+    .cti-toast.ended { border-left-color:#9e9e9e; opacity:.75; }
+    @keyframes ctiIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+    .cti-toast-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; }
+    .cti-toast-head strong { font-size:12px; color:#e65100; font-weight:700; }
+    .cti-toast.ended .cti-toast-head strong { color:#757575; }
+    .cti-toast-close { border:none; background:none; color:#aaa; cursor:pointer; font-size:15px; line-height:1; padding:0 2px; }
+    .cti-toast-close:hover { color:#666; }
+    .cti-tel { font-size:19px; font-weight:700; color:#222; letter-spacing:.3px; }
+    .cti-who { margin-top:5px; font-size:13px; color:#2c4f9e; font-weight:600; }
+    .cti-who .cti-src { display:inline-block; margin-left:5px; padding:1px 6px; border-radius:3px; background:#eef2fb; color:#5b6b8c; font-size:11px; font-weight:500; vertical-align:1px; }
+    .cti-site { margin-top:2px; font-size:11px; color:#777; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .cti-none { margin-top:5px; font-size:12px; color:#999; }
+    .cti-meta { margin-top:5px; font-size:11px; color:#999; }
+    .cti-mock-tag { display:inline-block; margin-left:5px; padding:1px 5px; border-radius:3px; background:#fff3e0; color:#e65100; font-size:10px; font-weight:700; }
+    .cti-toast-btns { display:flex; gap:6px; margin-top:10px; }
+    .cti-toast-btns button { flex:1; padding:6px 8px; font-size:12px; border-radius:5px; cursor:pointer; border:1px solid #2c4f9e; background:#2c4f9e; color:#fff; white-space:nowrap; }
+    .cti-toast-btns button.sub { background:#fff; color:#2c4f9e; }
+    .cti-toast-btns button:hover { opacity:.88; }
+
+    /* 모의 수신 패널 — cti.mock.enabled=true 일 때만 보인다 */
+    .cti-mock { position:fixed; right:18px; bottom:50px; z-index:9998; background:#263238; color:#eceff1; border-radius:9px; padding:10px 12px; box-shadow:0 4px 14px rgba(0,0,0,.22); font-size:12px; }
+    .cti-mock-title { font-size:11px; color:#90a4ae; margin-bottom:7px; letter-spacing:.3px; }
+    .cti-mock-row { display:flex; gap:5px; align-items:center; }
+    .cti-mock-row input { width:118px; padding:5px 7px; border:1px solid #455a64; border-radius:4px; background:#37474f; color:#fff; font-size:12px; }
+    .cti-mock-row select { padding:5px; border:1px solid #455a64; border-radius:4px; background:#37474f; color:#fff; font-size:12px; }
+    .cti-mock-row button { padding:5px 10px; border:none; border-radius:4px; background:#e65100; color:#fff; font-size:12px; cursor:pointer; white-space:nowrap; }
+    .cti-mock-row button:hover { background:#ef6c00; }
   </style>
 </head>
 
@@ -122,7 +162,7 @@
           <div class="stat-wrap">
             <div class="stat-badge recv"><span>금일수신</span> <strong id="cntRecv">0</strong></div>
             <div class="stat-badge rece"><span>고장접수</span> <strong id="cntRece">0</strong></div>
-            <div class="stat-badge cb">  <span>콜백예약</span> <strong id="cntCallback">0</strong></div>
+            <div class="stat-badge callback" onclick="openCallbackList()" style="cursor:pointer;" title="콜백리스트 열기"><span>콜백예약</span> <strong id="cntCallback">0</strong></div>
             <div class="stat-badge done"><span>당일처리</span> <strong id="cntToday">0</strong></div>
           </div>
         </div>
@@ -206,6 +246,7 @@
                 <button type="button" class="btn-default" onclick="openCallbackList()">콜백리스트</button>
                 <button type="button" class="btn-default" onclick="openPhoneBook()">전화번호부</button>
                 <button type="button" class="btn-default" onclick="openSiteSearch()">보수현장조회</button>
+                <span class="cti-dot" id="ctiDot" title="인터넷전화 수신 알림 연결 상태"><i></i><span id="ctiDotText">전화 연결 확인중</span></span>
               </div>
               <div class="form-section-title">고장 접수</div>
               <div class="form-scroll">
@@ -395,6 +436,26 @@
           </div>
         </div>
       </script>
+      <script type="text/x-tmpl" id="callbackPopupTemplate">
+        <div class="content_wrap popup">
+          <div class="table-wrap">
+            <table class="write-table"><tbody><tr>
+              <th>고객명 / 번호</th>
+              <td><input id="searchCallback" type="text" style="width:200px;" placeholder="고객명 또는 전화번호"/></td>
+              <td><button type="button" class="btn-default" id="btnCallbackSearch"><i class="fas fa-search"></i> 검색</button></td>
+            </tr></tbody></table>
+            <div class="grid_box" style="margin-top:10px;"><div id="callback-grid" style="height:300px;"></div></div>
+            <div style="margin-top:6px; font-size:12px; color:#888;">
+              행을 더블클릭하면 오른쪽 통화메모로 불러옵니다. 다시 통화해서 끝났으면 <b>콜백 처리</b>를 누르세요.
+            </div>
+          </div>
+          <div class="popup-button">
+            <button type="button" class="btn-popup" id="btnCallbackLoad">메모로 불러오기</button>
+            <button type="button" class="btn-popup" id="btnCallbackDone">콜백 처리</button>
+            <button type="button" class="btn-popup" id="modal-close-button">닫기</button>
+          </div>
+        </div>
+      </script>
       <script type="text/x-tmpl" id="contnmPopupTemplate">
         <div class="content_wrap popup">
           <div class="table-wrap">
@@ -411,6 +472,25 @@
           </div>
         </div>
       </script>
+
+      <!-- 인터넷전화 수신 알림이 쌓이는 자리 -->
+      <div class="cti-toast-wrap" id="ctiToastWrap"></div>
+
+      <!-- 모의 수신 (개발/시연용) — cti.mock.enabled=true 일 때만 나타난다 -->
+      <div class="cti-mock" id="ctiMockPanel" style="display:none;">
+        <div class="cti-mock-title">모의 수신 (KT 연동 전 화면 확인용)</div>
+        <div class="cti-mock-row">
+          <input type="text" id="ctiMockTel" placeholder="발신번호" value="01012345678">
+          <select id="ctiMockResult">
+            <option value="201">수신중</option>
+            <option value="200">통화 연결</option>
+            <option value="202">부재중</option>
+            <option value="404">통화중</option>
+            <option value="407">발신자가 끊음</option>
+          </select>
+          <button type="button" id="ctiMockSend">전화 오게 하기</button>
+        </div>
+      </div>
 
     </section>
   </div>
@@ -503,6 +583,9 @@
       $('#elvnum').on('keypress', function(e) {
         if (e.keyCode === 13) getElvInfo();
       });
+
+      // 인터넷전화 수신 알림 구독
+      CtiCall.init();
     }
 
     // ── 카운트 조회 ───────────────────────────────────────────
@@ -704,6 +787,12 @@
 
       if (!calldt) { Alert.alert('', '수신일자를 입력하세요.'); return; }
 
+      // 예약시간이 없으면 콜백리스트 조회 조건에 걸리지 않아 목록에서 사라진다
+      if (callbackFlag === '1' && !document.getElementById('memoCallbackTime').value) {
+        Alert.alert('', '콜백예약은 예약시간을 입력해야 콜백리스트에 나타납니다.');
+        return;
+      }
+
       // datetime-local → calldate / calltime 분리
       const calldate = calldt.replace(/-/g,'').substring(0,8);
       const calltime = calldt.length > 10 ? calldt.substring(11).replace(':','') : '';
@@ -722,7 +811,7 @@
         callendmemo  : document.getElementById('memoProcess').value
       }, function (result) {
         if (result && result.success) {
-          Alert.alert('', '저장되었습니다.', function () { searchMemo(); });
+          Alert.alert('', '저장되었습니다.', function () { searchMemo(); searchCount(); });
         } else {
           Alert.alert('', result.message || '저장 중 오류가 발생하였습니다.');
         }
@@ -772,7 +861,7 @@
         result.data.forEach(function (item) {
           const div = document.createElement('div');
           div.style.cssText = 'padding:8px 12px;border-bottom:1px solid #eee;cursor:pointer;font-size:12px;';
-          div.innerHTML = `<strong>${esc(item.callnm||'')}</strong> ${esc(item.calltime||'')}
+          div.innerHTML = `<strong>${esc(item.callnm||'')}</strong> ${esc(formatTime(item.calltime))}
             <br><span style="color:#888;">${esc(item.callmemo||'')}</span>`;
           div.addEventListener('click', function () {
             document.getElementById('memoSeq').value          = item.seq          || '';
@@ -783,7 +872,7 @@
             document.getElementById('memoCallbackMemo').value = item.callbackmemo || '';
             document.getElementById('memoProcess').value      = item.callendmemo  || '';
             document.getElementById('memoCallbackTime').value = formatTime(item.callbacktime);
-            document.getElementById('memoCallbackFlag').checked = item.callbackflag === '1';
+            document.getElementById('memoCallbackFlag').checked = isCallbackOn(item.callbackflag);
           });
           listDiv.appendChild(div);
         });
@@ -1099,11 +1188,315 @@
         });
     }
 
-    // ── 콜백리스트 / 전화번호부 / 보수현장조회 (추후 구현) ──
-    function openCallbackList() { Alert.alert('', '콜백리스트 기능은 추후 구현 예정입니다.'); }
+    // ── 콜백리스트 ────────────────────────────────────────────
+    // "나중에 다시 걸 목록". callbackflag='1' 이고 예약시간이 있는 건이 대기 상태이고,
+    // 콜백 처리를 누르면 깃발을 '0' 으로 내려 목록에서 빠진다 (aprjems 구 웹앱과 같은 기준).
+    function openCallbackList() {
+      let popGrid, popData, selectedItem = null;
+
+      const $content = $(tmpl('callbackPopupTemplate', {}));
+      const popContainer = new PopupDraggable('콜백리스트');
+      popContainer.open({ width: 760, height: 480, $content });
+
+      function fetchCallback() {
+        const keyword = $content.find('#searchCallback').val() || '';
+        AjaxUtil.getAsyncData('/api/AS/web_request/callback_list', {
+          keyword, spjangcd
+        }, function (result) {
+          const data = result ? result.data || [] : [];
+          popData = new wijmo.collections.CollectionView(data);
+          if (popGrid) popGrid.itemsSource = popData;
+          selectedItem = null;
+        });
+      }
+
+      popGrid = new wijmo.grid.FlexGrid('#callback-grid', {
+        autoGenerateColumns: false,
+        isReadOnly: true,
+        showMarquee: true,
+        columns: [
+          { binding: 'calldate',     header: '통화일자', width:  90, align: 'center' },
+          { binding: 'calltime',     header: '통화시간', width:  70, align: 'center' },
+          { binding: 'callbacktime', header: '예약시간', width:  70, align: 'center' },
+          { binding: 'callnm',       header: '고객명',   width: 150, align: 'left'   },
+          { binding: 'callnum',      header: '전화번호', width: 130, align: 'center' },
+          { binding: 'callbackmemo', header: '콜백메모', width: '*', align: 'left'   },
+        ],
+        itemsSource: new wijmo.collections.CollectionView([])
+      });
+      popGrid.rowHeaders.columns.splice(0, 1);
+
+      // 날짜/시간은 yyyyMMdd·HHmm 로 저장돼 있어 보기 좋게 바꿔 준다
+      popGrid.formatItem.addHandler(function (s, e) {
+        if (e.panel !== s.cells) return;
+        const col = s.columns[e.col].binding, item = s.rows[e.row].dataItem;
+        if (!item) return;
+        if (col === 'calldate') e.cell.textContent = formatDatetime(item.calldate, '');
+        if (col === 'calltime' || col === 'callbacktime') e.cell.textContent = formatTime(item[col]);
+      });
+
+      popGrid.selectionChanged.addHandler(s => { selectedItem = s.collectionView.currentItem; });
+      popGrid.hostElement.addEventListener('dblclick', function () {
+        if (selectedItem) loadCallbackToMemo(selectedItem, popContainer);
+      });
+
+      $content.find('#btnCallbackSearch').click(() => fetchCallback());
+      $content.find('#searchCallback').on('keydown', e => { if (e.keyCode === 13) fetchCallback(); });
+
+      $content.find('#btnCallbackLoad').click(() => {
+        if (selectedItem) loadCallbackToMemo(selectedItem, popContainer);
+        else Alert.alert('', '목록에서 항목을 선택하세요.');
+      });
+
+      $content.find('#btnCallbackDone').click(() => {
+        if (!selectedItem) { Alert.alert('', '목록에서 항목을 선택하세요.'); return; }
+        const item = selectedItem;
+        Alert.confirm('', (item.callnm || item.callnum || '') + ' 건을 콜백 처리하시겠습니까?', function () {
+          AjaxUtil.postAsyncData('/api/AS/web_request/callback_done', {
+            seq: item.seq, spjangcd
+          }, function (res) {
+            if (res && res.success) { fetchCallback(); searchCount(); }
+            else Alert.alert('', (res && res.message) || '콜백 처리 중 오류가 발생하였습니다.');
+          });
+        });
+      });
+
+      fetchCallback();
+    }
+
+    // 콜백 건을 오른쪽 통화메모로 불러온다 (이어서 통화한 내용을 적을 수 있게)
+    function loadCallbackToMemo(item, popContainer) {
+      document.getElementById('memoSeq').value          = item.seq          || '';
+      document.getElementById('memoCalldate').value     = toDatetimeLocal(item.calldate, item.calltime);
+      document.getElementById('memoCusnm').value        = item.callnm       || '';
+      document.getElementById('memoCustel').value       = item.callnum      || '';
+      document.getElementById('memoContent').value      = item.callmemo     || '';
+      document.getElementById('memoCallbackMemo').value = item.callbackmemo || '';
+      document.getElementById('memoCallbackTime').value = formatTime(item.callbacktime);
+      document.getElementById('memoCallbackFlag').checked = true;
+      if (popContainer && popContainer.close) popContainer.close();
+      document.getElementById('memoProcess').focus();
+    }
+
     function openPhoneBook()    { Alert.alert('', '전화번호부 기능은 추후 구현 예정입니다.'); }
     function openSiteSearch()   { Alert.alert('', '보수현장조회 기능은 추후 구현 예정입니다.'); }
     function sendSms()          { Alert.alert('', '문자전송 기능은 추후 구현 예정입니다.'); }
+
+    // ════════════════════════════════════════════════════════
+    // 인터넷전화 수신 알림 (CTI)
+    //
+    // KT 통화매니저 API 는 32bit 윈도우 COM 규격이라 이 서버(리눅스)에서 직접 붙지 못한다.
+    // 별도 윈도우 서버의 에이전트가 EventV2CID 를 받아 서버로 넘기고, 서버는 SSE 로
+    // 담당자 화면에만 내려보낸다. 에이전트가 붙기 전까지는 모의 수신으로 화면을 확인한다.
+    //
+    // 서버가 보내는 값은 규격서의 EventV2CID 를 그대로 옮긴 것이라
+    // 실제 연동이 붙어도 이 아래 코드는 고치지 않아도 된다.
+    //   caller(발신번호) callee(수신번호) result(수신상태) dbId(통화 일련번호)
+    // ════════════════════════════════════════════════════════
+    var CtiCall = (function () {
+
+      var source     = null;
+      var toasts     = {};   // dbId → { el, info }
+      var callerMemo = {};   // 발신번호 → 고객조회 결과 (같은 통화에서 재조회 방지)
+
+      // 통화가 끝난 상태. 규격서 10.1 수신상태
+      var ENDED = ['200','202','203','204','291','401','404','405','406','407','408'];
+
+      function setDot(state, text) {
+        var dot = document.getElementById('ctiDot');
+        if (!dot) return;
+        dot.classList.remove('on','off');
+        if (state) dot.classList.add(state);
+        document.getElementById('ctiDotText').textContent = text;
+      }
+
+      function connect() {
+        if (!window.EventSource) { setDot('off', '전화 알림 미지원'); return; }
+
+        source = new EventSource(withCtx('/api/AS/cti/stream'));
+
+        source.addEventListener('ready', function () { setDot('on', '전화 연결됨'); });
+        source.addEventListener('incoming-call', function (e) {
+          try { onIncoming(JSON.parse(e.data)); }
+          catch (err) { console.error('[CTI] 수신 처리 오류', err); }
+        });
+
+        // 끊기면 브라우저가 알아서 다시 붙는다. 상태만 바꿔둔다.
+        source.onerror = function () { setDot('off', '전화 연결 끊김'); };
+        source.onopen  = function () { setDot('on', '전화 연결됨'); };
+      }
+
+      // 전화가 왔다 — 같은 통화(dbId)면 새로 쌓지 않고 상태만 바꾼다
+      function onIncoming(call) {
+        var existing = toasts[call.dbId];
+        if (existing) {
+          existing.call = call;
+          render(existing);
+          return;
+        }
+
+        var entry = { call: call, info: null, el: null };
+        toasts[call.dbId] = entry;
+        render(entry);
+
+        lookupCaller(call.caller, function (info) {
+          entry.info   = info;
+          entry.looked = true;   // 조회를 마쳤다 — 못 찾았으면 그렇게 표시한다
+          render(entry);
+        });
+      }
+
+      // 발신번호로 고객 찾기 — 현장 → 거래처 → 과거 통화이력 순으로 서버가 찾아준다
+      function lookupCaller(callnum, cb) {
+        if (callerMemo[callnum] !== undefined) { cb(callerMemo[callnum]); return; }
+
+        AjaxUtil.getAsyncData('/api/AS/web_request/caller_info', { spjangcd, callnum },
+          function (result) {
+            var info = (result && result.data) ? result.data : null;
+            callerMemo[callnum] = info;
+            cb(info);
+          },
+          function () { cb(null); }   // 조회가 실패해도 번호는 띄운다
+        );
+      }
+
+      function render(entry) {
+        var call = entry.call, info = entry.info;
+        var ended = ENDED.indexOf(String(call.result)) >= 0;
+
+        // 윗줄은 고객명(현장이면 ancltnm), 아랫줄은 어느 현장인지.
+        // ancltnm 이 비어 있는 사업체도 있어서, 그럴 때는 현장명을 윗줄에 올린다.
+        var name = info ? (info.callnm || info.actnm || info.cltnm || '') : '';
+        var site = (info && info.actnm && info.actnm !== name) ? info.actnm : '';
+
+        var who = info
+          ? '<div class="cti-who">' + esc(name) +
+            '<span class="cti-src">' + esc(info.source || '') + '</span></div>' +
+            (site ? '<div class="cti-site">' + esc(site) + '</div>' : '')
+          : (entry.info === null && entry.looked
+              ? '<div class="cti-none">등록되지 않은 번호입니다</div>' : '');
+
+        var html =
+          '<div class="cti-toast-head">' +
+            '<strong>' + esc(call.statusText || '수신') + '</strong>' +
+            '<button type="button" class="cti-toast-close" title="닫기">&times;</button>' +
+          '</div>' +
+          '<div class="cti-tel">' + esc(formatTel(call.caller)) + '</div>' +
+          who +
+          '<div class="cti-meta">' + esc(call.callTime || '') +
+            (call.mock ? '<span class="cti-mock-tag">모의</span>' : '') + '</div>' +
+          '<div class="cti-toast-btns">' +
+            '<button type="button" data-act="memo">메모에 입력</button>' +
+            (info && info.actcd ? '<button type="button" class="sub" data-act="site">현장 적용</button>' : '') +
+          '</div>';
+
+        if (!entry.el) {
+          entry.el = document.createElement('div');
+          entry.el.className = 'cti-toast';
+          document.getElementById('ctiToastWrap').appendChild(entry.el);
+        }
+        entry.el.classList.toggle('ended', ended);
+        entry.el.innerHTML = html;
+
+        entry.el.querySelector('.cti-toast-close').onclick = function () { close(call.dbId); };
+        var btnMemo = entry.el.querySelector('[data-act=memo]');
+        if (btnMemo) btnMemo.onclick = function () { applyToMemo(call, info); close(call.dbId); };
+        var btnSite = entry.el.querySelector('[data-act=site]');
+        if (btnSite) btnSite.onclick = function () { applyToSite(info); };
+
+        // 끝난 통화는 잠시 뒤 스스로 사라진다
+        if (ended) {
+          clearTimeout(entry.timer);
+          entry.timer = setTimeout(function () { close(call.dbId); }, 20000);
+        }
+      }
+
+      // 통화메모 칸 채우기 — 수신일자/고객명/전화번호
+      function applyToMemo(call, info) {
+        var d = new Date();
+        var p = function (n) { return String(n).padStart(2,'0'); };
+
+        document.getElementById('memoSeq').value       = '';   // 새 메모로 시작한다
+        document.getElementById('memoCalldate').value  =
+          d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()) +
+          'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+        // 현장이면 ancltnm 이 들어온다. 비어 있으면 접수자가 직접 적도록 비워 둔다
+        document.getElementById('memoCusnm').value     = info ? (info.callnm || '') : '';
+        document.getElementById('memoCustel').value    = formatTel(call.caller);
+        document.getElementById('memoContent').focus();
+      }
+
+      // 현장이 확정된 번호면 고장접수 폼의 현장까지 바로 채운다
+      function applyToSite(info) {
+        if (!info || !info.actcd) return;
+        document.getElementById('actcd').value = info.actcd;
+        document.getElementById('actnm').value = info.actnm || '';
+        Alert.alert('', '현장이 적용되었습니다.\n' + (info.actnm || ''));
+      }
+
+      function close(dbId) {
+        var entry = toasts[dbId];
+        if (!entry) return;
+        clearTimeout(entry.timer);
+        if (entry.el && entry.el.parentNode) entry.el.parentNode.removeChild(entry.el);
+        delete toasts[dbId];
+      }
+
+      // 01012345678 → 010-1234-5678
+      function formatTel(num) {
+        var s = String(num || '').replace(/[^0-9]/g, '');
+        if (!s) return '';
+        if (/^02/.test(s))            return s.replace(/^(02)(\d{3,4})(\d{4})$/, '$1-$2-$3');
+        if (/^\d{3}\d{3,4}\d{4}$/.test(s)) return s.replace(/^(\d{3})(\d{3,4})(\d{4})$/, '$1-$2-$3');
+        return s;
+      }
+
+      // 모의 수신 패널 — 서버에서 켜져 있을 때만 보여준다
+      function showMockPanel() {
+        var panel = document.getElementById('ctiMockPanel');
+        panel.style.display = '';
+        // 모의 패널 위에서부터 카드를 쌓는다 (패널이 없는 운영에서는 CSS 값 그대로)
+        document.getElementById('ctiToastWrap').style.bottom = (50 + panel.offsetHeight + 10) + 'px';
+
+        document.getElementById('ctiMockSend').onclick = function () {
+          AjaxUtil.postAsyncData('/api/AS/cti/mock', {
+            callnum : document.getElementById('ctiMockTel').value,
+            result  : document.getElementById('ctiMockResult').value
+          }, function (res) {
+            if (res && !res.success) Alert.alert('', res.message || '모의 수신 실패');
+          });
+        };
+      }
+
+      // 알림 카드와 모의 패널을 body 바로 아래로 옮긴다.
+      // 화면 안쪽에 두면 transform 같은 속성을 가진 조상이 위치 기준이 되어
+      // 화면 하단이 아니라 본문 박스 하단에 붙어버린다(길면 잘린다).
+      function mountFixed() {
+        ['ctiToastWrap','ctiMockPanel'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el && el.parentNode !== document.body) document.body.appendChild(el);
+        });
+      }
+
+      // 서버에서 CTI 가 켜져 있을 때만 구독을 시작한다.
+      // 꺼져 있으면 연결도 맺지 않고 '전화 연결됨' 표시도 띄우지 않는다
+      // (에이전트가 없는 사업체에서 연결됐다고 보이면 오해를 부른다).
+      function start() {
+        AjaxUtil.getAsyncData('/api/AS/cti/config', {}, function (result) {
+          var c = (result && result.data) ? result.data : {};
+          if (!c.enabled) {
+            var dot = document.getElementById('ctiDot');
+            if (dot) dot.style.display = 'none';
+            return;
+          }
+          mountFixed();
+          connect();
+          if (c.mockEnabled) showMockPanel();
+        });
+      }
+
+      return { init: start };
+    })();
 
     // ── 상태 배지 ─────────────────────────────────────────────
     // TB_E401.resultck : 접수 시 '0', 고장처리등록이 저장되면 '1', 처리 취소 시 NULL
@@ -1135,6 +1528,12 @@
       const mo = d.substring(4,6), dd = d.substring(6,8);
       const hh = t.substring(0,2), mi = t.substring(2,4);
       return `${mo}/${dd}${hh && mi ? ' (' + hh + ':' + mi + ')' : ''}`;
+    }
+
+    // 콜백 대기 여부. char 컬럼이라 '1 ' 처럼 공백이 붙어 저장된 경우가 있어
+    // 콜백리스트 쿼리(LIKE '%1%')와 같은 기준으로 느슨하게 본다.
+    function isCallbackOn(flag) {
+      return String(flag == null ? '' : flag).indexOf('1') >= 0;
     }
 
     // HHmm → HH:mm

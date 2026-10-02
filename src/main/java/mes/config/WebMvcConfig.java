@@ -38,6 +38,8 @@ public class WebMvcConfig implements WebMvcConfigurer{
                         // 3. 외부 연동 및 예외 API
                         "/useridchk/**", "/user-auth/**", "/popbill/webhook",
                         "/api/transaction/input/**", "/api/das_device", "/authentication/**",
+                        // CTI 에이전트는 세션이 없다(브라우저가 아님). 시크릿 헤더로만 인증한다
+                        "/api/AS/cti/event",
 
                         // 4. PDA 관련
                         "/pda/**",

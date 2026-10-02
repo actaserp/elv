@@ -1,0 +1,26 @@
+# KT 통화매니저 CTI 에이전트 설정
+#
+# 이 파일을 kt_agent.ini 로 복사해서 값을 채우세요.
+# kt_agent.ini 는 .gitignore 에 걸려 있어 커밋되지 않습니다.
+# 인증키·비밀번호가 들어가므로 저장소에 올리지 마세요.
+
+# 0 = 개발 서버(가인증키, dev.bizphone.co.kr)
+# 1 = 상용 서버(정식인증키, open.bizphone.co.kr)
+KT_SERVER = 0
+
+# CP 인증키 40자리. KT 개발자포털 > My Account > 인증키관리 에서 발급.
+# 개발용은 만료일이 짧습니다(발급일 기준 2개월). 만료되면 Login 이 1503 을 돌려줍니다.
+KT_AUTHKEY =
+
+# 통화매니저 API 가입자 계정. 회선청약을 해야 생깁니다.
+KT_LOGIN_ID =
+KT_LOGIN_PW =
+
+# 전화 알림을 받을 elv 로그인 계정 (이 계정 화면에만 카드가 뜹니다)
+ELV_USERNAME =
+
+# elv 서버 수신 창구. 운영에서는 실제 서버 주소로 바꾸세요.
+ELV_URL = http://localhost:8034/elv/api/AS/cti/event
+
+# 서버의 cti.agent.secret 과 똑같이 맞춰야 합니다.
+ELV_SECRET =

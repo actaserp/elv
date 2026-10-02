@@ -31,14 +31,38 @@ public class WebRequestService {
                 SELECT
                     COUNT(*)                                                                    AS callcount,
                     SUM(CASE WHEN resultck IS NULL OR resultck <> '1' THEN 1 ELSE 0 END)        AS rececnt,
-                    0                                                                            AS callback,
                     SUM(CASE WHEN resultck = '1'   THEN 1 ELSE 0 END)                           AS compcnt
                 FROM TB_E401
                 WHERE spjangcd = :spjangcd
                   AND recedate = :today
                 """;
 
-        return sqlRunner.getRow(sql, param);
+        Map<String, Object> row = sqlRunner.getRow(sql, param);
+        row = (row == null) ? new java.util.HashMap<>() : new java.util.HashMap<>(row);
+
+        // 콜백은 TB_E401 이 아니라 통화메모(TB_CALLMAIN)에 있다.
+        // 한 쿼리로 합치면 TB_CALLMAIN 이 없는 사업체에서 나머지 세 건수까지 같이 죽으므로 따로 센다.
+        row.put("callback", getCallbackCount());
+        return row;
+    }
+
+    /**
+     * 콜백 대기 건수.
+     * aprjems(구 웹앱) GetCallBackList 와 같은 기준 — 깃발이 서 있고 예약시간이 있는 건이 '대기'다.
+     * 날짜 조건이 없어서 처리 안 한 콜백은 계속 쌓인다. 그래야 목록 건수와 배지가 일치한다.
+     * TB_CALLMAIN 이 없는 사업체도 있을 수 있어, 조회 실패는 0 으로 넘긴다.
+     */
+    private int getCallbackCount() {
+        Map<String, Object> row = sqlRunner.getRow("""
+                SELECT COUNT(*) AS cnt
+                  FROM TB_CALLMAIN WITH(NOLOCK)
+                 WHERE ISNULL(callbackflag,'') LIKE '%1%'
+                   AND LEN(ISNULL(callbackflag,'')) > 0
+                   AND LEN(ISNULL(callbacktime,'')) > 0
+                """, new MapSqlParameterSource());
+
+        if (row == null || row.get("cnt") == null) return 0;
+        return ((Number) row.get("cnt")).intValue();
     }
 
     // ── 고장접수현황 카드 리스트 (TB_E401) ───────────────────
@@ -289,6 +313,47 @@ public class WebRequestService {
                 """;
 
         return sqlRunner.getRows(sql, param);
+    }
+
+    // ── 콜백리스트 (TB_CALLMAIN) ─────────────────────────────
+    //    aprjems(구 웹앱) GetCallBackList 와 같은 기준. 깃발('1')이 서 있고 예약시간이 있는 건만 대기로 본다.
+    //    날짜 조건 없음 — 처리할 때까지 남아 있는 목록이다.
+    public List<Map<String, Object>> getCallbackList(String spjangcd, String keyword) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("keyword", (keyword != null && !keyword.isBlank()) ? "%" + keyword + "%" : "%");
+
+        String sql = """
+                SELECT seq,
+                       calldate,
+                       calltime,
+                       callbacktime,
+                       callnm,
+                       callnum,
+                       ISNULL(callbackmemo,'') AS callbackmemo,
+                       ISNULL(callmemo,'')     AS callmemo
+                  FROM TB_CALLMAIN WITH(NOLOCK)
+                 WHERE ISNULL(callbackflag,'') LIKE '%1%'
+                   AND LEN(ISNULL(callbackflag,'')) > 0
+                   AND LEN(ISNULL(callbacktime,'')) > 0
+                   AND (ISNULL(callnm,'') LIKE :keyword OR ISNULL(callnum,'') LIKE :keyword)
+                 ORDER BY calldate DESC, callbacktime ASC, seq DESC
+                """;
+
+        return sqlRunner.getRows(sql, param);
+    }
+
+    // ── 콜백 완료 처리 — 깃발만 내린다 (aprjems 의 /wcallbackflag 와 동일) ──
+    public int completeCallback(String spjangcd, String seq) {
+
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("seq", seq);
+
+        return namedParameterJdbcTemplate.update("""
+                UPDATE TB_CALLMAIN
+                   SET callbackflag = '0'
+                 WHERE seq = :seq
+                """, param);
     }
 
     // ── 통화메모 저장 (TB_CALLMAIN INSERT / UPDATE) ──────────
@@ -604,8 +669,11 @@ public class WebRequestService {
         param.addValue("num", digits);
 
         // 1) 현장
+        //    고객명(callnm)은 현장명(actnm)이 아니라 ancltnm 을 쓴다.
+        //    actnm 에는 '(실패)22.09년…' 처럼 관리용 표기가 섞여 있어 통화메모 고객명으로 부적절하다.
+        //    actnm 도 같이 내려보내 화면이 어느 현장인지 보여줄 수 있게 한다.
         Map<String, Object> row = sqlRunner.getRow(("""
-                SELECT TOP 1 '현장' AS source, e.actcd, e.actnm, e.actnm AS callnm,
+                SELECT TOP 1 '현장' AS source, e.actcd, e.actnm, ISNULL(e.ancltnm,'') AS callnm,
                        '' AS cltcd, '' AS cltnm, ISNULL(e.tel,'') AS tel
                   FROM TB_E601 e
                  WHERE e.spjangcd = :spjangcd

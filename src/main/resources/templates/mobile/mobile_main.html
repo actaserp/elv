@@ -156,7 +156,9 @@
             <input type="hidden" id="postno">
             <div style="margin-bottom: 10px">
               <div id="searchDate" class="currentData" style="text-align: justify;"></div>
-              <div id="userInfo" class="currentData" style="text-align: end">생산부 홍길동 사원</div>
+              <!-- 예시값을 넣어 두면 로그인이 풀려 조회가 실패했을 때 그 값이 그대로 남아
+                   정상 화면처럼 보인다. 값은 read_userInfo 응답으로만 채운다. -->
+              <div id="userInfo" class="currentData" style="text-align: end">&nbsp;</div>
             </div>
             <div>
               <span id="searchTime" class="currentData" style="height: 100px; font-size: 40px;"></span>
@@ -174,7 +176,7 @@
               <i class="fa-solid fa-stopwatch fa_xl" id="officeIcon" style="font-size:1.6em; width:12%; margin-right:6%;"></i>
               <div>
                 <div class="status" style="font-size:12px;">출근</div>
-                <div class="time" id="officeTime" style="font-weight:bold; font-size:14px;">오전 09:00</div>
+                <div class="time" id="officeTime" style="font-weight:bold; font-size:14px;">--:--</div>
               </div>
             </div>
 
@@ -193,9 +195,8 @@
           <div id="workcd" style="display: none">
             <label>근태구분</label>
             <div>
-              <select id="selectWorkcd">
-                <option>휴가</option>
-              </select>
+              <!-- 예시 항목을 두지 않는다. 콤보 조회가 실패하면 그 값이 선택된 것처럼 남는다 -->
+              <select id="selectWorkcd"></select>
             </div>
           </div>
 
@@ -330,6 +331,12 @@
     function searchMainData() {
       let url = '/api/mobile_main/read_userInfo';
       let fnsuccess = function (result) {
+        // 로그인이 풀렸으면 사원 정보가 오지 않는다. 예전에는 여기서 아무것도 하지 않아
+        // 화면에 심어 둔 기본값이 그대로 남았고, 사용자는 로그인된 줄 알고 출근을 눌렀다.
+        if (!result || result.code === 'UNAUTHORIZED' || !result.data || result.data.isEmployee === undefined) {
+          AjaxUtil.goLogin();
+          return;
+        }
         if (result != null) {
 
           // ✅ 전역 변수에 저장 (empId 사용 권장)
@@ -380,7 +387,16 @@
           }
         }
       };
-      AjaxUtil.getAsyncData(url, {}, fnsuccess);
+      // 실패 콜백을 직접 넘긴다. 공통 처리에 맡기면 401 이 아닌 오류(500 등)일 때
+      // 안내만 뜨고 화면은 그대로 남아, 로그인된 것처럼 보이게 된다.
+      AjaxUtil.getAsyncData(url, {}, fnsuccess, function (req) {
+        if (req && req.status === 403) {
+          Alert.alert('', '권한이 없습니다.');
+          return;
+        }
+        // 401(로그인 만료)뿐 아니라 사원 정보를 못 받은 모든 경우에 로그인 화면으로 보낸다.
+        AjaxUtil.goLogin();
+      });
     }
     // 출퇴근 등록 후 화면을 갱신할 때 밖에서도 부를 수 있게 노출한다.
     // (출근 성공 시 예전에는 window.location.reload() 를 했는데, 새로고침이
@@ -394,13 +410,11 @@
     //    로그인이 풀렸는지 먼저 확인한다. 화면에는 이전 정보가 그대로 남아 있어
     //    로그인된 것처럼 보이는 상태에서 출근 버튼을 누르게 되는 문제가 있었다.
     //    로그인이 풀렸으면 AjaxUtil.goLogin() 이 안내 후 로그인 화면으로 보낸다.
-    document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState !== 'visible') return;
-
+    function verifyLogin() {
       $.get(withCtx('/api/mobile_main/read_userInfo'))
        .done(function (res) {
          // 401 이면 done 이 아니라 fail 로 온다. 여기서는 응답 본문만 확인하면 된다.
-         if (res && res.data) {
+         if (res && res.data && res.code !== 'UNAUTHORIZED') {
            searchMainData();   // 로그인 유지됨 → 출퇴근 기록 최신화
          } else {
            AjaxUtil.goLogin();
@@ -409,6 +423,17 @@
        .fail(function () {
          AjaxUtil.goLogin();
        });
+    }
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'visible') return;
+      verifyLogin();
+    });
+
+    // 뒤로가기·탭 복원(bfcache)으로 돌아온 경우. 이때는 서버를 거치지 않고 예전 화면이
+    // 그대로 복원되므로 visibilitychange 가 안 뜨는 브라우저(카카오·네이버 인앱)가 있다.
+    window.addEventListener('pageshow', function (ev) {
+      if (ev.persisted) verifyLogin();
     });
   });
 

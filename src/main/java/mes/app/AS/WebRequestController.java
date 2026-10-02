@@ -159,6 +159,35 @@ public class WebRequestController {
         return result;
     }
 
+    // ── 콜백리스트 조회 ───────────────────────────────────────
+    @GetMapping("/callback_list")
+    public AjaxResult getCallbackList(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "keyword", required = false) String keyword,
+            HttpServletRequest request) {
+        AjaxResult result = new AjaxResult();
+        result.data = webRequestService.getCallbackList(spjangcd, keyword);
+        return result;
+    }
+
+    // ── 콜백 완료 처리 (깃발 내리기) ──────────────────────────
+    @PostMapping("/callback_done")
+    public AjaxResult completeCallback(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "seq")      String seq,
+            HttpServletRequest request) {
+        AjaxResult result = new AjaxResult();
+
+        int updated = webRequestService.completeCallback(spjangcd, seq);
+        if (updated < 1) {
+            result.success = false;
+            result.message = "콜백 처리에 실패했습니다. 목록을 새로고침해주세요.";
+        } else {
+            result.message = "콜백을 처리했습니다.";
+        }
+        return result;
+    }
+
     // ── 통화메모 저장 ─────────────────────────────────────────
     @PostMapping("/save_memo")
     public AjaxResult saveMemo(

@@ -185,9 +185,9 @@
                         <dd>
                             <div style="display: flex; gap: 10px">
                                 <div style="width: 100%">
-                                    <select id="searchYear">
-                                        <option>2025</option>
-                                    </select>
+                                    <!-- 연도를 박아 두지 않는다. 조회가 실패하면 그 해가 선택된 것처럼
+                                         남아 엉뚱한 연도를 조회하게 된다. loadAvailableYears() 가 채운다 -->
+                                    <select id="searchYear"></select>
                                 </div>
                             </div>
                         </dd>
@@ -344,10 +344,7 @@
             select.innerHTML = '';
 
             if (!years || years.length === 0) {
-                const opt = document.createElement('option');
-                opt.text = new Date().getFullYear();
-                opt.value = new Date().getFullYear();
-                select.appendChild(opt);
+                setCurrentYearOnly();
                 return;
             }
 
@@ -359,7 +356,18 @@
             });
         } catch (e) {
             console.error('연도 조회 실패:', e);
+            // 실패해도 비워 두거나 예전 값을 남기지 않는다 — 올해로 맞춰 둔다
+            setCurrentYearOnly();
         }
+    }
+
+    function setCurrentYearOnly() {
+        const select = document.getElementById('searchYear');
+        if (!select) return;
+        select.innerHTML = '';
+        const opt = document.createElement('option');
+        opt.text = opt.value = new Date().getFullYear();
+        select.appendChild(opt);
     }
 </script>
 </body>

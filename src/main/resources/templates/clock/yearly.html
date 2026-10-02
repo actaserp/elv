@@ -5,6 +5,78 @@
       text-align: center !important;
     }
 
+    /* 생성방식 선택 (PB w_pb209_card 대응) */
+    #createModeDim {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .4);
+      z-index: 10000;
+    }
+
+    #createModeBox {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 420px;
+      background: #fff;
+      border-radius: 6px;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, .25);
+      padding: 22px 24px 18px;
+    }
+
+    #createModeBox h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0 0 6px;
+    }
+
+    #createModeBox .desc {
+      font-size: 13px;
+      color: #666;
+      margin: 0 0 16px;
+    }
+
+    #createModeBox label {
+      display: block;
+      padding: 9px 4px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    #createModeBox label span {
+      display: block;
+      margin-left: 22px;
+      font-size: 12px;
+      color: #888;
+    }
+
+    #createModeBox .btns {
+      margin-top: 18px;
+      text-align: right;
+    }
+
+    #createModeBox .btns a {
+      display: inline-block;
+      min-width: 76px;
+      padding: 7px 14px;
+      margin-left: 6px;
+      text-align: center;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    #createModeOk {
+      background: #2d6cdf;
+      color: #fff;
+    }
+
+    #createModeCancel {
+      background: #eee;
+      color: #333;
+    }
   </style>
 
 </head>
@@ -83,14 +155,14 @@
         <div class="button-wrap">
           <ul>
             <li>
-              <a class="btn btn-excell" title="저장" id="btnyearCreate">
-                <img th:src="@{/images/icon/ico-edit.svg}" alt="저장 아이콘">
+              <a class="btn btn-excell" title="연차생성" id="btnyearCreate">
+                <img th:src="@{/images/icon/ico-edit.svg}" alt="연차생성 아이콘">
                 연차생성
               </a>
             </li>
             <li>
-              <a class="btn btn-excell" title="저장" id="btnMonthlyCreate">
-                <img th:src="@{/images/icon/ico-edit.svg}" alt="저장 아이콘">
+              <a class="btn btn-excell" title="월차생성" id="btnMonthlyCreate">
+                <img th:src="@{/images/icon/ico-edit.svg}" alt="월차생성 아이콘">
                 월차생성
               </a>
             </li>
@@ -103,6 +175,14 @@
           </ul>
         </div>
       </div> <!--//section-top end -->
+      <p style="margin: 0 0 6px; font-size: 12px; color: #777;">
+        연차생성은 근속 1년 이상(입사년도가 조회년도보다 2년 이상 이전)인 재직자를 근속연수 기준으로 생성합니다.
+        월차생성은 근속 1년 미만(직전년도 입사)인 재직자를 입사일로부터 기준일자까지 채운 개월수 1개월당 1일(최대 11일)로 생성합니다.
+        특정 직원만 생성하려면 사원명을 입력한 뒤 생성하세요.
+        <br>
+        <b>조정일</b> 칸만 직접 고칠 수 있습니다. 도입 시점에 이미 쓴 연차는 음수(예 -2), 특별히 더 주는 휴가는 양수로 적고 저장하세요.
+        잔여일은 <b>이월 + 연차 + 조정 − 사용</b> 으로 자동 계산되며, 조정 내역은 사원별 이력에 남습니다.
+      </p>
       <div class="container-fluid" style="flex-direction: row; gap: 5px">
         <div style="flex: 0 0 50%; max-width: 50%;">
           <p id="selectedItem1"></p>
@@ -116,6 +196,26 @@
       </div>
     </section>
   </div> <!--//layout-contents end -->
+
+  <!-- 생성방식 선택 -->
+  <div id="createModeDim">
+    <div id="createModeBox">
+      <h3 id="createModeTitle">연차생성</h3>
+      <p class="desc" id="createModeDesc"></p>
+      <label>
+        <input type="radio" name="createMode" value="2" checked> 신규 대상자만 생성
+        <span>이미 생성된 직원은 건너뜁니다.</span>
+      </label>
+      <label>
+        <input type="radio" name="createMode" value="1"> 기존 생성분 삭제 후 다시 생성
+        <span>해당 연도의 발생일수를 지우고 다시 계산합니다. 사용내역은 유지됩니다.</span>
+      </label>
+      <div class="btns">
+        <a id="createModeCancel">취소</a>
+        <a id="createModeOk">생성</a>
+      </div>
+    </div>
+  </div>
 
   <footer style="margin-top: 24px;">
     <p>Copyrightⓒ 0000 corp. All rights reserved.</p>
@@ -131,45 +231,66 @@
         this.viewData2 = new wijmo.collections.CollectionView();
         this.grid = null;
         this.grid2 = null;
+        this.adjustSnapshot = {};   // perid → 불러왔을 때의 조정일
         this.init();
       }
 
       init() {
         let _this = this;
 
+        // 조정일(monthnum)만 편집할 수 있다. 나머지는 생성 결과라 손대지 않는다.
         this.grid = new wijmo.grid.FlexGrid('#member-grid', {
           selectionMode: wijmo.grid.SelectionMode.Row,
           headersVisibility: wijmo.grid.HeadersVisibility.Column,
           autoGenerateColumns: false,
           showMarquee: true,
-          isReadOnly: true,
+          isReadOnly: false,
           formatItem: (sender, e) => {
             if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader) {
               e.cell.style.textAlign = 'center';
             }
             //소수점1자리까지만
             if (e.panel.cellType === wijmo.grid.CellType.Cell) {
-              // daynum/ restnum 컬럼에만 적용
               const col = sender.columns[e.col];
-              if (col.binding === 'daynum' || col.binding === 'restnum' || col.binding === 'ewolnum') {
+              if (col.binding === 'daynum' || col.binding === 'restnum'
+                || col.binding === 'ewolnum' || col.binding === 'holinum' || col.binding === 'monthnum') {
                 const value = sender.getCellData(e.row, e.col, false);
                 if (typeof value === 'number') {
                   e.cell.innerHTML = (value % 1 === 0) ? value.toString() : value.toFixed(1);
                 }
               }
+              // 고친 칸은 눈에 띄게 둔다
+              if (col.binding === 'monthnum') {
+                const item = sender.rows[e.row] ? sender.rows[e.row].dataItem : null;
+                if (item && _this.isAdjustChanged(item)) {
+                  e.cell.style.backgroundColor = '#fff4d6';
+                  e.cell.style.fontWeight = 'bold';
+                }
+              }
             }
           },
           columns: [
-            {binding: 'rownum', header: '순번', width: 100, align: 'center'},
-            {binding: 'person_name', header: '사원명', width: 120, align: 'center'},
-            {binding: 'RSPNM', header: '직위', width: 100, align: 'center'},
-            {binding: 'rtdate', header: '입사일', width: 140, align: 'center'},
-            {binding: 'ewolnum', header: '이월일', width: 140, align: 'center'},
-            {binding: 'holinum', header: '연차일수', width: 140, align: 'center'},
-            {binding: 'daynum', header: '사용일', width: 120, align: 'center'},
-            {binding: 'restnum', header: '잔여일', width: 100, align: 'center'},
+            {binding: 'rownum', header: '순번', width: 70, align: 'center', isReadOnly: true},
+            {binding: 'perid', header: '사번', width: 80, align: 'center', isReadOnly: true},
+            {binding: 'person_name', header: '사원명', width: 100, align: 'center', isReadOnly: true},
+            {binding: 'RSPNM', header: '직위', width: 90, align: 'center', isReadOnly: true},
+            {binding: 'rtdate', header: '입사일', width: 110, align: 'center', isReadOnly: true},
+            {binding: 'ewolnum', header: '이월일', width: 80, align: 'center', isReadOnly: true},
+            {binding: 'holinum', header: '연차일수', width: 90, align: 'center', isReadOnly: true},
+            {binding: 'monthnum', header: '조정일', width: 90, align: 'center', dataType: wijmo.DataType.Number},
+            {binding: 'daynum', header: '사용일', width: 80, align: 'center', isReadOnly: true},
+            {binding: 'restnum', header: '잔여일', width: 80, align: 'center', isReadOnly: true},
           ],
           itemsSource: this.viewData, // 데이터를 설정할 배열
+        });
+
+        // 조정일을 고치면 잔여일을 바로 다시 계산해 보여준다 (저장은 [저장] 버튼)
+        this.grid.cellEditEnded.addHandler((sender, e) => {
+          const col = sender.columns[e.col];
+          if (!col || col.binding !== 'monthnum') return;
+          const item = sender.rows[e.row].dataItem;
+          _this.recalcRest(item);
+          sender.invalidate();
         });
 
 
@@ -178,13 +299,14 @@
           if (hitTest.cellType === wijmo.grid.CellType.Cell) {
             let row = hitTest.row;
             let selectedItem = this.grid.rows[row].dataItem;
-            console.log(selectedItem);
-            _this.showDetail(selectedItem.id)
+            if (selectedItem && selectedItem.id != null) {
+              _this.showDetail(selectedItem.id);
+            }
           }
         });
 
         new FlexGridContextMenu(this.grid);
-        this.grid.downloadFileName = '사원별근태현황';
+        this.grid.downloadFileName = '연차현황';
 
 
         this.grid2 = new wijmo.grid.FlexGrid('#list-grid', {
@@ -199,22 +321,23 @@
             }
           },
           columns: [
-            {binding: 'rownum', header: '순번', width: 100, align: 'center'},
-            {binding: 'worknm', header: '구분', width: 120, align: 'center'},
-            {binding: 'reqdate', header: '신청일', width: 100, align: 'center'},
-            {binding: 'frdate', header: '시작일', width: 140, align: 'center'},
-            {binding: 'todate', header: '종료일', width: 140, align: 'center'},
-            {binding: 'daynum', header: '기간', width: 140, align: 'center'},
-            {binding: 'ewolnum', header: '이월일', width: 120, align: 'center'},
-            {binding: 'holinum', header: '생성일', width: 100, align: 'center'},
-            {binding: 'daynum', header: '사용일', width: 100, align: 'center'},
-            {binding: 'restnum', header: '잔여일', width: 100, align: 'center'},
+            {binding: 'rownum', header: '순번', width: 70, align: 'center'},
+            {binding: 'worknm', header: '구분', width: 110, align: 'center'},
+            {binding: 'reqdate', header: '신청일', width: 110, align: 'center'},
+            {binding: 'frdate', header: '시작일', width: 110, align: 'center'},
+            {binding: 'todate', header: '종료일', width: 110, align: 'center'},
+            {binding: 'daynum', header: '기간', width: 80, align: 'center'},
+            {binding: 'ewolnum', header: '이월일', width: 80, align: 'center'},
+            {binding: 'holinum', header: '생성일', width: 80, align: 'center'},
+            {binding: 'monthnum', header: '조정일', width: 80, align: 'center'},
+            {binding: 'restnum', header: '잔여일', width: 80, align: 'center'},
+            {binding: 'remark', header: '조정 이력', width: '*', minWidth: 200},
           ],
           itemsSource: this.viewData2, // 데이터를 설정할 배열
         });
 
         new FlexGridContextMenu(this.grid2);
-        this.grid2.downloadFileName = '근태내역';
+        this.grid2.downloadFileName = '연차내역';
       }
 
       searchMainData() {
@@ -224,176 +347,188 @@
         let data = {
           'year': $('#year').val(),
           'name': $('#name').val(),
-          'startdate': $('#startdate').val(),
           'rtflag': $('#rtflag').val(),
           spjangcd: sessionStorage.getItem('spjangcd'),
         }
 
         let result = AjaxUtil.getSyncData(url, data);
-        if (result && result.data) {
-          console.log(result);
-          _this.viewData.sourceCollection = result.data;
-        }
+        let rows = (result && result.data) ? result.data : [];
 
-      }//searchMainData
-
-      //연차생성
-      yearCreate() {
-        let _this = this;
-
-        let url = '/api/clock/Yearly/YearlyCreat'
-        let data = {
-          'year': $('#year').val(),
-          'startdate': $('#startdate').val(),
-          'name': $('#name').val(),
-          spjangcd: sessionStorage.getItem('spjangcd'),
-        }
-
-        let result = AjaxUtil.getSyncData(url, data);
-        if (result && result.data) {
-          result.data.sort((a, b) => a.rownum - b.rownum);
-          _this.viewData.sourceCollection = result.data;
-
-          _this.saveyear()
-        }
-
-      }
-
-//월차생성
-      MonthlyCreate() {
-        let _this = this;
-        let url = '/api/clock/Yearly/MonthlyCreate';
-        let data = {
-          'year': $('#year').val(),
-          'startdate': $('#startdate').val(),
-          'name': $('#name').val(),
-          spjangcd: sessionStorage.getItem('spjangcd'),
-        };
-
-        let result = AjaxUtil.getSyncData(url, data);
-        if (result && result.data) {
-          let newData = result.data;
-
-
-          _this.generatedMonthlyData = newData;
-
-          // 기존 데이터와 병합하여 화면에 보여줄 데이터 구성
-          if (!_this.viewData.sourceCollection || _this.viewData.sourceCollection.length === 0) {
-            _this.viewData.sourceCollection = newData;
-            return;
-          }
-
-          let mergedData = [..._this.viewData.sourceCollection];
-
-          newData.forEach(newItem => {
-            let index = mergedData.findIndex(item => String(item.id).trim() === String(newItem.id).trim());
-
-            if (index !== -1) {
-              mergedData[index].daynum = newItem.daynum;
-              mergedData[index].restnum = newItem.restnum;
-              mergedData[index].holinum = newItem.holinum;
-            } else {
-              mergedData.push(newItem);
-            }
-          });
-
-          mergedData.sort((a, b) => a.rownum - b.rownum);
-          _this.viewData.sourceCollection = mergedData;
-
-          _this.saveMonthly()
-        }
-      }
-
-
-      saveMonthly() {
-        let _this = this;
-        let url = '/api/clock/Yearly/Monthlysave';
-
-        let filteredData = _this.generatedMonthlyData;
-
-        if (!filteredData || filteredData.length === 0) {
-          Alert.alert('', '저장할 월차 생성 데이터가 없습니다.');
-          return;
-        }
-
-        let data = {
-          spjangcd: sessionStorage.getItem('spjangcd'),
-          year: $('#year').val(),
-          saveList: filteredData
-        };
-
-        let fnSuccess = function (res) {
-          if (res.success) {
-            Alert.alert('', '저장되었습니다');
-            _this.searchMainData();
-          } else {
-            Alert.alert('', res.message || '저장에 실패했습니다.');
-          }
-        };
-
-        AjaxUtil.postJsonData(url, data, fnSuccess);
-      }
-
-
-      saveyear() {
-        let _this = this;
-        let url = '/api/clock/Yearly/Yearlysave';
-
-        // viewData에서 holinum이 있는 데이터만 필터링
-        let filteredData = _this.viewData.items.filter(item => {
-          return item.holinum !== null && item.holinum !== undefined && Number(item.holinum) > 0;
+        // 조정일을 고쳤는지 비교하려고 불러온 값을 따로 기억해 둔다
+        _this.adjustSnapshot = {};
+        rows.forEach(function (d) {
+          d.monthnum = _this.num(d.monthnum);
+          _this.adjustSnapshot[d.perid] = d.monthnum;
         });
 
-        if (filteredData.length === 0) {
-          Alert.alert('', '저장할 연차 생성 데이터가 없습니다.');
+        _this.viewData.sourceCollection = rows;
+        _this.viewData2.sourceCollection = [];
+      }//searchMainData
+
+      num(v) {
+        let n = Number(v);
+        return isNaN(n) ? 0 : n;
+      }
+
+      /** 저장하지 않은 조정일이 있는 행인가 */
+      isAdjustChanged(item) {
+        if (!item || item.perid == null) return false;
+        let before = this.adjustSnapshot ? this.num(this.adjustSnapshot[item.perid]) : 0;
+        return this.num(item.monthnum) !== before;
+      }
+
+      /** 잔여 = 이월 + 연차 + 조정 − 사용 */
+      recalcRest(item) {
+        if (!item) return;
+        item.monthnum = this.num(item.monthnum);
+        item.restnum = this.num(item.ewolnum) + this.num(item.holinum)
+                     + item.monthnum - this.num(item.daynum);
+      }
+
+      changedAdjustRows() {
+        let _this = this;
+        let rows = this.viewData.items || [];
+        return rows.filter(function (item) { return _this.isAdjustChanged(item); });
+      }
+
+      /** 조정일수 저장 */
+      saveAdjust() {
+        let _this = this;
+
+        let changed = this.changedAdjustRows();
+        if (changed.length === 0) {
+          Alert.alert('', '변경된 조정일이 없습니다.');
           return;
         }
 
-        let data = {
-          spjangcd: sessionStorage.getItem('spjangcd'),
-          year: $('#year').val(),
-          saveList: filteredData // 서버로 전송할 데이터
-        };
+        let over = changed.filter(function (i) { return Math.abs(_this.num(i.monthnum)) > 999.9; });
+        if (over.length > 0) {
+          Alert.alert('', '조정일은 -999.9 ~ 999.9 사이로 입력해 주세요.');
+          return;
+        }
 
-        console.log(data);
+        Alert.confirm('', changed.length + '명의 조정일을 저장하시겠습니까?', function () {
+          let data = {
+            year: $('#year').val(),
+            spjangcd: sessionStorage.getItem('spjangcd'),
+            saveList: changed.map(function (i) {
+              return {perid: i.perid, person_name: i.person_name, monthnum: _this.num(i.monthnum)};
+            })
+          };
 
-        let fnSuccess = function (res) {
-          if (res.success) {
-            Alert.alert('', '저장되었습니다');
-            /* _this.searchMainData();*/
-          } else {
-            Alert.alert('', res.message || '저장에 실패했습니다.');
-          }
-        };
+          AjaxUtil.postJsonData('/api/clock/Yearly/saveAdjust', data, function (res) {
+            if (res && res.success) {
+              Alert.alert('', res.message || '저장되었습니다.');
+              _this.searchMainData();
+            } else {
+              Alert.alert('', (res && res.message) ? res.message : '저장에 실패했습니다.');
+            }
+          });
+        });
+      }
 
-        AjaxUtil.postJsonData(url, data, fnSuccess);
+      /** 연차생성 / 월차생성 — PB uo_1 clicked + wf_createyear() */
+      generate(mode) {
+        let _this = this;
+
+        let year = $('#year').val();
+        if (!year) {
+          Alert.alert('', '조회년도를 선택하세요.');
+          return;
+        }
+        // 생성하면 목록을 다시 불러오므로, 저장 안 한 조정일은 사라진다
+        if (this.changedAdjustRows().length > 0) {
+          Alert.alert('', '저장하지 않은 조정일이 있습니다. 먼저 저장하거나 다시 조회한 뒤 생성해 주세요.');
+          return;
+        }
+
+        let isMonthly = (mode === 'month');
+        let title = isMonthly ? '월차생성' : '연차생성';
+        let desc = isMonthly
+          ? year + '년도 월차를 생성합니다. (근속 1년 미만 재직자, 기준일자 ' + ($('#startdate').val() || '-') + ')'
+          : year + '년도 연차를 생성합니다. (근속 1년 이상 재직자)';
+
+        let name = ($('#name').val() || '').trim();
+        if (name) {
+          desc += ' 사원명 "' + name + '" 에 해당하는 직원만 생성합니다.';
+        }
+
+        CreateModeDialog.open(title, desc, function (createFlag) {
+          let url = isMonthly ? '/api/clock/Yearly/MonthlyCreate' : '/api/clock/Yearly/YearlyCreate';
+          let data = {
+            year: year,
+            startdate: $('#startdate').val(),
+            name: name,
+            rtflag: $('#rtflag').val(),
+            createFlag: createFlag,
+            spjangcd: sessionStorage.getItem('spjangcd'),
+          };
+
+          AjaxUtil.postJsonData(url, data, function (res) {
+            if (res && res.success) {
+              Alert.alert('', res.message || '생성되었습니다.');
+              _this.searchMainData();
+            } else {
+              Alert.alert('', (res && res.message) ? res.message : '생성에 실패했습니다.');
+            }
+          });
+        });
       }
 
       showDetail(id) {
-        console.log("showdetail진입");
         let _this = this;
         let data = {
           'id': id,
           year: $('#year').val(),
+          spjangcd: sessionStorage.getItem('spjangcd'),
         };
-        let url = '/api/clock/Yearly';
-        let result = AjaxUtil.getSyncData(url + "/detail", data);
+        let result = AjaxUtil.getSyncData('/api/clock/Yearly/detail', data);
 
-        if (result.data != null) {
-          console.log(result);
+        if (result && result.data != null) {
           _this.viewData2.sourceCollection = result.data;
+        } else {
+          _this.viewData2.sourceCollection = [];
         }
       }
 
 
     }
 
+    /** 생성방식 선택 팝업 (PB w_pb201_card / w_pb209_card 대응) */
+    const CreateModeDialog = {
+      callback: null,
+      open(title, desc, callback) {
+        this.callback = callback;
+        $('#createModeTitle').text(title);
+        $('#createModeDesc').text(desc);
+        $('input[name="createMode"][value="2"]').prop('checked', true);
+        $('#createModeDim').show();
+      },
+      close() {
+        $('#createModeDim').hide();
+        this.callback = null;
+      },
+      confirm() {
+        let flag = $('input[name="createMode"]:checked').val();
+        let cb = this.callback;
+        this.close();
+        if (cb) cb(flag);
+      }
+    };
+
     let page = null;
 
     $(document).ready(function (e) {
-      //yullinAuth.inspection();
       yullinAuth.removeWriteButton();
       page = new YearlyPage();
+
+      // 쓰기 권한이 없으면 조정일도 고칠 수 없게 한다
+      try {
+        if (typeof userinfo !== 'undefined' && userinfo.can_write && !userinfo.can_write()) {
+          page.grid.isReadOnly = true;
+          $('#btnSave').hide();
+        }
+      } catch (e) { /* 권한 정보를 못 읽으면 기존처럼 둔다 */ }
 
       AjaxUtil.fillSelectOptions($('#rtflag'), 'system_code', 'choose', '0', 'rtflag_type');
 
@@ -410,11 +545,9 @@
       }
 
       select.addEventListener('change', function () {
-        // 현재 선택된 월 가져오기 (기존 값에서 추출)
-        let currentMonth = $('#startdate').val().substring(5, 7); // MM만 가져옴
-        let selectedYear = this.value;
-        let newValue = `${selectedYear}-${currentMonth}`;
-        $('#startdate').val(newValue);
+        // 조회년도를 바꾸면 기준일자의 연도도 같이 맞춘다
+        let currentMonth = ($('#startdate').val() || '').substring(5, 7) || '12';
+        $('#startdate').val(this.value + '-' + currentMonth);
       });
 
       $('#btnSearch').click(function (ex) {
@@ -422,17 +555,28 @@
       });
 
       $('#btnyearCreate').click(function (ex) {
-        page.yearCreate();
+        page.generate('year');
       });
       $('#btnMonthlyCreate').click(function (ex) {
-        page.MonthlyCreate();
+        page.generate('month');
+      });
+      $('#btnSave').click(function (ex) {
+        page.saveAdjust();
       });
 
+      $('#createModeOk').click(function () {
+        CreateModeDialog.confirm();
+      });
+      $('#createModeCancel').click(function () {
+        CreateModeDialog.close();
+      });
+      $('#createModeDim').click(function (ev) {
+        if (ev.target === this) CreateModeDialog.close();
+      });
 
       page.searchMainData();
     });
   </script>
 
 </th:block>
-
 </html>
