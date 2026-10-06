@@ -23,19 +23,19 @@ public class MaintenanceRepairService {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("username", username);
 
+        // 잔여연차는 사번(person.Code)으로 붙인다 — AnnualLeaveSql 참고
         String sql = """
                 SELECT TOP 1
                     a.username,
                     a.first_name,
                     p.id,
-                    an.restnum,
+                    ann.restnum,
                     t.sttime
                 FROM auth_user a
-                LEFT JOIN tb_pb209 an ON an.perid = a.personid
                 LEFT JOIN person p ON p.id = a.personid
                 LEFT JOIN tb_pbcont t ON t.flag = RIGHT('0' + CAST(p.PersonGroup_id AS VARCHAR), 2)
+                """ + AnnualLeaveSql.OUTER_APPLY_BY_PERSON + """
                 WHERE a.username = :username
-                ORDER BY an.todate DESC
                 """;
 
         return this.sqlRunner.getRow(sql, param);

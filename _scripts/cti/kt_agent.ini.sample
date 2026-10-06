@@ -24,3 +24,8 @@ ELV_URL = http://localhost:8034/elv/api/AS/cti/event
 
 # 서버의 cti.agent.secret 과 똑같이 맞춰야 합니다.
 ELV_SECRET =
+
+# 프로그램을 켤 때 바로 로그인할지. false 면 화면의 [연결] 버튼을 기다립니다.
+AUTO_LOGIN = false
+
+# 로그 파일: kt_agent.log  (wscript 로 띄웠을 때만 기록됩니다)

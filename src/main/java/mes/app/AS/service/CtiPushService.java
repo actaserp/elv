@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,8 +32,24 @@ public class CtiPushService {
     /** 브라우저 연결 유지 시간. 끊겨도 EventSource 가 자동 재연결한다. */
     private static final long TIMEOUT_MS = 30 * 60 * 1000L;
 
+    /** 에이전트가 살아 있다고 보는 시간. 이 시간 안에 신호가 없으면 끊긴 것으로 본다. */
+    private static final long AGENT_TTL_MS = 90 * 1000L;
+
+    /** 화면에서 누른 명령이 유효한 시간. 지나면 버린다. */
+    private static final long COMMAND_TTL_MS = 3 * 60 * 1000L;
+
     /** elv 로그인 계정(username) → 그 사용자가 열어둔 화면들 */
     private final Map<String, List<SseEmitter>> emitters = new ConcurrentHashMap<>();
+
+    /** elv 로그인 계정(username) → 그 사용자의 에이전트가 마지막으로 신호를 보낸 시각 */
+    private final Map<String, Long> agentSeen = new ConcurrentHashMap<>();
+
+    /**
+     * elv 로그인 계정(username) → 에이전트가 가져갈 명령 ("connect" / "disconnect").
+     * 브라우저는 PC 의 프로그램을 직접 부를 수 없어서, 화면이 여기에 적어두면
+     * 에이전트가 주기적으로 가져간다. KT 비밀번호는 PC 에만 있고 여기를 지나가지 않는다.
+     */
+    private final Map<String, String> commands = new ConcurrentHashMap<>();
 
     /** 화면 한 개를 구독에 등록한다. 탭을 여러 개 열면 그 수만큼 쌓인다. */
     public SseEmitter subscribe(String username) {
@@ -43,9 +60,12 @@ public class CtiPushService {
         emitter.onTimeout(()    -> remove(username, emitter));
         emitter.onError(e       -> remove(username, emitter));
 
-        // 첫 이벤트를 즉시 보내야 프록시가 연결을 확정한다
+        // 첫 이벤트를 즉시 보내야 프록시가 연결을 확정한다.
+        // 지금 에이전트가 붙어 있는지도 같이 알려줘야 화면이 처음부터 올바른 상태를 그린다.
         try {
             emitter.send(SseEmitter.event().name("ready").data(Map.of("ok", true)));
+            emitter.send(SseEmitter.event().name("agent-status")
+                    .data(Map.of("online", isAgentOnline(username))));
         } catch (IOException e) {
             remove(username, emitter);
         }
@@ -78,6 +98,73 @@ public class CtiPushService {
         return sent;
     }
 
+    // ── 에이전트 생사 ────────────────────────────────────────
+    // 설정으로 "이 사업체는 CTI 를 쓴다"고 선언하는 대신, 에이전트가 실제로 붙어 있는지로 판단한다.
+    // 설정은 거짓말을 할 수 있지만(에이전트가 죽어도 켜져 있다고 나온다) 이 값은 그렇지 않다.
+
+    /** 에이전트가 살아 있다고 알려왔다. 상태가 바뀌었으면 화면에 알린다. */
+    public void agentOnline(String username) {
+        boolean was = isAgentOnline(username);
+        agentSeen.put(username, System.currentTimeMillis());
+        if (!was) {
+            log.info("[CTI] 에이전트 연결: user={}", username);
+            sendAgentStatus(username, true);
+        }
+    }
+
+    /** 에이전트가 내려갔다 */
+    public void agentOffline(String username) {
+        if (agentSeen.remove(username) != null) {
+            log.info("[CTI] 에이전트 해제: user={}", username);
+            sendAgentStatus(username, false);
+        }
+    }
+
+    // ── 화면 → 에이전트 명령 ─────────────────────────────────
+
+    /** 화면이 [연결]/[해제] 를 눌렀다. 에이전트가 가져갈 때까지 들고 있는다. */
+    public void queueCommand(String username, String command) {
+        commands.put(username, System.currentTimeMillis() + "|" + command);
+        log.info("[CTI] 명령 대기: user={}, command={}", username, command);
+    }
+
+    /**
+     * 에이전트가 가져간다. 한 번 가져가면 지운다. 없으면 빈 문자열.
+     * 오래된 명령은 버린다 — 퇴근 전에 누른 [연결] 이 다음 날 부팅 때 되살아나면
+     * 그 사이 다른 사람이 쓰고 있던 계정을 밀어낼 수 있다.
+     */
+    public String takeCommand(String username) {
+        String raw = commands.remove(username);
+        if (raw == null) return "";
+
+        int i = raw.indexOf('|');
+        long at = Long.parseLong(raw.substring(0, i));
+        String command = raw.substring(i + 1);
+
+        if (System.currentTimeMillis() - at > COMMAND_TTL_MS) {
+            log.info("[CTI] 오래된 명령 버림: user={}, command={}", username, command);
+            return "";
+        }
+        return command;
+    }
+
+    public boolean isAgentOnline(String username) {
+        Long seen = agentSeen.get(username);
+        return seen != null && (System.currentTimeMillis() - seen) < AGENT_TTL_MS;
+    }
+
+    private void sendAgentStatus(String username, boolean online) {
+        List<SseEmitter> targets = emitters.get(username);
+        if (targets == null) return;
+        for (SseEmitter emitter : targets) {
+            try {
+                emitter.send(SseEmitter.event().name("agent-status").data(Map.of("online", online)));
+            } catch (Exception e) {
+                remove(username, emitter);
+            }
+        }
+    }
+
     /** 현재 그 사용자가 열어둔 화면 수 */
     public int count(String username) {
         List<SseEmitter> list = emitters.get(username);
@@ -90,6 +177,17 @@ public class CtiPushService {
      */
     @Scheduled(fixedDelay = 25000)
     public void heartbeat() {
+        // 신호가 끊긴 에이전트를 내려놓고 화면의 표시도 꺼 준다.
+        // (에이전트가 그냥 죽으면 agentOffline 을 못 보내므로 여기서 걸러진다)
+        long now = System.currentTimeMillis();
+        for (Map.Entry<String, Long> e : new ArrayList<>(agentSeen.entrySet())) {
+            if (now - e.getValue() >= AGENT_TTL_MS) {
+                agentSeen.remove(e.getKey());
+                log.info("[CTI] 에이전트 신호 끊김: user={}", e.getKey());
+                sendAgentStatus(e.getKey(), false);
+            }
+        }
+
         if (emitters.isEmpty()) return;
 
         emitters.forEach((username, list) -> {

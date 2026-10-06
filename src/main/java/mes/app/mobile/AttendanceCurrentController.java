@@ -47,8 +47,12 @@ public class AttendanceCurrentController {
 
         Map<String, Object> annInfo = attendanceCurrentService.getAnnInfo(personId);
         if (annInfo != null) {
-            String rtdate = (String) annInfo.get("rtdate");
-            annInfo.put("rtdate", rtdate.substring(0, 4) + "." + rtdate.substring(4, 6) + "." + rtdate.substring(6));
+            // 입사일이 비어 있는 사원도 있다. 예전에는 조회가 늘 0건이라 여기까지 오지 않았다.
+            Object rtdateObj = annInfo.get("rtdate");
+            String rtdate = (rtdateObj == null) ? "" : rtdateObj.toString().trim();
+            annInfo.put("rtdate", rtdate.length() == 8
+                    ? rtdate.substring(0, 4) + "." + rtdate.substring(4, 6) + "." + rtdate.substring(6)
+                    : "");
         }
 
         List<Map<String, Object>> vacInfo = attendanceCurrentService.getVacInfo(workcd, searchYear, personId);

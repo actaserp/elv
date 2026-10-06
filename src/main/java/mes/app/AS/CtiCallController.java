@@ -33,14 +33,9 @@ public class CtiCallController {
     @Autowired
     CtiPushService ctiPushService;
 
-    /**
-     * CTI(전화 수신 알림) 사용 여부.
-     * 꺼져 있으면 화면이 구독을 아예 시작하지 않는다 — 쓰지도 않는 SSE 연결을
-     * 사용자 수만큼 들고 있을 이유가 없고, '전화 연결됨' 표시도 보이면 안 된다.
-     * 윈도우 에이전트가 붙은 사업체에서만 켠다.
-     */
-    @Value("${cti.enabled:false}")
-    private boolean ctiEnabled;
+    // CTI 사용 여부를 설정으로 선언하지 않는다.
+    // 에이전트가 실제로 붙어 있는지로 판단한다 — 설정은 에이전트가 죽어도 '켜짐'이라고
+    // 거짓말을 하지만, 에이전트 신호는 그렇지 않다. 화면의 연결 표시도 이 값을 따른다.
 
     /** 모의 푸시 허용 여부. 운영에서는 반드시 false 로 둔다. */
     @Value("${cti.mock.enabled:false}")
@@ -57,8 +52,6 @@ public class CtiCallController {
     // 로그인한 본인 앞으로 오는 알림만 받는다. 대상 지정 파라미터가 없다.
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<SseEmitter> stream(Authentication auth) {
-        if (!ctiEnabled) return ResponseEntity.status(503).build();
-
         User user = (User) auth.getPrincipal();
         return ResponseEntity.ok(ctiPushService.subscribe(user.getUsername()));
     }
@@ -67,7 +60,7 @@ public class CtiCallController {
     @GetMapping("/config")
     public AjaxResult config() {
         AjaxResult result = new AjaxResult();
-        result.data = Map.of("enabled", ctiEnabled, "mockEnabled", ctiEnabled && mockEnabled);
+        result.data = Map.of("mockEnabled", mockEnabled);
         return result;
     }
 
@@ -82,7 +75,7 @@ public class CtiCallController {
 
         AjaxResult res = new AjaxResult();
 
-        if (!ctiEnabled || !mockEnabled) {
+        if (!mockEnabled) {
             res.success = false;
             res.message = "모의 수신이 꺼져 있습니다. (cti.mock.enabled=false)";
             return res;
@@ -121,14 +114,11 @@ public class CtiCallController {
             @RequestParam(value = "result",   required = false, defaultValue = "201") String resultCode,
             @RequestParam(value = "dbId",     required = false, defaultValue = "")    String dbId) {
 
-        if (!ctiEnabled || agentSecret == null || agentSecret.isBlank()) {
-            log.warn("[CTI] 에이전트 수신 요청이 왔으나 cti.agent.secret 이 설정돼 있지 않음");
-            return ResponseEntity.status(503).body(Map.of("message", "에이전트 연동이 설정돼 있지 않습니다."));
-        }
-        if (secret == null || !agentSecret.equals(secret)) {
-            log.warn("[CTI] 에이전트 시크릿 불일치 — username={}", username);
-            return ResponseEntity.status(401).body(Map.of("message", "인증 실패"));
-        }
+        ResponseEntity<Map<String, Object>> denied = checkAgent(secret);
+        if (denied != null) return denied;
+
+        // 전화가 왔다는 건 에이전트가 살아 있다는 뜻이기도 하다
+        ctiPushService.agentOnline(username);
 
         String digits = caller == null ? "" : caller.replaceAll("[^0-9]", "");
         if (digits.isEmpty() || username.isBlank()) {
@@ -140,6 +130,86 @@ public class CtiCallController {
 
         int sent = ctiPushService.pushIncomingCall(username, payload);
         return ResponseEntity.ok(Map.of("sent", sent));
+    }
+
+    // ── 화면 → 에이전트 (연결 / 해제) ────────────────────────
+    //    브라우저는 PC 의 프로그램을 직접 부를 수 없다.
+    //    여기에 명령을 적어두면 에이전트가 주기적으로 가져가 실행한다.
+    //    KT 계정과 비밀번호는 그 PC 에만 있고 이 경로를 지나가지 않는다.
+    @PostMapping("/connect")
+    public AjaxResult connect(Authentication auth) {
+        User user = (User) auth.getPrincipal();
+        ctiPushService.queueCommand(user.getUsername(), "connect");
+
+        AjaxResult result = new AjaxResult();
+        result.message = ctiPushService.isAgentOnline(user.getUsername())
+                ? "이미 연결돼 있습니다."
+                : "연결을 요청했습니다. 잠시 후 연결됩니다.";
+        return result;
+    }
+
+    @PostMapping("/disconnect")
+    public AjaxResult disconnect(Authentication auth) {
+        User user = (User) auth.getPrincipal();
+        ctiPushService.queueCommand(user.getUsername(), "disconnect");
+
+        AjaxResult result = new AjaxResult();
+        result.message = "해제를 요청했습니다.";
+        return result;
+    }
+
+    /** 에이전트가 할 일이 있는지 물어본다. 가져가면 지워진다. */
+    @GetMapping("/agent-poll")
+    public ResponseEntity<Map<String, Object>> agentPoll(
+            @RequestHeader(value = "X-Cti-Secret", required = false) String secret,
+            @RequestParam(value = "username") String username) {
+
+        ResponseEntity<Map<String, Object>> denied = checkAgent(secret);
+        if (denied != null) return denied;
+
+        return ResponseEntity.ok(Map.of("command", ctiPushService.takeCommand(username)));
+    }
+
+    // ── 에이전트 생사 신고 ───────────────────────────────────
+    //    에이전트가 KT 로그인에 성공하면 online, 종료하면 offline 을 보낸다.
+    //    online 은 30초마다 다시 보내며, 90초 동안 소식이 없으면 서버가 끊긴 것으로 본다.
+    //    화면의 '전화 연결됨' 표시가 이 상태를 그대로 따라간다.
+    @PostMapping("/agent-online")
+    public ResponseEntity<Map<String, Object>> agentOnline(
+            @RequestHeader(value = "X-Cti-Secret", required = false) String secret,
+            @RequestParam(value = "username") String username) {
+
+        ResponseEntity<Map<String, Object>> denied = checkAgent(secret);
+        if (denied != null) return denied;
+
+        ctiPushService.agentOnline(username);
+        return ResponseEntity.ok(Map.of("screens", ctiPushService.count(username)));
+    }
+
+    @PostMapping("/agent-offline")
+    public ResponseEntity<Map<String, Object>> agentOffline(
+            @RequestHeader(value = "X-Cti-Secret", required = false) String secret,
+            @RequestParam(value = "username") String username) {
+
+        ResponseEntity<Map<String, Object>> denied = checkAgent(secret);
+        if (denied != null) return denied;
+
+        ctiPushService.agentOffline(username);
+        return ResponseEntity.ok(Map.of("ok", true));
+    }
+
+    /** 에이전트 공통 인증. 통과하면 null, 막히면 그대로 돌려줄 응답을 반환한다. */
+    private ResponseEntity<Map<String, Object>> checkAgent(String secret) {
+        if (agentSecret == null || agentSecret.isBlank()) {
+            log.warn("[CTI] 에이전트 요청이 왔으나 cti.agent.secret 이 비어 있음");
+            return ResponseEntity.status(503).body(Map.of(
+                    "message", "cti.agent.secret 이 비어 있습니다. server_elv.env 에 cti_agent_secret 을 넣으세요."));
+        }
+        if (secret == null || !agentSecret.equals(secret)) {
+            log.warn("[CTI] 에이전트 시크릿 불일치");
+            return ResponseEntity.status(401).body(Map.of("message", "인증 실패"));
+        }
+        return null;
     }
 
     // ── 연결 상태 확인 ───────────────────────────────────────

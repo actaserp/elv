@@ -23,19 +23,21 @@ public class AttendanceCurrentService {
     public Map<String, Object> getAnnInfo(Integer personId) {
 
         MapSqlParameterSource dicParam = new MapSqlParameterSource();
-        dicParam.addValue("personid", String.valueOf(personId));
+        dicParam.addValue("personid", personId);
 
+        // 잔여연차는 사번(person.Code)으로 붙인다 — AnnualLeaveSql 참고
+        // 입사일도 person.rtdate(등록일)가 아니라 TB_JA001.entdate 를 쓴다
         String sql = """
                 SELECT TOP 1
-                    t.ewolnum,
-                    t.holinum,
-                    t.daynum,
-                    t.restnum,
-                    p.rtdate
-                FROM tb_pb209 t
-                LEFT JOIN person p ON TRY_CAST(t.perid AS INT) IS NOT NULL AND p.id = TRY_CAST(t.perid AS INT)
-                WHERE t.perid = :personid
-                ORDER BY t.todate DESC
+                    ISNULL(ann.iwolnum, 0) AS ewolnum,
+                    ISNULL(ann.holinum, 0) AS holinum,
+                    ISNULL(ann.used,    0) AS daynum,
+                    ISNULL(ann.restnum, 0) AS restnum,
+                    ISNULL(j.entdate, '')  AS rtdate
+                FROM person p
+                LEFT JOIN TB_JA001 j ON j.perid = p.Code AND j.spjangcd = p.spjangcd
+                """ + AnnualLeaveSql.OUTER_APPLY_BY_PERSON + """
+                WHERE p.id = :personid
                 """;
 
         Map<String, Object> item = this.sqlRunner.getRow(sql, dicParam);
