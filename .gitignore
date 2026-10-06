@@ -45,3 +45,9 @@ logs/
 # CTI 에이전트 설정 (인증키·비밀번호 포함)
 _scripts/cti/kt_agent.ini
 _scripts/cti/kt_agent.log
+
+# C# 에이전트 빌드 산출물 (소스와 Interop DLL 만 커밋한다)
+_scripts/cti/csharp/bin/
+_scripts/cti/csharp/obj/
+_scripts/cti/csharp/*.exe
+_scripts/cti/csharp/*.pdb

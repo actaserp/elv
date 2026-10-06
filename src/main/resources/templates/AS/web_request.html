@@ -1297,17 +1297,9 @@
       var source     = null;
       var toasts     = {};   // dbId → { el, info }
       var callerMemo = {};   // 발신번호 → 고객조회 결과 (같은 통화에서 재조회 방지)
-      var notices    = {};   // dbId → 띄워 둔 OS 알림 (참조를 놓으면 브라우저가 수거한다)
 
       // 통화가 끝난 상태 — 카드를 회색으로 가라앉힌다. 규격서 10.1 수신상태
       var ENDED = ['200','202','203','204','291','401','404','405','406','407','408'];
-
-      // 알림을 거둘 상태 — 사람이 응대했거나 더 알릴 필요가 없는 경우.
-      var NOTIFY_CLOSE  = ['200','291','401','404','405','406'];
-
-      // 못 받은 전화 — 알림을 지우지 않고 '부재중'으로 바꿔 남긴다.
-      // 자리를 비운 사이 온 전화는 돌아와서 알아야 하므로 지우면 안 된다.
-      var NOTIFY_MISSED = ['202','203','204','407','408'];
 
       function setDot(state, text) {
         var dot = document.getElementById('ctiDot');
@@ -1351,90 +1343,18 @@
         if (existing) {
           existing.call = call;
           render(existing);
-          notify(existing);   // 끊김 이벤트가 오면 띄워 둔 알림을 거둬야 한다
           return;
         }
-
-        // 지나간 통화의 알림이 남아 있으면 치운다.
-        // requireInteraction 으로 띄운 알림은 스스로 사라지지 않아서,
-        // 남아 있으면 크롬이 다음 알림을 뒤로 밀어 둘째 전화부터 안 뜬다.
-        for (var old in notices) if (!toasts[old]) closeNotice(old);
 
         var entry = { call: call, info: null, el: null };
         toasts[call.dbId] = entry;
         render(entry);
-        notify(entry);   // 창을 내려놨어도 보이도록 OS 알림
 
         lookupCaller(call.caller, function (info) {
           entry.info   = info;
           entry.looked = true;   // 조회를 마쳤다 — 못 찾았으면 그렇게 표시한다
           render(entry);
-          notify(entry);         // 고객명을 찾았으면 알림 내용을 갱신한다
         });
-      }
-
-      // ── OS 알림 ────────────────────────────────────────────
-      // 브라우저를 작업표시줄로 내려놔도 전화가 왔다는 걸 알 수 있어야 한다.
-      // 탭이 살아 있어야 하므로 화면을 닫으면 오지 않는다.
-      function askNotifyPermission() {
-        try {
-          if (window.Notification && Notification.permission === 'default') {
-            Notification.requestPermission();
-          }
-        } catch (e) { /* 지원 안 하면 조용히 넘어간다 */ }
-      }
-
-      function notify(entry) {
-        try {
-          if (!window.Notification) { console.debug('[CTI] 알림 미지원'); return; }
-          if (Notification.permission !== 'granted') {
-            console.debug('[CTI] 알림 권한 없음 —', Notification.permission);
-            return;
-          }
-
-          var call = entry.call;
-
-          var state = String(call.result);
-
-          // 응대했거나 더 알릴 필요가 없으면 거둔다
-          if (NOTIFY_CLOSE.indexOf(state) >= 0) {
-            console.debug('[CTI] 알림 닫기', call.dbId, 'result=' + state);
-            closeNotice(call.dbId);
-            return;
-          }
-
-          var missed = NOTIFY_MISSED.indexOf(state) >= 0;
-          var who = entry.info
-            ? (entry.info.callnm || entry.info.actnm || entry.info.cltnm || '')
-            : (entry.looked ? '등록되지 않은 번호' : '');
-
-          closeNotice(call.dbId);   // 같은 통화의 이전 알림은 지우고 새로 띄운다
-
-          console.debug('[CTI] 알림 띄움', call.dbId, 'result=' + state,
-                        missed ? '(부재중)' : '(수신중)',
-                        '화면상태=' + document.visibilityState,
-                        '남은알림=' + Object.keys(notices).length);
-
-          var n = new Notification(
-            (missed ? '부재중 전화   ' : '전화 수신   ') + formatTel(call.caller), {
-            body : who || (missed ? '' : '고객 정보를 찾는 중…'),
-            tag  : 'cti-' + call.dbId
-          });
-          n.onclick = function () { window.focus(); closeNotice(call.dbId); };
-
-          // 참조를 들고 있어야 한다. 놓으면 브라우저가 수거하면서 알림이 사라진다.
-          notices[call.dbId] = n;
-
-          // 알림이 영원히 쌓이지 않게 한다. 부재중은 돌아와서 봐야 하므로 길게 둔다.
-          setTimeout(function () { closeNotice(call.dbId); }, missed ? 600000 : 60000);
-        } catch (e) { /* 알림 실패가 화면 동작을 막아선 안 된다 */ }
-      }
-
-      function closeNotice(dbId) {
-        var n = notices[dbId];
-        if (!n) return;
-        try { n.close(); } catch (e) {}
-        delete notices[dbId];
       }
 
       // 발신번호로 고객 찾기 — 현장 → 거래처 → 과거 통화이력 순으로 서버가 찾아준다
@@ -1528,7 +1448,6 @@
       function close(dbId) {
         var entry = toasts[dbId];
         if (!entry) return;
-        closeNotice(dbId);
         clearTimeout(entry.timer);
         if (entry.el && entry.el.parentNode) entry.el.parentNode.removeChild(entry.el);
         delete toasts[dbId];
@@ -1575,7 +1494,6 @@
       // (에이전트가 없는 사업체에서 연결됐다고 보이면 오해를 부른다).
       function start() {
         mountFixed();
-        askNotifyPermission();
         connect();   // 구독은 항상 한다. 에이전트가 나중에 붙어도 바로 알 수 있어야 하므로
 
         AjaxUtil.getAsyncData('/api/AS/cti/config', {}, function (result) {

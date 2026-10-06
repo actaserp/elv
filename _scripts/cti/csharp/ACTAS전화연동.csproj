@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ACTAS 전화연동 — 프로젝트 파일 (자바의 pom.xml 에 해당)
+
+  Visual Studio 에서 이 파일을 열면 프로젝트로 뜬다. 명령줄 빌드는 build.bat.
+
+  PlatformTarget=x86 은 바꾸면 안 된다.
+  KT 통화매니저(KTOpenAPI.dll)가 32bit COM 이라 64bit 로 빌드하면 실행 중에
+  "COM 객체를 만들 수 없다"로 죽는다.
+-->
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props"
+          Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
+    <ProjectGuid>{7B2F1C84-5A3E-4D16-9C27-8E4A1B6D30F2}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>ActasCti</RootNamespace>
+    <AssemblyName>ACTAS전화연동</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <PlatformTarget>x86</PlatformTarget>
+    <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Security" />
+    <Reference Include="System.Windows.Forms" />
+
+    <!--
+      KT 통화매니저 COM 래퍼. KTOpenAPI.dll 을 TlbImp 로 변환한 것으로,
+      KT 가 SDK 를 새로 주면 다시 만들어야 한다 (만드는 법은 README.md).
+    -->
+    <Reference Include="Interop.KTOpenAPI">
+      <HintPath>Interop.KTOpenAPI.dll</HintPath>
+      <EmbedInteropTypes>false</EmbedInteropTypes>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="Codes.cs" />
+    <Compile Include="Config.cs" />
+    <Compile Include="KtAgent.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="SettingsForm.cs" />
+  </ItemGroup>
+
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
