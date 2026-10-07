@@ -40,6 +40,7 @@ public class WebMvcConfig implements WebMvcConfigurer{
                         "/api/transaction/input/**", "/api/das_device", "/authentication/**",
                         // CTI 에이전트는 세션이 없다(브라우저가 아님). 시크릿 헤더로만 인증한다
                         "/api/AS/cti/event", "/api/AS/cti/agent-online", "/api/AS/cti/agent-offline", "/api/AS/cti/agent-poll",
+                        "/api/AS/cti/sms-result",
 
                         // 4. PDA 관련
                         "/pda/**",

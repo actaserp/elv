@@ -179,6 +179,7 @@ namespace ActasCti
 
                 if (res.Contains("\"connect\"")) { Log("화면에서 [연결] 을 눌렀습니다."); Login(); }
                 else if (res.Contains("\"disconnect\"")) { Log("화면에서 [해제] 를 눌렀습니다."); Logout(); }
+                else if (res.Contains("\"sms\"")) SendSms(res);
             }
             catch { /* 통신 실패는 다음 주기에 다시 시도한다 */ }
         }
@@ -186,6 +187,118 @@ namespace ActasCti
         void Heartbeat()
         {
             if (LoggedIn) Post("agent-online", null);
+        }
+
+        // ── 문자 보내기 ──────────────────────────────────────────
+        //
+        // 규격서 5.1.1 — 수신번호를 하나씩 등록(최대 32)한 뒤 SendSMS 를 부르고,
+        // 끝나면 반드시 지운다. 안 지우면 다음 문자가 이 사람들에게도 간다.
+        //
+        // 발신번호는 청약한 그 회선이어야 한다(4005 발신번호 오류).
+        // 계정이 '0269595020@kt.com' 이라 앞부분이 곧 회선번호다.
+        void SendSms(string json)
+        {
+            if (!LoggedIn)
+            {
+                SmsResult(false, "전화가 연결돼 있지 않습니다.");
+                return;
+            }
+
+            var to = JsonArray(json, "to");
+            var message = JsonString(json, "message");
+
+            if (to.Count == 0)        { SmsResult(false, "받는 사람이 없습니다.");  return; }
+            if (message.Length == 0)  { SmsResult(false, "내용이 비어 있습니다."); return; }
+
+            var caller = cfg.KtLoginId;
+            int at = caller.IndexOf('@');
+            if (at > 0) caller = caller.Substring(0, at);
+
+            Log(string.Format("[문자] 보냅니다 — 발신={0} 수신={1}명 길이={2}자",
+                              caller, to.Count, message.Length));
+
+            try
+            {
+                kt.RemoveAllRecvPhone();   // 앞서 남은 번호가 있으면 치운다
+                foreach (var one in to) kt.SetRecvPhone(one);
+
+                int rc = kt.SendSMS(caller, "", message);
+                Log(string.Format("[문자] SendSMS 반환 = {0}  ({1})", rc, Codes.SmsMsg(rc)));
+
+                kt.RemoveAllRecvPhone();
+
+                if (rc == 200) SmsResult(true, "");
+                else           SmsResult(false, Codes.SmsMsg(rc));
+            }
+            catch (Exception e)
+            {
+                Log("[문자] 오류: " + e);
+                try { kt.RemoveAllRecvPhone(); } catch { }
+                SmsResult(false, e.Message);
+            }
+        }
+
+        void SmsResult(bool ok, string message)
+        {
+            var p = new NameValueCollection();
+            p["username"] = cfg.ElvUsername;
+            p["ok"]       = ok ? "1" : "0";
+            p["message"]  = message ?? "";
+            Post("sms-result", p);
+        }
+
+        // ── 아주 작은 JSON 읽기 ──────────────────────────────────
+        //
+        // 값 두 개만 꺼내면 돼서 직렬화 라이브러리를 들이지 않았다.
+        // 서버가 보내는 모양이 정해져 있다: {"command":"sms","sms":{"to":[...],"message":"..."}}
+
+        static string JsonString(string json, string key)
+        {
+            int i = json.IndexOf("\"" + key + "\"", StringComparison.Ordinal);
+            if (i < 0) return "";
+            i = json.IndexOf('"', json.IndexOf(':', i) + 1);
+            if (i < 0) return "";
+
+            var sb = new StringBuilder();
+            for (int j = i + 1; j < json.Length; j++)
+            {
+                char c = json[j];
+                if (c == '\\' && j + 1 < json.Length)
+                {
+                    char n = json[++j];
+                    if      (n == 'n') sb.Append('\n');
+                    else if (n == 'r') sb.Append('\r');
+                    else if (n == 't') sb.Append('\t');
+                    else if (n == 'u' && j + 4 < json.Length)
+                    {
+                        sb.Append((char)Convert.ToInt32(json.Substring(j + 1, 4), 16));
+                        j += 4;
+                    }
+                    else sb.Append(n);
+                    continue;
+                }
+                if (c == '"') break;
+                sb.Append(c);
+            }
+            return sb.ToString();
+        }
+
+        static System.Collections.Generic.List<string> JsonArray(string json, string key)
+        {
+            var list = new System.Collections.Generic.List<string>();
+
+            int i = json.IndexOf("\"" + key + "\"", StringComparison.Ordinal);
+            if (i < 0) return list;
+            int open = json.IndexOf('[', i);
+            int close = open < 0 ? -1 : json.IndexOf(']', open);
+            if (open < 0 || close < 0) return list;
+
+            foreach (var part in json.Substring(open + 1, close - open - 1).Split(','))
+            {
+                var one = part.Trim().Trim('"').Trim();
+                if (one.Length > 0) list.Add(one);
+            }
+            return list;
         }
 
         void Post(string path, NameValueCollection form)

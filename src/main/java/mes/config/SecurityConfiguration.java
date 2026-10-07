@@ -71,7 +71,8 @@ public class SecurityConfiguration {
                                 "/pda/**",
                                 // CTI 에이전트(윈도우)는 브라우저가 아니라 CSRF 토큰을 가질 수 없다.
                                 // 대신 X-Cti-Secret 헤더로 인증한다.
-                                "/api/AS/cti/event", "/api/AS/cti/agent-online", "/api/AS/cti/agent-offline", "/api/AS/cti/agent-poll"
+                                "/api/AS/cti/event", "/api/AS/cti/agent-online", "/api/AS/cti/agent-offline", "/api/AS/cti/agent-poll",
+                                "/api/AS/cti/sms-result"
                         )
                 );
 
@@ -101,7 +102,8 @@ public class SecurityConfiguration {
                                 "/api/files/download",
                                 // CTI 에이전트 전용 — 공유 시크릿(X-Cti-Secret)으로 컨트롤러에서 직접 검증한다.
                                 // 시크릿이 설정돼 있지 않으면 컨트롤러가 503 으로 막는다.
-                                "/api/AS/cti/event", "/api/AS/cti/agent-online", "/api/AS/cti/agent-offline", "/api/AS/cti/agent-poll"
+                                "/api/AS/cti/event", "/api/AS/cti/agent-online", "/api/AS/cti/agent-offline", "/api/AS/cti/agent-poll",
+                                "/api/AS/cti/sms-result"
                         ).permitAll()
                         .antMatchers("/setup").hasAuthority("admin")
                         .anyRequest().authenticated()

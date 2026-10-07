@@ -267,6 +267,125 @@ public class WebRequestController {
         return result;
     }
 
+    // ── 사원 연락처 (문자전송 기본 수신자) ──────────────────────
+    @GetMapping("/person_tel")
+    public AjaxResult personTel(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "perid")    String perid) {
+        AjaxResult result = new AjaxResult();
+        result.data    = webRequestService.getPersonTel(spjangcd, perid);   // 없으면 null
+        result.success = true;
+        return result;
+    }
+
+    // ── 보수현장조회 ───────────────────────────────────────────
+    @GetMapping("/site_search")
+    public AjaxResult siteSearch(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "keyword", required = false) String keyword) {
+        AjaxResult result = new AjaxResult();
+        List<Map<String, Object>> rows = webRequestService.searchSite(spjangcd, keyword);
+
+        if (rows == null) {
+            result.success = false;
+            result.message = "현장을 조회하지 못했습니다. 서버 로그를 확인해주세요.";
+            return result;
+        }
+        result.data    = rows;
+        result.success = true;
+        return result;
+    }
+
+    // ── 전화번호부 ─────────────────────────────────────────────
+    @GetMapping("/phonebook_list")
+    public AjaxResult phoneBookList(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "keyword", required = false) String keyword) {
+        AjaxResult result = new AjaxResult();
+        List<Map<String, Object>> rows = webRequestService.getPhoneBookList(spjangcd, keyword);
+
+        if (rows == null) {
+            result.success = false;
+            result.message = "전화번호부를 조회하지 못했습니다. 서버 로그를 확인해주세요.";
+            return result;
+        }
+        result.data    = rows;
+        result.success = true;
+        return result;
+    }
+
+    @PostMapping("/phonebook_save")
+    public AjaxResult phoneBookSave(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "custcd",  required = false) String custcd,
+            @RequestParam(value = "actcd",   required = false) String actcd,
+            @RequestParam(value = "seq",     required = false) String seq,
+            @RequestParam(value = "actmail") String actmail,
+            @RequestParam(value = "tel")     String tel,
+            @RequestParam(value = "remark",  required = false) String remark,
+            @RequestParam(value = "regflag", required = false) String regflag,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+
+        if (actmail == null || actmail.isBlank()) {
+            result.success = false;
+            result.message = "고객명을 입력해주세요.";
+            return result;
+        }
+        if (tel == null || tel.isBlank()) {
+            result.success = false;
+            result.message = "전화번호를 입력해주세요.";
+            return result;
+        }
+
+        // 새로 넣는 줄은 로그인한 사용자의 custcd 로 만든다.
+        // 고치는 줄은 목록에서 받은 custcd 를 그대로 쓴다 — 열쇠를 바꾸면 안 된다.
+        if (custcd == null || custcd.isBlank()) {
+            User user = (User) auth.getPrincipal();
+            Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
+            if (userInfo == null) {
+                result.success = false;
+                result.message = "사용자 정보를 찾을 수 없습니다.";
+                return result;
+            }
+            custcd = (String) userInfo.get("custcd");
+        }
+
+        try {
+            // 구분은 actcd 번호대와 짝이라 새로 넣을 때만 정한다(기존 줄은 actcd 를 못 바꾼다).
+            String flag = (regflag == null || regflag.isBlank()) ? "3" : regflag.trim();
+            if (!java.util.List.of("0", "1", "2", "3").contains(flag)) flag = "3";
+
+            webRequestService.savePhoneBook(custcd, spjangcd, actcd, seq,
+                                            actmail.trim(), tel.trim(),
+                                            remark == null ? "" : remark.trim(), flag);
+            result.success = true;
+        } catch (Exception e) {
+            result.success = false;
+            result.message = "저장 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
+
+    @PostMapping("/phonebook_delete")
+    public AjaxResult phoneBookDelete(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "custcd")   String custcd,
+            @RequestParam(value = "actcd")    String actcd,
+            @RequestParam(value = "seq")      String seq) {
+
+        AjaxResult result = new AjaxResult();
+        try {
+            webRequestService.deletePhoneBook(custcd, spjangcd, actcd, seq);
+            result.success = true;
+        } catch (Exception e) {
+            result.success = false;
+            result.message = "삭제 중 오류가 발생하였습니다.";
+        }
+        return result;
+    }
+
     // ── 현장 수리내역 (전화 수신 카드의 [내역보기]) ─────────────
     @GetMapping("/site_history")
     public AjaxResult siteHistory(

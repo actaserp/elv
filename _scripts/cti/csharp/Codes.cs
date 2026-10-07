@@ -95,6 +95,23 @@ namespace ActasCti
             return c == "202" || c == "203" || c == "204" || c == "407" || c == "408";
         }
 
+        /// <summary>규격서 5.1.1 — SendSMS 반환값</summary>
+        public static string SmsMsg(int c)
+        {
+            switch (c)
+            {
+                case 200:  return "보냈습니다";
+                case 0:    return "서버 요청 실패";
+                case 2000: return "로그인 상태가 아닙니다";
+                case 4001: return "받는 사람이 없습니다";
+                case 4003: return "내용이 없습니다";
+                case 4004: return "하루 발송 한도를 넘었습니다";
+                case 4005: return "발신번호가 맞지 않습니다. 청약한 회선 번호여야 합니다";
+                case 4006: return "내용이 깁니다 (최대 80바이트)";
+                default:   return "알 수 없는 값 (" + c + ")";
+            }
+        }
+
         /// <summary>규격서 3.8.1 — EventLogin</summary>
         public static string LoginEventMsg(int c)
         {

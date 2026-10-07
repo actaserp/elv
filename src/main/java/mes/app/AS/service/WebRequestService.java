@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -692,7 +693,94 @@ public class WebRequestService {
         long ms = System.currentTimeMillis() - t0;
         if (ms > 1000) log.warn("[CTI] 발신번호 조회가 {}ms 걸렸습니다. num={}", ms, digits);
 
-        return (rows == null || rows.isEmpty()) ? null : rows.get(0);
+        if (rows == null || rows.isEmpty()) return null;
+        return mergeSite(rows);
+    }
+
+    /// 1순위 줄을 쓰되, 거기에 현장이 없으면 뒤쪽 줄에서 보충한다.
+    ///
+    /// 전화번호부의 actcd 는 현장 코드가 아니라서(실측 확인) 전화번호부로 걸리면
+    /// 현장이 비는데, 같은 번호가 현장 표에도 있으면 그쪽에서 현장을 얻을 수 있다.
+    /// 이미 한 질의로 다 받아 왔으므로 추가 조회가 없다.
+    ///
+    /// 단, 한 번호에 현장이 여럿인 경우가 있다 — 관리업체 한 곳이 건물 여러 채를
+    /// 맡으면 같은 번호가 현장 서넛에 걸린다. 그때는 어느 현장인지 단정할 수 없으므로
+    /// 붙이지 않는다. 틀린 현장으로 고장접수가 들어가는 것보다 비는 편이 낫다.
+    private static Map<String, Object> mergeSite(List<Map<String, Object>> rows) {
+        Map<String, Object> best = rows.get(0);
+        String bestPri = text(best.get("pri"));
+
+        // 같은 순위에 이름이 여럿이면 누구인지 모르는 것이다.
+        // 경기 실측: 010-6358-4436 한 번호에 전화번호부 등록이 6건(고양일고등학교·
+        // 당산한강아파트·광명e편한세상…) 서로 무관한 곳들이다. 아무거나 집어 보여주면
+        // 받는 사람이 엉뚱한 고객 이름으로 인사하게 된다. 모르면 모른다고 해야 한다.
+        java.util.Set<String> names = new java.util.LinkedHashSet<>();
+        for (Map<String, Object> r : rows) {
+            if (!bestPri.equals(text(r.get("pri")))) continue;
+            String nm = text(r.get("callnm"));
+            if (!nm.isEmpty()) names.add(nm);
+        }
+        if (names.size() > 1) {
+            // 목록을 띄우는 건 '누구인지 모른다' 는 뜻이라 흔하면 안 된다.
+            // 왜 모르는지 알 수 있도록 어느 순위에서 몇 개가 나왔는지 남긴다.
+            StringBuilder dbg = new StringBuilder();
+            for (Map<String, Object> r : rows)
+                dbg.append("\n    pri=").append(text(r.get("pri")))
+                   .append(" source=").append(text(r.get("source")))
+                   .append(" callnm=").append(text(r.get("callnm")))
+                   .append(" actcd=").append(text(r.get("actcd")));
+            log.warn("[CTI] 이름이 여럿이라 목록으로 넘깁니다. 1순위={} 이름수={} 전체={}줄{}",
+                     bestPri, names.size(), rows.size(), dbg);
+
+            // 고를 수 있게 후보를 다 넘긴다. 순위가 낮은 줄(현장 등)도 함께 넘기는데,
+            // 현장이 붙은 후보를 고르면 화면에서 [내역보기] 까지 쓸 수 있기 때문이다.
+            List<Map<String, Object>> cands = new java.util.ArrayList<>();
+            java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+
+            for (Map<String, Object> r : rows) {
+                String nm = text(r.get("callnm"));
+                if (nm.isEmpty()) continue;
+                // 구분(현장/거래처/…)이 다르면 따로 보여준다. 이름이 같아도 받는 사람에게는
+                // 현장으로 등록된 건지 거래처로 등록된 건지가 정보다.
+                if (!seen.add(text(r.get("source")) + "|" + nm + "|" + text(r.get("actcd")))) continue;
+
+                Map<String, Object> c = new java.util.LinkedHashMap<>(r);
+                c.remove("pri");
+                cands.add(c);
+            }
+
+            best.put("ambiguous",  true);
+            best.put("candidates", cands);
+            best.put("callnm", "");
+            best.put("actcd",  "");   // 고르기 전에는 현장도 정해지지 않는다
+            best.put("actnm",  "");
+            best.remove("pri");
+            return best;
+        }
+
+        if (!text(best.get("actcd")).isEmpty()) { best.remove("pri"); return best; }
+
+        String only = null;
+        for (Map<String, Object> r : rows) {
+            String actcd = text(r.get("actcd"));
+            if (actcd.isEmpty()) continue;
+            if (only == null) only = actcd;
+            else if (!only.equals(actcd)) { best.remove("pri"); return best; }   // 여러 현장 — 단정하지 않는다
+        }
+        if (only == null) { best.remove("pri"); return best; }
+
+        best.put("actcd", only);
+        for (Map<String, Object> r : rows) {
+            if (!only.equals(text(r.get("actcd")))) continue;
+            best.put("actnm", text(r.get("actnm")));
+            break;
+        }
+        best.remove("pri");
+        return best;
+    }
+
+    private static String text(Object o) {
+        return o == null ? "" : o.toString().trim();
     }
 
     /// '0319673884' → ['0319673884', '031-967-3884'] 처럼 저장돼 있을 법한 표기를 만든다.
@@ -701,12 +789,20 @@ public class WebRequestService {
         List<String> out = new java.util.ArrayList<>();
         out.add(d);
 
-        if (d.startsWith("02") && d.length() >= 9)
-            out.add(d.substring(0, 2) + "-" + d.substring(2, d.length() - 4) + "-" + d.substring(d.length() - 4));
-        else if (d.length() == 10 || d.length() == 11)
-            out.add(d.substring(0, 3) + "-" + d.substring(3, d.length() - 4) + "-" + d.substring(d.length() - 4));
-        else if (d.length() == 8)
-            out.add(d.substring(0, 4) + "-" + d.substring(4));
+        // 지역번호 / 가운데 / 뒤 4자리로 쪼갠다
+        String area = null;
+        if (d.startsWith("02") && d.length() >= 9)      area = d.substring(0, 2);
+        else if (d.length() == 10 || d.length() == 11)  area = d.substring(0, 3);
+
+        if (area != null) {
+            String mid  = d.substring(area.length(), d.length() - 4);
+            String last = d.substring(d.length() - 4);
+
+            out.add(area + "-" + mid + "-" + last);     // 031-962-9578
+            out.add("(" + area + ")" + mid + "-" + last); // (02)2664-6874 — 경기 자료에 이 형식이 많다
+        } else if (d.length() == 8) {
+            out.add(d.substring(0, 4) + "-" + d.substring(4));   // 1877-9433
+        }
 
         return out;
     }
@@ -714,7 +810,9 @@ public class WebRequestService {
     /// 다섯 군데를 우선순위(pri) 붙여 한 질의로 묶는다.
     /// withPhonebook=false 면 전화번호부만 빼고 나머지로 묶는다.
     private static String callerSql(boolean withPhonebook) {
-        String sql = "SELECT TOP 1 source, actcd, actnm, callnm, equpnm, cltcd, cltnm, tel FROM (\n";
+        // TOP 1 이 아니라 여러 줄을 받는다 — 1순위 줄에 현장이 없을 때
+        // 뒤쪽 줄에서 보충하기 위해서다(mergeSite). 추가 조회는 없다.
+        String sql = "SELECT TOP 20 pri, source, actcd, actnm, callnm, equpnm, cltcd, cltnm, tel FROM (\n";
         sql += withPhonebook ? (PHONEBOOK + " UNION ALL\n") : "";
         sql += EMERGENCY + " UNION ALL\n" + SITE + " UNION ALL\n" + CLIENT + " UNION ALL\n" + CALLLOG;
         sql += "\n) t ORDER BY t.pri";
@@ -735,7 +833,11 @@ public class WebRequestService {
                         WHEN '0' THEN '현장'   WHEN '1' THEN '거래처'
                         WHEN '2' THEN '직원'   WHEN '4' THEN '비상통화'
                         ELSE '전화번호부' END AS source,
-                   a.actcd,
+                   -- 전화번호부의 actcd 는 현장 코드가 아니다. 자체 번호 체계라
+                   -- TB_E601 과 맞지 않는다(경기 실측: regflag='0' 인 줄까지 0건).
+                   -- 그래도 맞는 사업체가 있을 수 있어 조인은 남겨 두고,
+                   -- 실제로 맞을 때만 넘긴다 — 화면이 [현장 적용]·[내역보기] 를 헛되이 띄우면 안 된다.
+                   CASE WHEN e.actcd IS NULL THEN '' ELSE a.actcd END AS actcd,
                    ISNULL(e.actnm,'') AS actnm,
                    COALESCE(NULLIF(a.actmail,''), e.actnm, '') AS callnm,
                    '' AS equpnm,
@@ -743,7 +845,8 @@ public class WebRequestService {
                    COALESCE(NULLIF(b.tel,''), a.tel, '') AS tel
               FROM TB_E601CALL a WITH(NOLOCK)
               JOIN TB_E601CALL_01 b WITH(NOLOCK)
-                   ON b.spjangcd = a.spjangcd AND b.actcd = a.actcd AND b.seq = a.seq
+                   ON b.custcd   = a.custcd   AND b.spjangcd = a.spjangcd
+                  AND b.actcd    = a.actcd    AND b.seq      = a.seq
               LEFT JOIN TB_E601 e WITH(NOLOCK)
                    ON e.spjangcd = a.spjangcd AND e.actcd = a.actcd
              WHERE a.spjangcd = :spjangcd
@@ -825,6 +928,206 @@ public class WebRequestService {
                    ) z
             """).replace("__NUM__", String.format(DIGITS, "c.callnum").trim());
 
+
+    /// 사원 연락처 — 문자전송의 기본 수신자(통보자)를 채우는 데 쓴다.
+    /// 화면은 perid 를 'p' 없이 들고 있고(사원 팝업에서 떼어 넣는다) TB_JA001 은 'p' 를 붙여 쓴다.
+    public Map<String, Object> getPersonTel(String spjangcd, String perid) {
+        if (perid == null || perid.isBlank()) return null;
+
+        MapSqlParameterSource p = new MapSqlParameterSource();
+        p.addValue("spjangcd", spjangcd);
+        p.addValue("perid", "p" + perid.trim().replaceFirst("^p", ""));
+
+        return sqlRunner.getRow("""
+                SELECT TOP 1 pernm, ISNULL(handphone,'') AS handphone
+                  FROM TB_JA001 WITH(NOLOCK)
+                 WHERE spjangcd = :spjangcd AND perid = :perid
+                """, p);
+    }
+
+    // ── 보수현장조회 ───────────────────────────────────────────
+    //
+    // 현장 선택 팝업(popupActnm)은 현장명으로만 찾는다. 전화를 받는 자리에서는
+    // 상대가 "○○아파트 3호기" 라거나 번호·주소만 말하는 경우가 많아 그것으로도
+    // 찾을 수 있어야 한다. 그래서 현장명·호기명·전화번호·주소를 한 칸으로 훑는다.
+    //
+    // 호기명으로 찾으면 한 현장에 여러 호기가 걸리므로 현장 단위로 묶는다.
+    // 호기까지 고르는 일은 기존 호기 팝업이 한다(현장을 정하면 그 현장 것만 나온다).
+    public List<Map<String, Object>> searchSite(String spjangcd, String keyword) {
+        // 넘어온 글자 그대로 각 칸에 견준다. 번호도 칸 하나일 뿐이다.
+        // 띄어쓰기로 쪼개거나 번호를 따로 다루면 왜 이 현장이 나왔는지 설명이 안 된다.
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("keyword", keyword == null ? "" : keyword.trim());
+
+        String sql = ("""
+                SELECT TOP 200
+                       e.actcd,
+                       e.actnm,
+                       ISNULL(e.ancltnm,'')  AS ancltnm,
+                       ISNULL(j.pernm,'')    AS pernm,
+                       ISNULL(e.tel,'')      AS tel,
+                       ISNULL(e.hp,'')       AS hp,
+                       ISNULL(e.address,'') + ISNULL(e.address2,'') AS address,
+                       (SELECT COUNT(*) FROM TB_E611 m WITH(NOLOCK)
+                         WHERE m.spjangcd = e.spjangcd AND m.actcd = e.actcd) AS equpcnt
+                  FROM TB_E601 e WITH(NOLOCK)
+                  LEFT JOIN TB_JA001 j WITH(NOLOCK)
+                         ON j.perid = 'p' + e.perid AND j.spjangcd = e.spjangcd
+                 WHERE e.spjangcd = :spjangcd
+                   AND (:keyword = ''
+                        OR e.actnm               LIKE '%' + :keyword + '%'
+                        OR ISNULL(e.ancltnm,'')  LIKE '%' + :keyword + '%'
+                        OR ISNULL(e.address,'')  LIKE '%' + :keyword + '%'
+                        OR ISNULL(e.address2,'') LIKE '%' + :keyword + '%'
+                        OR ISNULL(e.tel,'')      LIKE '%' + :keyword + '%'
+                        OR ISNULL(e.hp,'')       LIKE '%' + :keyword + '%'
+                        OR EXISTS (SELECT 1 FROM TB_E611 m WITH(NOLOCK)
+                                    WHERE m.spjangcd = e.spjangcd AND m.actcd = e.actcd
+                                      AND ISNULL(m.equpnm,'') LIKE '%' + :keyword + '%'))
+                 ORDER BY e.actnm
+                """);
+
+        return this.sqlRunner.getRows(sql, param);
+    }
+
+    // ── 전화번호부 (TB_E601CALL + TB_E601CALL_01) ───────────────
+    //
+    // 머리(TB_E601CALL)에 이름·비고, 몸통(TB_E601CALL_01)에 번호가 들어간다.
+    // actcd 는 현장 코드처럼 생겼지만 전화번호부 자체의 열쇠다 —
+    // 현장에서 끌어온 건 실제 현장 코드이고, 여기서 새로 넣은 건 30000001 부터 매긴다.
+    //
+    // 원본(aprjems)의 조회·수정·삭제에는 spjangcd 조건이 없다. 사업체가 섞이면
+    // 남의 번호를 보거나 지우게 되므로 전부 넣었다.
+
+    public List<Map<String, Object>> getPhoneBookList(String spjangcd, String keyword) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("keyword", keyword == null ? "" : keyword.trim());
+
+        // custcd 까지 내려보낸다. 같은 (actcd, seq) 가 두 벌 있는 자료가 확인돼
+        // 수정·삭제 때 열쇠를 온전히 들고 가야 엉뚱한 줄을 건드리지 않는다.
+        String sql = """
+                SELECT a.custcd, a.spjangcd, a.actcd, a.seq,
+                       ISNULL(a.actmail,'') AS actmail,
+                       ISNULL(b.tel,'')     AS tel,
+                       ISNULL(a.remark,'')  AS remark,
+                       ISNULL(a.regflag,'') AS regflag,
+                       CASE ISNULL(a.regflag,'')
+                            WHEN '0' THEN '현장'   WHEN '1' THEN '거래처'
+                            WHEN '2' THEN '직원'   WHEN '4' THEN '비상통화'
+                            ELSE '일반' END AS regnm,
+                       ISNULL(e.actnm,'')   AS actnm
+                  FROM TB_E601CALL a WITH(NOLOCK)
+                  JOIN TB_E601CALL_01 b WITH(NOLOCK)
+                       ON b.custcd   = a.custcd
+                      AND b.spjangcd = a.spjangcd
+                      AND b.actcd    = a.actcd
+                      AND b.seq      = a.seq
+                  LEFT JOIN TB_E601 e WITH(NOLOCK)
+                       ON e.spjangcd = a.spjangcd AND e.actcd = a.actcd
+                 WHERE a.spjangcd = :spjangcd
+                   AND (:keyword = ''
+                        OR ISNULL(a.actmail,'') LIKE '%' + :keyword + '%'
+                        OR ISNULL(b.tel,'')     LIKE '%' + :keyword + '%')
+                 ORDER BY a.actmail
+                """;
+        return this.sqlRunner.getRows(sql, param);
+    }
+
+    /// seq 가 비어 있으면 새로 넣고, 있으면 고친다.
+    /// 새 번호의 actcd 는 30000001 부터 하나씩 올린다(원본과 같은 방식).
+    @Transactional
+    public void savePhoneBook(String custcd, String spjangcd, String actcd, String seq,
+                              String actmail, String tel, String remark, String regflag) {
+
+        String today = new java.text.SimpleDateFormat("yyyyMMdd").format(new java.util.Date());
+
+        MapSqlParameterSource p = new MapSqlParameterSource();
+        p.addValue("custcd",   custcd);
+        p.addValue("spjangcd", spjangcd);
+        p.addValue("actmail",  actmail);
+        p.addValue("tel",      tel);
+        p.addValue("remark",   remark);
+        p.addValue("today",    today);
+
+        if (seq == null || seq.isBlank()) {
+            String flag = (regflag == null || regflag.isBlank()) ? "3" : regflag.trim();
+
+            p.addValue("regflag", flag);
+            p.addValue("actcd",   nextPhoneBookActcd(spjangcd, flag));
+            p.addValue("seq",     "01");
+
+            this.namedParameterJdbcTemplate.update("""
+                    INSERT INTO TB_E601CALL
+                           (custcd, spjangcd, actcd, seq, tel, actmail, remark, regdate, regflag)
+                    VALUES (:custcd, :spjangcd, :actcd, :seq, :tel, :actmail, :remark, :today, :regflag)
+                    """, p);
+            this.namedParameterJdbcTemplate.update("""
+                    INSERT INTO TB_E601CALL_01
+                           (custcd, spjangcd, actcd, seq, tel, indate)
+                    VALUES (:custcd, :spjangcd, :actcd, :seq, :tel, :today)
+                    """, p);
+            return;
+        }
+
+        p.addValue("actcd", actcd);
+        p.addValue("seq",   seq);
+
+        this.namedParameterJdbcTemplate.update("""
+                UPDATE TB_E601CALL
+                   SET tel = :tel, actmail = :actmail, remark = :remark, regdate = :today
+                 WHERE custcd = :custcd AND spjangcd = :spjangcd
+                   AND actcd  = :actcd  AND seq      = :seq
+                """, p);
+        this.namedParameterJdbcTemplate.update("""
+                UPDATE TB_E601CALL_01
+                   SET tel = :tel, indate = :today
+                 WHERE custcd = :custcd AND spjangcd = :spjangcd
+                   AND actcd  = :actcd  AND seq      = :seq
+                """, p);
+    }
+
+    /// 원본은 `delete ... where actcd not in (select actcd from TB_E601CALL_01)` 로
+    /// 사업체 구분 없이 홀로 남은 머리를 몽땅 지운다. 지울 줄만 지우도록 바꿨다.
+    @Transactional
+    public void deletePhoneBook(String custcd, String spjangcd, String actcd, String seq) {
+        MapSqlParameterSource p = new MapSqlParameterSource();
+        p.addValue("custcd",   custcd);
+        p.addValue("spjangcd", spjangcd);
+        p.addValue("actcd",    actcd);
+        p.addValue("seq",      seq);
+
+        String where = " WHERE custcd = :custcd AND spjangcd = :spjangcd"
+                     + "   AND actcd  = :actcd  AND seq      = :seq";
+
+        this.namedParameterJdbcTemplate.update("DELETE FROM TB_E601CALL_01" + where, p);
+        this.namedParameterJdbcTemplate.update("DELETE FROM TB_E601CALL"    + where, p);
+    }
+
+    /// actcd 첫 자리가 곧 regflag 다 — 현장 0xxxxxxx · 거래처 1xxxxxxx · 직원 2xxxxxxx · 일반 3xxxxxxx.
+    /// 경기 실측(현장 1,598 · 거래처 1,374 · 직원 111건)에서 예외 없이 지켜지는 규칙이라
+    /// 새로 넣는 줄도 고른 구분에 맞는 번호대에서 채번한다.
+    private String nextPhoneBookActcd(String spjangcd, String regflag) {
+        MapSqlParameterSource p = new MapSqlParameterSource();
+        p.addValue("spjangcd", spjangcd);
+        p.addValue("prefix",   regflag + "%");
+
+        Map<String, Object> row = sqlRunner.getRow("""
+                SELECT MAX(actcd) AS maxcd FROM TB_E601CALL WITH(NOLOCK)
+                 WHERE spjangcd = :spjangcd AND actcd LIKE :prefix AND LEN(actcd) = 8
+                """, p);
+
+        String first = regflag + "0000001";   // 비어 있으면 30000001 꼴로 시작한다
+        String max = (row == null || row.get("maxcd") == null) ? null : row.get("maxcd").toString().trim();
+        if (max == null || max.isEmpty()) return first;
+
+        try {
+            String next = String.valueOf(Long.parseLong(max) + 1);
+            // 번호대를 넘어서면(예: 09999999 → 10000000) 남의 구분을 침범한다
+            return next.length() == 8 && next.startsWith(regflag) ? next : first;
+        } catch (NumberFormatException e) { return first; }
+    }
 
     // ── 현장 수리내역 (전화 수신 카드의 [내역보기]) ─────────────
     //

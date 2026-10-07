@@ -128,6 +128,47 @@ public class CtiPushService {
         log.info("[CTI] 명령 대기: user={}, command={}", username, command);
     }
 
+    // ── 문자 보내기 ──────────────────────────────────────────
+    //
+    // 문자도 KT COM 함수라 서버가 직접 못 보낸다. 전화를 받는 그 PC 의 에이전트가
+    // SetRecvPhone → SendSMS 를 호출해야 해서, 연결/해제와 같은 명령 큐에 실어 보낸다.
+    // 내용은 글자가 길고 쉼표·따옴표가 섞일 수 있어 명령 문자열에 끼워 넣지 않고 따로 둔다.
+    private final Map<String, Map<String, Object>> smsJobs = new ConcurrentHashMap<>();
+
+    public void queueSms(String username, List<String> recipients, String message) {
+        Map<String, Object> job = new java.util.LinkedHashMap<>();
+        job.put("to", recipients);
+        job.put("message", message);
+        smsJobs.put(username, job);
+
+        queueCommand(username, "sms");
+        log.info("[CTI] 문자 대기: user={}, 수신={}명, 길이={}자", username, recipients.size(), message.length());
+    }
+
+    /** 에이전트가 'sms' 명령을 가져갈 때 같이 집어간다. 한 번 가져가면 지운다. */
+    public Map<String, Object> takeSms(String username) {
+        return smsJobs.remove(username);
+    }
+
+    /** 발송 결과를 화면으로 올린다. 보냈는지 못 보냈는지 모르면 같은 문자를 또 보내게 된다. */
+    public void pushSmsResult(String username, boolean ok, String message) {
+        List<SseEmitter> targets = emitters.get(username);
+        if (targets == null) return;
+
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("ok", ok);
+        payload.put("message", message);
+
+        for (SseEmitter emitter : targets) {
+            try {
+                emitter.send(SseEmitter.event().name("sms-result").data(payload));
+            } catch (Exception e) {
+                remove(username, emitter);
+            }
+        }
+        log.info("[CTI] 문자 결과: user={}, ok={}, {}", username, ok, message);
+    }
+
     /**
      * 에이전트가 가져간다. 한 번 가져가면 지운다. 없으면 빈 문자열.
      * 오래된 명령은 버린다 — 퇴근 전에 누른 [연결] 이 다음 날 부팅 때 되살아나면

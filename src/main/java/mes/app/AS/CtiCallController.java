@@ -16,6 +16,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -167,7 +168,88 @@ public class CtiCallController {
         ResponseEntity<Map<String, Object>> denied = checkAgent(secret);
         if (denied != null) return denied;
 
-        return ResponseEntity.ok(Map.of("command", ctiPushService.takeCommand(username)));
+        String command = ctiPushService.takeCommand(username);
+
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("command", command);
+
+        // 문자는 내용이 길고 쉼표·따옴표가 섞이므로 명령 문자열에 끼우지 않고 따로 싣는다
+        if ("sms".equals(command)) {
+            Map<String, Object> job = ctiPushService.takeSms(username);
+            if (job == null) return ResponseEntity.ok(Map.of("command", ""));   // 내용이 사라졌으면 보내지 않는다
+            body.put("sms", job);
+        }
+        return ResponseEntity.ok(body);
+    }
+
+    // ── 문자 보내기 (화면 → 서버 → 그 PC 의 에이전트) ───────────
+    //
+    // 문자는 KT COM 함수(SetRecvPhone/SendSMS)라 서버가 직접 못 보낸다.
+    // 규격서 5.1.1 — 수신 최대 32명, 단문 80바이트.
+    @PostMapping("/sms")
+    public AjaxResult sendSms(
+            @RequestParam(value = "to")      String to,
+            @RequestParam(value = "message") String message,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        String username = ((User) auth.getPrincipal()).getUsername();
+
+        if (!ctiPushService.isAgentOnline(username)) {
+            result.success = false;
+            result.message = "전화 프로그램이 연결돼 있지 않습니다. [연결] 을 먼저 눌러주세요.";
+            return result;
+        }
+
+        List<String> recipients = new java.util.ArrayList<>();
+        for (String one : to.split(",")) {
+            String digits = one.replaceAll("[^0-9]", "");
+            if (!digits.isEmpty() && !recipients.contains(digits)) recipients.add(digits);
+        }
+
+        if (recipients.isEmpty()) {
+            result.success = false;
+            result.message = "받는 사람을 넣어주세요.";
+            return result;
+        }
+        if (recipients.size() > 32) {
+            result.success = false;
+            result.message = "한 번에 32명까지만 보낼 수 있습니다. (지금 " + recipients.size() + "명)";
+            return result;
+        }
+        if (message == null || message.isBlank()) {
+            result.success = false;
+            result.message = "내용을 넣어주세요.";
+            return result;
+        }
+
+        int bytes = message.getBytes(java.nio.charset.Charset.forName("EUC-KR")).length;
+        if (bytes > 80) {
+            result.success = false;
+            result.message = "내용이 깁니다. 80바이트(한글 40자)까지입니다. (지금 " + bytes + "바이트)";
+            return result;
+        }
+
+        ctiPushService.queueSms(username, recipients, message);
+        result.success = true;
+        result.message = "보내는 중입니다.";
+        return result;
+    }
+
+    /** 에이전트가 발송 결과를 알려온다. 화면으로 그대로 올린다. */
+    @PostMapping("/sms-result")
+    public ResponseEntity<Map<String, Object>> smsResult(
+            @RequestHeader(value = "X-Cti-Secret", required = false) String secret,
+            @RequestParam(value = "username") String username,
+            @RequestParam(value = "ok")       String ok,
+            @RequestParam(value = "message", required = false) String message) {
+
+        ResponseEntity<Map<String, Object>> denied = checkAgent(secret);
+        if (denied != null) return denied;
+
+        ctiPushService.pushSmsResult(username, "1".equals(ok) || "true".equalsIgnoreCase(ok),
+                                     message == null ? "" : message);
+        return ResponseEntity.ok(Map.of("ok", true));
     }
 
     // ── 에이전트 생사 신고 ───────────────────────────────────
