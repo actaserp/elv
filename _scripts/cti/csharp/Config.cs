@@ -20,6 +20,8 @@ namespace ActasCti
         public string ElvUrl     = "https://mes.actascld.co.kr/elv/api/AS/cti/event";
         public string ElvSecret  = "";
         public bool   AutoLogin  = false;  // PC 를 켤 때 바로 로그인할지
+        public string WindowTitle = "";    // 브라우저 탭 제목 (비우면 주소·제품명으로 찾는다)
+        public bool   DebugTabs  = false;  // 탭 이름을 로그에 남긴다 (문제 추적용, 기본 꺼짐)
 
         static string Path_
         {
@@ -55,6 +57,8 @@ namespace ActasCti
                     case "KT_LOGIN_PW":  c.KtLoginPw   = Decrypt(val); break;
                     case "ELV_USERNAME": c.ElvUsername = val; break;
                     case "ELV_URL":      c.ElvUrl      = val; break;
+                    case "WINDOW_TITLE": c.WindowTitle = val; break;
+                    case "DEBUG_TABS":   c.DebugTabs   = (val == "1" || val.ToLower() == "true"); break;
                     case "ELV_SECRET":   c.ElvSecret   = val; break;
                     case "AUTO_LOGIN":   c.AutoLogin   = val.Equals("true", StringComparison.OrdinalIgnoreCase); break;
                 }
@@ -75,6 +79,8 @@ namespace ActasCti
             sb.AppendLine("KT_LOGIN_PW  = " + Encrypt(KtLoginPw));
             sb.AppendLine("ELV_USERNAME = " + ElvUsername);
             sb.AppendLine("ELV_URL      = " + ElvUrl);
+            sb.AppendLine("WINDOW_TITLE = " + WindowTitle);
+            sb.AppendLine("DEBUG_TABS   = " + (DebugTabs ? "1" : "0"));
             sb.AppendLine("ELV_SECRET   = " + ElvSecret);
             sb.AppendLine("AUTO_LOGIN   = " + (AutoLogin ? "true" : "false"));
 
@@ -129,6 +135,44 @@ namespace ActasCti
         {
             int p = ElvUrl.LastIndexOf('/');
             return p > 0 ? ElvUrl.Substring(0, p + 1) : ElvUrl;
+        }
+
+        /// <summary>
+        /// 화면 주소 — ELV_URL 에서 /api/ 앞까지 (예: https://actas-ai.co.kr/elv/).
+        /// 알림을 눌렀는데 브라우저가 아예 안 떠 있을 때 이 주소를 연다.
+        /// </summary>
+        public string SiteUrl()
+        {
+            int p = ElvUrl.IndexOf("/api/", StringComparison.OrdinalIgnoreCase);
+            return p > 0 ? ElvUrl.Substring(0, p + 1) : ElvUrl;
+        }
+
+        /// <summary>
+        /// 브라우저 탭을 알아보는 단서들. 알림을 눌렀을 때 이 중 하나라도
+        /// 탭 이름에 들어 있으면 우리 화면으로 본다.
+        ///
+        /// 탭 이름은 페이지 제목인데, elv 제목은 사업체마다 다르고(LOGO_TITLE)
+        /// 비어 있으면 브라우저가 주소를 대신 보여준다. 그래서 하나만 봐서는 안 된다.
+        /// </summary>
+        public string[] TabTokens()
+        {
+            var list = new System.Collections.Generic.List<string>();
+
+            // ① 설정에 적어 둔 제목 (사업체 제목이 특이할 때 재빌드 없이 맞춘다)
+            if (!string.IsNullOrEmpty(WindowTitle)) list.Add(WindowTitle);
+
+            // ② 주소 — 제목이 비어 있으면 브라우저가 이걸 보여준다
+            //    (예: actas-ai.co.kr/elv)
+            var s = SiteUrl();
+            int scheme = s.IndexOf("://", StringComparison.Ordinal);
+            if (scheme > 0) s = s.Substring(scheme + 3);
+            s = s.TrimEnd('/');
+            if (s.Length > 0) list.Add(s);
+
+            // ③ 제품명 — 제목이 설정돼 있으면 대개 여기에 들어 있다
+            list.Add("ACTAS");
+
+            return list.ToArray();
         }
     }
 }

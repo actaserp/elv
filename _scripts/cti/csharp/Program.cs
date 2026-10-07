@@ -100,6 +100,9 @@ namespace ActasCti
             };
             tray.DoubleClick += (s, e) => ChangeSettings();
 
+            // 알림을 누르면 내려놨던 화면을 올려준다
+            tray.BalloonTipClicked += (s, e) => OnBalloonClick();
+
             UpdateMenu(false);
         }
 
@@ -138,6 +141,26 @@ namespace ActasCti
 
             if (tray.ContextMenuStrip.InvokeRequired) tray.ContextMenuStrip.BeginInvoke(show);
             else show();
+        }
+
+        /// <summary>
+        /// 알림을 눌렀다 — 전화를 받으려면 화면이 앞에 있어야 한다.
+        /// </summary>
+        static void OnBalloonClick()
+        {
+            // 탭을 훑는 동안 트레이 메뉴가 멈추면 안 되므로 딴 스레드에서 한다
+            var t = new Thread(() =>
+            {
+                try
+                {
+                    if (!WindowFinder.BringUp(cfg.SiteUrl(), cfg.TabTokens(), cfg.DebugTabs))
+                        Logger.Write("알림 클릭 — 올릴 창을 찾지 못했습니다.");
+                }
+                catch (Exception e) { Logger.Write("알림 클릭 처리 오류: " + e.Message); }
+            });
+            t.IsBackground = true;
+            t.SetApartmentState(ApartmentState.MTA);   // UI Automation 권장
+            t.Start();
         }
 
         /// <summary>01012345678 → 010-1234-5678</summary>

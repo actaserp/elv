@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.InteropServices;
 
 // 사업체가 문제를 알려올 때 "몇 버전을 쓰고 있나"를 알아야 한다.
@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyProduct("ACTAS ELV")]
 [assembly: AssemblyCopyright("Copyright © ACTAS")]
 
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.4.0.0")]
+[assembly: AssemblyFileVersion("1.4.0.0")]
 
 [assembly: ComVisible(false)]

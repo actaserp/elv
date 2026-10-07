@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -262,6 +263,27 @@ public class WebRequestController {
         AjaxResult result = new AjaxResult();
         Map<String, Object> info = webRequestService.findCallerInfo(spjangcd, callnum);
         result.data    = info;                 // 못 찾으면 null — 화면은 번호만 채운다
+        result.success = true;
+        return result;
+    }
+
+    // ── 현장 수리내역 (전화 수신 카드의 [내역보기]) ─────────────
+    @GetMapping("/site_history")
+    public AjaxResult siteHistory(
+            @RequestParam(value = "spjangcd") String spjangcd,
+            @RequestParam(value = "actcd")    String actcd) {
+        AjaxResult result = new AjaxResult();
+        List<Map<String, Object>> rows = webRequestService.getSiteHistory(spjangcd, actcd, 50);
+
+        // SqlRunner 는 조회 오류를 삼키고 null 을 돌려준다.
+        // 그대로 두면 '내역 없음' 과 구분이 안 돼 한참 헤매게 된다.
+        if (rows == null) {
+            result.success = false;
+            result.message = "수리내역을 조회하지 못했습니다. 서버 로그를 확인해주세요.";
+            return result;
+        }
+
+        result.data    = rows;
         result.success = true;
         return result;
     }

@@ -126,6 +126,8 @@
     .cti-tel { font-size:19px; font-weight:700; color:#222; letter-spacing:.3px; }
     .cti-who { margin-top:5px; font-size:13px; color:#2c4f9e; font-weight:600; }
     .cti-who .cti-src { display:inline-block; margin-left:5px; padding:1px 6px; border-radius:3px; background:#eef2fb; color:#5b6b8c; font-size:11px; font-weight:500; vertical-align:1px; }
+    /* 비상통화 = 승강기에 갇힌 사람. 다른 전화와 섞여 보이면 안 된다 */
+    .cti-who .cti-src.urgent { background:#d32f2f; color:#fff; font-weight:700; }
     .cti-site { margin-top:2px; font-size:11px; color:#777; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .cti-none { margin-top:5px; font-size:12px; color:#999; }
     .cti-meta { margin-top:5px; font-size:11px; color:#999; }
@@ -451,6 +453,20 @@
           <div class="popup-button">
             <button type="button" class="btn-popup" id="btnCallbackLoad">메모로 불러오기</button>
             <button type="button" class="btn-popup" id="btnCallbackDone">콜백 처리</button>
+            <button type="button" class="btn-popup" id="modal-close-button">닫기</button>
+          </div>
+        </div>
+      </script>
+      <script type="text/x-tmpl" id="siteHistPopupTemplate">
+        <div class="content_wrap popup">
+          <div class="table-wrap">
+            <div id="siteHistTitle" style="font-weight:600; margin-bottom:8px;"></div>
+            <div class="grid_box"><div id="sitehist-grid" style="height:330px;"></div></div>
+            <div style="margin-top:6px; font-size:12px; color:#888;">
+              이 현장의 고장접수 내역입니다. 최근 50건까지 보여줍니다.
+            </div>
+          </div>
+          <div class="popup-button">
             <button type="button" class="btn-popup" id="modal-close-button">닫기</button>
           </div>
         </div>
@@ -1277,6 +1293,57 @@
       document.getElementById('memoProcess').focus();
     }
 
+    // 전화 수신 카드의 [내역보기] — 그 현장의 고장접수 내역을 보여준다.
+    // 전화를 받은 사람이 "지난번에 뭐가 고장났었나"를 바로 알아야 응대가 된다.
+    function openSiteHistory(info) {
+      if (!info || !info.actcd) { Alert.alert('', '현장이 확인되지 않아 내역을 볼 수 없습니다.'); return; }
+
+      const $content = $(tmpl('siteHistPopupTemplate', {}));
+      const popContainer = new PopupDraggable('현장 수리내역');
+      popContainer.open({ width: 860, height: 500, $content });
+
+      $content.find('#siteHistTitle').text(info.actnm || info.callnm || '');
+
+      const grid = new wijmo.grid.FlexGrid('#sitehist-grid', {
+        autoGenerateColumns: false,
+        isReadOnly: true,
+        columns: [
+          { binding: 'recedate',   header: '접수일자', width:  95, align: 'center' },
+          { binding: 'state',      header: '상태',     width:  60, align: 'center' },
+          { binding: 'equpnm',     header: '호기',     width:  70, align: 'center' },
+          { binding: 'contnm',     header: '고장구분', width: 100, align: 'left'   },
+          { binding: 'contents',   header: '고장내용', width: '*', align: 'left'   },
+          { binding: 'compdate',   header: '처리일자', width:  95, align: 'center' },
+          { binding: 'resuremark', header: '처리내용', width: '*', align: 'left'   },
+          { binding: 'comppernm',  header: '처리자',   width:  80, align: 'center' }
+        ],
+        itemsSource: new wijmo.collections.CollectionView([])
+      });
+      grid.rowHeaders.columns.splice(0, 1);
+
+      // 날짜는 yyyyMMdd 로 저장돼 있어 보기 좋게 바꿔 준다
+      grid.formatItem.addHandler(function (s, e) {
+        if (e.panel !== s.cells) return;
+        const col = s.columns[e.col].binding, item = s.rows[e.row].dataItem;
+        if (!item) return;
+        if (col === 'recedate' || col === 'compdate')
+          e.cell.textContent = formatDatetime(item[col], '');
+      });
+
+      AjaxUtil.getAsyncData('/api/AS/web_request/site_history', {
+        spjangcd, actcd: info.actcd
+      }, function (result) {
+        if (result && result.success === false) {
+          Alert.alert('', result.message || '수리내역을 조회하지 못했습니다.');
+          return;
+        }
+        const data = (result && result.data) ? result.data : [];
+        grid.itemsSource = new wijmo.collections.CollectionView(data);
+        if (!data.length) $content.find('#siteHistTitle').append(
+          ' <span style="font-weight:400; color:#888;">— 접수 내역이 없습니다</span>');
+      });
+    }
+
     function openPhoneBook()    { Alert.alert('', '전화번호부 기능은 추후 구현 예정입니다.'); }
     function openSiteSearch()   { Alert.alert('', '보수현장조회 기능은 추후 구현 예정입니다.'); }
     function sendSms()          { Alert.alert('', '문자전송 기능은 추후 구현 예정입니다.'); }
@@ -1380,9 +1447,13 @@
         var name = info ? (info.callnm || info.actnm || info.cltnm || '') : '';
         var site = (info && info.actnm && info.actnm !== name) ? info.actnm : '';
 
+        // 비상통화는 승강기에 갇힌 사람이 거는 전화다. 한눈에 구분돼야 한다.
+        var urgent = info && info.source === '비상통화';
+
         var who = info
           ? '<div class="cti-who">' + esc(name) +
-            '<span class="cti-src">' + esc(info.source || '') + '</span></div>' +
+            '<span class="cti-src' + (urgent ? ' urgent' : '') + '">' +
+            esc(info.source || '') + '</span></div>' +
             (site ? '<div class="cti-site">' + esc(site) + '</div>' : '')
           : (entry.info === null && entry.looked
               ? '<div class="cti-none">등록되지 않은 번호입니다</div>' : '');
@@ -1399,6 +1470,7 @@
           '<div class="cti-toast-btns">' +
             '<button type="button" data-act="memo">메모에 입력</button>' +
             (info && info.actcd ? '<button type="button" class="sub" data-act="site">현장 적용</button>' : '') +
+            (info && info.actcd ? '<button type="button" class="sub" data-act="hist">내역보기</button>' : '') +
           '</div>';
 
         if (!entry.el) {
@@ -1414,6 +1486,8 @@
         if (btnMemo) btnMemo.onclick = function () { applyToMemo(call, info); close(call.dbId); };
         var btnSite = entry.el.querySelector('[data-act=site]');
         if (btnSite) btnSite.onclick = function () { applyToSite(info); };
+        var btnHist = entry.el.querySelector('[data-act=hist]');
+        if (btnHist) btnHist.onclick = function () { openSiteHistory(info); };
 
         // 끝난 통화는 잠시 뒤 스스로 사라진다
         if (ended) {
