@@ -55,8 +55,9 @@ namespace ActasCti
                 try
                 {
                     agent = new KtAgent(cfg);
-                    agent.StateChanged += OnStateChanged;
-                    agent.CallReceived += OnCallReceived;
+                    agent.StateChanged    += OnStateChanged;
+                    agent.CallReceived    += OnCallReceived;
+                    agent.PasswordWarning += OnPasswordWarning;
                     agent.Start();
                 }
                 catch (Exception e)
@@ -86,6 +87,7 @@ namespace ActasCti
             menu.Items.Add(miConnect);
             menu.Items.Add(miDisconnect);
             menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(new ToolStripMenuItem("비밀번호", null, (s, e) => ShowPassword(-1, false)));
             menu.Items.Add(new ToolStripMenuItem("설정", null, (s, e) => ChangeSettings()));
             menu.Items.Add(new ToolStripMenuItem("로그 보기", null, (s, e) => OpenLogs()));
             menu.Items.Add(new ToolStripSeparator());
@@ -161,6 +163,42 @@ namespace ActasCti
             t.IsBackground = true;
             t.SetApartmentState(ApartmentState.MTA);   // UI Automation 권장
             t.Start();
+        }
+
+        /// <summary>
+        /// 비밀번호 만료가 가깝거나 이미 지났다. 풍선으로 먼저 알리고 창을 띄운다.
+        /// 이걸 놓치면 어느 날 아침 전화가 화면에 안 뜨는 채로 하루가 간다.
+        /// </summary>
+        static void OnPasswordWarning(int daysLeft, bool expired)
+        {
+            Action show = () =>
+            {
+                tray.ShowBalloonTip(20000, "KT 비밀번호",
+                    expired ? "기간이 지나 전화가 화면에 뜨지 않습니다."
+                            : "기간이 " + Math.Max(daysLeft, 0) + "일 남았습니다.",
+                    ToolTipIcon.Warning);
+
+                ShowPassword(daysLeft, expired);
+            };
+
+            if (tray.ContextMenuStrip.InvokeRequired) tray.ContextMenuStrip.BeginInvoke(show);
+            else show();
+        }
+
+        /// <summary>비밀번호 창. 트레이 메뉴에서도 아무 때나 열 수 있다</summary>
+        static void ShowPassword(int daysLeft, bool expired)
+        {
+            if (agent == null) return;
+
+            // 메뉴에서 연 경우(-1)는 지금 남은 날을 계산해서 보여준다
+            if (daysLeft < 0) daysLeft = cfg.PwDaysLeft();
+
+            try
+            {
+                using (var f = new PasswordForm(agent, cfg, daysLeft, expired))
+                    f.ShowDialog();
+            }
+            catch (Exception e) { Logger.Write("비밀번호 창 오류: " + e); }
         }
 
         /// <summary>01012345678 → 010-1234-5678</summary>

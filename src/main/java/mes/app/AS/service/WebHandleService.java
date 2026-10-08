@@ -47,7 +47,11 @@ public class WebHandleService {
                     j.pernm   AS pernm,
                     e.reperid,
                     rj.pernm  AS repernm,
-                    jc.divinm AS divinm
+                    jc.divinm AS divinm,
+                    -- 접수 때 적은 갇힘사고. 처리등록 화면에서 기본값으로 채운다
+                    ISNULL(e.troubledate, '') AS troubledate,
+                    ISNULL(e.troubletime, '') AS troubletime,
+                    ISNULL(e.troublesu,   0)  AS troublesu
                 FROM TB_E401 e
                 LEFT JOIN TB_E010 ct ON ct.contcd  = e.contcd
                                     AND ct.spjangcd = e.spjangcd
@@ -120,7 +124,10 @@ public class WebHandleService {
                     e.actperid AS mgrperid,
                     mp.pernm   AS mgrpernm,
                     e.filesvnm,
-                    e.filepath
+                    e.filepath,
+                    ISNULL(e.troubledate, '') AS troubledate,
+                    ISNULL(e.troubletime, '') AS troubletime,
+                    ISNULL(e.troublesu,   0)  AS troublesu
                 FROM TB_E411 e
                 LEFT JOIN TB_JA001 ap ON ap.perid    = 'p' + e.perid
                                      AND ap.spjangcd = e.spjangcd
@@ -255,7 +262,8 @@ public class WebHandleService {
             String resucd, String resuremark, String resultcd,
             String remark, String customer, String perid,
             String actperid,
-            String filesvnm, String filepath) {
+            String filesvnm, String filepath,
+            String troubledate, String troubletime, String troublesu) {
 
         String compnum = getNextCompnum(spjangcd, compdate);
 
@@ -302,8 +310,13 @@ public class WebHandleService {
         param.addValue("filesvnm",   filesvnm != null ? filesvnm : "");
         param.addValue("filepath",   filepath  != null ? filepath  : "");
 
+        // ── 갇힘사고 ──────────────────────────────────────────
+        //   고장통계 종합현황의 '사람갇힘' 집계 근거. 접수(TB_E401)에 적힌 값을 화면이 끌어와
+        //   보여주고, 수정된 값을 여기 처리행에도 남긴다.
+        TroubleInput.bind(param, troubledate, troubletime, troublesu);
+
         // ── PB 규격 부가 컬럼 (의미 확정된 것만) ──────────────
-        //   store / gubun / addgubun / trouble / troublesu 는 의미 미상 + DB별 값이
+        //   store / gubun / addgubun / trouble 은 의미 미상 + DB별 값이
         //   다를 수 있어 우선 미입력(NULL)으로 둔다
         param.addValue("divicd",     getPeridDivicd(spjangcd, peridRaw));            // 처리자 부서
         param.addValue("cltcd",      getActCltcd(spjangcd, actcd));                  // 현장 거래처
@@ -321,7 +334,8 @@ public class WebHandleService {
                      remark, customer, result,
                      actperid, perid, inperid, indate,
                      filesvnm, filepath,
-                     divicd, cltcd, resutime, resulttime)
+                     divicd, cltcd, resutime, resulttime,
+                     troubledate, troubletime, troublesu)
                 VALUES
                     (:custcd, :spjangcd, :compdate, :compnum, :comptime,
                      :recedate, :recenum, :recetime, :arrivdate, :arrivtime,
@@ -332,7 +346,8 @@ public class WebHandleService {
                      :remark, :customer, :result,
                      :actperid, :perid, :inperid, :indate,
                      :filesvnm, :filepath,
-                     :divicd, :cltcd, :resutime, :resulttime)
+                     :divicd, :cltcd, :resutime, :resulttime,
+                     :troubledate, :troubletime, :troublesu)
                 """, param);
 
         // ── TB_E401 처리완료 상태 업데이트 ──────────────────
@@ -424,7 +439,8 @@ public class WebHandleService {
             String contremark, String gregicd, String regicd,
             String remocd, String faccd, String remoremark,
             String resucd, String resuremark, String resultcd,
-            String remark, String customer, String perid, String actperid) {
+            String remark, String customer, String perid, String actperid,
+            String troubledate, String troubletime, String troublesu) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd",   spjangcd);
@@ -463,9 +479,13 @@ public class WebHandleService {
         param.addValue("cltcd",      getActCltcd(spjangcd, actcd));
         param.addValue("resutime",   calcMinutes(recedate, recetime, arrivdate, arrivtime));
         param.addValue("resulttime", calcMinutes(arrivdate, arrivtime, compdate, comptime));
+        TroubleInput.bind(param, troubledate, troubletime, troublesu);
 
         namedParameterJdbcTemplate.update("""
                 UPDATE TB_E411 SET
+                    troubledate = :troubledate,
+                    troubletime = :troubletime,
+                    troublesu   = :troublesu,
                     comptime   = :comptime,
                     recedate   = :recedate,
                     recenum    = :recenum,

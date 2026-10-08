@@ -94,7 +94,10 @@ public class WebRequestService {
                     c.contnm,
                     e.contents,
                     e.remark,
-                    e.resultck   AS status
+                    e.resultck   AS status,
+                    ISNULL(e.troubledate, '')   AS troubledate,
+                    ISNULL(e.troubletime, '')   AS troubletime,
+                    ISNULL(e.troublesu,   0)    AS troublesu
                 FROM TB_E401 e
                 LEFT JOIN TB_JA001 j  ON j.perid    = 'p' + e.perid
                                      AND j.spjangcd  = e.spjangcd
@@ -123,7 +126,8 @@ public class WebRequestService {
                      String actcd, String actnm,
                      String equpcd, String equpnm,
                      String reperid, String perid,
-                     String contcd, String contents, String remark) {
+                     String contcd, String contents, String remark,
+                     String troubledate, String troubletime, String troublesu) {
 
         String today = java.time.LocalDate.now().toString().replace("-", "");
 
@@ -165,6 +169,9 @@ public class WebRequestService {
             param.addValue("datetime",  toLocalDateTime(recedate,  recetime));    // 접수일시
             param.addValue("datetime2", toLocalDateTime(hitchdate, hitchhour));   // 고장일시
 
+            // ── 갇힘사고 (PB 고장접수등록의 '갇힘사고일자 / 시간·사람수') ──
+            addTroubleParams(param, troubledate, troubletime, troublesu);
+
             String sql = """
                     INSERT INTO TB_E401
                         (custcd, spjangcd, recedate, recenum, recetime,
@@ -173,7 +180,8 @@ public class WebRequestService {
                          reperid, perid, divicd,
                          contcd, contents, remark,
                          inperid, indate,
-                         cltcd, resultck, [datetime], [datetime2])
+                         cltcd, resultck, [datetime], [datetime2],
+                         troubledate, troubletime, troublesu)
                     VALUES
                         (:custcd, :spjangcd, :recedate, :recenum, :recetime,
                          :hitchdate, :hitchhour,
@@ -181,7 +189,8 @@ public class WebRequestService {
                          :reperid, :perid, :divicd,
                          :contcd, :contents, :remark,
                          :inperid, :indate,
-                         :cltcd, :resultck, :datetime, :datetime2)
+                         :cltcd, :resultck, :datetime, :datetime2,
+                         :troubledate, :troubletime, :troublesu)
                     """;
 
             namedParameterJdbcTemplate.update(sql, param);
@@ -213,6 +222,7 @@ public class WebRequestService {
             param.addValue("cltcd",     getActCltcd(spjangcd, actcd));
             param.addValue("datetime",  toLocalDateTime(recedate,  recetime));
             param.addValue("datetime2", toLocalDateTime(hitchdate, hitchhour));
+            addTroubleParams(param, troubledate, troubletime, troublesu);
 
             String sql = """
                     UPDATE TB_E401 SET
@@ -231,7 +241,10 @@ public class WebRequestService {
                         remark    = :remark,
                         cltcd     = :cltcd,
                         [datetime]  = :datetime,
-                        [datetime2] = :datetime2
+                        [datetime2] = :datetime2,
+                        troubledate = :troubledate,
+                        troubletime = :troubletime,
+                        troublesu   = :troublesu
                     WHERE spjangcd = :spjangcd
                       AND recedate = :recedate
                       AND recenum  = :recenum
@@ -240,6 +253,12 @@ public class WebRequestService {
             namedParameterJdbcTemplate.update(sql, param);
         }
         return recenum;
+    }
+
+    /** 갇힘사고 3개 값 바인딩 — 규칙은 TroubleInput 참고 */
+    private void addTroubleParams(org.springframework.jdbc.core.namedparam.MapSqlParameterSource param,
+                                  String troubledate, String troubletime, String troublesu) {
+        TroubleInput.bind(param, troubledate, troubletime, troublesu);
     }
 
     // ── 고장접수 삭제 (TB_E401 DELETE) ───────────────────────

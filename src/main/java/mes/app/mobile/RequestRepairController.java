@@ -134,6 +134,9 @@ public class RequestRepairController {
             @RequestParam(value = "perid",     required = false) String perid,
             @RequestParam(value = "reperid",   required = false) String reperid,
             @RequestParam(value = "bigo",      required = false) String bigo,
+            @RequestParam(value = "troubledate", required = false) String troubledate,
+            @RequestParam(value = "troubletime", required = false) String troubletime,
+            @RequestParam(value = "troublesu",   required = false) String troublesu,
             HttpServletRequest request,
             Authentication auth) {
 
@@ -159,7 +162,8 @@ public class RequestRepairController {
                     custcd, spjangcd, recedate, recetime,
                     hitchdate, hitchhour,
                     actcd, actnm, equpcd, equpnm,
-                    contcd, contents, remark, perid, bigo, repIdVal
+                    contcd, contents, remark, perid, bigo, repIdVal,
+                    troubledate, troubletime, troublesu
             );
             // 화면이 방금 저장된 접수키를 알 수 있게 돌려준다 (AI 추천 기록의 접수 연결용)
             result.data = Map.of("recedate", recedate == null ? "" : recedate,
@@ -192,6 +196,9 @@ public class RequestRepairController {
             @RequestParam(value = "contents",  required = false) String contents,
             @RequestParam(value = "remark",    required = false) String remark,
             @RequestParam(value = "perid",     required = false) String perid,
+            @RequestParam(value = "troubledate", required = false) String troubledate,
+            @RequestParam(value = "troubletime", required = false) String troubletime,
+            @RequestParam(value = "troublesu",   required = false) String troublesu,
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
@@ -200,7 +207,8 @@ public class RequestRepairController {
                     spjangcd, recedate, recenum,
                     recetime, hitchdate, hitchhour,
                     actcd, actnm, equpcd, equpnm,
-                    contcd, contents, remark, perid);
+                    contcd, contents, remark, perid,
+                    troubledate, troubletime, troublesu);
             result.success = true;
             result.message = "수정되었습니다.";
         } catch (Exception e) {

@@ -49,8 +49,9 @@ namespace ActasCti
             try { kt.SetApiMode(MODE_EVENT_V2CID, 1); }
             catch (Exception e) { Log("SetApiMode 실패(무시 가능): " + e.Message); }
 
-            kt.EventLogin   += OnLogin;
-            kt.EventConnect += OnConnect;
+            kt.EventLogin         += OnLogin;
+            kt.EventConnect       += OnConnect;
+            kt.EventChangePasswd  += OnChangePasswd;   // 규격서 3.8.3
             kt.EventV2CID   += OnCallV2;
             kt.EventCID     += OnCallOld;   // SetApiMode 가 안 먹었을 때 대비
 
@@ -88,6 +89,14 @@ namespace ActasCti
             if (rc != 200)
             {
                 Notify(Codes.LoginAdvice(rc), false);
+
+                // 403 임시비밀번호 · 409 유효성 · 410/411 기간만료 — 바꾸거나 연장해야 열린다.
+                // 그냥 두면 전화는 울리는데 화면에만 안 뜨는 상태로 하루가 간다.
+                if (rc == 403 || rc == 409 || rc == 410 || rc == 411)
+                {
+                    var h = PasswordWarning;
+                    if (h != null) h(0, true);
+                }
                 return;
             }
             Log("요청 성공. 인증 결과(EventLogin)를 기다립니다…");
@@ -115,6 +124,7 @@ namespace ActasCti
                 LoggedIn = true;
                 Post("agent-online", null);
                 Notify("전화 연결됨", true);
+                CheckPasswordAge();   // 만료가 가까우면 여기서 알린다
                 return;
             }
 
@@ -188,6 +198,85 @@ namespace ActasCti
         {
             if (LoggedIn) Post("agent-online", null);
         }
+
+        // ── 비밀번호 ─────────────────────────────────────────────
+        //
+        // KT 계정 비밀번호는 90일마다 바꿔야 한다. 그냥 두면 어느 날 아침
+        // 로그인이 410/411 로 막히고, 전화는 울리는데 화면에만 안 뜬다.
+        //
+        // 규격서에 연장 함수(3.7.4 PasswdExpiredExtend)가 있어서 비밀번호를
+        // 바꾸지 않고 90일을 미룰 수 있다. 바꾸려면 3.7.3 PasswdChange.
+
+        /// <summary>비밀번호를 그대로 두고 만료를 90일 미룬다</summary>
+        public int ExtendPassword()
+        {
+            int rc;
+            try { rc = kt.PasswdExpiredExtend(); }
+            catch (Exception e) { Log("[비밀번호] 연장 중 오류: " + e.Message); return -1; }
+
+            Log(string.Format("[비밀번호] PasswdExpiredExtend 반환 = {0}  ({1})",
+                              rc, Codes.PasswdExtendMsg(rc)));
+
+            if (rc == 200) cfg.PwMarkChanged();
+            return rc;
+        }
+
+        /// <summary>비밀번호를 바꾼다. 성공하면 설정에도 새 값을 넣는다</summary>
+        public int ChangePassword(string oldPw, string newPw)
+        {
+            int rc;
+            try { rc = kt.PasswdChange(oldPw, newPw); }
+            catch (Exception e) { Log("[비밀번호] 변경 중 오류: " + e.Message); return -1; }
+
+            Log(string.Format("[비밀번호] PasswdChange 반환 = {0}  ({1})",
+                              rc, Codes.PasswdChangeMsg(rc)));
+
+            if (rc == 200)
+            {
+                cfg.KtLoginPw = newPw;
+                cfg.PwMarkChanged();   // Save 까지 한다
+            }
+            return rc;
+        }
+
+        /// <summary>
+        /// 규격서 3.8.3 — 사용자가 KT 쪽 창에서 비밀번호를 바꿨을 때 바뀐 값이 온다.
+        /// 받아서 설정에 넣어 둬야 한다. 안 그러면 다음 로그인부터 옛 비번으로 시도해 막힌다.
+        /// </summary>
+        void OnChangePasswd(string passwd)
+        {
+            if (string.IsNullOrEmpty(passwd)) return;
+
+            Log("[비밀번호] 바뀐 것을 받았습니다. 설정에 넣습니다.");
+            cfg.KtLoginPw = passwd;
+            cfg.PwMarkChanged();
+
+            Notify("비밀번호가 바뀌어 설정에 저장했습니다.", LoggedIn);
+        }
+
+        /// <summary>만료가 가까우면 트레이에서 알린다. 날짜는 우리가 센다(규격서에 조회 함수가 없다)</summary>
+        void CheckPasswordAge()
+        {
+            // 처음 설치해서 기록이 없으면 오늘을 기준으로 삼는다.
+            // 실제 변경일과 다를 수 있지만, 없는 것보다는 낫고 다음 변경 때 맞춰진다.
+            if (cfg.PwAgeDays() < 0)
+            {
+                cfg.PwMarkChanged();
+                Log("[비밀번호] 기준일이 없어 오늘로 잡았습니다.");
+                return;
+            }
+
+            Log(string.Format("[비밀번호] 마지막 변경·연장 후 {0}일 (만료까지 {1}일)",
+                              cfg.PwAgeDays(), cfg.PwDaysLeft()));
+
+            if (!cfg.PwShouldWarn()) return;
+
+            var h = PasswordWarning;
+            if (h != null) h(cfg.PwDaysLeft(), false);
+        }
+
+        /// <summary>(남은 날, 이미 만료됐나) — 트레이가 받아 창을 띄운다</summary>
+        public event Action<int, bool> PasswordWarning;
 
         // ── 문자 보내기 ──────────────────────────────────────────
         //

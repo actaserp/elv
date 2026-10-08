@@ -95,6 +95,35 @@ namespace ActasCti
             return c == "202" || c == "203" || c == "204" || c == "407" || c == "408";
         }
 
+        /// <summary>규격서 3.7.3 — PasswdChange 반환값</summary>
+        public static string PasswdChangeMsg(int c)
+        {
+            switch (c)
+            {
+                case 200: return "비밀번호를 바꿨습니다";
+                case 300: return "지금 비밀번호가 맞지 않습니다";
+                case 409: return "새 비밀번호가 규칙에 맞지 않습니다";
+                case 0:   return "변경하지 못했습니다";
+                default:  return "알 수 없는 값 (" + c + ")";
+            }
+        }
+
+        /// <summary>규격서 3.7.4 — PasswdExpiredExtend 반환값</summary>
+        public static string PasswdExtendMsg(int c)
+        {
+            switch (c)
+            {
+                case 200: return "90일 연장했습니다";
+                case 0:   return "연장하지 못했습니다";
+                default:  return "알 수 없는 값 (" + c + ")";
+            }
+        }
+
+        /// <summary>규격서 3.7.3 — 새 비밀번호 규칙. 창에 그대로 보여준다</summary>
+        public const string PasswdRule =
+            "8자 이상, 영문·숫자·특수문자를 각각 하나 이상 섞어야 합니다.\n" +
+            "아이디와 같을 수 없고, 연속된 3글자(123, abc, aaa 등)는 쓸 수 없습니다.";
+
         /// <summary>규격서 5.1.1 — SendSMS 반환값</summary>
         public static string SmsMsg(int c)
         {

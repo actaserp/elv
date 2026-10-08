@@ -37,12 +37,21 @@
         .write-table td input[type="text"],
         .write-table td input[type="date"],
         .write-table td input[type="time"],
+        .write-table td input[type="number"],
         .write-table td textarea {
             width: 100%;
             box-sizing: border-box;
         }
         .write-table td textarea { resize: vertical; min-height: 54px; }
         .write-table td input[readonly] { background: #f5f5f5; cursor: pointer; }
+
+        /* ── 갇힘사고 (일자·시각·인원) ──
+           date/time 입력은 브라우저 고유 너비가 있어 고정 px 로 두면 셀을 넘는다 */
+        .trouble-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+        .trouble-row input[type="date"]   { flex: 1 1 128px; min-width: 0; }
+        .trouble-row input[type="time"]   { flex: 0 1 96px;  min-width: 0; }
+        .trouble-row input[type="number"] { flex: 0 1 62px;  min-width: 0; text-align: right; }
+        .trouble-row .unit { font-size: 12px; color: #666; flex: 0 0 auto; }
 
         /* ── 팝업 그리드 높이 ── */
         #popActGrid, #popEqupGrid, #popPernmGrid { height: 320px; }
@@ -276,6 +285,21 @@
                             <tr>
                                 <th><label>사후관리사항</label></th>
                                 <td colspan="3"><textarea id="regCustomer" placeholder="사후관리사항 입력"></textarea></td>
+                            </tr>
+
+                            <!-- 갇힘사고 — 고장통계 종합현황의 '사람갇힘' 이 이 값으로 집계된다.
+                                 접수에 적혀 있으면 그 값이 자동으로 채워진다 -->
+                            <tr>
+                                <th><label>갇힘사고</label></th>
+                                <td colspan="3">
+                                    <div class="trouble-row">
+                                        <input type="date"   id="regTroubledate" title="갇힘사고 일자">
+                                        <input type="time"   id="regTroubletime" title="갇힘 시각">
+                                        <input type="number" id="regTroublesu" min="0" step="1" placeholder="0"
+                                               title="갇힌 인원 — 갇힌 사람이 없으면 비워 두세요">
+                                        <span class="unit">명</span>
+                                    </div>
+                                </td>
                             </tr>
 
                             <tr>
@@ -597,6 +621,7 @@
             document.getElementById('regResultnm').value  = item.remark   || '';
             document.getElementById('regResultcd').value  = item.resultcd || '';
             document.getElementById('regCustomer').value  = item.customer || '';
+            setTroubleFields(item);
             document.getElementById('regPernm').value     = item.actpernm || '';
 
             // 담당자 — 저장된 값이 있으면 그대로, 없으면 현장 담당자로 자동
@@ -614,6 +639,19 @@
             document.getElementById('bannerContents').textContent  = item.customer || '';
             document.getElementById('selectedBanner').style.display = 'block';
         }
+        /** 갇힘사고 칸 채우기 — 저장값은 yyyyMMdd / HHmm 이고 input 은 하이픈·콜론이 필요하다 */
+        function setTroubleFields(item) {
+            var d = (item && item.troubledate) ? String(item.troubledate).trim() : '';
+            var t = (item && item.troubletime) ? String(item.troubletime).trim() : '';
+            var n = (item && item.troublesu)   ? Number(item.troublesu)          : 0;
+
+            document.getElementById('regTroubledate').value =
+                d.length === 8 ? d.substring(0,4) + '-' + d.substring(4,6) + '-' + d.substring(6,8) : '';
+            document.getElementById('regTroubletime').value =
+                t.length === 4 ? t.substring(0,2) + ':' + t.substring(2,4) : '';
+            document.getElementById('regTroublesu').value = n > 0 ? n : '';
+        }
+
         function bindRequestToForm(item) {
             // 처리된 건이면 처리 데이터 조회 후 bindCompToForm() 호출
             if (item.resultck === '1' || item.resultck === 1) {
@@ -678,6 +716,8 @@
             document.getElementById('regCustomer').value   = '';
             document.getElementById('hidPerid').value      = '';
             document.getElementById('regPernm').value      = '';
+            // 접수에 적힌 갇힘사고를 그대로 끌어와 채운다 (처리자가 확인·수정)
+            setTroubleFields(item);
 
             // ★ 현장 담당자 자동 바인드 (TB_E601.perid)
             bindActManager(item.actcd);
@@ -883,7 +923,11 @@
                 perid      : document.getElementById('hidPerid').value,
                 actperid   : document.getElementById('hidMgrPerid').value,
                 filesvnm   : document.getElementById('regFilesvnm').value,
-                filepath   : document.getElementById('regFilepath').value
+                filepath   : document.getElementById('regFilepath').value,
+                // 갇힘사고 (yyyyMMdd / HHmm / 인원). 서버가 다시 한 번 정규화한다
+                troubledate : document.getElementById('regTroubledate').value.replaceAll('-', ''),
+                troubletime : document.getElementById('regTroubletime').value.replaceAll(':', ''),
+                troublesu   : document.getElementById('regTroublesu').value
             };
 
             AjaxUtil.postAsyncData(url, data, function (result) {
@@ -957,6 +1001,7 @@
             document.getElementById('regResultnm').value   = '';
             document.getElementById('regResultcd').value   = '';
             document.getElementById('regCustomer').value   = '';
+            setTroubleFields(null);
             document.getElementById('regPernm').value      = '';
             document.getElementById('hidMgrPerid').value   = '';
             document.getElementById('regMgrPernm').value   = '';

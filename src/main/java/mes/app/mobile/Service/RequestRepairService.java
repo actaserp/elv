@@ -192,7 +192,8 @@ public class RequestRepairService {
             String remark,
             String perid,      // ★ 화면에서 선택한 접수자(전화 받은 사람) → TB_E401.perid
             String bigo,
-            String reperid) {  // ★ 통보자(현장으로 가는 사람)           → TB_E401.reperid
+            String reperid,    // ★ 통보자(현장으로 가는 사람)           → TB_E401.reperid
+            String troubledate, String troubletime, String troublesu) {
 
         String recenum = getNextRecenum(spjangcd, recedate);
 
@@ -231,6 +232,8 @@ public class RequestRepairService {
         param.addValue("divicd",   getPeridDivicd(spjangcd, perid));   // 접수자 부서 (PB 규격)
         param.addValue("cltcd",    getActCltcd(spjangcd, actcd));      // 현장 거래처
         param.addValue("resultck", "0");                                // PB는 접수 시 '0'
+        // 갇힘사고 — 고장통계 종합현황의 '사람갇힘' 집계 근거
+        mes.app.AS.service.TroubleInput.bind(param, troubledate, troubletime, troublesu);
 
         String sql = """
                 INSERT INTO TB_E401
@@ -240,7 +243,8 @@ public class RequestRepairService {
                      contcd, contents, remark, reperid,
                      perid, inperid, indate,
                      [datetime], [datetime2],
-                     divicd, cltcd, resultck)
+                     divicd, cltcd, resultck,
+                     troubledate, troubletime, troublesu)
                 VALUES
                     (:custcd, :spjangcd, :recedate, :recenum, :recetime,
                      :hitchdate, :hitchhour,
@@ -248,7 +252,8 @@ public class RequestRepairService {
                      :contcd, :contents, :remark, :reperid,
                      :perid, :inperid, :indate,
                      :datetime, :datetime2,
-                     :divicd, :cltcd, :resultck)
+                     :divicd, :cltcd, :resultck,
+                     :troubledate, :troubletime, :troublesu)
                 """;
 
         namedParameterJdbcTemplate.update(sql, param);
@@ -260,7 +265,8 @@ public class RequestRepairService {
             String spjangcd, String recedate, String recenum,
             String recetime, String hitchdate, String hitchhour,
             String actcd, String actnm, String equpcd, String equpnm,
-            String contcd, String contents, String remark, String perid) {
+            String contcd, String contents, String remark, String perid,
+            String troubledate, String troubletime, String troublesu) {
 
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("spjangcd",  spjangcd);
@@ -283,6 +289,7 @@ public class RequestRepairService {
         java.time.LocalDateTime hitchDt = toLocalDateTime(hitchdate, hitchhour);
         param.addValue("datetime",  receDt);
         param.addValue("datetime2", hitchDt);
+        mes.app.AS.service.TroubleInput.bind(param, troubledate, troubletime, troublesu);
 
         namedParameterJdbcTemplate.update("""
                 UPDATE TB_E401 SET
@@ -298,7 +305,10 @@ public class RequestRepairService {
                     remark    = :remark,
                     perid     = :perid,
                     [datetime]  = :datetime,
-                    [datetime2] = :datetime2
+                    [datetime2] = :datetime2,
+                    troubledate = :troubledate,
+                    troubletime = :troubletime,
+                    troublesu   = :troublesu
                 WHERE spjangcd = :spjangcd
                   AND recedate = :recedate
                   AND recenum  = :recenum

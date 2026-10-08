@@ -69,6 +69,7 @@
     <Compile Include="Codes.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="KtAgent.cs" />
+    <Compile Include="PasswordForm.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="SettingsForm.cs" />
     <Compile Include="WindowFinder.cs" />

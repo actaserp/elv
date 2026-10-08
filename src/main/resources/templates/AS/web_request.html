@@ -62,11 +62,27 @@
     .recv-table th { background: #f5f7fa; font-size: 12px; font-weight: 600; color: #555; padding: 7px 8px; border: 1px solid #e0e0e0; text-align: left; white-space: nowrap; }
     .recv-table td { padding: 4px 5px; border: 1px solid #e8e8e8; }
     .recv-table input[type=text],
+    .recv-table input[type=date],
+    .recv-table input[type=time],
+    .recv-table input[type=number],
     .recv-table input[type=datetime-local] { width: 100%; padding: 5px 7px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box; }
     .recv-table input.readonly { background: #f9f9f9; cursor: pointer; }
     .recv-table input.readonly:hover { background: #f0f4ff; }
     .recv-table .th-sm { font-size: 11px; }
     .input-row { display: flex; align-items: center; gap: 4px; }
+
+    /* ── 갇힘사고 (일자·시각·인원) ──
+       행을 새로 만들지 않으려고 고장내용 행의 남는 오른쪽 공간에 얹었다.
+       고장내용 입력은 width:100% 라 그대로 두면 공간을 다 먹어 갇힘칸이 171px 로 눌린다.
+       그래서 이 행에서만 폭을 묶어 둔다. 실측 기준 셀 577px → 고장내용 184 + 갇힘 318 로 한 줄에 들어간다. */
+    .input-row.with-trouble > input[type=text] { flex: 0 1 180px; width: auto; }
+    .trouble-row { display: flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; flex-wrap: wrap; }
+    .trouble-row input[type=date]   { flex: 1 1 124px; min-width: 0; }
+    .trouble-row input[type=time]   { flex: 0 1 92px;  min-width: 0; }
+    .trouble-row input[type=number] { flex: 0 1 58px;  min-width: 0; text-align: right; }
+    .trouble-row .unit { font-size: 12px; color: #666; flex: 0 0 auto; }
+    /* 셀 안에서 쓰는 보조 라벨 (th 가 따로 없을 때) */
+    .inline-label { font-size: 12px; color: #555; font-weight: 600; white-space: nowrap; flex: 0 0 auto; margin-left: 8px; }
 
     /* ── 버튼 ── */
     .btn-sms  { padding: 6px 12px; background: #546e7a; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
@@ -309,9 +325,20 @@
                   <tr>
                     <th>고장내용</th>
                     <td colspan="3">
-                      <div class="input-row">
+                      <!-- 고장내용 입력칸이 이 셀(colspan=3)의 왼쪽만 쓰고 있어,
+                           남는 오른쪽 공간에 갇힘사고를 같이 둔다. 행을 늘리지 않으려는 것 -->
+                      <div class="input-row with-trouble">
                         <input type="hidden" id="contcd">
                         <input type="text" id="contnm" placeholder="고장내용 선택" readonly class="readonly" onclick="openContnmPopup()">
+
+                        <span class="inline-label">갇힘사고</span>
+                        <div class="trouble-row">
+                          <input type="date"   id="troubledate" title="갇힘사고 일자">
+                          <input type="time"   id="troubletime" title="갇힘 시각">
+                          <input type="number" id="troublesu" min="0" step="1" placeholder="0"
+                                 title="갇힌 인원 — 갇힌 사람이 없으면 비워 두세요">
+                          <span class="unit">명</span>
+                        </div>
                       </div>
                       <!-- AI 추천 배지: 고장 상세내용을 입력하면 나타남 -->
                       <div id="aiContBadge"></div>
@@ -799,6 +826,7 @@
       document.getElementById('contnm').value    = item.contnm   || '';
       document.getElementById('contents').value  = item.contents || '';
       document.getElementById('remark').value    = item.remark   || '';
+      setTroubleFields(item);
       if (aiClassify) aiClassify.reset();
       document.getElementById('actpushid').value = item.pushid   || '';
     }
@@ -858,7 +886,11 @@
         perid,
         contcd,
         contents  : document.getElementById('contents').value,
-        remark    : document.getElementById('remark').value
+        remark    : document.getElementById('remark').value,
+        // 갇힘사고 (yyyyMMdd / HHmm / 인원). 서버가 다시 한 번 정규화한다
+        troubledate : document.getElementById('troubledate').value.replace(/-/g, ''),
+        troubletime : document.getElementById('troubletime').value.replace(':', ''),
+        troublesu   : document.getElementById('troublesu').value
       }, function (result) {
         if (result && result.success) {
           // AI 추천을 보여줬는지 · 최종 고장내용이 추천과 같은지 기록 (채택률 통계)
@@ -903,8 +935,22 @@
        'contents','remark','actpushid'].forEach(id => {
         document.getElementById(id).value = '';
       });
+      setTroubleFields(null);
       document.querySelectorAll('.recv-card').forEach(c => c.classList.remove('selected'));
       if (aiClassify) aiClassify.reset();
+    }
+
+    /** 갇힘사고 칸 채우기 — 저장값은 yyyyMMdd / HHmm 이고 input 은 하이픈·콜론이 필요하다 */
+    function setTroubleFields(item) {
+      const d = (item && item.troubledate) ? String(item.troubledate).trim() : '';
+      const t = (item && item.troubletime) ? String(item.troubletime).trim() : '';
+      const n = (item && item.troublesu)   ? Number(item.troublesu)          : 0;
+
+      document.getElementById('troubledate').value =
+        d.length === 8 ? d.substring(0,4) + '-' + d.substring(4,6) + '-' + d.substring(6,8) : '';
+      document.getElementById('troubletime').value =
+        t.length === 4 ? t.substring(0,2) + ':' + t.substring(2,4) : '';
+      document.getElementById('troublesu').value = n > 0 ? n : '';
     }
 
     // ── 통화메모 저장 ─────────────────────────────────────────

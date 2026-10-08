@@ -23,6 +23,15 @@ namespace ActasCti
         public string WindowTitle = "";    // 브라우저 탭 제목 (비우면 주소·제품명으로 찾는다)
         public bool   DebugTabs  = false;  // 탭 이름을 로그에 남긴다 (문제 추적용, 기본 꺼짐)
 
+        /// <summary>
+        /// KT 비밀번호를 마지막으로 바꾸거나 기간을 연장한 날 (yyyyMMdd).
+        /// 규격서에 만료 잔여일을 묻는 함수가 없어서 우리가 세는 수밖에 없다.
+        /// </summary>
+        public string PwChanged = "";
+
+        /// <summary>알림에서 [나중에] 를 누른 날 (yyyyMMdd). 그날은 다시 묻지 않는다.</summary>
+        public string PwSnoozed = "";
+
         static string Path_
         {
             get
@@ -59,6 +68,8 @@ namespace ActasCti
                     case "ELV_URL":      c.ElvUrl      = val; break;
                     case "WINDOW_TITLE": c.WindowTitle = val; break;
                     case "DEBUG_TABS":   c.DebugTabs   = (val == "1" || val.ToLower() == "true"); break;
+                    case "PW_CHANGED":   c.PwChanged   = val; break;
+                    case "PW_SNOOZED":   c.PwSnoozed   = val; break;
                     case "ELV_SECRET":   c.ElvSecret   = val; break;
                     case "AUTO_LOGIN":   c.AutoLogin   = val.Equals("true", StringComparison.OrdinalIgnoreCase); break;
                 }
@@ -81,10 +92,58 @@ namespace ActasCti
             sb.AppendLine("ELV_URL      = " + ElvUrl);
             sb.AppendLine("WINDOW_TITLE = " + WindowTitle);
             sb.AppendLine("DEBUG_TABS   = " + (DebugTabs ? "1" : "0"));
+            sb.AppendLine("PW_CHANGED   = " + PwChanged);
+            sb.AppendLine("PW_SNOOZED   = " + PwSnoozed);
             sb.AppendLine("ELV_SECRET   = " + ElvSecret);
             sb.AppendLine("AUTO_LOGIN   = " + (AutoLogin ? "true" : "false"));
 
             File.WriteAllText(Path_, sb.ToString(), Encoding.UTF8);
+        }
+
+        // ── 비밀번호 만료 ────────────────────────────────────────
+        //
+        // KT 계정 비밀번호는 3개월(90일)마다 바꿔야 한다 (규격서 3.2 로그인).
+        // 만료되면 로그인이 410/411 로 막히고, 전화는 울리는데 화면에만 안 뜬다.
+        //
+        // 잔여일을 묻는 함수가 규격서에 없다. GetMemberInfo 는 아이디와 이름뿐이고
+        // 그마저 전체 관리자만 쓸 수 있다. 그래서 날짜를 우리가 적어두고 센다.
+
+        const int ExpireDays = 90;
+        const int WarnDays   = 75;   // 15일 남으면 알린다
+
+        public static string Today { get { return DateTime.Now.ToString("yyyyMMdd"); } }
+
+        /// <summary>마지막 변경·연장일로부터 지난 날. 기록이 없으면 -1</summary>
+        public int PwAgeDays()
+        {
+            DateTime at;
+            if (!DateTime.TryParseExact(PwChanged, "yyyyMMdd", null,
+                    System.Globalization.DateTimeStyles.None, out at)) return -1;
+
+            return (int)(DateTime.Now.Date - at.Date).TotalDays;
+        }
+
+        /// <summary>만료까지 남은 날. 기록이 없으면 -1</summary>
+        public int PwDaysLeft()
+        {
+            int age = PwAgeDays();
+            return age < 0 ? -1 : ExpireDays - age;
+        }
+
+        /// <summary>지금 알려야 하는가 — 15일 안쪽이고, 오늘 [나중에] 를 누르지 않았을 때</summary>
+        public bool PwShouldWarn()
+        {
+            int age = PwAgeDays();
+            if (age < WarnDays) return false;
+            return PwSnoozed != Today;
+        }
+
+        /// <summary>바꾸거나 연장했다 — 오늘로 기록하고 미루기는 지운다</summary>
+        public void PwMarkChanged()
+        {
+            PwChanged = Today;
+            PwSnoozed = "";
+            Save();
         }
 
         /// <summary>설정이 다 채워졌는가</summary>

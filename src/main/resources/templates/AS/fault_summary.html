@@ -1,0 +1,213 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<head>
+  <style>
+    .wj-header { text-align: center !important; }
+
+    #summaryGrid .wj-colheaders .wj-cell { background: #e6ebf2; font-weight: 600; }
+    #summaryGrid .wj-cell.col-gubun { background: #f4f6f9; font-weight: 600; }
+    #summaryGrid .wj-cell.col-avg   { background: #fbfcfd; font-weight: 600; }
+    #summaryGrid .wj-cell.no-data   { color: #b5b9c0; }
+
+    .note {
+      margin: 0 0 8px;
+      font-size: 12px;
+      color: #777;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>종합현황</h2>
+        <a title="북마크" class="bookmark toggle">내메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+        <li>고장통계</li>
+        <li>종합현황</li>
+      </ul>
+    </div>
+
+    <section class="section">
+      <div class="section-top">
+        <div class="search-wrap">
+          <dl>
+            <dt><label for="stmon">조회기간</label></dt>
+            <dd>
+              <div class="srch-box" style="display: flex; align-items: center; gap: 5px;">
+                <input type="month" id="stmon" class="form-control2" style="width: 150px;">
+                <span>~</span>
+                <input type="month" id="endmon" class="form-control2" style="width: 150px;">
+              </div>
+            </dd>
+          </dl>
+          <dl>
+            <dt><label for="txtCltnm">거래처</label></dt>
+            <dd>
+              <div class="srch-box">
+                <input type="text" id="txtCltnm" class="form-control2" placeholder="거래처명 검색">
+              </div>
+            </dd>
+          </dl>
+          <dl>
+            <dt><label for="txtActnm">현장</label></dt>
+            <dd>
+              <div class="srch-box">
+                <input type="text" id="txtActnm" class="form-control2" placeholder="현장명 검색">
+              </div>
+            </dd>
+          </dl>
+          <dl>
+            <dt><span class="eq"></span></dt>
+            <dd>
+              <li>
+                <a class="btn btn-delete" title="검색" id="btnSearch">
+                  <img th:src="@{/images/icon/btn-srch.svg}" alt="검색 아이콘">
+                  검색
+                </a>
+              </li>
+            </dd>
+          </dl>
+        </div>
+      </div>
+
+      <p class="note">
+        고장율 = 고장건수 ÷ 관리대수 × 100 (%). 평균 칸은 표에 보이는 월들의 평균입니다.
+        관리대수는 현재 등록된 대수라 모든 월이 같습니다. 한 번에 최대 24개월까지 조회됩니다.
+      </p>
+
+      <div class="container-fluid">
+        <div id="summaryGrid" style="height: 360px;"></div>
+      </div>
+    </section>
+  </div>
+
+  <footer style="margin-top: 24px;">
+    <p>Copyrightⓒ 0000 corp. All rights reserved.</p>
+  </footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <th:block th:replace="common/columns_setting :: columns_setting"></th:block>
+  <script type="text/javascript">
+    class FaultSummaryPage {
+      constructor() {
+        this.viewData = new wijmo.collections.CollectionView();
+        this.grid = null;
+        this.months = [];
+        this.init();
+      }
+
+      init() {
+        let _this = this;
+
+        this.grid = new wijmo.grid.FlexGrid('#summaryGrid', {
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          headersVisibility: wijmo.grid.HeadersVisibility.Column,
+          autoGenerateColumns: false,
+          isReadOnly: true,
+          formatItem: (sender, e) => {
+            if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader) {
+              e.cell.style.textAlign = 'center';
+              return;
+            }
+            if (e.panel.cellType !== wijmo.grid.CellType.Cell) return;
+
+            const col = sender.columns[e.col];
+            if (!col) return;
+            if (col.binding === 'gubun') { e.cell.classList.add('col-gubun'); return; }
+            if (col.binding === 'avg')   { e.cell.classList.add('col-avg'); }
+
+            // 집계 근거가 없는 구분은 0 을 흐리게 — 비어 보이는 이유를 알 수 있게
+            const item = sender.rows[e.row] ? sender.rows[e.row].dataItem : null;
+            if (item && item.gubun === '돌상돌하') e.cell.classList.add('no-data');
+          },
+          columns: [{binding: 'gubun', header: '구 분', width: 130, align: 'center'}],
+          itemsSource: this.viewData,
+        });
+
+        new FlexGridContextMenu(this.grid);
+        this.grid.downloadFileName = '고장통계_종합현황';
+      }
+
+      /** 월 컬럼을 조회 결과에 맞춰 다시 만든다 */
+      buildColumns(months) {
+        let cols = this.grid.columns;
+        cols.beginUpdate();
+        while (cols.length > 1) cols.removeAt(cols.length - 1);
+
+        cols.push(new wijmo.grid.Column({
+          binding: 'avg', header: '평 균', width: 90, align: 'center', dataType: wijmo.DataType.Number
+        }));
+        months.forEach(function (ym) {
+          cols.push(new wijmo.grid.Column({
+            binding: ym,
+            header: Number(ym.substring(4, 6)) + '월',
+            width: 80,
+            align: 'center',
+            dataType: wijmo.DataType.Number
+          }));
+        });
+        cols.push(new wijmo.grid.Column({binding: 'remark', header: '비 고', width: '*', minWidth: 120}));
+        cols.endUpdate();
+      }
+
+      search() {
+        let _this = this;
+
+        let stmon = $('#stmon').val();
+        let endmon = $('#endmon').val();
+        if (!stmon || !endmon) {
+          Alert.alert('', '조회기간을 선택하세요.');
+          return;
+        }
+        if (stmon > endmon) {
+          Alert.alert('', '조회 시작월이 종료월보다 뒤입니다.');
+          return;
+        }
+
+        let data = {
+          spjangcd: sessionStorage.getItem('spjangcd'),
+          stmon: stmon,
+          endmon: endmon,
+          cltnm: ($('#txtCltnm').val() || '').trim(),
+          actnm: ($('#txtActnm').val() || '').trim(),
+        };
+
+        let result = AjaxUtil.getSyncData('/api/AS/fault_summary/read', data);
+        if (!result || !result.success || !result.data) {
+          Alert.alert('', (result && result.message) ? result.message : '조회에 실패했습니다.');
+          _this.viewData.sourceCollection = [];
+          return;
+        }
+
+        _this.months = result.data.months || [];
+        _this.buildColumns(_this.months);
+        _this.viewData.sourceCollection = result.data.rows || [];
+      }
+    }
+
+    let page = null;
+
+    $(document).ready(function () {
+      yullinAuth.removeWriteButton();
+      page = new FaultSummaryPage();
+
+      // 기본값: 올해 1월 ~ 이번 달 (고장처리현황과 같은 기준)
+      const today = CommonUtil.getYYYYMMDD();          // yyyy-mm-dd
+      const year = today.substring(0, 4);
+      $('#stmon').val(year + '-01');
+      $('#endmon').val(today.substring(0, 7));
+
+      $('#btnSearch').click(function () {
+        page.search();
+      });
+
+      page.search();
+    });
+  </script>
+</th:block>
+</html>

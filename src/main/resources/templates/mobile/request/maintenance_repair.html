@@ -150,12 +150,20 @@
     .form-row input[type="text"],
     .form-row input[type="date"],
     .form-row input[type="time"],
+    .form-row input[type="number"],
     .form-row textarea {
         width: 100%; padding: 8px 10px;
         border: 1px solid #ddd; border-radius: 6px;
         font-size: 14px; box-sizing: border-box;
     }
     .form-row input[readonly] { background: #f5f5f5; color: #333; cursor: pointer; caret-color: transparent; }
+    /* ── 갇힘사고 (일자·시각·인원) ──
+       모바일은 폭이 좁아 date/time 고유 너비가 쉽게 넘친다. flex 로 줄이고 넘치면 줄바꿈 */
+    .trouble-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .trouble-row input[type="date"]   { flex: 1 1 140px; min-width: 0; }
+    .trouble-row input[type="time"]   { flex: 1 1 104px; min-width: 0; }
+    .trouble-row input[type="number"] { flex: 0 1 72px;  min-width: 0; text-align: right; }
+
     .form-row textarea { resize: vertical; min-height: 70px; }
     .form-row .row-2col { display: flex; gap: 8px; }
     .form-row .row-2col > * { flex: 1; }
@@ -405,6 +413,16 @@
                 <div class="form-row">
                     <label>사후관리사항</label>
                     <textarea id="regCustomer" placeholder="사후관리사항 입력"></textarea>
+                </div>
+                <!-- 갇힘사고 — 고장통계 종합현황의 '사람갇힘' 이 이 값으로 집계된다.
+                     접수에 적혀 있으면 그 값이 자동으로 채워진다 -->
+                <div class="form-row">
+                    <label>갇힘사고 (갇힌 사람이 없으면 비워 두세요)</label>
+                    <div class="trouble-row">
+                        <input type="date"   id="regTroubledate" title="갇힘사고 일자">
+                        <input type="time"   id="regTroubletime" title="갇힘 시각">
+                        <input type="number" id="regTroublesu" min="0" step="1" placeholder="인원" title="갇힌 인원">
+                    </div>
                 </div>
 
                 <div class="form-row">
@@ -695,6 +713,19 @@
         renderRepairList(filtered);
     }
 
+    /** 갇힘사고 칸 채우기 — 저장값은 yyyyMMdd / HHmm 이고 input 은 하이픈·콜론이 필요하다 */
+    function setTroubleFields(item) {
+        var d = (item && item.troubledate) ? String(item.troubledate).trim() : '';
+        var t = (item && item.troubletime) ? String(item.troubletime).trim() : '';
+        var n = (item && item.troublesu)   ? Number(item.troublesu)          : 0;
+
+        document.getElementById('regTroubledate').value =
+            d.length === 8 ? d.substring(0,4) + '-' + d.substring(4,6) + '-' + d.substring(6,8) : '';
+        document.getElementById('regTroubletime').value =
+            t.length === 4 ? t.substring(0,2) + ':' + t.substring(2,4) : '';
+        document.getElementById('regTroublesu').value = n > 0 ? n : '';
+    }
+
     /* ── 고장접수 선택 후 폼 바인딩 ── */
     function setRepairData(item) {
         // hidden 값 저장
@@ -714,6 +745,9 @@
         // 접수일자/시간 바인딩
         document.getElementById('regRecedate2').value = item.recedate ? formatDateInput(item.recedate) : '';
         document.getElementById('regRecetime').value  = item.recetime ? formatTime(item.recetime) : '';
+
+        // 접수에 적힌 갇힘사고를 그대로 끌어와 채운다 (처리자가 확인·수정)
+        setTroubleFields(item);
 
         // 선택된 고장접수 카드 표시
         document.getElementById('selectedActnm').textContent    = item.actnm    || '-';
@@ -1128,6 +1162,10 @@
             mgrperid   : document.getElementById('regMgrPerid').value,
             filesvnm   : document.getElementById('regFilesvnm').value,
             filepath   : document.getElementById('regFilepath').value,
+            // 갇힘사고 (yyyyMMdd / HHmm / 인원). 서버가 다시 한 번 정규화한다
+            troubledate : document.getElementById('regTroubledate').value.replaceAll('-', ''),
+            troubletime : document.getElementById('regTroubletime').value.replaceAll(':', ''),
+            troublesu   : document.getElementById('regTroublesu').value,
         };
 
         AjaxUtil.postAsyncData('/api/maintenance_repair/save_comp', data, function (result) {
@@ -1179,6 +1217,7 @@
         document.getElementById('regResultnm').value   = '';
         document.getElementById('regResultcd').value   = '';
         document.getElementById('regCustomer').value   = '';
+        setTroubleFields(null);
         document.getElementById('regMgrPerid').value   = '';
         document.getElementById('regMgrPernm').value   = '';
         document.getElementById('selectedRepairCard').style.display = 'none';

@@ -232,6 +232,10 @@ public class MaintenanceRepairController {
             @RequestParam(value = "mgrperid",   required = false) String mgrperid,
             @RequestParam(value = "filesvnm",   required = false) String filesvnm,
             @RequestParam(value = "filepath",   required = false) String filepath,
+            // 갇힘사고 — 접수에 적힌 값을 화면이 끌어와 보여주고, 수정분을 처리행에도 남긴다
+            @RequestParam(value = "troubledate", required = false) String troubledate,
+            @RequestParam(value = "troubletime", required = false) String troubletime,
+            @RequestParam(value = "troublesu",   required = false) String troublesu,
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
@@ -259,7 +263,8 @@ public class MaintenanceRepairController {
                     resultcd, faccd,
                     customer, resucd,
                     remark, actperid, mgrperid, perid,
-                    filesvnm, filepath
+                    filesvnm, filepath,
+                    troubledate, troubletime, troublesu
             );
             result.success = true;
             result.message = "고장처리결과가 등록되었습니다.";

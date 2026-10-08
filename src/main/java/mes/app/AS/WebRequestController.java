@@ -80,6 +80,10 @@ public class WebRequestController {
             @RequestParam(value = "contcd",   required = false) String contcd,
             @RequestParam(value = "contents", required = false) String contents,
             @RequestParam(value = "remark",   required = false) String remark,
+            // 갇힘사고 — 고장통계 종합현황의 '사람갇힘' 집계 근거가 된다
+            @RequestParam(value = "troubledate", required = false) String troubledate,
+            @RequestParam(value = "troubletime", required = false) String troubletime,
+            @RequestParam(value = "troublesu",   required = false) String troublesu,
             HttpServletRequest request, Authentication auth) {
 
         AjaxResult result = new AjaxResult();
@@ -100,7 +104,8 @@ public class WebRequestController {
                     hitchdate, hitchhour,
                     actcd, actnm, equpcd, equpnm,
                     reperid, perid,
-                    contcd, contents, remark);
+                    contcd, contents, remark,
+                    troubledate, troubletime, troublesu);
             // 화면이 방금 저장된 접수키를 알 수 있게 돌려준다 (AI 추천 기록의 접수 연결용)
             result.data = Map.of("recedate", recedate == null ? "" : recedate,
                                  "recenum", savedRecenum == null ? "" : savedRecenum);
