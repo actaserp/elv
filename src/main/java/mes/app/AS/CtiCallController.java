@@ -51,10 +51,20 @@ public class CtiCallController {
 
     // ── 화면 구독 ────────────────────────────────────────────
     // 로그인한 본인 앞으로 오는 알림만 받는다. 대상 지정 파라미터가 없다.
+    //
+    // 앞단 프록시(nginx 등)는 기본으로 응답을 버퍼에 모았다가 한 번에 보낸다.
+    // 그러면 이 스트림의 이벤트가 영영 브라우저에 닿지 않는다 —
+    // 서버는 에이전트가 붙은 걸 아는데 화면만 '꺼져 있음' 으로 보인다(운영에서 실제로 겪음).
+    // X-Accel-Buffering: no 를 보면 nginx 가 이 응답만 버퍼링을 끈다.
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<SseEmitter> stream(Authentication auth) {
         User user = (User) auth.getPrincipal();
-        return ResponseEntity.ok(ctiPushService.subscribe(user.getUsername()));
+
+        return ResponseEntity.ok()
+                .header("X-Accel-Buffering", "no")
+                .header("Cache-Control", "no-cache, no-transform")
+                .header("Connection", "keep-alive")
+                .body(ctiPushService.subscribe(user.getUsername()));
     }
 
     // ── 화면 초기화용 설정 ───────────────────────────────────
