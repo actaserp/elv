@@ -179,6 +179,11 @@
                 <label>Pool Size</label>
                 <input type="number" id="fPoolSize" value="5" min="1" max="50"/>
             </div>
+            <div class="modal-form-row">
+                <label>KT 회선번호</label>
+                <input type="text" id="fCtiLines"
+                       placeholder="02-6959-5020, 02-6959-5021 (여러 개면 쉼표)"/>
+            </div>
 
             <div class="modal-btn-wrap">
                 <button type="button" class="btn-delete" id="btnModalSave" style="width: 80px; height: 34px;">저장</button>
@@ -235,6 +240,7 @@
                     {binding: 'db_url',      header: 'DB URL',     width: '*',  align: 'left'},
                     {binding: 'db_username', header: '사용자명',    width: 120, align: 'left'},
                     {binding: 'pool_size',   header: 'Pool Size',  width: 80,  align: 'center'},
+                    {binding: 'cti_lines',   header: 'KT 회선',    width: 150, align: 'left'},
                     {binding: 'connected',   header: '연결상태',    width: 90,  align: 'center'},
                 ],
                 itemsSource: new wijmo.collections.CollectionView([])
@@ -290,6 +296,7 @@
             $('#fDbUsername').val('');
             $('#fDbPassword').val('');
             $('#fPoolSize').val(5);
+            $('#fCtiLines').val('');
             $('#modalOverlay').show();
         }
 
@@ -303,6 +310,7 @@
             $('#fDbUsername').val(item.db_username);
             $('#fDbPassword').val(item.db_password || '');
             $('#fPoolSize').val(item.pool_size || 5);
+            $('#fCtiLines').val(item.cti_lines || '');
             $('#modalOverlay').show();
         }
 
@@ -318,6 +326,7 @@
             let db_username = $('#fDbUsername').val().trim();
             let db_password = $('#fDbPassword').val();
             let pool_size  = parseInt($('#fPoolSize').val()) || 5;
+            let cti_lines  = $('#fCtiLines').val().trim();   // 전화가 오면 이 사업체 화면에 띄운다
             let id         = $('#editId').val();
 
             if (!spjangcd || !db_url || !db_username) {
@@ -327,7 +336,7 @@
 
             let payload = {
                 id: id || null,
-                spjangcd, db_alias, db_type, db_url, db_username, pool_size
+                spjangcd, db_alias, db_type, db_url, db_username, pool_size, cti_lines
             };
             if (db_password) payload.db_password = db_password;
 

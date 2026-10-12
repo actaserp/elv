@@ -12,7 +12,7 @@ namespace ActasCti
     {
         readonly Config cfg;
 
-        TextBox tbKtId, tbKtPw, tbElvUser, tbUrl, tbSecret, tbAuthKey;
+        TextBox tbKtId, tbKtPw, tbUrl, tbSecret, tbAuthKey;
         CheckBox cbAuto;
 
         public SettingsForm(Config config)
@@ -38,10 +38,6 @@ namespace ActasCti
             tbKtId    = AddField("아이디", "전화번호@kt.com 형식", ref y);
             tbKtPw    = AddField("비밀번호", null, ref y);
             tbKtPw.UseSystemPasswordChar = true;
-
-            y += 8;
-            AddTitle("전화를 받을 담당자", ref y);
-            tbElvUser = AddField("elv 아이디", "이 계정 화면에 전화가 뜹니다", ref y);
 
             y += 8;
             AddTitle("서버 (담당자가 알려드립니다)", ref y);
@@ -122,7 +118,6 @@ namespace ActasCti
         {
             tbKtId.Text    = cfg.KtLoginId;
             tbKtPw.Text    = cfg.KtLoginPw;
-            tbElvUser.Text = cfg.ElvUsername;
             tbAuthKey.Text = cfg.KtAuthKey;
             tbUrl.Text     = cfg.ElvUrl;
             tbSecret.Text  = cfg.ElvSecret;
@@ -133,13 +128,11 @@ namespace ActasCti
         {
             if (!Require(tbKtId,    "KT 아이디를"))    return;
             if (!Require(tbKtPw,    "KT 비밀번호를"))  return;
-            if (!Require(tbElvUser, "elv 아이디를"))   return;
             if (!Require(tbAuthKey, "인증키를"))       return;
             if (!Require(tbSecret,  "연결키를"))       return;
 
             cfg.KtLoginId   = tbKtId.Text.Trim();
             cfg.KtLoginPw   = tbKtPw.Text;
-            cfg.ElvUsername = tbElvUser.Text.Trim();
             cfg.KtAuthKey   = tbAuthKey.Text.Trim();
             cfg.ElvUrl      = tbUrl.Text.Trim();
             cfg.ElvSecret   = tbSecret.Text.Trim();
@@ -148,7 +141,7 @@ namespace ActasCti
             try
             {
                 cfg.Save();
-                Logger.Write("설정을 저장했습니다. id=" + cfg.KtLoginId + ", elv=" + cfg.ElvUsername);
+                Logger.Write("설정을 저장했습니다. id=" + cfg.KtLoginId + ", 회선=" + cfg.KtLine());
                 DialogResult = DialogResult.OK;
                 Close();
             }

@@ -38,39 +38,39 @@ public class CtiPushService {
     /** 화면에서 누른 명령이 유효한 시간. 지나면 버린다. */
     private static final long COMMAND_TTL_MS = 3 * 60 * 1000L;
 
-    /** elv 로그인 계정(username) → 그 사용자가 열어둔 화면들 */
+    /** 사업체(db_key) → 그 사업체에서 열어둔 화면들 */
     private final Map<String, List<SseEmitter>> emitters = new ConcurrentHashMap<>();
 
-    /** elv 로그인 계정(username) → 그 사용자의 에이전트가 마지막으로 신호를 보낸 시각 */
+    /** 사업체(db_key) → 그 사업체 에이전트가 마지막으로 신호를 보낸 시각 */
     private final Map<String, Long> agentSeen = new ConcurrentHashMap<>();
 
     /**
-     * elv 로그인 계정(username) → 에이전트가 가져갈 명령 ("connect" / "disconnect").
+     * 사업체(db_key) → 에이전트가 가져갈 명령. 먼저 가져간 PC 가 실행하고 명령은 없어진다.
      * 브라우저는 PC 의 프로그램을 직접 부를 수 없어서, 화면이 여기에 적어두면
      * 에이전트가 주기적으로 가져간다. KT 비밀번호는 PC 에만 있고 여기를 지나가지 않는다.
      */
     private final Map<String, String> commands = new ConcurrentHashMap<>();
 
     /** 화면 한 개를 구독에 등록한다. 탭을 여러 개 열면 그 수만큼 쌓인다. */
-    public SseEmitter subscribe(String username) {
+    public SseEmitter subscribe(String site) {
         SseEmitter emitter = new SseEmitter(TIMEOUT_MS);
 
-        emitters.computeIfAbsent(username, k -> new CopyOnWriteArrayList<>()).add(emitter);
-        emitter.onCompletion(() -> remove(username, emitter));
-        emitter.onTimeout(()    -> remove(username, emitter));
-        emitter.onError(e       -> remove(username, emitter));
+        emitters.computeIfAbsent(site, k -> new CopyOnWriteArrayList<>()).add(emitter);
+        emitter.onCompletion(() -> remove(site, emitter));
+        emitter.onTimeout(()    -> remove(site, emitter));
+        emitter.onError(e       -> remove(site, emitter));
 
         // 첫 이벤트를 즉시 보내야 프록시가 연결을 확정한다.
         // 지금 에이전트가 붙어 있는지도 같이 알려줘야 화면이 처음부터 올바른 상태를 그린다.
         try {
             emitter.send(SseEmitter.event().name("ready").data(Map.of("ok", true)));
             emitter.send(SseEmitter.event().name("agent-status")
-                    .data(Map.of("online", isAgentOnline(username))));
+                    .data(Map.of("online", isAgentOnline(site))));
         } catch (IOException e) {
-            remove(username, emitter);
+            remove(site, emitter);
         }
 
-        log.debug("[CTI] 구독 시작: user={}, 화면수={}", username, count(username));
+        log.debug("[CTI] 구독 시작: site={}, 화면수={}", site, count(site));
         return emitter;
     }
 
@@ -78,10 +78,10 @@ public class CtiPushService {
      * 지정한 사용자에게만 전화 수신 알림을 보낸다.
      * @return 실제로 전달된 화면 수. 0이면 그 사용자가 화면을 열어두지 않은 것이다.
      */
-    public int pushIncomingCall(String username, Map<String, Object> payload) {
-        List<SseEmitter> targets = emitters.get(username);
+    public int pushIncomingCall(String site, Map<String, Object> payload) {
+        List<SseEmitter> targets = emitters.get(site);
         if (targets == null || targets.isEmpty()) {
-            log.info("[CTI] 수신 알림 대상 없음: user={}, caller={}", username, payload.get("caller"));
+            log.info("[CTI] 수신 알림 대상 없음: site={}, caller={}", site, payload.get("caller"));
             return 0;
         }
 
@@ -91,10 +91,10 @@ public class CtiPushService {
                 emitter.send(SseEmitter.event().name("incoming-call").data(payload));
                 sent++;
             } catch (Exception e) {
-                remove(username, emitter);
+                remove(site, emitter);
             }
         }
-        log.info("[CTI] 수신 알림 전달: user={}, caller={}, 화면수={}", username, payload.get("caller"), sent);
+        log.info("[CTI] 수신 알림 전달: site={}, caller={}, 화면수={}", site, payload.get("caller"), sent);
         return sent;
     }
 
@@ -103,29 +103,29 @@ public class CtiPushService {
     // 설정은 거짓말을 할 수 있지만(에이전트가 죽어도 켜져 있다고 나온다) 이 값은 그렇지 않다.
 
     /** 에이전트가 살아 있다고 알려왔다. 상태가 바뀌었으면 화면에 알린다. */
-    public void agentOnline(String username) {
-        boolean was = isAgentOnline(username);
-        agentSeen.put(username, System.currentTimeMillis());
+    public void agentOnline(String site) {
+        boolean was = isAgentOnline(site);
+        agentSeen.put(site, System.currentTimeMillis());
         if (!was) {
-            log.info("[CTI] 에이전트 연결: user={}", username);
-            sendAgentStatus(username, true);
+            log.info("[CTI] 에이전트 연결: site={}", site);
+            sendAgentStatus(site, true);
         }
     }
 
     /** 에이전트가 내려갔다 */
-    public void agentOffline(String username) {
-        if (agentSeen.remove(username) != null) {
-            log.info("[CTI] 에이전트 해제: user={}", username);
-            sendAgentStatus(username, false);
+    public void agentOffline(String site) {
+        if (agentSeen.remove(site) != null) {
+            log.info("[CTI] 에이전트 해제: site={}", site);
+            sendAgentStatus(site, false);
         }
     }
 
     // ── 화면 → 에이전트 명령 ─────────────────────────────────
 
     /** 화면이 [연결]/[해제] 를 눌렀다. 에이전트가 가져갈 때까지 들고 있는다. */
-    public void queueCommand(String username, String command) {
-        commands.put(username, System.currentTimeMillis() + "|" + command);
-        log.info("[CTI] 명령 대기: user={}, command={}", username, command);
+    public void queueCommand(String site, String command) {
+        commands.put(site, System.currentTimeMillis() + "|" + command);
+        log.info("[CTI] 명령 대기: site={}, command={}", site, command);
     }
 
     // ── 문자 보내기 ──────────────────────────────────────────
@@ -135,24 +135,24 @@ public class CtiPushService {
     // 내용은 글자가 길고 쉼표·따옴표가 섞일 수 있어 명령 문자열에 끼워 넣지 않고 따로 둔다.
     private final Map<String, Map<String, Object>> smsJobs = new ConcurrentHashMap<>();
 
-    public void queueSms(String username, List<String> recipients, String message) {
+    public void queueSms(String site, List<String> recipients, String message) {
         Map<String, Object> job = new java.util.LinkedHashMap<>();
         job.put("to", recipients);
         job.put("message", message);
-        smsJobs.put(username, job);
+        smsJobs.put(site, job);
 
-        queueCommand(username, "sms");
-        log.info("[CTI] 문자 대기: user={}, 수신={}명, 길이={}자", username, recipients.size(), message.length());
+        queueCommand(site, "sms");
+        log.info("[CTI] 문자 대기: site={}, 수신={}명, 길이={}자", site, recipients.size(), message.length());
     }
 
     /** 에이전트가 'sms' 명령을 가져갈 때 같이 집어간다. 한 번 가져가면 지운다. */
-    public Map<String, Object> takeSms(String username) {
-        return smsJobs.remove(username);
+    public Map<String, Object> takeSms(String site) {
+        return smsJobs.remove(site);
     }
 
     /** 발송 결과를 화면으로 올린다. 보냈는지 못 보냈는지 모르면 같은 문자를 또 보내게 된다. */
-    public void pushSmsResult(String username, boolean ok, String message) {
-        List<SseEmitter> targets = emitters.get(username);
+    public void pushSmsResult(String site, boolean ok, String message) {
+        List<SseEmitter> targets = emitters.get(site);
         if (targets == null) return;
 
         Map<String, Object> payload = new java.util.LinkedHashMap<>();
@@ -163,10 +163,10 @@ public class CtiPushService {
             try {
                 emitter.send(SseEmitter.event().name("sms-result").data(payload));
             } catch (Exception e) {
-                remove(username, emitter);
+                remove(site, emitter);
             }
         }
-        log.info("[CTI] 문자 결과: user={}, ok={}, {}", username, ok, message);
+        log.info("[CTI] 문자 결과: site={}, ok={}, {}", site, ok, message);
     }
 
     /**
@@ -174,8 +174,8 @@ public class CtiPushService {
      * 오래된 명령은 버린다 — 퇴근 전에 누른 [연결] 이 다음 날 부팅 때 되살아나면
      * 그 사이 다른 사람이 쓰고 있던 계정을 밀어낼 수 있다.
      */
-    public String takeCommand(String username) {
-        String raw = commands.remove(username);
+    public String takeCommand(String site) {
+        String raw = commands.remove(site);
         if (raw == null) return "";
 
         int i = raw.indexOf('|');
@@ -183,32 +183,32 @@ public class CtiPushService {
         String command = raw.substring(i + 1);
 
         if (System.currentTimeMillis() - at > COMMAND_TTL_MS) {
-            log.info("[CTI] 오래된 명령 버림: user={}, command={}", username, command);
+            log.info("[CTI] 오래된 명령 버림: site={}, command={}", site, command);
             return "";
         }
         return command;
     }
 
-    public boolean isAgentOnline(String username) {
-        Long seen = agentSeen.get(username);
+    public boolean isAgentOnline(String site) {
+        Long seen = agentSeen.get(site);
         return seen != null && (System.currentTimeMillis() - seen) < AGENT_TTL_MS;
     }
 
-    private void sendAgentStatus(String username, boolean online) {
-        List<SseEmitter> targets = emitters.get(username);
+    private void sendAgentStatus(String site, boolean online) {
+        List<SseEmitter> targets = emitters.get(site);
         if (targets == null) return;
         for (SseEmitter emitter : targets) {
             try {
                 emitter.send(SseEmitter.event().name("agent-status").data(Map.of("online", online)));
             } catch (Exception e) {
-                remove(username, emitter);
+                remove(site, emitter);
             }
         }
     }
 
     /** 현재 그 사용자가 열어둔 화면 수 */
-    public int count(String username) {
-        List<SseEmitter> list = emitters.get(username);
+    public int count(String site) {
+        List<SseEmitter> list = emitters.get(site);
         return list == null ? 0 : list.size();
     }
 
@@ -224,29 +224,29 @@ public class CtiPushService {
         for (Map.Entry<String, Long> e : new ArrayList<>(agentSeen.entrySet())) {
             if (now - e.getValue() >= AGENT_TTL_MS) {
                 agentSeen.remove(e.getKey());
-                log.info("[CTI] 에이전트 신호 끊김: user={}", e.getKey());
+                log.info("[CTI] 에이전트 신호 끊김: site={}", e.getKey());
                 sendAgentStatus(e.getKey(), false);
             }
         }
 
         if (emitters.isEmpty()) return;
 
-        emitters.forEach((username, list) -> {
+        emitters.forEach((site, list) -> {
             for (SseEmitter emitter : list) {
                 try {
                     emitter.send(SseEmitter.event().comment("ping"));
                 } catch (Exception e) {
-                    remove(username, emitter);
+                    remove(site, emitter);
                 }
             }
         });
     }
 
-    private void remove(String username, SseEmitter emitter) {
-        List<SseEmitter> list = emitters.get(username);
+    private void remove(String site, SseEmitter emitter) {
+        List<SseEmitter> list = emitters.get(site);
         if (list == null) return;
         list.remove(emitter);
-        if (list.isEmpty()) emitters.remove(username);
+        if (list.isEmpty()) emitters.remove(site);
     }
 
     /** 운영 확인용 — 사용자별 열린 화면 수 */

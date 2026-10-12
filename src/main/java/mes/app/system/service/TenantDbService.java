@@ -27,7 +27,8 @@ public class TenantDbService {
         MapSqlParameterSource param = new MapSqlParameterSource();
 
         String sql = """
-                SELECT t.id, t.spjangcd, x.spjangnm, t.db_alias, t.db_type, t.db_url, t.db_username, t.db_password, t.pool_size, t.custcd
+                SELECT t.id, t.spjangcd, x.spjangnm, t.db_alias, t.db_type, t.db_url, t.db_username, t.db_password, t.pool_size, t.custcd,
+                       COALESCE(t.cti_lines, '') AS cti_lines
                 FROM tb_tenant_db t
                 LEFT JOIN tb_xa012 x ON x.spjangcd = t.spjangcd
                 WHERE 1=1
@@ -69,6 +70,10 @@ public class TenantDbService {
         int    poolSize    = param.get("pool_size") != null ? ((Number) param.get("pool_size")).intValue() : 5;
         String custcd      = extractCustcd(dbUrl);
 
+        // KT 회선번호 — 전화가 오면 어느 사업체 화면에 띄울지 가리는 열쇠.
+        // 숫자만 남기고 쉼표로 잇는다(입력은 010-1234-5678 처럼 해도 된다).
+        String ctiLines    = normalizeLines((String) param.get("cti_lines"));
+
         MapSqlParameterSource p = new MapSqlParameterSource();
         p.addValue("spjangcd",    spjangcd);
         p.addValue("db_alias",    dbAlias);
@@ -77,6 +82,7 @@ public class TenantDbService {
         p.addValue("db_username", dbUsername);
         p.addValue("pool_size",   poolSize);
         p.addValue("custcd",      custcd);
+        p.addValue("cti_lines",   ctiLines);
 
         if (id == null || id.isBlank()) {
             if (dbPassword == null || dbPassword.isBlank()) {
@@ -84,19 +90,27 @@ public class TenantDbService {
             }
             p.addValue("db_password", dbPassword);
             sqlRunner.execute("""
-                    INSERT INTO tb_tenant_db (spjangcd, db_alias, db_type, db_url, db_username, db_password, pool_size, custcd)
-                    VALUES (:spjangcd, :db_alias, :db_type, :db_url, :db_username, :db_password, :pool_size, :custcd)
+                    INSERT INTO tb_tenant_db (spjangcd, db_alias, db_type, db_url, db_username, db_password, pool_size, custcd, cti_lines)
+                    VALUES (:spjangcd, :db_alias, :db_type, :db_url, :db_username, :db_password, :pool_size, :custcd, :cti_lines)
                     """, p);
         } else {
             p.addValue("id", Long.parseLong(id));
+
+            // 비밀번호를 뺀 항목은 언제나 저장한다.
+            // 예전에는 이 UPDATE 가 비밀번호 블록 안에만 있어서, 비밀번호를 비워 두면
+            // 회선번호만 고쳐도 아무것도 저장되지 않았다.
+            sqlRunner.execute("""
+                    UPDATE tb_tenant_db
+                    SET db_alias=:db_alias, db_type=:db_type, db_url=:db_url,
+                        db_username=:db_username, pool_size=:pool_size, custcd=:custcd,
+                        cti_lines=:cti_lines
+                    WHERE id=:id
+                    """, p);
+
+            // 비밀번호는 넣었을 때만 바꾼다(비워 두면 쓰던 것을 유지)
             if (dbPassword != null && !dbPassword.isBlank()) {
                 p.addValue("db_password", dbPassword);
-                sqlRunner.execute("""
-                        UPDATE tb_tenant_db
-                        SET db_alias=:db_alias, db_type=:db_type, db_url=:db_url,
-                            db_username=:db_username, db_password=:db_password, pool_size=:pool_size, custcd=:custcd
-                        WHERE id=:id
-                        """, p);
+                sqlRunner.execute("UPDATE tb_tenant_db SET db_password=:db_password WHERE id=:id", p);
             }
         }
 
@@ -107,6 +121,46 @@ public class TenantDbService {
                 dbType, poolSize);
 
         return buildStats(connectError);
+    }
+
+    // ── KT 회선번호 ──────────────────────────────────────────
+
+    /**
+     * 입력한 회선번호를 '숫자만, 쉼표로 이음' 꼴로 다듬는다.
+     * 010-1234-5678, (02)123-4567 처럼 적어도 받는다 — 견줄 때 형식이 같아야 한다.
+     */
+    static String normalizeLines(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+
+        var out = new java.util.LinkedHashSet<String>();
+        for (String one : raw.split("[,;\\n]")) {
+            String digits = one.replaceAll("[^0-9]", "");
+            if (!digits.isEmpty()) out.add(digits);
+        }
+        return out.isEmpty() ? null : String.join(",", out);
+    }
+
+    /**
+     * 회선번호로 사업체(db_key)를 찾는다. 전화가 올 때마다 쓰므로 가볍게 둔다.
+     * 못 찾으면 null — 부른 쪽이 로그를 남기고 넘어간다.
+     */
+    public String findSiteByLine(String line) {
+        String digits = line == null ? "" : line.replaceAll("[^0-9]", "");
+        if (digits.isEmpty()) return null;
+
+        MapSqlParameterSource p = new MapSqlParameterSource();
+        p.addValue("line", digits);
+
+        // 쉼표로 이어 둔 목록이라 통째로 LIKE 하면 0269595020 이 10269595020 에도 걸린다.
+        // 양끝에 쉼표를 둘러 토막 단위로 견준다.
+        Map<String, Object> row = sqlRunner.getRow("""
+                SELECT spjangcd FROM tb_tenant_db
+                 WHERE cti_lines IS NOT NULL
+                   AND ',' || REPLACE(cti_lines, ' ', '') || ',' LIKE '%,' || :line || ',%'
+                 LIMIT 1
+                """, p);
+
+        return row == null ? null : (String) row.get("spjangcd");
     }
 
     /** 특정 row만 재연결 */

@@ -120,12 +120,18 @@
     #memoList > div { padding: 7px 4px; border-bottom: 1px solid #f0f0f0; cursor: pointer; font-size: 12px; }
     #memoList > div:hover { background: #f5f7fa; }
     /* ── 인터넷전화 수신 알림 ── */
-    .cti-dot { display:inline-flex; align-items:center; gap:5px; margin-left:auto; font-size:12px; color:#888; white-space:nowrap; }
-    .cti-dot i { width:7px; height:7px; border-radius:50%; background:#c9c9c9; display:inline-block; }
-    .cti-dot.on  i { background:#2e7d32; box-shadow:0 0 0 3px rgba(46,125,50,.15); }
-    .cti-dot.on    { color:#2e7d32; }
-    .cti-dot.off i { background:#c62828; }
-    .cti-dot.off   { color:#c62828; }
+    /* 전화 연결 상태 배지 — 전화가 화면에 뜰 상태인지 알려주는 유일한 표시.
+       예전에는 읽기전용 입력칸이라 입력할 수 있는 것처럼 보였다. */
+    .cti-state { display:inline-flex; align-items:center; gap:6px; padding:5px 12px;
+                 border-radius:999px; font-size:13px; font-weight:600; white-space:nowrap;
+                 background:#f0f0f0; color:#777; border:1px solid #e0e0e0; }
+    .cti-state i { width:8px; height:8px; border-radius:50%; background:#bdbdbd; display:inline-block; flex:none; }
+
+    .cti-state.on    { background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9; }
+    .cti-state.on i  { background:#2e7d32; box-shadow:0 0 0 3px rgba(46,125,50,.18); }
+
+    .cti-state.off   { background:#fdecea; color:#c62828; border-color:#f5c6c2; }
+    .cti-state.off i { background:#c62828; }
 
     /* 이 화면은 탭(iframe .nth-tabs-frame) 안에서 돌아간다.
        iframe 아래쪽 30px 정도가 탭 영역(overflow:auto)에 잘려서 안 보이므로,
@@ -219,19 +225,14 @@
               </li>
             </dd>
           </dl>
-          <dl>
-            <dt><span class="eq"></span></dt>
-            <dd><li><a class="btn btn-delete" id="btnElvCall">📞</a></li></dd>
-          </dl>
           <!-- 전화 연동 — KT 계정과 비밀번호는 전화받는 PC 안에만 있다.
                여기서는 그 PC 의 프로그램에 "연결해라/해제해라"만 알린다. -->
           <dl>
             <dt><label>전화</label></dt>
             <dd>
-              <div class="srch-box">
-                <input type="text" id="calluserid" class="form-control2" style="width:150px;"
-                       value="연결 안 됨" readonly/>
-              </div>
+              <span class="cti-state" id="ctiState" title="전화 수신 연결 상태">
+                <i></i><span id="ctiStateText">확인 중</span>
+              </span>
             </dd>
           </dl>
           <dl>
@@ -241,6 +242,16 @@
           <dl>
             <dt><span class="eq"></span></dt>
             <dd><li><button type="button" class="btn-default" onclick="CtiCall.disconnect()">해제</button></li></dd>
+          </dl>
+          <!-- 설치파일이 서버에 있을 때만 보인다 (cti.installer.path) -->
+          <dl id="ctiInstallWrap" style="display:none;">
+            <dt><span class="eq"></span></dt>
+            <dd><li>
+              <button type="button" class="btn-default" onclick="CtiCall.install()"
+                      title="전화 받는 PC 에 설치할 프로그램을 내려받습니다">
+                <i class="fas fa-download"></i> 프로그램 설치
+              </button>
+            </li></dd>
           </dl>
         </div>
       </div>
@@ -275,7 +286,6 @@
                 <button type="button" class="btn-default" onclick="openCallbackList()">콜백리스트</button>
                 <button type="button" class="btn-default" onclick="openPhoneBook()">전화번호부</button>
                 <button type="button" class="btn-default" onclick="openSiteSearch()">보수현장조회</button>
-                <span class="cti-dot" id="ctiDot" title="인터넷전화 수신 알림 연결 상태"><i></i><span id="ctiDotText">전화 연결 확인중</span></span>
               </div>
               <div class="form-section-title">고장 접수</div>
               <div class="form-scroll">
@@ -748,7 +758,6 @@
 
       // 승강기번호 조회 버튼
       $('#btnElvSearch').on('click', function() { getElvInfo(); });
-      $('#btnElvCall').on('click',   function() { getElvInfo(); });
       $('#elvnum').on('keypress', function(e) {
         if (e.keyCode === 13) getElvInfo();
       });
@@ -1791,12 +1800,14 @@
       // 통화가 끝난 상태 — 카드를 회색으로 가라앉힌다. 규격서 10.1 수신상태
       var ENDED = ['200','202','203','204','291','401','404','405','406','407','408'];
 
+      // 상태는 한 군데서만 보여준다. 예전에는 같은 값을 배지와 입력칸 두 곳에 써서
+      // 한쪽만 갱신되면 서로 다른 말을 하고 있었다.
       function setDot(state, text) {
-        var dot = document.getElementById('ctiDot');
-        if (!dot) return;
-        dot.classList.remove('on','off');
-        if (state) dot.classList.add(state);
-        document.getElementById('ctiDotText').textContent = text;
+        var el = document.getElementById('ctiState');
+        if (!el) return;
+        el.classList.remove('on', 'off');
+        if (state) el.classList.add(state);
+        document.getElementById('ctiStateText').textContent = text;
       }
 
       function connect() {
@@ -1812,10 +1823,6 @@
           clearTimeout(waitTimer);   // 응답이 왔으니 "꺼져 있다" 안내는 띄우지 않는다
           if (online) setDot('on',  '전화 연결됨');
           else        setDot(null, '전화 대기 중 아님');
-
-          // 위쪽 [전화] 칸에도 같은 상태를 보여준다
-          var box = document.getElementById('calluserid');
-          if (box) box.value = online ? '연결됨' : '연결 안 됨';
         });
 
         // 문자 발송 결과 — 보냈는지 못 보냈는지 모르면 같은 문자를 또 보내게 된다
@@ -2028,6 +2035,27 @@
         AjaxUtil.getAsyncData('/api/AS/cti/config', {}, function (result) {
           var c = (result && result.data) ? result.data : {};
           if (c.mockEnabled) showMockPanel();
+
+          // 설치파일이 서버에 올라가 있을 때만 버튼을 보여준다.
+          // 없는데 버튼만 있으면 눌러도 안 받아져서 더 혼란스럽다.
+          if (c.hasInstaller) {
+            var wrap = document.getElementById('ctiInstallWrap');
+            if (wrap) wrap.style.display = '';
+            installerSize = c.installerSize || 0;
+          }
+        });
+      }
+
+      // 설치파일 내려받기 — 전화 받을 PC 에서 눌러야 한다
+      var installerSize = 0;
+
+      function install() {
+        var mb = installerSize ? (installerSize / 1048576).toFixed(0) + 'MB, ' : '';
+        Alert.confirm('', '전화연동 프로그램을 내려받습니다. (' + mb + '압축파일)\n\n' +
+                          '전화를 받을 PC 에서 내려받아 설치해주세요.\n' +
+                          '설치 방법은 함께 들어 있는 안내문을 봐주세요.', function () {
+          // 파일 내려받기는 ajax 가 아니라 브라우저에게 맡긴다
+          window.location.href = withCtx('/api/AS/cti/installer');
         });
       }
 
@@ -2052,7 +2080,8 @@
       return {
         init       : start,
         connect    : function () { sendCommand('connect',    '연결하는 중…'); },
-        disconnect : function () { sendCommand('disconnect', '해제하는 중…'); }
+        disconnect : function () { sendCommand('disconnect', '해제하는 중…'); },
+        install    : install
       };
     })();
 

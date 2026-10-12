@@ -168,7 +168,7 @@ namespace ActasCti
             if (ch != null) ch(caller ?? "", result ?? "");
 
             var p = new NameValueCollection();
-            p["username"] = cfg.ElvUsername;
+            p["line"] = cfg.KtLine();
             p["caller"]   = caller  ?? "";
             p["callee"]   = callee  ?? "";
             p["result"]   = result  ?? "";
@@ -183,7 +183,7 @@ namespace ActasCti
         {
             try
             {
-                var url = cfg.BaseUrl() + "agent-poll?username=" + Uri.EscapeDataString(cfg.ElvUsername);
+                var url = cfg.BaseUrl() + "agent-poll?line=" + Uri.EscapeDataString(cfg.KtLine());
                 var res = Http("GET", url, null);
                 if (res == null) return;
 
@@ -330,7 +330,7 @@ namespace ActasCti
         void SmsResult(bool ok, string message)
         {
             var p = new NameValueCollection();
-            p["username"] = cfg.ElvUsername;
+            p["line"] = cfg.KtLine();
             p["ok"]       = ok ? "1" : "0";
             p["message"]  = message ?? "";
             Post("sms-result", p);
@@ -392,12 +392,12 @@ namespace ActasCti
 
         void Post(string path, NameValueCollection form)
         {
-            if (string.IsNullOrEmpty(cfg.ElvUsername)) return;
+            if (cfg.KtLine().Length == 0) return;
 
             if (form == null)
             {
                 form = new NameValueCollection();
-                form["username"] = cfg.ElvUsername;
+                form["line"] = cfg.KtLine();
             }
             try { Http("POST", cfg.BaseUrl() + path, form); }
             catch (Exception e) { Log(path + " 전송 실패: " + e.Message); }

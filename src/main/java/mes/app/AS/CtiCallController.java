@@ -7,6 +7,9 @@ import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -16,6 +19,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.io.File;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -46,6 +52,12 @@ public class CtiCallController {
      * 윈도우 에이전트가 쓰는 공유 시크릿.
      * 비어 있으면 /event 엔드포인트 자체가 닫힌다(기본 닫힘).
      */
+    @Autowired
+    private mes.app.system.service.TenantDbService tenantDbService;
+
+    @Value("${cti.installer.path:}")
+    private String installerPath;
+
     @Value("${cti.agent.secret:}")
     private String agentSecret;
 
@@ -64,14 +76,52 @@ public class CtiCallController {
                 .header("X-Accel-Buffering", "no")
                 .header("Cache-Control", "no-cache, no-transform")
                 .header("Connection", "keep-alive")
-                .body(ctiPushService.subscribe(user.getUsername()));
+                .body(ctiPushService.subscribe(user.getDbKey()));
+    }
+
+    // ── 설치파일 내려받기 ────────────────────────────────────
+    //
+    // 사업체가 KT SDK 를 스스로 받을 길이 없어서(개발자포털 계정이 우리 것이다)
+    // 우리가 묶어서 내려준다. KT 는 재배포에 허가가 필요 없고 오히려 권장한다고 답했다.
+    // 경로는 설정으로 둔다 — 파일을 안 두면 화면에 링크 자체가 안 보인다.
+    @GetMapping("/installer")
+    public ResponseEntity<Resource> installer() {
+        File file = installerFile();
+        if (file == null) return ResponseEntity.notFound().build();
+
+        // 파일 이름에 한글이 있어 그대로 넣으면 브라우저가 깨뜨린다. RFC 5987 로 적는다.
+        String encoded = URLEncoder.encode(file.getName(), StandardCharsets.UTF_8).replace("+", "%20");
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename*=UTF-8''" + encoded)
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .contentLength(file.length())
+                .body(new FileSystemResource(file));
+    }
+
+    /** 설정된 설치파일. 설정이 비었거나 파일이 없으면 null */
+    private File installerFile() {
+        if (installerPath == null || installerPath.isBlank()) return null;
+
+        File f = new File(installerPath.trim());
+        if (!f.isFile() || !f.canRead()) {
+            log.warn("[CTI] 설치파일을 찾을 수 없습니다: {}", installerPath);
+            return null;
+        }
+        return f;
     }
 
     // ── 화면 초기화용 설정 ───────────────────────────────────
     @GetMapping("/config")
     public AjaxResult config() {
+        File installer = installerFile();
+
         AjaxResult result = new AjaxResult();
-        result.data = Map.of("mockEnabled", mockEnabled);
+        result.data = Map.of(
+                "mockEnabled",   mockEnabled,
+                "hasInstaller",  installer != null,
+                "installerSize", installer == null ? 0L : installer.length());
         return result;
     }
 
@@ -102,7 +152,7 @@ public class CtiCallController {
         User user = (User) auth.getPrincipal();
         Map<String, Object> payload = buildPayload(digits, callee, resultCode, true);
 
-        int sent = ctiPushService.pushIncomingCall(user.getUsername(), payload);
+        int sent = ctiPushService.pushIncomingCall(user.getDbKey(), payload);
 
         res.data    = Map.of("sent", sent, "payload", payload);
         res.message = sent > 0 ? "모의 수신을 보냈습니다." : "열려 있는 화면이 없습니다.";
@@ -119,7 +169,7 @@ public class CtiCallController {
     @PostMapping("/event")
     public ResponseEntity<Map<String, Object>> event(
             @RequestHeader(value = "X-Cti-Secret", required = false) String secret,
-            @RequestParam(value = "username") String username,
+            @RequestParam(value = "line")     String line,
             @RequestParam(value = "caller")   String caller,
             @RequestParam(value = "callee",   required = false, defaultValue = "")    String callee,
             @RequestParam(value = "result",   required = false, defaultValue = "201") String resultCode,
@@ -128,19 +178,39 @@ public class CtiCallController {
         ResponseEntity<Map<String, Object>> denied = checkAgent(secret);
         if (denied != null) return denied;
 
+        String site = resolveSite(line);
+        if (site == null) return unknownLine(line);
+
         // 전화가 왔다는 건 에이전트가 살아 있다는 뜻이기도 하다
-        ctiPushService.agentOnline(username);
+        ctiPushService.agentOnline(site);
 
         String digits = caller == null ? "" : caller.replaceAll("[^0-9]", "");
-        if (digits.isEmpty() || username.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("message", "username 과 caller 는 필수입니다."));
+        if (digits.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "caller 는 필수입니다."));
         }
 
         Map<String, Object> payload = buildPayload(digits, callee, resultCode, false);
         if (!dbId.isBlank()) payload.put("dbId", dbId);   // 같은 통화의 상태 변화를 묶는 키
 
-        int sent = ctiPushService.pushIncomingCall(username, payload);
+        int sent = ctiPushService.pushIncomingCall(site, payload);
         return ResponseEntity.ok(Map.of("sent", sent));
+    }
+
+    // ── 회선번호 → 사업체 ────────────────────────────────────
+    //
+    // 에이전트는 자기 KT 계정(= 회선번호)만 알린다. 어느 사업체인지는 서버가 찾는다.
+    // 사업체 관리 화면에서 회선번호를 등록해 두면, 그 사업체에서 화면을 열어둔
+    // 모두에게 전화가 뜬다. 사업체는 내부 코드를 알 필요가 없고 설치 파일도 하나면 된다.
+
+    private String resolveSite(String line) {
+        return tenantDbService.findSiteByLine(line);
+    }
+
+    /** 등록 안 된 회선 — 조용히 넘어가면 "전화가 안 떠요" 로 한참 헤맨다 */
+    private ResponseEntity<Map<String, Object>> unknownLine(String line) {
+        log.warn("[CTI] 등록되지 않은 회선입니다: {} — 사업체 관리 화면에서 KT 회선을 등록해주세요", line);
+        return ResponseEntity.status(404).body(Map.of(
+                "message", "등록되지 않은 회선입니다. 사업체 관리 화면에서 KT 회선을 등록해주세요."));
     }
 
     // ── 화면 → 에이전트 (연결 / 해제) ────────────────────────
@@ -150,10 +220,10 @@ public class CtiCallController {
     @PostMapping("/connect")
     public AjaxResult connect(Authentication auth) {
         User user = (User) auth.getPrincipal();
-        ctiPushService.queueCommand(user.getUsername(), "connect");
+        ctiPushService.queueCommand(user.getDbKey(), "connect");
 
         AjaxResult result = new AjaxResult();
-        result.message = ctiPushService.isAgentOnline(user.getUsername())
+        result.message = ctiPushService.isAgentOnline(user.getDbKey())
                 ? "이미 연결돼 있습니다."
                 : "연결을 요청했습니다. 잠시 후 연결됩니다.";
         return result;
@@ -162,7 +232,7 @@ public class CtiCallController {
     @PostMapping("/disconnect")
     public AjaxResult disconnect(Authentication auth) {
         User user = (User) auth.getPrincipal();
-        ctiPushService.queueCommand(user.getUsername(), "disconnect");
+        ctiPushService.queueCommand(user.getDbKey(), "disconnect");
 
         AjaxResult result = new AjaxResult();
         result.message = "해제를 요청했습니다.";
@@ -173,19 +243,22 @@ public class CtiCallController {
     @GetMapping("/agent-poll")
     public ResponseEntity<Map<String, Object>> agentPoll(
             @RequestHeader(value = "X-Cti-Secret", required = false) String secret,
-            @RequestParam(value = "username") String username) {
+            @RequestParam(value = "line") String line) {
 
         ResponseEntity<Map<String, Object>> denied = checkAgent(secret);
         if (denied != null) return denied;
 
-        String command = ctiPushService.takeCommand(username);
+        String site = resolveSite(line);
+        if (site == null) return unknownLine(line);
+
+        String command = ctiPushService.takeCommand(site);
 
         Map<String, Object> body = new java.util.LinkedHashMap<>();
         body.put("command", command);
 
         // 문자는 내용이 길고 쉼표·따옴표가 섞이므로 명령 문자열에 끼우지 않고 따로 싣는다
         if ("sms".equals(command)) {
-            Map<String, Object> job = ctiPushService.takeSms(username);
+            Map<String, Object> job = ctiPushService.takeSms(site);
             if (job == null) return ResponseEntity.ok(Map.of("command", ""));   // 내용이 사라졌으면 보내지 않는다
             body.put("sms", job);
         }
@@ -203,9 +276,9 @@ public class CtiCallController {
             Authentication auth) {
 
         AjaxResult result = new AjaxResult();
-        String username = ((User) auth.getPrincipal()).getUsername();
+        String site = ((User) auth.getPrincipal()).getDbKey();
 
-        if (!ctiPushService.isAgentOnline(username)) {
+        if (!ctiPushService.isAgentOnline(site)) {
             result.success = false;
             result.message = "전화 프로그램이 연결돼 있지 않습니다. [연결] 을 먼저 눌러주세요.";
             return result;
@@ -240,7 +313,7 @@ public class CtiCallController {
             return result;
         }
 
-        ctiPushService.queueSms(username, recipients, message);
+        ctiPushService.queueSms(site, recipients, message);
         result.success = true;
         result.message = "보내는 중입니다.";
         return result;
@@ -250,14 +323,17 @@ public class CtiCallController {
     @PostMapping("/sms-result")
     public ResponseEntity<Map<String, Object>> smsResult(
             @RequestHeader(value = "X-Cti-Secret", required = false) String secret,
-            @RequestParam(value = "username") String username,
-            @RequestParam(value = "ok")       String ok,
+            @RequestParam(value = "line")    String line,
+            @RequestParam(value = "ok")      String ok,
             @RequestParam(value = "message", required = false) String message) {
 
         ResponseEntity<Map<String, Object>> denied = checkAgent(secret);
         if (denied != null) return denied;
 
-        ctiPushService.pushSmsResult(username, "1".equals(ok) || "true".equalsIgnoreCase(ok),
+        String site = resolveSite(line);
+        if (site == null) return unknownLine(line);
+
+        ctiPushService.pushSmsResult(site, "1".equals(ok) || "true".equalsIgnoreCase(ok),
                                      message == null ? "" : message);
         return ResponseEntity.ok(Map.of("ok", true));
     }
@@ -269,24 +345,30 @@ public class CtiCallController {
     @PostMapping("/agent-online")
     public ResponseEntity<Map<String, Object>> agentOnline(
             @RequestHeader(value = "X-Cti-Secret", required = false) String secret,
-            @RequestParam(value = "username") String username) {
+            @RequestParam(value = "line") String line) {
 
         ResponseEntity<Map<String, Object>> denied = checkAgent(secret);
         if (denied != null) return denied;
 
-        ctiPushService.agentOnline(username);
-        return ResponseEntity.ok(Map.of("screens", ctiPushService.count(username)));
+        String site = resolveSite(line);
+        if (site == null) return unknownLine(line);
+
+        ctiPushService.agentOnline(site);
+        return ResponseEntity.ok(Map.of("screens", ctiPushService.count(site)));
     }
 
     @PostMapping("/agent-offline")
     public ResponseEntity<Map<String, Object>> agentOffline(
             @RequestHeader(value = "X-Cti-Secret", required = false) String secret,
-            @RequestParam(value = "username") String username) {
+            @RequestParam(value = "line") String line) {
 
         ResponseEntity<Map<String, Object>> denied = checkAgent(secret);
         if (denied != null) return denied;
 
-        ctiPushService.agentOffline(username);
+        String site = resolveSite(line);
+        if (site == null) return unknownLine(line);
+
+        ctiPushService.agentOffline(site);
         return ResponseEntity.ok(Map.of("ok", true));
     }
 
@@ -309,7 +391,7 @@ public class CtiCallController {
     public AjaxResult status(Authentication auth) {
         AjaxResult result = new AjaxResult();
         User user = (User) auth.getPrincipal();
-        result.data = Map.of("screens", ctiPushService.count(user.getUsername()));
+        result.data = Map.of("screens", ctiPushService.count(user.getDbKey()));
         return result;
     }
 

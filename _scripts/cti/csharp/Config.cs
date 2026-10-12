@@ -16,7 +16,9 @@ namespace ActasCti
         public string KtAuthKey  = "";     // CP 인증키 40자리
         public string KtLoginId  = "";     // 전화번호@kt.com
         public string KtLoginPw  = "";     // 메모리에서는 평문, 파일에는 암호화
-        public string ElvUsername = "";    // 알림을 받을 elv 로그인 계정
+        // elv 아이디는 받지 않는다. 서버가 KT 회선번호로 사업체를 찾기 때문이다
+        // (사업체 관리 화면에 회선번호를 등록해 둔다). 설치할 때 받을 게 하나 줄고,
+        // 아이디를 잘못 적어 남의 화면에 전화가 뜨던 사고도 사라진다.
         public string ElvUrl     = "https://mes.actascld.co.kr/elv/api/AS/cti/event";
         public string ElvSecret  = "";
         public bool   AutoLogin  = false;  // PC 를 켤 때 바로 로그인할지
@@ -64,7 +66,6 @@ namespace ActasCti
                     case "KT_AUTHKEY":   c.KtAuthKey   = val; break;
                     case "KT_LOGIN_ID":  c.KtLoginId   = val; break;
                     case "KT_LOGIN_PW":  c.KtLoginPw   = Decrypt(val); break;
-                    case "ELV_USERNAME": c.ElvUsername = val; break;
                     case "ELV_URL":      c.ElvUrl      = val; break;
                     case "WINDOW_TITLE": c.WindowTitle = val; break;
                     case "DEBUG_TABS":   c.DebugTabs   = (val == "1" || val.ToLower() == "true"); break;
@@ -88,7 +89,6 @@ namespace ActasCti
             sb.AppendLine("KT_AUTHKEY   = " + KtAuthKey);
             sb.AppendLine("KT_LOGIN_ID  = " + KtLoginId);
             sb.AppendLine("KT_LOGIN_PW  = " + Encrypt(KtLoginPw));
-            sb.AppendLine("ELV_USERNAME = " + ElvUsername);
             sb.AppendLine("ELV_URL      = " + ElvUrl);
             sb.AppendLine("WINDOW_TITLE = " + WindowTitle);
             sb.AppendLine("DEBUG_TABS   = " + (DebugTabs ? "1" : "0"));
@@ -152,7 +152,7 @@ namespace ActasCti
             get
             {
                 return KtAuthKey.Length > 0 && KtLoginId.Length > 0 &&
-                       KtLoginPw.Length > 0 && ElvUsername.Length > 0 && ElvSecret.Length > 0;
+                       KtLoginPw.Length > 0 && ElvSecret.Length > 0;
             }
         }
 
@@ -200,6 +200,21 @@ namespace ActasCti
         /// 화면 주소 — ELV_URL 에서 /api/ 앞까지 (예: https://actas-ai.co.kr/elv/).
         /// 알림을 눌렀는데 브라우저가 아예 안 떠 있을 때 이 주소를 연다.
         /// </summary>
+        /// <summary>
+        /// 이 PC 가 쓰는 KT 회선번호. 서버는 이걸로 어느 사업체인지 찾는다.
+        /// 계정이 '0269595020@kt.com' 이라 @ 앞이 곧 회선번호다.
+        /// </summary>
+        public string KtLine()
+        {
+            var id = KtLoginId ?? "";
+            int at = id.IndexOf('@');
+            if (at > 0) id = id.Substring(0, at);
+
+            var d = new StringBuilder();
+            foreach (var ch in id) if (char.IsDigit(ch)) d.Append(ch);
+            return d.ToString();
+        }
+
         public string SiteUrl()
         {
             int p = ElvUrl.IndexOf("/api/", StringComparison.OrdinalIgnoreCase);

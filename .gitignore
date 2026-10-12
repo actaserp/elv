@@ -51,3 +51,8 @@ _scripts/cti/csharp/bin/
 _scripts/cti/csharp/obj/
 _scripts/cti/csharp/*.exe
 _scripts/cti/csharp/*.pdb
+
+# 설치 프로그램 — 인증키·연결키가 들어가므로 커밋하지 않는다
+_scripts/cti/installer/secrets.bat
+_scripts/cti/installer/payload/
+_build/
