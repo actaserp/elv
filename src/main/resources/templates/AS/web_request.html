@@ -54,7 +54,10 @@
     /* ── 중앙 폼 ── */
     .wr-center { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid #eee; padding-left: 12px; }
     .center-topbar { display: flex; justify-content: flex-end; gap: 6px; margin-bottom: 8px; flex-shrink: 0; }
-    .form-scroll   { flex: 1; overflow-y: auto; min-height: 0; }
+    /* 폼은 내용만큼만 차지한다. flex:1 이면 남는 세로 공간을 전부 먹어
+       버튼줄이 아래로 밀리고 문자전송내역이 그만큼 좁아진다.
+       남는 공간은 아래 .sms-section 이 가져간다. 폼이 길어지면 flex-shrink 로 줄며 스크롤된다 */
+    .form-scroll   { flex: 0 1 auto; overflow-y: auto; min-height: 0; }
     .center-bottom { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; flex-shrink: 0; }
 
     /* ── 폼 테이블 ── */
@@ -91,7 +94,8 @@
     .btn-save { padding: 6px 16px; background: #2c4f9e; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: 600; }
 
     /* ── 문자전송내역 ── */
-    .sms-section { flex-shrink: 0; height: 170px; display: flex; flex-direction: column; }
+    /* 폼이 쓰고 남은 세로 공간을 전부 가져간다 (최소 140px 은 확보) */
+    .sms-section { flex: 1 1 auto; min-height: 140px; display: flex; flex-direction: column; }
 
     /* ── 우측 메모 ── */
     .wr-right { width: 500px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid #eee; padding-left: 12px; overflow-y: auto; }
@@ -365,7 +369,8 @@
               <!-- 문자전송내역 -->
               <div class="sms-section">
                 <div class="form-section-title" style="margin-top:10px;">문자전송내역</div>
-                <div id="smsGrid" style="height:150px;"></div>
+                <!-- 높이를 고정하지 않고 .sms-section 이 확보한 만큼 채운다 -->
+                <div id="smsGrid" style="flex:1; min-height:0;"></div>
               </div>
             </div>
 
@@ -723,6 +728,15 @@
         itemsSource: smsData
       });
       smsGrid.rowHeaders.columns.splice(0, 1);
+
+      // 문자전송내역 높이를 고정값이 아니라 남는 공간으로 잡았다.
+      // 폼이 길어지거나 짧아지면(AI 배지 등) 이 영역도 같이 변하는데,
+      // wijmo 는 창 크기 변화만 보고 요소 크기 변화는 못 보므로 직접 다시 그려준다.
+      if (window.ResizeObserver) {
+        new ResizeObserver(function () {
+          if (smsGrid) smsGrid.invalidate();
+        }).observe(document.getElementById('smsGrid'));
+      }
 
       searchCount();
       searchList();
