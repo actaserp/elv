@@ -42,3 +42,73 @@ jobs:
           script: |
             cd /opt/deploy/elv
             docker compose up --build -d
+
+      # ── 배포 확인 ────────────────────────────────────────────────
+      # 2026-10-12 에 .env 의 REDIS_HOST 가 서버 자기 공인 IP 로 되어 있어
+      # 헤어핀 NAT 에 막혔다. 앱은 정상 기동했지만 Redis 를 쓰는 모든 요청이
+      # connectTimeout 5초를 까먹었고, 그걸 반나절 뒤에야 알았다.
+      # 배포가 끝났다고 끝난 게 아니라서, 여기서 실제로 돌려보고 확인한다.
+      - name: 배포 확인 (스모크 테스트)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            set -u
+            ENV_FILE=/opt/conf/server_elv.env
+            APP_URL=http://127.0.0.1:8034/elv/login
+            LOG=/opt/logs/elv/api-time/api_time.log
+            FAIL=0
+
+            echo "::group::1) 컨테이너"
+            docker ps --filter name=elv-app --format '{{.Names}}  {{.Status}}'
+            docker ps --filter name=elv-app --format '{{.Status}}' | grep -q '^Up' \
+              || { echo "❌ elv-app 이 떠 있지 않다"; FAIL=1; }
+            echo "::endgroup::"
+
+            echo "::group::2) 앱 응답"
+            # 기동에 시간이 걸리므로 최대 90초까지 기다린다
+            ok=0
+            for i in $(seq 1 18); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$APP_URL" || echo 000)
+              if [ "$code" = "200" ]; then ok=1; echo "✅ ${i}회만에 200 (약 $((i*5))초)"; break; fi
+              sleep 5
+            done
+            [ "$ok" = "1" ] || { echo "❌ 90초 안에 200 을 못 받았다 (마지막 $code)"; FAIL=1; }
+            echo "::endgroup::"
+
+            echo "::group::3) Redis — 앱이 .env 에 적힌 그 주소로"
+            # ★ 127.0.0.1 로 재면 안 된다. 2026-10-12 장애를 놓친 이유가 그것이었다.
+            RH=$(grep -E '^REDIS_HOST=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d ' \r')
+            RP=$(grep -E '^REDIS_PORT=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d ' \r')
+            echo "대상 ${RH}:${RP}"
+            if timeout 3 bash -c "exec 3<>/dev/tcp/${RH}/${RP} && printf 'PING\r\n' >&3 && head -c 7 <&3" >/dev/null 2>&1; then
+              echo "✅ 응답함"
+            else
+              echo "❌ 3초 안에 응답 없음 — 이 주소로는 앱도 못 붙는다"
+              echo "   .env 의 REDIS_HOST 를 확인할 것 (같은 장비면 127.0.0.1)"
+              FAIL=1
+            fi
+            echo "::endgroup::"
+
+            echo "::group::4) 느린 요청이 바로 생기는가"
+            sleep 30
+            if [ -f "$LOG" ]; then
+              SLOW=$(tail -400 "$LOG" | awk '{d=$NF; sub("초","",d); if (d+0>=3) c++} END {print c+0}')
+              echo "최근 400건 중 3초 이상: ${SLOW}건"
+              tail -400 "$LOG" | awk '{d=$NF; sub("초","",d); if (d+0>=3) print "   "$2, $(NF-2), $NF}' | tail -5
+              [ "$SLOW" -lt 5 ] || { echo "❌ 배포 직후부터 지연 발생"; FAIL=1; }
+            else
+              echo "⚠ 로그 파일 없음 — 건너뜀 ($LOG)"
+            fi
+            echo "::endgroup::"
+
+            echo "::group::5) 기동 중 에러"
+            docker logs --since 3m elv-app 2>&1 | grep -iE "APPLICATION FAILED TO START|BeanCreationException|Caused by" | head -10 || true
+            echo "::endgroup::"
+
+            [ "$FAIL" = "0" ] || { echo ""; echo "=== 배포 확인 실패 — 되돌릴지 판단할 것 ==="; exit 1; }
+            echo ""
+            echo "=== 배포 확인 통과 ==="

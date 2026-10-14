@@ -72,15 +72,26 @@ rem 우리가 만든 것 (SDK 폴더의 옛 사본을 덮어쓴다)
 copy /y "%BUILD%\ACTAS전화연동.exe"      "payload\" > nul
 copy /y "%BUILD%\Interop.KTOpenAPI.dll"  "payload\" > nul
 
-rem 실행하며 생기는 파일은 넣지 않는다 — 그 PC 의 상태와 로그인 흔적이다
+rem 실행하며 생기는 파일은 먼저 전부 치운다 — 그 PC 의 상태와 로그인 흔적이다
 del /q "payload\*.dat" 2> nul
 del /q "payload\*.bip" 2> nul
+
+rem 다만 이 둘은 SDK 구성요소라 반드시 넣어야 한다 (규격서 2.2 참조 파일).
+rem 빼면 COM 객체 생성이 80004005(E_FAIL) 로 실패한다 — 오류 1701 '데이터 파일 초기화 에러'.
+rem dumpbin 에는 안 나온다. DLL 참조만 보여주지 데이터 파일은 안 보여주기 때문이다.
+copy /y "%SDK%\KPA_API.dat" "payload\" > nul
+copy /y "%SDK%\KPD_API.dat" "payload\" > nul
+
+rem KPS.dat · BytoFcLog.dat · *.bip · *.dat.날짜.dat 는 넣지 않는다.
+rem 실행하면서 저절로 생기거나(KPS), 로그이거나(BytoFcLog/bip), DLL 이 만든 백업본이다.
 
 for /f %%c in ('dir /b "payload" ^| find /c /v ""') do set FILES=%%c
 echo  payload: !FILES! 개
 
-if not exist "payload\KTOpenAPI.dll" ( echo  [실패] KTOpenAPI.dll 이 빠졌습니다. & pause & exit /b 1 )
+if not exist "payload\KTOpenAPI.dll"   ( echo  [실패] KTOpenAPI.dll 이 빠졌습니다. & pause & exit /b 1 )
 if not exist "payload\oss_notice.html" ( echo  [실패] oss_notice.html 이 빠졌습니다. & pause & exit /b 1 )
+if not exist "payload\KPA_API.dat"     ( echo  [실패] KPA_API.dat 이 빠졌습니다. 없으면 설치해도 실행이 안 됩니다. & pause & exit /b 1 )
+if not exist "payload\KPD_API.dat"     ( echo  [실패] KPD_API.dat 이 빠졌습니다. 없으면 설치해도 실행이 안 됩니다. & pause & exit /b 1 )
 
 rem ── Inno Setup ──
 set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"

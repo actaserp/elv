@@ -1,0 +1,35 @@
+# 테스트 인스턴스 — 운영과 같은 장비에 포트만 달리해서 띄운다.
+#
+# 왜 같은 장비인가
+#   2026-10-12 장애는 서버의 NAT 구성 때문이었다(.env 의 REDIS_HOST 가 자기 공인 IP).
+#   개발 PC 에 띄운 테스트 서버로는 절대 재현되지 않는다. 운영과 같은 네트워크여야
+#   이런 환경 문제를 미리 잡을 수 있다.
+#
+# 운영과 다른 것
+#   컨테이너   elv-app      → elv-test
+#   포트       8034         → 8031   (SERVER_PORT 환경변수가 jar 안의 설정을 덮는다)
+#   설정       server_elv.env → server_elv_test.env
+#   로그       /opt/logs/elv → /opt/logs/elv-test
+#   배포경로   /opt/deploy/elv → /opt/deploy/elv-test
+#
+# ※ env_file 경로·방식은 서버의 /opt/deploy/elv/docker-compose.yml 과 맞춰야 한다.
+#   운영이 다른 방식으로 환경변수를 넣고 있다면 그쪽을 따를 것.
+
+version: '3.8'
+
+services:
+  elv-test:
+    build: .
+    container_name: elv-test
+    network_mode: host
+    env_file:
+      - /opt/conf/server_elv_test.env
+    volumes:
+      - /opt/conf:/opt/conf
+      - /opt/logs/elv-test:/app/logs
+    environment:
+      - TZ=Asia/Seoul
+      - BASE_PATH=/app/data
+      - LOG_HOME=/app/logs
+      - SERVER_PORT=8031
+    restart: on-failure

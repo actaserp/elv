@@ -1,0 +1,104 @@
+name: Deploy elv TEST
+
+# 운영에 올리기 전에 아무 브랜치나 테스트 인스턴스(포트 8031)에 먼저 올려 본다.
+# Actions → Deploy elv TEST → Run workflow → 브랜치 선택.
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Grant execute permission for mvnw
+        run: chmod +x ./mvnw
+
+      # 운영과 달리 테스트는 테스트를 돌린다. 여기서 깨지면 운영까지 갈 일이 없다.
+      - name: Build JAR
+        run: ./mvnw clean package
+
+      - name: Copy to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "target/mes-0.0.1-SNAPSHOT.jar,Dockerfile,docker-compose.test.yml"
+          target: "/opt/deploy/elv-test/"
+          strip_components: 1
+
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            set -u
+            cd /opt/deploy/elv-test
+
+            # scp 가 strip_components 로 target/ 을 벗겨 jar 를 여기 둔다.
+            # Dockerfile 이 같은 위치의 jar 를 COPY 하므로 이름만 맞으면 된다.
+            ls -l mes-0.0.1-SNAPSHOT.jar Dockerfile docker-compose.test.yml
+
+            [ -f /opt/conf/server_elv_test.env ] \
+              || { echo "❌ /opt/conf/server_elv_test.env 가 없다. 최초 1회 만들어야 한다"; exit 1; }
+
+            docker compose -f docker-compose.test.yml up --build -d
+
+      - name: 테스트 인스턴스 확인
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            set -u
+            ENV_FILE=/opt/conf/server_elv_test.env
+            APP_URL=http://127.0.0.1:8031/elv/login
+            FAIL=0
+
+            echo "::group::1) 컨테이너"
+            docker ps --filter name=elv-test --format '{{.Names}}  {{.Status}}'
+            docker ps --filter name=elv-test --format '{{.Status}}' | grep -q '^Up' \
+              || { echo "❌ elv-test 가 떠 있지 않다"; FAIL=1; }
+            echo "::endgroup::"
+
+            echo "::group::2) 앱 응답"
+            ok=0
+            for i in $(seq 1 18); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$APP_URL" || echo 000)
+              if [ "$code" = "200" ]; then ok=1; echo "✅ 약 $((i*5))초만에 200"; break; fi
+              sleep 5
+            done
+            [ "$ok" = "1" ] || { echo "❌ 90초 안에 200 을 못 받았다 (마지막 $code)"; FAIL=1; }
+            echo "::endgroup::"
+
+            echo "::group::3) Redis — .env 에 적힌 주소로"
+            RH=$(grep -E '^REDIS_HOST=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d ' \r')
+            RP=$(grep -E '^REDIS_PORT=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d ' \r')
+            echo "대상 ${RH}:${RP}"
+            timeout 3 bash -c "exec 3<>/dev/tcp/${RH}/${RP} && printf 'PING\r\n' >&3 && head -c 7 <&3" >/dev/null 2>&1 \
+              && echo "✅ 응답함" \
+              || { echo "❌ 3초 안에 응답 없음"; FAIL=1; }
+            echo "::endgroup::"
+
+            echo "::group::4) 기동 중 에러"
+            docker logs --since 3m elv-test 2>&1 \
+              | grep -iE "APPLICATION FAILED TO START|BeanCreationException|Caused by" | head -10 || true
+            echo "::endgroup::"
+
+            [ "$FAIL" = "0" ] || { echo ""; echo "=== 테스트 인스턴스 확인 실패 ==="; exit 1; }
+            echo ""
+            echo "=== 통과 — http://<서버>:8031/elv 에서 화면 확인 ==="
