@@ -163,6 +163,40 @@ public class TenantDbService {
         return row == null ? null : (String) row.get("spjangcd");
     }
 
+    /**
+     * 사업체(db_key) 안에서 쓰는 사업장코드. 사업체 DB 의 조회 조건에 들어간다.
+     * 예: db_key 'GO' → spjangcd 'ZZ'
+     *
+     * 전화가 올 때마다 찾으면 본사 DB 를 매번 두드리게 되므로 한 번 찾은 건 기억해 둔다.
+     * 못 찾으면 null — 부른 쪽이 고객명 조회를 건너뛴다.
+     */
+    private final Map<String, String> innerSpjangcdCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public String findInnerSpjangcd(String site) {
+        if (site == null || site.isBlank()) return null;
+
+        String cached = innerSpjangcdCache.get(site);
+        if (cached != null) return cached;
+
+        MapSqlParameterSource p = new MapSqlParameterSource();
+        p.addValue("site", site);
+
+        Map<String, Object> row = sqlRunner.getRow("""
+                SELECT spjangcd FROM tb_xa012
+                 WHERE db_key = :site AND COALESCE(spjangcd, '') <> ''
+                 LIMIT 1
+                """, p);
+
+        if (row == null || row.get("spjangcd") == null) {
+            log.warn("[CTI] 사업장코드를 찾지 못했습니다. db_key={} — 고객명 없이 알림만 보냅니다", site);
+            return null;
+        }
+
+        String value = row.get("spjangcd").toString().trim();
+        innerSpjangcdCache.put(site, value);
+        return value;
+    }
+
     /** 특정 row만 재연결 */
     public Map<String, Object> reconnectOne(long id) {
         MapSqlParameterSource p = new MapSqlParameterSource();

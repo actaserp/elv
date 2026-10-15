@@ -129,17 +129,35 @@ namespace ActasCti
         /// 벨이 울릴 때(201)와 못 받았을 때(부재중)만 띄우고, 중간 상태는 넘긴다 —
         /// 한 통화에 이벤트가 여러 번 와서 다 띄우면 알림이 쏟아진다.
         /// </summary>
-        static void OnCallReceived(string caller, string result)
+        static void OnCallReceived(string caller, string result, string callnm, bool known)
         {
             bool ringing = Codes.IsRinging(result);
             bool missed  = Codes.IsMissed(result);
             if (!ringing && !missed) return;
 
-            var title = ringing ? "전화 수신" : "부재중 전화";
-            var body  = FormatTel(caller);
+            string title, body;
+
+            if (!known)
+            {
+                // 서버가 이 회선을 모른다 — 전화가 와도 화면에는 뜨지 않는다.
+                // '전화 수신' 이라고 띄우면 잘 돌아가는 줄 알게 되니 사실대로 말한다.
+                title = "전화연동 설정이 필요합니다";
+                body  = FormatTel(caller) + "\n담당자에게 문의해주세요";
+            }
+            else
+            {
+                title = ringing ? "전화 수신" : "부재중 전화";
+
+                // 화면을 띄워두지 않는 곳에서는 이 알림이 전화를 아는 유일한 길이다.
+                // 번호만 있으면 받기 전에 누구인지 알 수 없어 쓸모가 적다.
+                body = string.IsNullOrEmpty(callnm)
+                     ? FormatTel(caller)
+                     : callnm + "\n" + FormatTel(caller);
+            }
 
             Action show = () =>
-                tray.ShowBalloonTip(ringing ? 20000 : 10000, title, body, ToolTipIcon.Info);
+                tray.ShowBalloonTip(ringing ? 20000 : 10000, title, body,
+                                    known ? ToolTipIcon.Info : ToolTipIcon.Warning);
 
             if (tray.ContextMenuStrip.InvokeRequired) tray.ContextMenuStrip.BeginInvoke(show);
             else show();

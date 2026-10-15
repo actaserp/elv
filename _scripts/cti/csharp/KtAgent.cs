@@ -21,6 +21,7 @@ namespace ActasCti
         const int MODE_EVENT_V2CID = 0x1000;   // 규격서 9.1.1 — 기본 꺼져 있어 켜야 한다
         const int POLL_MS      = 3000;         // 화면에서 누른 [연결]/[해제] 가져오기
         const int HEARTBEAT_MS = 30000;        // "살아 있다" 신고
+        const int EVENT_TIMEOUT_MS = 1500;   // 알림이 늦으면 안 된다. 짧게만 기다린다
 
         readonly Config cfg;
         KTPCBizXClass kt;
@@ -33,7 +34,8 @@ namespace ActasCti
         public event Action<string> Logged;
 
         /// <summary>전화가 왔다 — 트레이가 윈도우 알림을 띄운다 (발신번호, 수신상태)</summary>
-        public event Action<string, string> CallReceived;
+        /// <summary>전화가 왔다 — (발신번호, 수신상태, 고객명, 등록된 회선인가)</summary>
+        public event Action<string, string, string, bool> CallReceived;
 
         public KtAgent(Config config) { cfg = config; }
 
@@ -162,18 +164,38 @@ namespace ActasCti
             Log(string.Format("[전화] caller={0} callee={1} result={2} dbid={3}",
                               caller, callee, result, dbId));
 
-            // 윈도우 알림은 여기서 띄운다. 브라우저를 거치지 않아 더 빠르고,
-            // 화면을 닫아두었거나 브라우저가 꺼져 있어도 뜬다.
-            var ch = CallReceived;
-            if (ch != null) ch(caller ?? "", result ?? "");
-
             var p = new NameValueCollection();
-            p["line"] = cfg.KtLine();
-            p["caller"]   = caller  ?? "";
-            p["callee"]   = callee  ?? "";
-            p["result"]   = result  ?? "";
-            p["dbId"]     = dbId    ?? "";
-            Post("event", p);
+            p["line"]   = cfg.KtLine();
+            p["caller"] = caller  ?? "";
+            p["callee"] = callee  ?? "";
+            p["result"] = result  ?? "";
+            p["dbId"]   = dbId    ?? "";
+
+            // 서버 응답에 고객명이 실려 온다. 화면을 띄워두지 않는 곳에서는
+            // 이 알림이 전화를 아는 유일한 길이라, 번호만 띄우면 쓸모가 적다.
+            //
+            // 다만 서버를 기다리다 알림이 늦으면 안 된다. 짧게만 기다리고,
+            // 응답이 없으면 번호만이라도 띄운다 — 서버가 죽어도 전화는 알려야 한다.
+            string name   = null;
+            bool   known  = true;      // 등록된 회선인가
+
+            try
+            {
+                var res = Http("POST", cfg.BaseUrl() + "event", p, EVENT_TIMEOUT_MS);
+                name = JsonString(res ?? "", "callnm");
+            }
+            catch (WebException we)
+            {
+                // 404 = 서버가 이 회선을 모른다. 전화가 와도 화면에 뜨지 않는 상태다.
+                var http = we.Response as HttpWebResponse;
+                if (http != null && (int)http.StatusCode == 404) known = false;
+
+                Log("event 전송 실패: " + we.Message);
+            }
+            catch (Exception e) { Log("event 전송 실패: " + e.Message); }
+
+            var ch = CallReceived;
+            if (ch != null) ch(caller ?? "", result ?? "", name ?? "", known);
         }
 
         // ── 화면 ↔ 에이전트 ──────────────────────────────────────
@@ -405,9 +427,14 @@ namespace ActasCti
 
         string Http(string method, string url, NameValueCollection form)
         {
+            return Http(method, url, form, 5000);
+        }
+
+        string Http(string method, string url, NameValueCollection form, int timeoutMs)
+        {
             var req = (HttpWebRequest)WebRequest.Create(url);
             req.Method  = method;
-            req.Timeout = 5000;
+            req.Timeout = timeoutMs;
             req.Headers["X-Cti-Secret"] = cfg.ElvSecret;
 
             if (method == "POST")

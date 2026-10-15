@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
+import mes.app.common.TenantContext;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -54,6 +55,9 @@ public class CtiCallController {
      */
     @Autowired
     private mes.app.system.service.TenantDbService tenantDbService;
+
+    @Autowired
+    private mes.app.AS.service.WebRequestService webRequestService;
 
     @Value("${cti.installer.path:}")
     private String installerPath;
@@ -193,7 +197,44 @@ public class CtiCallController {
         if (!dbId.isBlank()) payload.put("dbId", dbId);   // 같은 통화의 상태 변화를 묶는 키
 
         int sent = ctiPushService.pushIncomingCall(site, payload);
-        return ResponseEntity.ok(Map.of("sent", sent));
+
+        // 에이전트가 윈도우 알림에 띄울 고객명. 화면을 안 띄워두는 곳에서는
+        // 이 알림이 전화가 왔다는 걸 아는 유일한 길이라, 번호만으로는 쓸모가 적다.
+        // 못 찾으면 빈 문자열 — 에이전트가 번호만 띄운다.
+        return ResponseEntity.ok(Map.of(
+                "sent",   sent,
+                "callnm", callerNameFor(site, digits)));
+    }
+
+    /**
+     * 사업체 DB 로 넘어가 발신번호의 고객명을 찾는다.
+     *
+     * 이 창구는 세션이 없어서 DB 라우팅이 잡혀 있지 않다. 직접 잡고 반드시 되돌린다 —
+     * 안 되돌리면 이 스레드를 물려받는 다음 요청이 남의 사업체 DB 를 보게 된다.
+     */
+    private String callerNameFor(String site, String callnum) {
+        String spjangcd = tenantDbService.findInnerSpjangcd(site);
+        if (spjangcd == null) return "";
+
+        try {
+            TenantContext.set(spjangcd);
+            TenantContext.setDbKey(site);
+
+            Map<String, Object> info = webRequestService.findCallerInfo(spjangcd, callnum);
+            if (info == null) return "";
+
+            Object nm = info.get("callnm");
+            if (nm == null || nm.toString().isBlank()) nm = info.get("actnm");
+            if (nm == null || nm.toString().isBlank()) nm = info.get("cltnm");
+
+            return nm == null ? "" : nm.toString().trim();
+
+        } catch (Exception e) {
+            log.warn("[CTI] 고객명 조회 실패 (알림은 번호만 나갑니다): {}", e.getMessage());
+            return "";
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     // ── 회선번호 → 사업체 ────────────────────────────────────
