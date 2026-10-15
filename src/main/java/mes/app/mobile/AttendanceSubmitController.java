@@ -90,9 +90,24 @@ public class AttendanceSubmitController {
         int    personId    = ((Number) tenantInfo.get("personid")).intValue();
         String personidStr = String.valueOf(personId);
 
-        String reqdate            = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String formattedStartDate = startDate.replaceAll("-", "");
-        String formattedEndDate   = endDate.replaceAll("-", "");
+        String reqdate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+
+        // 날짜가 빈 채로 저장된 행이 실제로 있었다(2026-10-12 남양). 그 행 때문에
+        // 개인별휴가현황이 열리지 않았다. 들어오는 쪽에서 막는다.
+        String formattedStartDate = (startDate == null) ? "" : startDate.replaceAll("[^0-9]", "");
+        String formattedEndDate   = (endDate   == null) ? "" : endDate.replaceAll("[^0-9]", "");
+        if (formattedStartDate.length() != 8 || formattedEndDate.length() != 8) {
+            result.message = "시작일과 종료일을 입력해 주세요.";
+            return result;
+        }
+        if (attKind == null || attKind.isBlank()) {
+            result.message = "근태구분을 선택해 주세요.";
+            return result;
+        }
+        if (useDate == null || useDate.signum() <= 0) {
+            result.message = "사용일수를 확인해 주세요.";
+            return result;
+        }
 
         try {
             // 등록자 = 로그인 사용자 (모바일 본인 신청)

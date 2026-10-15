@@ -144,17 +144,26 @@
   }
 
   $(document).ready(function (e) {
-    searchMainData();
-    AjaxUtil.fillSelectOptions($('#attKind'), 'workcd', 'choose', false, 'work_division', '');
     document.getElementById('startDate').addEventListener('change', calculateUseDays);
     document.getElementById('endDate').addEventListener('change', calculateUseDays);
+    // 날짜 기본값은 오늘이고 서버에서 받아올 값이 아니다. 응답을 기다리는 사이에
+    // 등록을 누르면 날짜가 빈 채로 저장됐다(2026-10-12 남양). 먼저 채운다.
+    bindDate();
+    searchMainData();
+    AjaxUtil.fillSelectOptions($('#attKind'), 'workcd', 'choose', false, 'work_division', '');
   });
 
-  function bindDate(userStartTime) {
-    const today = new Date();
-    const formattedDate = today.toISOString().split('T')[0];
+  function bindDate() {
+    // toISOString 은 UTC 기준이라 한국 오전 9시 전에는 전날이 나온다. 로컬 날짜로 만든다.
+    const t = new Date();
+    const formattedDate = t.getFullYear() + '-'
+            + String(t.getMonth() + 1).padStart(2, '0') + '-'
+            + String(t.getDate()).padStart(2, '0');
     document.getElementById('startDate').value = formattedDate;
     document.getElementById('endDate').value = formattedDate;
+    // value 직접 대입은 change 를 발생시키지 않는다. 날짜를 손대지 않고 등록하면
+    // 일수가 빈 값으로 저장됐다. 여기서 직접 계산해 둔다.
+    calculateUseDays();
   }
 
   function searchMainData() {
@@ -168,13 +177,27 @@
         if (userIdEl) userIdEl.value = result.data.username ?? '';
         if (userNameEl) userNameEl.value = result.data.first_name ?? '';
         if (usedDateEl) usedDateEl.value = result.data.restnum ?? '';
-        bindDate(result.data.sttime);
       }
     };
     AjaxUtil.getAsyncData(url, {}, fnsuccess);
   }
 
   function saveAttendance() {
+    // 빈 값이 저장되면 개인별휴가현황이 열리지 않는다. 보내기 전에 막는다.
+    if (!document.getElementById('attKind').value) {
+      Alert.alert('', '근태구분을 선택해 주세요.');
+      return;
+    }
+    if (!document.getElementById('startDate').value || !document.getElementById('endDate').value) {
+      Alert.alert('', '시작일과 종료일을 입력해 주세요.');
+      return;
+    }
+    if (!document.getElementById('useDate').value) calculateUseDays();
+    if (!(parseFloat(document.getElementById('useDate').value) > 0)) {
+      Alert.alert('', '사용일수를 확인해 주세요.');
+      return;
+    }
+
     // AjaxUtil → withCtx() → $.ajaxPrefilter 가 /elv 자동 추가
     let url = '/api/attendance_submit/submitAttendance';
     let data = {

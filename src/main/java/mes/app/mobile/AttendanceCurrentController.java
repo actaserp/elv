@@ -48,23 +48,16 @@ public class AttendanceCurrentController {
         Map<String, Object> annInfo = attendanceCurrentService.getAnnInfo(personId);
         if (annInfo != null) {
             // 입사일이 비어 있는 사원도 있다. 예전에는 조회가 늘 0건이라 여기까지 오지 않았다.
-            Object rtdateObj = annInfo.get("rtdate");
-            String rtdate = (rtdateObj == null) ? "" : rtdateObj.toString().trim();
-            annInfo.put("rtdate", rtdate.length() == 8
-                    ? rtdate.substring(0, 4) + "." + rtdate.substring(4, 6) + "." + rtdate.substring(6)
-                    : "");
+            annInfo.put("rtdate", ymd(annInfo.get("rtdate")));
         }
 
         List<Map<String, Object>> vacInfo = attendanceCurrentService.getVacInfo(workcd, searchYear, personId);
         for (Map<String, Object> vacDetail : vacInfo) {
-            String reqdate  = (String) vacDetail.get("reqdate");
-            String frdate   = (String) vacDetail.get("frdate");
-            String todate   = (String) vacDetail.get("todate");
-            String yearflag = (String) vacDetail.get("yearflag");
-            vacDetail.put("reqdate",  reqdate.substring(0, 4) + "." + reqdate.substring(4, 6) + "." + reqdate.substring(6));
-            vacDetail.put("frdate",   frdate.substring(0, 4)  + "." + frdate.substring(4, 6)  + "." + frdate.substring(6));
-            vacDetail.put("todate",   todate.substring(0, 4)  + "." + todate.substring(4, 6)  + "." + todate.substring(6));
-            vacDetail.put("yearflag", "1".equals(yearflag) ? "O" : "-");
+            // 날짜가 빈 행이 실제로 있다. 저장이 중간에 끊긴 흔적으로, 여기서 터지면 화면 전체가 안 열린다.
+            vacDetail.put("reqdate", ymd(vacDetail.get("reqdate")));
+            vacDetail.put("frdate",  ymd(vacDetail.get("frdate")));
+            vacDetail.put("todate",  ymd(vacDetail.get("todate")));
+            vacDetail.put("yearflag", "1".equals(vacDetail.get("yearflag")) ? "O" : "-");
         }
 
         Map<String, Object> resultMap = new HashMap<>();
@@ -89,9 +82,16 @@ public class AttendanceCurrentController {
             Authentication auth) {
 
         AjaxResult result = new AjaxResult();
+
+        // 신청 쪽과 같은 이유로 막는다 — 빈 날짜가 저장되면 조회 화면이 열리지 않는다.
+        String formattedStartDate = (startDate == null) ? "" : startDate.replaceAll("[^0-9]", "");
+        String formattedEndDate   = (endDate   == null) ? "" : endDate.replaceAll("[^0-9]", "");
+        if (formattedStartDate.length() != 8 || formattedEndDate.length() != 8) {
+            result.message = "시작일과 종료일을 입력해 주세요.";
+            return result;
+        }
+
         Map<String, Object> existing = attendanceCurrentService.selectTbPb204ById(vacId);
-        String formattedStartDate = startDate.replaceAll("-", "");
-        String formattedEndDate   = endDate.replaceAll("-", "");
 
         if (existing != null && !existing.isEmpty()) {
             attendanceCurrentService.updateTbPb204(
@@ -150,5 +150,13 @@ public class AttendanceCurrentController {
         List<String> years = attendanceCurrentService.getDistinctYears(String.valueOf(personId));
         result.data = years;
         return result;
+    }
+
+    /** yyyyMMdd 를 yyyy.MM.dd 로. 값이 없거나 8자리가 아니면 빈 문자열. */
+    private static String ymd(Object v) {
+        String s = (v == null) ? "" : v.toString().trim();
+        return s.length() == 8
+                ? s.substring(0, 4) + "." + s.substring(4, 6) + "." + s.substring(6)
+                : "";
     }
 }
