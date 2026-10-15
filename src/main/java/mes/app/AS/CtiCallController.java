@@ -118,12 +118,16 @@ public class CtiCallController {
 
     // ── 화면 초기화용 설정 ───────────────────────────────────
     @GetMapping("/config")
-    public AjaxResult config() {
+    public AjaxResult config(Authentication auth) {
+        User user = (User) auth.getPrincipal();
         File installer = installerFile();
 
         AjaxResult result = new AjaxResult();
         result.data = Map.of(
                 "mockEnabled",   mockEnabled,
+                // 회선번호가 없으면 전화가 올 수 없다. 화면이 그 사실을 알고 있어야
+                // '연결됨/꺼짐' 같은 엉뚱한 말 대신 사실대로 보여줄 수 있다.
+                "hasLine",       tenantDbService.hasLine(user.getDbKey()),
                 "hasInstaller",  installer != null,
                 "installerSize", installer == null ? 0L : installer.length());
         return result;
@@ -261,9 +265,21 @@ public class CtiCallController {
     @PostMapping("/connect")
     public AjaxResult connect(Authentication auth) {
         User user = (User) auth.getPrincipal();
-        ctiPushService.queueCommand(user.getDbKey(), "connect");
 
         AjaxResult result = new AjaxResult();
+
+        // 회선번호가 없으면 에이전트가 명령을 가져갈 길이 없다.
+        // 그대로 두면 화면이 10초 기다렸다 '프로그램이 꺼져 있다'고 하는데,
+        // 프로그램은 멀쩡히 돌고 있어서 엉뚱한 곳을 뒤지게 된다.
+        if (!tenantDbService.hasLine(user.getDbKey())) {
+            result.success = false;
+            result.message = "이 사업체에 KT 회선번호가 등록돼 있지 않습니다.\n"
+                           + "사업체 관리 화면에서 회선번호를 등록해주세요.";
+            return result;
+        }
+
+        ctiPushService.queueCommand(user.getDbKey(), "connect");
+
         result.message = ctiPushService.isAgentOnline(user.getDbKey())
                 ? "이미 연결돼 있습니다."
                 : "연결을 요청했습니다. 잠시 후 연결됩니다.";

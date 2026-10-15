@@ -164,6 +164,28 @@ public class TenantDbService {
     }
 
     /**
+     * 이 사업체에 KT 회선번호가 등록돼 있는가.
+     *
+     * 없으면 에이전트가 아무리 잘 돌아도 서버가 그 PC 를 어느 사업체로 보낼지 몰라
+     * 전화가 화면에 뜨지 않는다. 화면이 '프로그램이 꺼져 있다'고 엉뚱하게 말하지
+     * 않도록, 눌리기 전에 이걸 먼저 본다.
+     */
+    public boolean hasLine(String site) {
+        if (site == null || site.isBlank()) return false;
+
+        MapSqlParameterSource p = new MapSqlParameterSource();
+        p.addValue("site", site);
+
+        Map<String, Object> row = sqlRunner.getRow("""
+                SELECT 1 AS ok FROM tb_tenant_db
+                 WHERE spjangcd = :site AND COALESCE(cti_lines, '') <> ''
+                 LIMIT 1
+                """, p);
+
+        return row != null;
+    }
+
+    /**
      * 사업체(db_key) 안에서 쓰는 사업장코드. 사업체 DB 의 조회 조건에 들어간다.
      * 예: db_key 'GO' → spjangcd 'ZZ'
      *

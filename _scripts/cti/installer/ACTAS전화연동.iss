@@ -13,7 +13,7 @@
 ; ─────────────────────────────────────────────────────────────
 
 #define AppName      "ACTAS 전화연동"
-#define AppVersion   "2.0.1"
+#define AppVersion   "2.1.1"
 #define Publisher    "ACTAS"
 #define ExeName      "ACTAS전화연동.exe"
 

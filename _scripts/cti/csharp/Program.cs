@@ -58,6 +58,7 @@ namespace ActasCti
                     agent.StateChanged    += OnStateChanged;
                     agent.CallReceived    += OnCallReceived;
                     agent.PasswordWarning += OnPasswordWarning;
+                    agent.LineUnknown     += OnLineUnknown;
                     agent.Start();
                 }
                 catch (Exception e)
@@ -115,9 +116,54 @@ namespace ActasCti
 
             Action apply = () =>
             {
-                tray.Icon = MakeIcon(connected ? Color.FromArgb(46, 125, 50) : Color.Gray);
-                tray.Text = Cut("ACTAS 전화연동 — " + message, 63);   // 윈도우 제한
+                // 전화기에는 붙었는데 서버가 이 회선을 모르면 '연결됨' 은 거짓말이다.
+                // 반쯤 된 상태라 주황으로 둔다.
+                if (connected && lineUnknown)
+                {
+                    tray.Icon = MakeIcon(Warn);
+                    tray.Text = Cut("ACTAS 전화연동 — 회선번호 미등록", 63);
+                }
+                else
+                {
+                    tray.Icon = MakeIcon(connected ? Color.FromArgb(46, 125, 50) : Color.Gray);
+                    tray.Text = Cut("ACTAS 전화연동 — " + message, 63);   // 윈도우 제한
+                }
                 UpdateMenu(connected);
+            };
+
+            if (tray.ContextMenuStrip.InvokeRequired) tray.ContextMenuStrip.BeginInvoke(apply);
+            else apply();
+        }
+
+        static readonly Color Warn = Color.FromArgb(237, 108, 2);
+        static bool lineUnknown;
+
+        /// <summary>
+        /// 서버가 이 PC 의 회선번호를 모른다. 전화기에는 붙었으니 벨은 울리지만
+        /// 화면에는 아무것도 뜨지 않는다 — 가장 알아차리기 어려운 고장이다.
+        /// 로그 파일은 아무도 열어보지 않으므로 트레이로 끌어올린다.
+        /// </summary>
+        static void OnLineUnknown(bool unknown)
+        {
+            if (tray == null) return;
+            lineUnknown = unknown;
+
+            Action apply = () =>
+            {
+                if (unknown)
+                {
+                    tray.Icon = MakeIcon(Warn);
+                    tray.Text = Cut("ACTAS 전화연동 — 회선번호 미등록", 63);
+                    tray.ShowBalloonTip(30000, "전화연동 설정이 필요합니다",
+                        "이 PC 의 회선번호 " + FormatTel(cfg.KtLine()) + " 가 등록돼 있지 않습니다.\n" +
+                        "전화가 와도 화면에 뜨지 않습니다. 담당자에게 문의해주세요.",
+                        ToolTipIcon.Warning);
+                }
+                else
+                {
+                    tray.Icon = MakeIcon(Color.FromArgb(46, 125, 50));
+                    tray.Text = Cut("ACTAS 전화연동 — 연결됨", 63);
+                }
             };
 
             if (tray.ContextMenuStrip.InvokeRequired) tray.ContextMenuStrip.BeginInvoke(apply);

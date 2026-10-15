@@ -1821,8 +1821,9 @@
           var online = false;
           try { online = !!JSON.parse(e.data).online; } catch (err) {}
           clearTimeout(waitTimer);   // 응답이 왔으니 "꺼져 있다" 안내는 띄우지 않는다
-          if (online) setDot('on',  '전화 연결됨');
-          else        setDot(null, '전화 대기 중 아님');
+          if (online)        setDot('on',  '전화 연결됨');
+          else if (!hasLine) setDot('off', 'KT 회선번호 미등록');
+          else               setDot(null, '전화 대기 중 아님');
         });
 
         // 문자 발송 결과 — 보냈는지 못 보냈는지 모르면 같은 문자를 또 보내게 된다
@@ -2043,6 +2044,11 @@
             if (wrap) wrap.style.display = '';
             installerSize = c.installerSize || 0;
           }
+
+          // 회선번호가 없으면 전화는 울려도 이 화면에는 올 수 없다.
+          // 그 상태를 '대기 중 아님' 으로 뭉뚱그리면 PC 를 껐다 켜보게 된다.
+          hasLine = !!c.hasLine;
+          if (!hasLine) setDot('off', 'KT 회선번호 미등록');
         });
       }
 
@@ -2050,10 +2056,13 @@
       var installerSize = 0;
 
       function install() {
-        var mb = installerSize ? (installerSize / 1048576).toFixed(0) + 'MB, ' : '';
-        Alert.confirm('', '전화연동 프로그램을 내려받습니다. (' + mb + '압축파일)\n\n' +
-                          '전화를 받을 PC 에서 내려받아 설치해주세요.\n' +
-                          '설치 방법은 함께 들어 있는 안내문을 봐주세요.', function () {
+        var mb = installerSize ? (installerSize / 1048576).toFixed(0) + 'MB' : '설치 프로그램';
+        // 서명되지 않은 설치파일이라 윈도우가 한 번 막아선다.
+        // 여기서 멈추면 설치 자체를 못 하므로 미리 알려준다.
+        Alert.confirm('', '전화연동 설치파일을 내려받습니다. (' + mb + ')\n\n' +
+                          '전화를 받을 PC 에서 내려받아 실행해주세요.\n\n' +
+                          '"Windows의 PC 보호" 창이 뜨면\n' +
+                          '[추가 정보] → [실행] 을 눌러주세요.', function () {
           // 파일 내려받기는 ajax 가 아니라 브라우저에게 맡긴다
           window.location.href = withCtx('/api/AS/cti/installer');
         });
@@ -2062,9 +2071,18 @@
       // 화면 → 그 PC 의 에이전트. 브라우저가 PC 프로그램을 직접 못 부르므로
       // 서버에 명령을 남기고, 에이전트가 3초 안에 가져가 실행한다.
       var waitTimer = null;
+      var hasLine   = true;   // /config 가 알려준다. 모르는 동안은 막지 않는다
 
       function sendCommand(path, waiting) {
         AjaxUtil.postAsyncData('/api/AS/cti/' + path, {}, function (res) {
+
+          // 회선번호가 없으면 서버가 명령을 받지 않는다. 기다릴 것도 없다.
+          if (res && res.success === false) {
+            setDot('off', 'KT 회선번호 미등록');
+            Alert.alert('', res.message || '요청을 처리하지 못했습니다.');
+            return;
+          }
+
           setDot(null, waiting);
 
           // 에이전트가 없으면 명령을 가져갈 사람이 없어 '연결하는 중…' 에서 멈춘다.

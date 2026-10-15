@@ -33,9 +33,14 @@ namespace ActasCti
         public event Action<string, bool> StateChanged;   // (메시지, 연결됨)
         public event Action<string> Logged;
 
-        /// <summary>전화가 왔다 — 트레이가 윈도우 알림을 띄운다 (발신번호, 수신상태)</summary>
         /// <summary>전화가 왔다 — (발신번호, 수신상태, 고객명, 등록된 회선인가)</summary>
         public event Action<string, string, string, bool> CallReceived;
+
+        /// <summary>
+        /// 서버가 이 PC 의 회선번호를 모른다(true) / 다시 알아봤다(false).
+        /// 전화는 울리는데 화면에만 안 뜨는 상태라, 트레이가 눈에 띄게 알린다.
+        /// </summary>
+        public event Action<bool> LineUnknown;
 
         public KtAgent(Config config) { cfg = config; }
 
@@ -216,9 +221,49 @@ namespace ActasCti
             catch { /* 통신 실패는 다음 주기에 다시 시도한다 */ }
         }
 
+        /// <summary>
+        /// 서버에 "나 살아 있다" 를 알린다. 화면의 연결 표시가 이것으로 켜진다.
+        ///
+        /// 서버가 이 회선을 모르면(404) 전화가 울려도 화면에는 뜨지 않는다.
+        /// 예전에는 로그에만 30초마다 같은 줄이 쌓였는데, 그 파일을 열어보는
+        /// 사람은 없다. 상태가 바뀌는 순간 한 번만 바깥으로 알린다.
+        /// </summary>
+        bool lineUnknown;
+
         void Heartbeat()
         {
-            if (LoggedIn) Post("agent-online", null);
+            if (!LoggedIn) return;
+            if (cfg.KtLine().Length == 0) return;
+
+            var form = new NameValueCollection();
+            form["line"] = cfg.KtLine();
+
+            try
+            {
+                Http("POST", cfg.BaseUrl() + "agent-online", form);
+                SetLineUnknown(false);
+            }
+            catch (WebException we)
+            {
+                var http = we.Response as HttpWebResponse;
+
+                if (http != null && (int)http.StatusCode == 404) SetLineUnknown(true);
+                else Log("agent-online 전송 실패: " + we.Message);
+            }
+            catch (Exception e) { Log("agent-online 전송 실패: " + e.Message); }
+        }
+
+        void SetLineUnknown(bool unknown)
+        {
+            if (unknown == lineUnknown) return;   // 바뀔 때만 — 30초마다 떠들면 알림이 못 쓰게 된다
+            lineUnknown = unknown;
+
+            Log(unknown
+                ? "이 회선이 서버에 등록돼 있지 않습니다: " + cfg.KtLine() + " — 전화가 화면에 뜨지 않습니다."
+                : "회선이 확인되었습니다: " + cfg.KtLine());
+
+            var ch = LineUnknown;
+            if (ch != null) ch(unknown);
         }
 
         // ── 비밀번호 ─────────────────────────────────────────────
