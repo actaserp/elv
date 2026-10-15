@@ -59,6 +59,7 @@ namespace ActasCti
                     agent.CallReceived    += OnCallReceived;
                     agent.PasswordWarning += OnPasswordWarning;
                     agent.LineUnknown     += OnLineUnknown;
+                    agent.DuplicateLogin  += OnDuplicateLogin;
                     agent.Start();
                 }
                 catch (Exception e)
@@ -137,6 +138,32 @@ namespace ActasCti
 
         static readonly Color Warn = Color.FromArgb(237, 108, 2);
         static bool lineUnknown;
+
+        /// <summary>
+        /// 같은 계정을 다른 PC 가 물고 있다. 끊고 가져올 수 있지만(규격서 3.3.2),
+        /// 그 PC 는 전화가 화면에 안 뜨게 된다. 묻고 나서 한다.
+        ///
+        /// 한 회선에 PC 한 대만 붙을 수 있어서, 그 PC 를 끄지 못하는 상황 —
+        /// 랜선이 뽑혔거나 멀리 있거나 — 에서는 이 길밖에 없다.
+        /// </summary>
+        static void OnDuplicateLogin()
+        {
+            if (tray == null) return;
+
+            Action ask = () =>
+            {
+                var r = MessageBox.Show(
+                    "다른 PC 에서 같은 전화 계정으로 연결돼 있습니다.\n\n" +
+                    "그 연결을 끊고 이 PC 로 가져올까요?\n" +
+                    "가져오면 그 PC 에서는 전화가 화면에 뜨지 않습니다.",
+                    "ACTAS 전화연동", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+                if (r == DialogResult.Yes) agent.KickOut();
+            };
+
+            if (tray.ContextMenuStrip.InvokeRequired) tray.ContextMenuStrip.BeginInvoke(ask);
+            else ask();
+        }
 
         /// <summary>
         /// 서버가 이 PC 의 회선번호를 모른다. 전화기에는 붙었으니 벨은 울리지만

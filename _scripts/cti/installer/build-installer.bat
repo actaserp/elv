@@ -47,6 +47,21 @@ if not exist "%SDK%\KTOpenAPI.dll" (
   pause
   exit /b 1
 )
+rem 소스를 고치고 여기부터 돌리면 옛 exe 가 조용히 설치본에 들어간다.
+rem 버전만 올리고 빌드를 안 한 채 내보내면 현장에서 추적이 안 되므로 먼저 빌드한다.
+echo  프로그램을 빌드합니다...
+rem build.bat 은 끝에 pause 가 있다. 더블클릭으로 돌릴 때 여기서 멈추지 않도록
+rem 입력을 끊어 둔다(< nul) — pause 가 바로 지나간다.
+call "%~dp0..\csharp\build.bat" < nul > nul
+if errorlevel 1 (
+  echo.
+  echo  [실패] 프로그램 빌드에 실패했습니다.
+  echo         _scripts\cti\csharp\build.bat 을 직접 실행해 오류를 확인해주세요.
+  echo.
+  pause
+  exit /b 1
+)
+
 if not exist "%BUILD%\ACTAS전화연동.exe" (
   echo.
   echo  [실패] 프로그램이 빌드돼 있지 않습니다.

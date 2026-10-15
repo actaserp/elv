@@ -42,6 +42,12 @@ namespace ActasCti
         /// </summary>
         public event Action<bool> LineUnknown;
 
+        /// <summary>
+        /// 다른 PC 가 같은 계정을 물고 있다(301·1000).
+        /// 끊고 가져올지는 사람이 정해야 하므로 트레이가 물어본다.
+        /// </summary>
+        public event Action DuplicateLogin;
+
         public KtAgent(Config config) { cfg = config; }
 
         // ── 시작 / 종료 ──────────────────────────────────────────
@@ -97,6 +103,17 @@ namespace ActasCti
             {
                 Notify(Codes.LoginAdvice(rc), false);
 
+                // 301·1000 — 다른 PC 가 이 계정을 물고 있다.
+                // 랜선이 뽑히거나 강제 종료된 PC 는 로그아웃을 못 보내서 KT 쪽에
+                // 세션이 한참 남는다. 그 PC 를 되살릴 수 없으면 기다리는 길밖에 없는데,
+                // 규격서 3.3.2 LoginKickOut 으로 끊고 가져올 수 있다.
+                // 남의 연결을 끊는 일이라 묻고 나서 한다.
+                if (rc == 301 || rc == 1000)
+                {
+                    var dup = DuplicateLogin;
+                    if (dup != null) dup();
+                }
+
                 // 403 임시비밀번호 · 409 유효성 · 410/411 기간만료 — 바꾸거나 연장해야 열린다.
                 // 그냥 두면 전화는 울리는데 화면에만 안 뜨는 상태로 하루가 간다.
                 if (rc == 403 || rc == 409 || rc == 410 || rc == 411)
@@ -107,6 +124,29 @@ namespace ActasCti
                 return;
             }
             Log("요청 성공. 인증 결과(EventLogin)를 기다립니다…");
+        }
+
+        /// <summary>
+        /// 규격서 3.3.2 — 다른 PC 가 물고 있는 로그인을 끊고 이 PC 로 가져온다.
+        /// 인자가 없다. 직전 Login() 에 넣은 계정을 그대로 쓴다.
+        /// 성공하면 결과는 EventLogin 으로 온다.
+        /// </summary>
+        public void KickOut()
+        {
+            int rc;
+            try { rc = kt.LoginKickOut(); }
+            catch (Exception e)
+            {
+                Log("LoginKickOut 오류: " + e.Message);
+                Notify("다른 PC 의 연결을 끊지 못했습니다: " + e.Message, false);
+                return;
+            }
+
+            Log(string.Format("LoginKickOut() 반환값 = {0}", rc));
+
+            if (rc == 200) { Notify("다른 PC 의 연결을 끊는 중…", false); return; }
+
+            Notify("다른 PC 의 연결을 끊지 못했습니다. (코드 " + rc + ")", false);
         }
 
         public void Logout()
