@@ -90,8 +90,16 @@ namespace ActasCti
             menu.Items.Add(miDisconnect);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("비밀번호", null, (s, e) => ShowPassword(-1, false)));
+
+            // 두 가지 '설정' 이 있다. 헷갈리지 않게 이름으로 갈라 둔다.
+            //  설정        — 우리 것(KT 계정, elv 주소)
+            //  KT 환경설정 — KT 가 만든 창(수신 장치, 녹취, 발신번호 …)
             menu.Items.Add(new ToolStripMenuItem("설정", null, (s, e) => ChangeSettings()));
+            menu.Items.Add(new ToolStripMenuItem("KT 환경설정", null, (s, e) => ShowKtConfig()));
+
+            menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("로그 보기", null, (s, e) => OpenLogs()));
+            menu.Items.Add(new ToolStripMenuItem("진단 정보", null, (s, e) => Diagnose()));
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("종료", null, (s, e) => Quit()));
 
@@ -358,6 +366,36 @@ namespace ActasCti
 
             // 계정이 바뀌었으면 다시 붙어야 한다
             if (agent != null && agent.LoggedIn) agent.Logout();
+        }
+
+        /// <summary>KT 자체 환경설정 창. 창이 뜨는 동안 트레이가 멈추지 않게 딴 스레드에서 연다.</summary>
+        static void ShowKtConfig()
+        {
+            if (agent == null) return;
+
+            var t = new Thread(() =>
+            {
+                try { agent.ShowConfig(); }
+                catch (Exception e) { Logger.Write("환경설정 창 오류: " + e); }
+            });
+            t.IsBackground = true;
+            t.SetApartmentState(ApartmentState.STA);   // COM 창이라 STA 가 필요하다
+            t.Start();
+        }
+
+        /// <summary>진단 값을 로그에 적고 폴더를 열어 준다 — 그 파일을 그대로 보내주면 된다.</summary>
+        static void Diagnose()
+        {
+            if (agent == null) return;
+
+            try { agent.Diagnose(); }
+            catch (Exception e) { Logger.Write("진단 정보 오류: " + e); }
+
+            OpenLogs();
+            MessageBox.Show(
+                "진단 정보를 로그 파일에 적었습니다.\n\n" +
+                "열린 폴더에서 오늘 날짜 파일을 담당자에게 보내주세요.",
+                "ACTAS 전화연동", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         static void OpenLogs()

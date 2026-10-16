@@ -80,7 +80,11 @@ namespace ActasCti
             if (pollTimer != null) pollTimer.Dispose();
             if (beatTimer != null) beatTimer.Dispose();
 
-            if (LoggedIn) Logout();
+            // LoggedIn 은 EventLogin 200 이 와야 켜진다. 그런데 Login() 이 200 을
+            // 돌려준 시점에 KT 쪽에는 이미 세션이 선다 — 결과 이벤트가 안 오는 PC 에서는
+            // 로그아웃을 한 번도 안 보내게 되어, 다음 [연결] 이 자기 세션에 막혀 1000 이 난다.
+            // 그러니 '요청을 보낸 적이 있으면' 끝낼 때 로그아웃을 시도한다.
+            if (LoggedIn || loginRequested) Logout(true);
             Log("프로그램을 종료합니다.");
         }
 
@@ -123,8 +127,13 @@ namespace ActasCti
                 }
                 return;
             }
+            // 여기서부터 KT 쪽에는 세션이 서 있다. 결과가 오든 안 오든 끝낼 때 정리해야 한다.
+            loginRequested = true;
             Log("요청 성공. 인증 결과(EventLogin)를 기다립니다…");
         }
+
+        /// <summary>Login() 이 200 을 받았다 — 결과 이벤트는 아직 안 왔을 수 있다.</summary>
+        bool loginRequested;
 
         /// <summary>
         /// 규격서 3.3.2 — 다른 PC 가 물고 있는 로그인을 끊고 이 PC 로 가져온다.
@@ -149,12 +158,89 @@ namespace ActasCti
             Notify("다른 PC 의 연결을 끊지 못했습니다. (코드 " + rc + ")", false);
         }
 
-        public void Logout()
+        // ── KT 자체 창 / 진단 ────────────────────────────────────
+
+        /// <summary>
+        /// 규격서 3.4.2 — KT 가 만든 환경설정 창을 띄운다.
+        /// 수신 장치·녹취·발신번호 같은 건 KT 쪽 설정이라 우리가 흉내 낼 수 없다.
+        /// 0x9010 이 첫 화면이고, 0x9021~0x9133 으로 특정 탭을 바로 열 수도 있다.
+        /// </summary>
+        public void ShowConfig()
         {
-            if (!LoggedIn) { Log("이미 해제돼 있습니다."); return; }
+            try { kt.ShowConfig(0x9010, 0); }
+            catch (Exception e)
+            {
+                Log("환경설정 창 오류: " + e.Message);
+                Notify("환경설정 창을 열지 못했습니다: " + e.Message, false);
+            }
+        }
+
+        /// <summary>
+        /// 지금 상태를 통째로 로그에 적는다.
+        ///
+        /// "전화가 안 떠요" 라는 연락을 받았을 때 물어볼 수 있는 건 한정돼 있다.
+        /// 로그인은 됐는지, SDK 가 어느 경로를 보는지 — 그 값들을 모르면
+        /// 가설만 세우다 끝난다(실제로 그랬다). 눌러서 받아보면 바로 갈린다.
+        /// </summary>
+        public void Diagnose()
+        {
+            Log("───── 진단 정보 ─────");
+            Log("  프로그램   = " + Version());
+            Log("  회선번호   = " + cfg.KtLine());
+            Log("  KT 아이디  = " + cfg.KtLoginId);
+            Log("  KT 서버    = " + cfg.KtServer + " (1=상용, 0=개발)");
+            Log("  elv 주소   = " + cfg.ElvUrl);
+            Log("  자동로그인 = " + cfg.AutoLogin);
+            Log("  LoggedIn   = " + LoggedIn + "   (EventLogin 200 을 받았는가)");
+
+            Probe("GetApiVer ", () => kt.GetApiVer());
+            Probe("GetApiPath", () => kt.GetApiPath());
+
+            // AUTH/NAME 이 채워져 있으면 SDK 는 로그인된 것이다.
+            // LoggedIn=false 인데 이게 나오면 이벤트만 안 들어온 것 — 둘은 전혀 다른 고장이다.
+            foreach (var one in new[] { "AUTH|NAME", "AUTH|TEAM", "AUTH|RIGHT",
+                                        "AUTH|SEQNO", "AUTH|MAIN_NUM", "CONF|SMS_SIGN" })
+            {
+                var p = one.Split('|');
+                Probe("GetEnv " + one.Replace("|", "/"), () => kt.GetEnv(p[0], p[1]));
+            }
+
+            Log("─────────────────────");
+            Notify("진단 정보를 로그에 적었습니다.", LoggedIn);
+        }
+
+        /// <summary>한 항목이 터져도 나머지는 찍히게 한다 — 로그인 전에는 던지는 것들이 있다.</summary>
+        void Probe(string label, Func<string> read)
+        {
+            string value;
+            try { value = read(); }
+            catch (Exception e) { value = "(오류: " + e.Message + ")"; }
+            Log("  " + label + " = " + (string.IsNullOrEmpty(value) ? "(빈값)" : value));
+        }
+
+        static string Version()
+        {
+            try
+            {
+                var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                return v.Major + "." + v.Minor + "." + v.Build;
+            }
+            catch { return "?"; }
+        }
+
+        public void Logout() { Logout(false); }
+
+        /// <param name="force">
+        /// 로그인 결과를 못 받았어도 KT 쪽 세션을 정리하려고 보낼 때 true.
+        /// </param>
+        public void Logout(bool force)
+        {
+            if (!LoggedIn && !force) { Log("이미 해제돼 있습니다."); return; }
+
             try { kt.Logout(); } catch (Exception e) { Log("Logout 오류: " + e.Message); }
 
-            LoggedIn = false;
+            LoggedIn       = false;
+            loginRequested = false;
             Post("agent-offline", null);
             Notify("연결을 해제했습니다.", false);
         }

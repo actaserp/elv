@@ -13,7 +13,7 @@
 ; ─────────────────────────────────────────────────────────────
 
 #define AppName      "ACTAS 전화연동"
-#define AppVersion   "2.1.2"
+#define AppVersion   "2.1.4"
 #define Publisher    "ACTAS"
 #define ExeName      "ACTAS전화연동.exe"
 
@@ -55,6 +55,14 @@ PrivilegesRequired=admin
 
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#ExeName}
+
+; 돌고 있는 프로그램이 KT DLL 을 잡고 있으면 덮어쓰기가 실패한다.
+; 그대로 [무시] 하고 넘어가면 새 exe 와 옛 DLL 이 섞여 설치되고,
+; 그 조합은 실행 중에야 엉뚱한 오류로 드러나 원인을 찾기 어렵다.
+; 이 이름은 Program.cs 의 Mutex 와 같아야 한다 — 바꾸면 여기도 같이 바꿀 것.
+AppMutex=ACTAS_전화연동_single
+CloseApplications=yes
+RestartApplications=no
 
 [Languages]
 Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
