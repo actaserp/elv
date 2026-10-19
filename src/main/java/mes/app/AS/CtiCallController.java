@@ -314,6 +314,11 @@ public class CtiCallController {
         body.put("command", command);
 
         // 문자는 내용이 길고 쉼표·따옴표가 섞이므로 명령 문자열에 끼우지 않고 따로 싣는다
+        // KT 기능 호출은 connect/disconnect 와 별개로 싣는다 —
+        // 명령 슬롯을 같이 쓰면 조회 한 번이 [연결] 을 밀어낸다.
+        Map<String, Object> callJob = ctiPushService.takeCall(site);
+        if (callJob != null) body.put("call", callJob);
+
         if ("sms".equals(command)) {
             Map<String, Object> job = ctiPushService.takeSms(site);
             if (job == null) return ResponseEntity.ok(Map.of("command", ""));   // 내용이 사라졌으면 보내지 않는다
@@ -374,6 +379,68 @@ public class CtiCallController {
         result.success = true;
         result.message = "보내는 중입니다.";
         return result;
+    }
+
+    // ── KT 기능 호출 (주소록·팩스·문자 조회 등) ──────────────
+    //
+    //   화면 → 여기 → 대기열 → 에이전트 → COM → 결과 → 여기 → 화면
+    //
+    //   브라우저는 PC 의 COM 을 직접 못 부른다. 그 PC 의 에이전트만 부를 수 있어서
+    //   이 길을 거친다. 화면 입장에서는 그냥 조금 느린 ajax 한 번이다.
+
+    /** 화면이 기다릴 수 있는 한계. 넘으면 사실대로 알린다. */
+    private static final long CALL_TIMEOUT_MS = 20_000L;
+
+    @PostMapping("/call")
+    public AjaxResult call(
+            @RequestParam(value = "fn") String fn,
+            @RequestParam(value = "args", required = false) String args,
+            Authentication auth) {
+
+        User user = (User) auth.getPrincipal();
+        String site = user.getDbKey();
+
+        AjaxResult result = new AjaxResult();
+
+        if (!ctiPushService.isAgentOnline(site)) {
+            result.success = false;
+            result.message = "전화 프로그램이 연결돼 있지 않습니다. 고장접수 화면에서 [연결] 을 먼저 눌러주세요.";
+            return result;
+        }
+
+        String jobId = ctiPushService.queueCall(site, fn, args);
+        Map<String, Object> answer = ctiPushService.awaitCall(jobId, CALL_TIMEOUT_MS);
+
+        if (answer == null) {
+            result.success = false;
+            result.message = "전화 프로그램이 응답하지 않습니다. 그 PC 가 켜져 있는지 확인해주세요.";
+            return result;
+        }
+
+        result.success = Boolean.TRUE.equals(answer.get("ok"));
+        result.message = String.valueOf(answer.get("message"));
+        result.data    = answer.get("data");
+        return result;
+    }
+
+    /** 에이전트가 호출 결과를 올린다. 기다리던 화면이 깨어난다. */
+    @PostMapping("/call-result")
+    public ResponseEntity<Map<String, Object>> callResult(
+            @RequestHeader(value = "X-Cti-Secret", required = false) String secret,
+            @RequestParam(value = "line")    String line,
+            @RequestParam(value = "id")      String id,
+            @RequestParam(value = "ok")      String ok,
+            @RequestParam(value = "message", required = false) String message,
+            @RequestParam(value = "data",    required = false) String data) {
+
+        ResponseEntity<Map<String, Object>> denied = checkAgent(secret);
+        if (denied != null) return denied;
+
+        String site = resolveSite(line);
+        if (site == null) return unknownLine(line);
+
+        ctiPushService.completeCall(id, "1".equals(ok) || "true".equalsIgnoreCase(ok), message, data);
+        return ResponseEntity.ok(Map.of("ok", true));
     }
 
     /** 에이전트가 발송 결과를 알려온다. 화면으로 그대로 올린다. */

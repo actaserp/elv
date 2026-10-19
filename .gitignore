@@ -56,3 +56,8 @@ _scripts/cti/csharp/*.pdb
 _scripts/cti/installer/secrets.bat
 _scripts/cti/installer/payload/
 _build/
+
+# 위 두 가지를 통째로 감싼 압축본(테스트 PC 로 옮길 때 만든다).
+# zip 으로 싸면 위 설정이 무력화되므로 따로 막는다.
+_scripts/cti/installer.zip
+_scripts/cti/installer/*.zip

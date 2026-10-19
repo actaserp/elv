@@ -47,6 +47,9 @@
     <Reference Include="System" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Security" />
+
+    <!-- 화면이 넘겨준 인자와 돌려줄 결과를 JSON 으로 다룬다 (KtCalls.cs) -->
+    <Reference Include="System.Web.Extensions" />
     <Reference Include="System.Windows.Forms" />
 
     <!-- 알림을 눌렀을 때 브라우저 탭을 전환하는 데 쓴다 (WindowFinder.cs) -->
@@ -69,6 +72,7 @@
     <Compile Include="Codes.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="KtAgent.cs" />
+    <Compile Include="KtCalls.cs" />
     <Compile Include="PasswordForm.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="SettingsForm.cs" />

@@ -117,6 +117,9 @@ public class CtiPushService {
         if (agentSeen.remove(site) != null) {
             log.info("[CTI] 에이전트 해제: site={}", site);
             sendAgentStatus(site, false);
+
+            // 가져갈 사람이 사라졌다. 기다리던 화면을 그대로 두면 시간초과까지 멈춰 있다.
+            failPendingCalls(site, "전화 프로그램이 종료됐습니다.");
         }
     }
 
@@ -134,6 +137,92 @@ public class CtiPushService {
     // SetRecvPhone → SendSMS 를 호출해야 해서, 연결/해제와 같은 명령 큐에 실어 보낸다.
     // 내용은 글자가 길고 쉼표·따옴표가 섞일 수 있어 명령 문자열에 끼워 넣지 않고 따로 둔다.
     private final Map<String, Map<String, Object>> smsJobs = new ConcurrentHashMap<>();
+
+    // ── KT 기능 호출 (범용) ──────────────────────────────────
+    //
+    // 문자는 '보내고 끝' 이라 결과를 그 사업체 화면 전체에 뿌려도 됐다.
+    // 주소록·팩스 조회는 다르다 — 누른 사람이 답을 기다리고 있고, 두 사람이
+    // 동시에 눌렀을 때 결과가 뒤바뀌면 안 된다. 그래서 건마다 번호를 붙이고,
+    // 그 번호로 부른 쪽에게만 돌려준다.
+    //
+    // 큐로 둔 이유: 슬롯 하나면 두 번째 요청이 첫 번째를 덮어쓴다.
+
+    /** 사업체(db_key) → 에이전트가 가져갈 호출 대기열 */
+    private final Map<String, java.util.Deque<Map<String, Object>>> callJobs = new ConcurrentHashMap<>();
+
+    /** 호출번호 → 답을 기다리는 화면. 에이전트가 결과를 올리면 깨운다. */
+    private final Map<String, java.util.concurrent.CompletableFuture<Map<String, Object>>> waiting
+            = new ConcurrentHashMap<>();
+
+    /** 화면이 부른 KT 기능을 대기열에 넣는다. 돌려주는 번호로 결과를 받는다. */
+    public String queueCall(String site, String fn, String args) {
+        String jobId = java.util.UUID.randomUUID().toString().substring(0, 8);
+
+        Map<String, Object> job = new java.util.LinkedHashMap<>();
+        job.put("id",   jobId);
+        job.put("fn",   fn);
+        job.put("args", args == null ? "" : args);
+
+        callJobs.computeIfAbsent(site, k -> new java.util.concurrent.ConcurrentLinkedDeque<>()).add(job);
+        waiting.put(jobId, new java.util.concurrent.CompletableFuture<>());
+
+        log.info("[CTI] 기능 호출 대기: site={}, fn={}, id={}", site, fn, jobId);
+        return jobId;
+    }
+
+    /** 에이전트가 하나 가져간다. 없으면 null. */
+    public Map<String, Object> takeCall(String site) {
+        var q = callJobs.get(site);
+        return q == null ? null : q.poll();
+    }
+
+    /**
+     * 결과가 올 때까지 기다린다. 에이전트가 꺼져 있거나 느리면 하염없이 기다리게 되므로
+     * 시간을 끊고 사실대로 알린다 — 화면이 멈춘 채 두는 것보다 낫다.
+     */
+    public Map<String, Object> awaitCall(String jobId, long timeoutMs) {
+        var f = waiting.get(jobId);
+        if (f == null) return null;
+
+        try {
+            return f.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.TimeoutException e) {
+            log.warn("[CTI] 기능 호출 시간초과: id={}", jobId);
+            return null;
+        } catch (Exception e) {
+            log.warn("[CTI] 기능 호출 대기 중 오류: id={}, {}", jobId, e.getMessage());
+            return null;
+        } finally {
+            waiting.remove(jobId);
+        }
+    }
+
+    /** 에이전트가 결과를 올렸다. 기다리던 화면을 깨운다. */
+    public void completeCall(String jobId, boolean ok, String message, String data) {
+        var f = waiting.get(jobId);
+        if (f == null) {
+            // 화면이 이미 포기했거나(시간초과) 중복으로 올라온 결과다. 버린다.
+            log.info("[CTI] 기다리지 않는 결과: id={}", jobId);
+            return;
+        }
+
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("ok",      ok);
+        payload.put("message", message == null ? "" : message);
+        payload.put("data",    data    == null ? "" : data);
+
+        f.complete(payload);
+    }
+
+    /** 에이전트가 끊기면 기다리던 것들을 모두 깨운다 — 그대로 두면 화면이 시간초과까지 멈춰 있다. */
+    public void failPendingCalls(String site, String reason) {
+        var q = callJobs.remove(site);
+        if (q == null) return;
+
+        for (Map<String, Object> job : q) {
+            completeCall((String) job.get("id"), false, reason, "");
+        }
+    }
 
     public void queueSms(String site, List<String> recipients, String message) {
         Map<String, Object> job = new java.util.LinkedHashMap<>();

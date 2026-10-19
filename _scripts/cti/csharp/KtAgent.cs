@@ -343,8 +343,46 @@ namespace ActasCti
                 if (res.Contains("\"connect\"")) { Log("화면에서 [연결] 을 눌렀습니다."); Login(); }
                 else if (res.Contains("\"disconnect\"")) { Log("화면에서 [해제] 를 눌렀습니다."); Logout(); }
                 else if (res.Contains("\"sms\"")) SendSms(res);
+
+                // 명령과 따로 실린다. 조회 한 번이 [연결] 을 밀어내면 안 되므로.
+                if (res.Contains("\"call\"")) RunCall(res);
             }
             catch { /* 통신 실패는 다음 주기에 다시 시도한다 */ }
+        }
+
+        /// <summary>
+        /// 화면이 부른 KT 기능을 실행하고 결과를 올린다.
+        ///
+        /// 화면은 지금 이 답을 기다리며 멈춰 있다. 그러니 무슨 일이 있어도
+        /// 결과를 올려야 한다 — 실패도 결과다. 안 올리면 화면이 시간초과까지 멎는다.
+        /// </summary>
+        void RunCall(string json)
+        {
+            string id = JsonString(json, "id");
+            string fn = JsonString(json, "fn");
+            if (id.Length == 0 || fn.Length == 0) { Log("[기능] 호출 내용을 읽지 못했습니다."); return; }
+
+            Log("[기능] " + fn + " 실행 (id=" + id + ")");
+
+            KtCalls.Result r;
+            if (!LoggedIn) r = KtCalls.Result.Fail("전화에 연결돼 있지 않습니다. [연결] 을 먼저 눌러주세요.");
+            else
+            {
+                try   { r = KtCalls.Run(kt, fn, JsonString(json, "args")); }
+                catch (Exception e) { r = KtCalls.Result.Fail(e.Message); }
+            }
+
+            var p = new NameValueCollection();
+            p["line"]    = cfg.KtLine();
+            p["id"]      = id;
+            p["ok"]      = r.Success ? "1" : "0";
+            p["message"] = r.Message ?? "";
+            p["data"]    = r.Data ?? "";
+
+            try { Http("POST", cfg.BaseUrl() + "call-result", p, 15000); }
+            catch (Exception e) { Log("[기능] 결과 전송 실패: " + e.Message); }
+
+            Log("[기능] " + fn + " " + (r.Success ? "성공" : "실패: " + r.Message));
         }
 
         /// <summary>

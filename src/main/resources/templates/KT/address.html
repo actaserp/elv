@@ -1,0 +1,340 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>KT 주소록</h2>
+        <a title="북마크" class="bookmark toggle">내 메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+        <li>KT API</li>
+        <li>주소록</li>
+      </ul>
+    </div>
+
+    <div class="tab-wrap">
+      <div class="tab-contents">
+        <section class="tab-item">
+
+          <div class="section-top">
+            <div class="search-wrap">
+              <dl>
+                <dt><label for="adType">구분</label></dt>
+                <dd>
+                  <select id="adType">
+                    <option value="2">개인</option>
+                    <option value="3">공유</option>
+                    <option value="6">회사</option>
+                  </select>
+                </dd>
+              </dl>
+              <dl>
+                <dt><label for="keyword">검색</label></dt>
+                <dd><input type="text" id="keyword" placeholder="이름·번호·회사 등"></dd>
+              </dl>
+            </div>
+            <div class="btn-wrap">
+              <a class="btn btn-search" id="btnSearch">조회</a>
+              <a class="btn btn-add"    id="btnNew">신규</a>
+              <a class="btn btn-save"   id="btnSave">저장</a>
+              <a class="btn btn-delete" id="btnDelete">삭제</a>
+              <a class="btn" id="btnResync" title="KT 서버와 이 PC 의 주소록을 다시 맞춥니다">동기화</a>
+            </div>
+          </div>
+
+          <!-- 왼쪽 그룹 / 가운데 목록 / 오른쪽 상세 -->
+          <div class="row">
+            <div class="wp18 mg-r10">
+              <div class="container-fluid col">
+                <div id="groupGrid" style="height:600px;"></div>
+              </div>
+            </div>
+
+            <div class="wp42 mg-r10">
+              <div class="container-fluid col">
+                <div id="dataGrid" style="height:600px;"></div>
+              </div>
+            </div>
+
+            <div class="col wp38">
+              <div class="section">
+                <div class="container-fluid col" style="height:600px; overflow-y:auto;">
+                  <table class="table-write">
+                    <colgroup><col style="width:30%"><col></colgroup>
+                    <tbody>
+                      <tr><th>이름 <span class="required">*</span></th>
+                          <td><input type="text" id="f_name" maxlength="40"></td></tr>
+                      <tr><th>휴대전화</th><td><input type="text" id="f_mobile"></td></tr>
+                      <tr><th>회사전화</th><td><input type="text" id="f_office"></td></tr>
+                      <tr><th>자택전화</th><td><input type="text" id="f_home"></td></tr>
+                      <tr><th>팩스</th>    <td><input type="text" id="f_fax"></td></tr>
+                      <tr><th>회사</th>    <td><input type="text" id="f_company"></td></tr>
+                      <tr><th>부서</th>    <td><input type="text" id="f_team"></td></tr>
+                      <tr><th>직위</th>    <td><input type="text" id="f_title"></td></tr>
+                      <tr><th>이메일</th>  <td><input type="text" id="f_email"></td></tr>
+                      <tr><th>주소</th>    <td><input type="text" id="f_address"></td></tr>
+                      <tr><th>메모</th>
+                          <td><textarea id="f_memo" rows="3" style="width:100%"></textarea></td></tr>
+                    </tbody>
+                  </table>
+                  <p class="txt-guide" style="margin-top:8px; color:#888;">
+                    전화 받는 PC 의 전화연동 프로그램을 거쳐 KT 주소록을 읽고 씁니다.
+                    그 PC 가 꺼져 있으면 조회되지 않습니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+      </div>
+    </div>
+  </div>
+  <footer style="margin-top:12px;"><p>Copyrightⓒ corp. All rights reserved.</p></footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <script type="text/javascript">
+    /*
+     * KT 주소록
+     *
+     * 이 화면의 데이터는 우리 DB 가 아니라 KT 서버에 있다. 브라우저가 KT 를 직접
+     * 못 부르므로, 전화 받는 PC 의 전화연동 프로그램을 거친다.
+     *
+     *   화면 → /api/AS/cti/call → 대기열 → 그 PC 의 프로그램 → KT → 되돌아옴
+     *
+     * 그래서 한 번 누르면 1~3초쯤 걸린다. 누른 줄 모르고 또 누르는 일이 없도록
+     * 진행 중에는 버튼을 잠근다.
+     */
+    class KtAddressPage {
+      constructor() {
+        this.groupGrid = null;
+        this.dataGrid  = null;
+        this.groups    = new wijmo.collections.CollectionView();
+        this.rows      = new wijmo.collections.CollectionView();
+
+        this.allRows   = [];     // 검색 전 원본 — 검색은 받아온 것 안에서 한다
+        this.groupId   = '';     // 지금 고른 그룹(PDBID)
+        this.current   = null;   // 지금 고른 항목
+        this.busy      = false;
+
+        this.init();
+      }
+
+      init() {
+        // ── 그룹 ──
+        this.groupGrid = new wijmo.grid.FlexGrid('#groupGrid', {
+          autoGenerateColumns: false,
+          isReadOnly: true,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          columns: [
+            { binding: 'name', header: '그룹', width: '*', minWidth: 90 },
+            { binding: 'dbid', visible: false }
+          ],
+          itemsSource: this.groups
+        });
+        this.groupGrid.rowHeaders.columns.splice(0, 1);
+        this.groupGrid.selectionChanged.addHandler(() => {
+          const g = this.groupGrid.selectedItems[0];
+          if (!g || !g.dbid) return;
+          this.groupId = g.dbid;
+          this.loadData();
+        });
+
+        // ── 목록 ──
+        this.dataGrid = new wijmo.grid.FlexGrid('#dataGrid', {
+          autoGenerateColumns: false,
+          isReadOnly: true,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          formatItem: (s, e) => {
+            if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader)
+              e.cell.style.textAlign = 'center';
+          },
+          columns: [
+            { binding: 'name',    header: '이름',     width: 100 },
+            { binding: 'mobile',  header: '휴대전화', width: 130, align: 'center' },
+            { binding: 'office',  header: '회사전화', width: 130, align: 'center' },
+            { binding: 'company', header: '회사',     width: '*', minWidth: 100 },
+            { binding: 'team',    header: '부서',     width: 100 },
+            { binding: 'dbid',    visible: false }
+          ],
+          itemsSource: this.rows
+        });
+        this.dataGrid.rowHeaders.columns.splice(0, 1);
+        new FlexGridContextMenu(this.dataGrid);
+        this.dataGrid.downloadFileName = 'KT주소록';
+
+        this.dataGrid.selectionChanged.addHandler(() => {
+          const d = this.dataGrid.selectedItems[0];
+          if (!d || !d.dbid) return;
+          this.current = d;
+          this.fill(d);
+        });
+      }
+
+      // ── KT 호출 ─────────────────────────────────────────
+      //    성공하면 payload(파싱된 JSON)를, 실패하면 안내 후 아무것도 안 넘긴다.
+
+      call(fn, args, done) {
+        if (this.busy) return;
+        this.busy = true;
+        this.lock(true);
+
+        AjaxUtil.postAsyncData('/api/AS/cti/call', {
+          fn: fn, args: JSON.stringify(args || {})
+        }, (res) => {
+          this.busy = false;
+          this.lock(false);
+
+          if (!res || !res.success) {
+            Alert.alert('', (res && res.message) ? res.message : '전화 프로그램과 통신하지 못했습니다.');
+            return;
+          }
+
+          let payload = null;
+          if (res.data) {
+            try { payload = JSON.parse(res.data); }
+            catch (e) { Alert.alert('', '응답을 읽지 못했습니다.'); return; }
+          }
+          done(payload);
+        });
+      }
+
+      lock(on) {
+        ['btnSearch','btnNew','btnSave','btnDelete','btnResync'].forEach(function (id) {
+          const el = document.getElementById(id);
+          if (el) el.style.pointerEvents = on ? 'none' : '';
+          if (el) el.style.opacity       = on ? '0.5' : '';
+        });
+      }
+
+      type() { return parseInt($('#adType').val(), 10); }
+
+      // ── 조회 ────────────────────────────────────────────
+
+      loadGroups() {
+        this.call('address.groupList', { type: this.type(), pdbid: '' }, (list) => {
+          this.groups = new wijmo.collections.CollectionView(list || []);
+          this.groupGrid.itemsSource = this.groups;
+
+          // 그룹이 없으면 전체를 바로 읽는다 — 빈 화면만 보여주면 고장으로 오해한다
+          this.groupId = '';
+          this.loadData();
+        });
+      }
+
+      loadData() {
+        this.call('address.dataList', { type: this.type(), pdbid: this.groupId }, (list) => {
+          this.allRows = list || [];
+          this.applyKeyword();
+          this.clear();
+        });
+      }
+
+      // 검색은 받아온 목록 안에서 한다. KT 에 검색 함수가 따로 없고,
+      // 한 그룹이 최대 2,000 건이라 화면에서 거르는 편이 빠르다.
+      applyKeyword() {
+        const q = ($('#keyword').val() || '').trim().toLowerCase();
+
+        let list = this.allRows;
+        if (q) {
+          list = this.allRows.filter(function (r) {
+            return ['name','mobile','office','home','fax','company','team','title','email','memo']
+                   .some(function (k) {
+                     return String(r[k] || '').toLowerCase().indexOf(q) >= 0;
+                   });
+          });
+        }
+
+        this.rows = new wijmo.collections.CollectionView(list);
+        this.dataGrid.itemsSource = this.rows;
+      }
+
+      // ── 상세 ────────────────────────────────────────────
+
+      fields() {
+        return ['name','mobile','office','home','fax','company','team','title','email','address','memo'];
+      }
+
+      fill(d) {
+        this.fields().forEach(function (k) { $('#f_' + k).val(d[k] || ''); });
+      }
+
+      clear() {
+        this.current = null;
+        this.fields().forEach(function (k) { $('#f_' + k).val(''); });
+      }
+
+      read() {
+        const v = {};
+        this.fields().forEach(function (k) { v[k] = ($('#f_' + k).val() || '').trim(); });
+        return v;
+      }
+
+      // ── 저장 / 삭제 ─────────────────────────────────────
+
+      save() {
+        const v = this.read();
+        if (!v.name) { Alert.alert('', '이름을 넣어주세요.'); $('#f_name').focus(); return; }
+
+        const args = Object.assign({ type: this.type(), pdbid: this.groupId }, v);
+
+        // dbid 가 있으면 고치기, 없으면 새로 넣기
+        if (this.current && this.current.dbid) {
+          args.dbid = this.current.dbid;
+          this.call('address.dataEdit', args, () => {
+            Alert.alert('', '저장했습니다.');
+            this.loadData();
+          });
+        } else {
+          this.call('address.dataNew', args, () => {
+            Alert.alert('', '등록했습니다.');
+            this.loadData();
+          });
+        }
+      }
+
+      remove() {
+        if (!this.current || !this.current.dbid) { Alert.alert('', '지울 항목을 골라주세요.'); return; }
+
+        const name = this.current.name || '';
+        Alert.confirm('', name + ' 을(를) 지웁니다.\n\nKT 주소록에서 지워지며 되돌릴 수 없습니다.', () => {
+          this.call('address.dataDel',
+                    { type: this.type(), pdbid: this.groupId, dbid: this.current.dbid }, () => {
+            Alert.alert('', '지웠습니다.');
+            this.loadData();
+          });
+        });
+      }
+
+      resync() {
+        Alert.confirm('', 'KT 서버와 그 PC 의 주소록을 다시 맞춥니다.\n\n잠시 걸릴 수 있습니다.', () => {
+          this.call('address.resync', { type: this.type() }, () => {
+            Alert.alert('', '맞췄습니다.');
+            this.loadGroups();
+          });
+        });
+      }
+    }
+
+    let page = null;
+    $(document).ready(function () {
+      page = new KtAddressPage();
+      page.loadGroups();
+
+      $('#btnSearch').on('click', function () { page.applyKeyword(); });
+      $('#btnNew').on('click',    function () { page.clear(); $('#f_name').focus(); });
+      $('#btnSave').on('click',   function () { page.save(); });
+      $('#btnDelete').on('click', function () { page.remove(); });
+      $('#btnResync').on('click', function () { page.resync(); });
+
+      $('#adType').on('change', function () { page.loadGroups(); });
+
+      $('#keyword').on('keyup', function (e) {
+        if (e.key === 'Enter') page.applyKeyword();
+      });
+    });
+  </script>
+</th:block>
+</html>
