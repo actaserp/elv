@@ -1,0 +1,355 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>KT 팩스발송</h2>
+        <a title="북마크" class="bookmark toggle">내 메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+        <li>KT API</li>
+        <li>팩스</li>
+        <li>발송</li>
+      </ul>
+    </div>
+
+    <div class="tab-wrap">
+      <div class="tab-contents">
+        <section class="tab-item">
+
+          <div class="section-top">
+            <div class="search-wrap">
+              <dl>
+                <dt><label for="adType">주소록</label></dt>
+                <dd>
+                  <select id="adType">
+                    <option value="3">공유</option>
+                    <option value="2">개인</option>
+                    <option value="6">회사</option>
+                  </select>
+                </dd>
+              </dl>
+              <dl>
+                <dt><label for="keyword">검색</label></dt>
+                <dd><input type="text" id="keyword" placeholder="이름·번호·회사 등"></dd>
+              </dl>
+            </div>
+            <div class="btn-wrap">
+              <a class="btn btn-search" id="btnLoad">주소록 조회</a>
+              <a class="btn btn-save"   id="btnSend">보내기</a>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="wp38 mg-r10">
+              <div class="container-fluid col">
+                <div id="bookGrid" style="height:500px;"></div>
+                <p style="margin-top:6px; color:#888;">
+                  행을 두 번 누르면 받는 곳에 들어갑니다. (팩스번호가 있는 항목만)
+                </p>
+              </div>
+            </div>
+
+            <div class="wp26 mg-r10">
+              <div class="container-fluid col">
+                <div id="toGrid" style="height:500px;"></div>
+                <div style="margin-top:6px;">
+                  <a class="btn btn-delete" id="btnRemove">빼기</a>
+                  <a class="btn" id="btnClear">비우기</a>
+                  <span id="toCount" style="margin-left:8px; color:#666;">0곳</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="col wp34">
+              <div class="section">
+                <div class="container-fluid col">
+                  <table class="table-write">
+                    <colgroup><col style="width:30%"><col></colgroup>
+                    <tbody>
+                      <tr><th>직접 입력</th>
+                          <td>
+                            <input type="text" id="manualFax" placeholder="02-1234-5678">
+                            <a class="btn btn-add" id="btnAddFax" style="margin-top:4px;">추가</a>
+                          </td></tr>
+                      <tr><th>제목</th>
+                          <td><input type="text" id="subject" maxlength="60"></td></tr>
+                      <tr><th>보낼 문서 <span class="required">*</span></th>
+                          <td>
+                            <input type="file" id="file"
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.hwp,.ods">
+                            <div id="fileInfo" style="margin-top:4px; color:#666;"></div>
+                          </td></tr>
+                      <tr><th>보낼 때</th>
+                          <td>
+                            <label><input type="radio" name="when" value="now" checked> 지금</label>
+                            <label style="margin-left:10px;"><input type="radio" name="when" value="later"> 예약</label>
+                            <input type="datetime-local" id="sendAt" style="margin-top:4px; display:none;">
+                          </td></tr>
+                    </tbody>
+                  </table>
+
+                  <p class="txt-guide" style="margin-top:10px; color:#888; line-height:1.6;">
+                    <b>PDF 를 권합니다.</b><br>
+                    한글·엑셀·워드 문서는 전화 받는 PC 에 그 프로그램과 CSD Writer 가
+                    깔려 있어야 팩스로 바뀝니다. 안 깔려 있으면 변환 오류가 납니다.<br><br>
+                    A3·A4 만 보낼 수 있습니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+      </div>
+    </div>
+  </div>
+  <footer style="margin-top:12px;"><p>Copyrightⓒ corp. All rights reserved.</p></footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <script type="text/javascript">
+    /*
+     * KT 팩스발송
+     *
+     * KT 의 FaxSend 는 '전화 받는 PC 에 있는 파일 경로' 를 받는다. 브라우저가 고른
+     * 파일은 거기에 없으므로 두 걸음을 거친다.
+     *
+     *   ① 파일을 서버에 올린다 → 토큰을 받는다
+     *   ② 토큰을 들려 보내면, 그 PC 의 프로그램이 서버에서 내려받아 보낸다
+     *
+     * 서버에 보관한 파일은 에이전트가 가져가면 지워지고, 안 가져가도 30분 뒤 치워진다.
+     */
+    class KtFaxSendPage {
+      constructor() {
+        this.bookGrid = null;
+        this.toGrid   = null;
+        this.bookAll  = [];
+        this.to       = [];     // [{name, fax}]
+        this.busy     = false;
+        this.init();
+      }
+
+      init() {
+        this.bookGrid = new wijmo.grid.FlexGrid('#bookGrid', {
+          autoGenerateColumns: false,
+          isReadOnly: true,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          columns: [
+            { binding: 'name',    header: '이름', width: 90 },
+            { binding: 'fax',     header: '팩스', width: 130, align: 'center' },
+            { binding: 'company', header: '회사', width: '*', minWidth: 90 }
+          ],
+          itemsSource: new wijmo.collections.CollectionView([])
+        });
+        this.bookGrid.rowHeaders.columns.splice(0, 1);
+        this.bookGrid.hostElement.addEventListener('dblclick', () => {
+          const r = this.bookGrid.selectedItems[0];
+          if (r) this.add(r.name, r.fax);
+        });
+
+        this.toGrid = new wijmo.grid.FlexGrid('#toGrid', {
+          autoGenerateColumns: false,
+          isReadOnly: true,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          columns: [
+            { binding: 'name', header: '이름', width: 80 },
+            { binding: 'fax',  header: '팩스번호', width: '*', minWidth: 110, align: 'center' }
+          ],
+          itemsSource: new wijmo.collections.CollectionView([])
+        });
+        this.toGrid.rowHeaders.columns.splice(0, 1);
+      }
+
+      // ── KT 호출 ─────────────────────────────────────────
+
+      call(fn, args, done) {
+        if (this.busy) return;
+        this.busy = true;
+        this.lock(true);
+
+        AjaxUtil.postAsyncData('/api/AS/cti/call', {
+          fn: fn, args: JSON.stringify(args || {})
+        }, (res) => {
+          this.busy = false;
+          this.lock(false);
+
+          if (!res || !res.success) {
+            Alert.alert('', (res && res.message) ? res.message : '전화 프로그램과 통신하지 못했습니다.');
+            return;
+          }
+
+          let payload = null;
+          if (res.data) {
+            try { payload = JSON.parse(res.data); } catch (e) { payload = null; }
+          }
+          done(payload);
+        });
+      }
+
+      lock(on) {
+        ['btnLoad','btnSend'].forEach(function (id) {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.style.pointerEvents = on ? 'none' : '';
+          el.style.opacity       = on ? '0.5' : '';
+        });
+      }
+
+      // ── 주소록 ──────────────────────────────────────────
+
+      loadBook() {
+        const type = parseInt($('#adType').val(), 10);
+        this.call('address.dataList', { type: type, pdbid: '' }, (list) => {
+          // 팩스번호가 없는 사람은 여기서 쓸 데가 없다
+          this.bookAll = (list || []).filter(function (r) {
+            return String(r.fax || '').replace(/[^0-9]/g, '').length > 0;
+          });
+          this.filterBook();
+          if (!this.bookAll.length) Alert.alert('', '팩스번호가 있는 주소록 항목이 없습니다.');
+        });
+      }
+
+      filterBook() {
+        const q = ($('#keyword').val() || '').trim().toLowerCase();
+
+        let list = this.bookAll;
+        if (q) {
+          list = this.bookAll.filter(function (r) {
+            return ['name','fax','company','team']
+                   .some(function (k) { return String(r[k] || '').toLowerCase().indexOf(q) >= 0; });
+          });
+        }
+        this.bookGrid.itemsSource = new wijmo.collections.CollectionView(list);
+      }
+
+      // ── 받는 곳 ─────────────────────────────────────────
+
+      add(name, fax) {
+        const digits = String(fax || '').replace(/[^0-9]/g, '');
+        if (!digits) { Alert.alert('', '팩스번호가 없습니다.'); return; }
+        if (this.to.some(function (t) { return t.fax === digits; })) return;
+
+        this.to.push({ name: name || '', fax: digits });
+        this.refreshTo();
+      }
+
+      removeSelected() {
+        const r = this.toGrid.selectedItems[0];
+        if (!r) { Alert.alert('', '뺄 곳을 골라주세요.'); return; }
+        this.to = this.to.filter(function (t) { return t.fax !== r.fax; });
+        this.refreshTo();
+      }
+
+      refreshTo() {
+        this.toGrid.itemsSource = new wijmo.collections.CollectionView(this.to.slice());
+        $('#toCount').text(this.to.length + '곳');
+      }
+
+      // ── 보내기 ──────────────────────────────────────────
+
+      send() {
+        const f     = document.getElementById('file').files[0];
+        const later = $('input[name=when]:checked').val() === 'later';
+
+        if (!this.to.length) { Alert.alert('', '받는 곳을 넣어주세요.'); return; }
+        if (!f)              { Alert.alert('', '보낼 문서를 고르세요.'); return; }
+
+        let at = '';
+        if (later) {
+          at = ($('#sendAt').val() || '').replace(/[^0-9]/g, '').substring(0, 12);
+          if (at.length !== 12) { Alert.alert('', '보낼 시각을 정해주세요.'); return; }
+          if (new Date($('#sendAt').val()) <= new Date()) {
+            Alert.alert('', '지난 시각으로는 예약할 수 없습니다.');
+            return;
+          }
+        }
+
+        Alert.confirm('', this.to.length + '곳에 ' + f.name + ' 을(를) 보냅니다.' +
+                          (later ? '\n예약: ' + $('#sendAt').val() : ''), () => {
+          this.upload(f, (token) => {
+            this.call(later ? 'fax.reserve' : 'fax.send', {
+              token   : token,
+              subject : ($('#subject').val() || f.name),
+              numbers : this.to.map(function (t) { return t.fax; }),
+              sendType: 1,
+              reserveTime: at
+            }, (r) => {
+              const pages = (r && r.pages) ? ' (' + r.pages + '쪽)' : '';
+              Alert.alert('', later ? '예약했습니다.' + pages : '보냈습니다.' + pages);
+            });
+          });
+        });
+      }
+
+      /** 파일을 서버에 올리고 토큰을 받는다. 여기는 ajax 가 아니라 FormData 로 보낸다. */
+      upload(file, done) {
+        const fd = new FormData();
+        fd.append('file', file);
+
+        this.lock(true);
+        $('#fileInfo').text('올리는 중…');
+
+        fetch(withCtx('/api/AS/cti/fax-upload'), { method: 'POST', body: fd, credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then((res) => {
+            this.lock(false);
+            if (!res || res.success === false || !res.data || !res.data.token) {
+              $('#fileInfo').text('');
+              Alert.alert('', (res && res.message) ? res.message : '파일을 올리지 못했습니다.');
+              return;
+            }
+            $('#fileInfo').text(res.data.name + ' (' + Math.round(res.data.size / 1024) + 'KB) 올림');
+            done(res.data.token);
+          })
+          .catch((e) => {
+            this.lock(false);
+            $('#fileInfo').text('');
+            Alert.alert('', '파일을 올리지 못했습니다: ' + e.message);
+          });
+      }
+    }
+
+    let page = null;
+    $(document).ready(function () {
+      page = new KtFaxSendPage();
+
+      // 이 계정에서 팩스를 쓸 수 있는지 먼저 본다 — 안 되면 다 해놓고 마지막에 막힌다
+      page.call('fax.enabled', {}, function (r) {
+        if (r && r.enabled === 0) {
+          Alert.alert('', '이 계정에서는 팩스를 쓸 수 없습니다.\nKT 에 팩스 서비스를 문의해주세요.');
+        }
+      });
+      page.loadBook();
+
+      $('#btnLoad').on('click',   function () { page.loadBook(); });
+      $('#btnSend').on('click',   function () { page.send(); });
+      $('#btnRemove').on('click', function () { page.removeSelected(); });
+      $('#btnClear').on('click',  function () { page.to = []; page.refreshTo(); });
+
+      $('#btnAddFax').on('click', function () {
+        page.add('', $('#manualFax').val());
+        $('#manualFax').val('').focus();
+      });
+      $('#manualFax').on('keyup', function (e) {
+        if (e.key === 'Enter') $('#btnAddFax').click();
+      });
+
+      $('input[name=when]').on('change', function () {
+        const later = $('input[name=when]:checked').val() === 'later';
+        $('#sendAt').toggle(later);
+        $('#btnSend').text(later ? '예약' : '보내기');
+      });
+
+      $('#file').on('change', function () {
+        const f = this.files[0];
+        $('#fileInfo').text(f ? f.name + ' (' + Math.round(f.size / 1024) + 'KB)' : '');
+      });
+
+      $('#adType').on('change', function () { page.loadBook(); });
+      $('#keyword').on('keyup', function () { page.filterBook(); });
+    });
+  </script>
+</th:block>
+</html>

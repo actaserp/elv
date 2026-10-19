@@ -1,0 +1,267 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>KT 팩스내역</h2>
+        <a title="북마크" class="bookmark toggle">내 메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+        <li>KT API</li>
+        <li>팩스</li>
+        <li>내역</li>
+      </ul>
+    </div>
+
+    <div class="tab-wrap">
+      <div class="tab-contents">
+        <section class="tab-item">
+
+          <div class="section-top">
+            <div class="search-wrap">
+              <dl>
+                <dt><label for="dir">구분</label></dt>
+                <dd>
+                  <select id="dir">
+                    <option value="send">보낸 팩스</option>
+                    <option value="recv">받은 팩스</option>
+                  </select>
+                </dd>
+              </dl>
+              <dl>
+                <dt><label for="dateFrom">기간</label></dt>
+                <dd><input type="date" id="dateFrom"> ~ <input type="date" id="dateTo"></dd>
+              </dl>
+              <dl>
+                <dt><label for="keyword">검색</label></dt>
+                <dd><input type="text" id="keyword" placeholder="번호·제목"></dd>
+              </dl>
+            </div>
+            <div class="btn-wrap">
+              <a class="btn btn-search" id="btnSearch">조회</a>
+              <a class="btn" id="btnResend">재발송</a>
+              <a class="btn btn-delete" id="btnCancel">발송취소</a>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col">
+              <div class="container-fluid col">
+                <div id="grid" style="height:580px;"></div>
+                <p style="margin-top:6px; color:#888;">
+                  <span id="summary">—</span>
+                  &nbsp;·&nbsp; 재발송·취소는 보낸 팩스에서만 됩니다.
+                </p>
+              </div>
+            </div>
+          </div>
+
+        </section>
+      </div>
+    </div>
+  </div>
+  <footer style="margin-top:12px;"><p>Copyrightⓒ corp. All rights reserved.</p></footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <script type="text/javascript">
+    /*
+     * KT 팩스내역 — 보낸 것과 받은 것.
+     *
+     * 문자와 달리 KT 가 기간을 받아준다(FaxSendList / FaxRecvList).
+     * 그래서 기간은 서버에서 끊고, 검색만 화면에서 한다.
+     *
+     * 보낸 팩스와 받은 팩스는 돌아오는 항목이 아예 달라서 열도 갈아끼운다.
+     */
+    class KtFaxListPage {
+      constructor() {
+        this.grid    = null;
+        this.all     = [];
+        this.current = null;
+        this.busy    = false;
+        this.init();
+      }
+
+      init() {
+        this.grid = new wijmo.grid.FlexGrid('#grid', {
+          autoGenerateColumns: false,
+          isReadOnly: true,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          formatItem: (s, e) => {
+            if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader)
+              e.cell.style.textAlign = 'center';
+          },
+          itemsSource: new wijmo.collections.CollectionView([])
+        });
+        this.grid.rowHeaders.columns.splice(0, 1);
+        new FlexGridContextMenu(this.grid);
+
+        this.grid.selectionChanged.addHandler(() => {
+          this.current = this.grid.selectedItems[0] || null;
+        });
+
+        this.setColumns('send');
+      }
+
+      setColumns(dir) {
+        const cols = (dir === 'send') ? [
+          { binding: 'timeNm',    header: '보낸 시각',  width: 150, align: 'center' },
+          { binding: 'faxNumber', header: '받는 번호',  width: 130, align: 'center' },
+          { binding: 'subject',   header: '제목',       width: '*', minWidth: 180 },
+          { binding: 'resultNm',  header: '결과',       width: 110, align: 'center' },
+          { binding: 'jobId',     header: '작업번호',   width: 100, align: 'center' }
+        ] : [
+          { binding: 'timeNm', header: '받은 시각',  width: 150, align: 'center' },
+          { binding: 'from',   header: '보낸 번호',  width: 130, align: 'center' },
+          { binding: 'to',     header: '받은 번호',  width: 130, align: 'center' },
+          { binding: 'pages',  header: '쪽수',       width: 80,  align: 'center' },
+          { binding: 'readNm', header: '열람',       width: 90,  align: 'center' },
+          { binding: 'msgId',  header: '문서번호',   width: 100, align: 'center' }
+        ];
+
+        this.grid.columns.clear();
+        cols.forEach((c) => this.grid.columns.push(new wijmo.grid.Column(c)));
+        this.grid.downloadFileName = (dir === 'send') ? 'KT팩스발송내역' : 'KT팩스수신내역';
+      }
+
+      // ── KT 호출 ─────────────────────────────────────────
+
+      call(fn, args, done) {
+        if (this.busy) return;
+        this.busy = true;
+        this.lock(true);
+
+        AjaxUtil.postAsyncData('/api/AS/cti/call', {
+          fn: fn, args: JSON.stringify(args || {})
+        }, (res) => {
+          this.busy = false;
+          this.lock(false);
+
+          if (!res || !res.success) {
+            Alert.alert('', (res && res.message) ? res.message : '전화 프로그램과 통신하지 못했습니다.');
+            return;
+          }
+
+          let payload = null;
+          if (res.data) {
+            try { payload = JSON.parse(res.data); } catch (e) { payload = null; }
+          }
+          done(payload);
+        });
+      }
+
+      lock(on) {
+        ['btnSearch','btnResend','btnCancel'].forEach(function (id) {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.style.pointerEvents = on ? 'none' : '';
+          el.style.opacity       = on ? '0.5' : '';
+        });
+      }
+
+      fmt(s) {
+        const d = String(s || '').replace(/[^0-9]/g, '');
+        if (d.length < 8) return s || '';
+        let out = d.substring(0,4) + '-' + d.substring(4,6) + '-' + d.substring(6,8);
+        if (d.length >= 12) out += ' ' + d.substring(8,10) + ':' + d.substring(10,12);
+        return out;
+      }
+
+      dir() { return $('#dir').val(); }
+
+      // ── 조회 ────────────────────────────────────────────
+
+      load() {
+        const dir  = this.dir();
+        const from = ($('#dateFrom').val() || '').replace(/-/g, '');
+        const to   = ($('#dateTo').val()   || '').replace(/-/g, '');
+
+        this.setColumns(dir);
+
+        this.call(dir === 'send' ? 'fax.sendList' : 'fax.recvList',
+                  { lines: 200, page: 1, from: from, to: to }, (list) => {
+          this.all = list || [];
+
+          this.all.forEach((r) => {
+            r.timeNm = this.fmt(dir === 'send' ? r.endTime : r.time);
+            if (dir === 'send') r.resultNm = (r.result === 200) ? '성공' : ('실패 ' + r.result);
+            else                r.readNm   = (r.read ? '열람' : '안 읽음');
+          });
+
+          this.filter();
+          this.current = null;
+        });
+      }
+
+      filter() {
+        const q    = ($('#keyword').val() || '').trim().toLowerCase();
+        const keys = (this.dir() === 'send')
+                   ? ['faxNumber','subject','timeNm','resultNm']
+                   : ['from','to','timeNm'];
+
+        let list = this.all;
+        if (q) {
+          list = this.all.filter(function (r) {
+            return keys.some(function (k) {
+              return String(r[k] || '').toLowerCase().indexOf(q) >= 0;
+            });
+          });
+        }
+
+        this.grid.itemsSource = new wijmo.collections.CollectionView(list);
+        $('#summary').text('가져온 ' + this.all.length + '건 중 ' + list.length + '건');
+      }
+
+      // ── 재발송 / 취소 ───────────────────────────────────
+
+      resend() {
+        if (this.dir() !== 'send') { Alert.alert('', '보낸 팩스에서만 됩니다.'); return; }
+        if (!this.current)         { Alert.alert('', '다시 보낼 팩스를 골라주세요.'); return; }
+
+        Alert.confirm('', (this.current.subject || '') + ' 을(를) 다시 보냅니다.', () => {
+          this.call('fax.resend', { jobId: this.current.jobId, subJobId: 0 }, () => {
+            Alert.alert('', '다시 보냈습니다.');
+            this.load();
+          });
+        });
+      }
+
+      cancel() {
+        if (this.dir() !== 'send') { Alert.alert('', '보낸 팩스에서만 됩니다.'); return; }
+        if (!this.current)         { Alert.alert('', '취소할 팩스를 골라주세요.'); return; }
+
+        Alert.confirm('', (this.current.subject || '') + ' 발송을 취소합니다.\n\n' +
+                          '이미 나간 팩스는 취소되지 않습니다.', () => {
+          this.call('fax.cancel', { jobId: this.current.jobId, subJobId: 0 }, () => {
+            Alert.alert('', '취소를 요청했습니다.');
+            this.load();
+          });
+        });
+      }
+    }
+
+    let page = null;
+    $(document).ready(function () {
+      page = new KtFaxListPage();
+
+      const now = new Date();
+      const pad = function (n) { return (n < 10 ? '0' : '') + n; };
+      const ym  = now.getFullYear() + '-' + pad(now.getMonth() + 1);
+      $('#dateFrom').val(ym + '-01');
+      $('#dateTo').val(ym + '-' + pad(now.getDate()));
+
+      page.load();
+
+      $('#btnSearch').on('click', function () { page.load(); });
+      $('#btnResend').on('click', function () { page.resend(); });
+      $('#btnCancel').on('click', function () { page.cancel(); });
+
+      $('#dir').on('change',      function () { page.load(); });
+      $('#dateFrom').on('change', function () { page.load(); });
+      $('#dateTo').on('change',   function () { page.load(); });
+      $('#keyword').on('keyup',   function () { page.filter(); });
+    });
+  </script>
+</th:block>
+</html>

@@ -69,6 +69,29 @@ namespace ActasCti
             }
         }
 
+        /// <summary>
+        /// 팩스 결과 (규격서 8.1.1).
+        ///
+        /// 코드가 90개 가까이 되는데 매뉴얼 PDF 에서 한글 설명이 추출되지 않아
+        /// 하나하나 옮기지 못했다. 다만 번호대가 성격별로 갈려 있어서, 쓰는 사람이
+        /// 할 일은 그 묶음만으로 갈린다 — 설치 문제인지, 변환 문제인지, 전송 문제인지.
+        /// 코드는 그대로 붙여서 매뉴얼을 찾아볼 수 있게 한다.
+        /// </summary>
+        public static string FaxMsg(int c)
+        {
+            if (c == 200) return "";
+
+            string why;
+            if (c >= 5100)      why = "문서를 팩스로 바꾸지 못했습니다. 이 PC 에 CSD Writer 와 "
+                                    + "해당 문서의 프로그램(한글·엑셀 등)이 깔려 있어야 합니다.";
+            else if (c >= 5070) why = "팩스를 보내지 못했습니다. 번호와 상대 팩스 상태를 확인해주세요.";
+            else if (c >= 5053) why = "이 PC 의 팩스 프로그램이 제대로 설치돼 있지 않습니다. 다시 설치해주세요.";
+            else if (c >= 5000) why = "팩스 발송 요청이 거절됐습니다.";
+            else                why = "팩스를 보내지 못했습니다.";
+
+            return why + " (코드 " + c + ")";
+        }
+
         /// <summary>규격서 10.1 — 수신상태</summary>
         public static string CallState(string c)
         {

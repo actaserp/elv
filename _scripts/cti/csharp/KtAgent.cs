@@ -114,6 +114,14 @@ namespace ActasCti
                 // 남의 연결을 끊는 일이라 묻고 나서 한다.
                 if (rc == 301 || rc == 1000)
                 {
+                    // 방금 끊고 다시 붙는 길이었는데 또 걸렸다. 다시 물으면 같은 일을 되풀이한다.
+                    if (afterKick)
+                    {
+                        afterKick = false;
+                        Notify("끊었는데도 아직 다른 곳에서 연결돼 있습니다. 잠시 뒤 다시 시도해주세요.", false);
+                        return;
+                    }
+
                     var dup = DuplicateLogin;
                     if (dup != null) dup();
                 }
@@ -129,6 +137,7 @@ namespace ActasCti
             }
             // 여기서부터 KT 쪽에는 세션이 서 있다. 결과가 오든 안 오든 끝낼 때 정리해야 한다.
             loginRequested = true;
+            afterKick      = false;   // 요청이 받아들여졌다 — 끊고 붙는 길은 여기서 끝
             Log("요청 성공. 인증 결과(EventLogin)를 기다립니다…");
         }
 
@@ -153,10 +162,27 @@ namespace ActasCti
 
             Log(string.Format("LoginKickOut() 반환값 = {0}", rc));
 
-            if (rc == 200) { Notify("다른 PC 의 연결을 끊는 중…", false); return; }
+            if (rc != 200)
+            {
+                Notify("다른 PC 의 연결을 끊지 못했습니다. (코드 " + rc + ")", false);
+                return;
+            }
 
-            Notify("다른 PC 의 연결을 끊지 못했습니다. (코드 " + rc + ")", false);
+            // 규격서에는 EventLogin 이 온다고 적혀 있지만 실제로는 오지 않는다(실측 2회).
+            // 끊어주기만 하고 로그인은 안 해준다 — 그대로 두면 '끊는 중…' 에서 멎는다.
+            // 저쪽이 빠질 틈을 조금 주고 우리가 다시 붙는다.
+            Notify("다른 PC 의 연결을 끊었습니다. 다시 연결합니다…", false);
+
+            afterKick = true;
+            if (reloginTimer != null) reloginTimer.Dispose();
+            reloginTimer = new Timer(_ => Login(), null, KICK_RELOGIN_MS, Timeout.Infinite);
         }
+
+        const int KICK_RELOGIN_MS = 2000;
+
+        /// <summary>끊고 다시 붙는 중이다 — 또 301 이 와도 다시 묻지 않는다(무한 반복 방지).</summary>
+        bool  afterKick;
+        Timer reloginTimer;
 
         // ── KT 자체 창 / 진단 ────────────────────────────────────
 

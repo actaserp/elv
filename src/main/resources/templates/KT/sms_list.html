@@ -1,0 +1,303 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>KT 문자내역</h2>
+        <a title="북마크" class="bookmark toggle">내 메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+        <li>KT API</li>
+        <li>문자</li>
+        <li>내역</li>
+      </ul>
+    </div>
+
+    <div class="tab-wrap">
+      <div class="tab-contents">
+        <section class="tab-item">
+
+          <div class="section-top">
+            <div class="search-wrap">
+              <dl>
+                <dt><label for="kind">구분</label></dt>
+                <dd>
+                  <select id="kind">
+                    <option value="1">전체</option>
+                    <option value="2">발신</option>
+                    <option value="3">수신</option>
+                    <option value="5">실패</option>
+                    <option value="6">예약전송</option>
+                  </select>
+                </dd>
+              </dl>
+              <dl>
+                <dt><label for="dateFrom">기간</label></dt>
+                <dd>
+                  <input type="date" id="dateFrom"> ~ <input type="date" id="dateTo">
+                </dd>
+              </dl>
+              <dl>
+                <dt><label for="count">가져올 건수</label></dt>
+                <dd>
+                  <select id="count">
+                    <option value="200">200</option>
+                    <option value="500">500</option>
+                    <option value="1000">1000</option>
+                  </select>
+                </dd>
+              </dl>
+              <dl>
+                <dt><label for="keyword">검색</label></dt>
+                <dd><input type="text" id="keyword" placeholder="번호·내용"></dd>
+              </dl>
+            </div>
+            <div class="btn-wrap">
+              <a class="btn btn-search" id="btnSearch">조회</a>
+              <a class="btn btn-delete" id="btnDelete">삭제</a>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="wp68 mg-r10">
+              <div class="container-fluid col">
+                <div id="grid" style="height:560px;"></div>
+                <p style="margin-top:6px; color:#888;">
+                  <span id="summary">—</span>
+                </p>
+              </div>
+            </div>
+
+            <div class="col wp30">
+              <div class="section">
+                <div class="container-fluid col">
+                  <table class="table-write">
+                    <colgroup><col style="width:32%"><col></colgroup>
+                    <tbody>
+                      <tr><th>일시</th>   <td><span id="v_date"></span></td></tr>
+                      <tr><th>보낸 번호</th><td><span id="v_caller"></span></td></tr>
+                      <tr><th>받은 번호</th><td><span id="v_callee"></span></td></tr>
+                      <tr><th>결과</th>   <td><span id="v_result"></span></td></tr>
+                      <tr><th>예약</th>   <td><span id="v_reserve"></span></td></tr>
+                    </tbody>
+                  </table>
+
+                  <div style="margin-top:10px;">
+                    <textarea id="v_message" rows="10" style="width:100%;" readonly></textarea>
+                  </div>
+
+                  <p class="txt-guide" style="margin-top:10px; color:#888; line-height:1.6;">
+                    기간은 가져온 목록 안에서 거릅니다.
+                    오래된 것이 안 보이면 가져올 건수를 늘려주세요.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+      </div>
+    </div>
+  </div>
+  <footer style="margin-top:12px;"><p>Copyrightⓒ corp. All rights reserved.</p></footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <script type="text/javascript">
+    /*
+     * KT 문자내역
+     *
+     * sKind (규격서 5.3.2) — 1:전체, 2:발신, 3:수신, 5:실패, 6:예약전송. 4 는 없다.
+     *
+     * KT 가 주는 건 '최근 n건' 이라 기간은 받아온 것 안에서 거른다.
+     * 기간을 서버에 넘기는 함수(GetSmsListByDate)도 있지만 규격서에 설명이 없어
+     * 쓰지 않았다. 오래된 것이 필요하면 가져올 건수를 늘린다.
+     */
+    class KtSmsListPage {
+      constructor() {
+        this.grid    = null;
+        this.all     = [];
+        this.current = null;
+        this.busy    = false;
+        this.init();
+      }
+
+      init() {
+        this.grid = new wijmo.grid.FlexGrid('#grid', {
+          autoGenerateColumns: false,
+          isReadOnly: true,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          formatItem: (s, e) => {
+            if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader)
+              e.cell.style.textAlign = 'center';
+          },
+          columns: [
+            { binding: 'dateNm',  header: '일시',      width: 150, align: 'center' },
+            { binding: 'caller',  header: '보낸 번호', width: 120, align: 'center' },
+            { binding: 'callee',  header: '받은 번호', width: 120, align: 'center' },
+            { binding: 'message',  header: '내용', width: '*', minWidth: 180 },
+            { binding: 'resultNm', header: '결과', width: 110, align: 'center' },
+            { binding: 'dbid',    visible: false }
+          ],
+          itemsSource: new wijmo.collections.CollectionView([])
+        });
+        this.grid.rowHeaders.columns.splice(0, 1);
+        new FlexGridContextMenu(this.grid);
+        this.grid.downloadFileName = 'KT문자내역';
+
+        this.grid.selectionChanged.addHandler(() => {
+          const r = this.grid.selectedItems[0];
+          if (!r) return;
+          this.current = r;
+          $('#v_date').text(r.dateNm || '');
+          $('#v_caller').text(r.caller || '');
+          $('#v_callee').text(r.callee || '');
+          $('#v_result').text(r.resultNm || '');
+          $('#v_reserve').text(this.fmt(r.reserve) || '-');
+          $('#v_message').val(r.message || '');
+        });
+      }
+
+      // ── KT 호출 ─────────────────────────────────────────
+
+      call(fn, args, done) {
+        if (this.busy) return;
+        this.busy = true;
+        this.lock(true);
+
+        AjaxUtil.postAsyncData('/api/AS/cti/call', {
+          fn: fn, args: JSON.stringify(args || {})
+        }, (res) => {
+          this.busy = false;
+          this.lock(false);
+
+          if (!res || !res.success) {
+            Alert.alert('', (res && res.message) ? res.message : '전화 프로그램과 통신하지 못했습니다.');
+            return;
+          }
+
+          let payload = null;
+          if (res.data) {
+            try { payload = JSON.parse(res.data); } catch (e) { payload = null; }
+          }
+          done(payload);
+        });
+      }
+
+      lock(on) {
+        ['btnSearch','btnDelete'].forEach(function (id) {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.style.pointerEvents = on ? 'none' : '';
+          el.style.opacity       = on ? '0.5' : '';
+        });
+      }
+
+      /** 문자 발신 상태 (규격서 10.3) */
+      resultName(c) {
+        const n = String(c == null ? '' : c).trim();
+
+        switch (n) {
+          case '000':
+          case '0':    return 'SMS 발송 대기';
+          case '200':  return 'SMS 발신 완료';
+          case '900':  return '예약전송 대기';
+          case '901':
+          case '902':  return '예약전송 실패';
+          case '0000': return 'MMS 발송 대기';
+          case '1000': return 'MMS 발신 완료';
+          default:     return n ? '코드 ' + n : '';
+        }
+      }
+
+      /** KT 가 주는 YYYYMMDDhhmmss 를 읽기 좋게 */
+      fmt(s) {
+        const d = String(s || '').replace(/[^0-9]/g, '');
+        if (d.length < 8) return '';
+        let out = d.substring(0,4) + '-' + d.substring(4,6) + '-' + d.substring(6,8);
+        if (d.length >= 12) out += ' ' + d.substring(8,10) + ':' + d.substring(10,12);
+        return out;
+      }
+
+      // ── 조회 ────────────────────────────────────────────
+
+      load() {
+        const kind  = parseInt($('#kind').val(), 10);
+        const count = parseInt($('#count').val(), 10);
+
+        this.call('sms.list', { kind: kind, start: 0, count: count }, (list) => {
+          this.all = list || [];
+          this.all.forEach((r) => {
+            r.dateNm   = this.fmt(r.date);
+            r.resultNm = this.resultName(r.result);
+          });
+          this.filter();
+          this.clear();
+        });
+      }
+
+      filter() {
+        const q    = ($('#keyword').val() || '').trim().toLowerCase();
+        const from = ($('#dateFrom').val() || '').replace(/-/g, '');
+        const to   = ($('#dateTo').val()   || '').replace(/-/g, '');
+
+        const list = this.all.filter(function (r) {
+          const ymd = String(r.date || '').replace(/[^0-9]/g, '').substring(0, 8);
+
+          if (from && ymd && ymd < from) return false;
+          if (to   && ymd && ymd > to)   return false;
+
+          if (!q) return true;
+          return ['caller','callee','message','dateNm','resultNm']
+                 .some(function (k) { return String(r[k] || '').toLowerCase().indexOf(q) >= 0; });
+        });
+
+        this.grid.itemsSource = new wijmo.collections.CollectionView(list);
+        $('#summary').text('가져온 ' + this.all.length + '건 중 ' + list.length + '건');
+      }
+
+      clear() {
+        this.current = null;
+        ['date','caller','callee','result','reserve'].forEach(function (k) { $('#v_' + k).text(''); });
+        $('#v_message').val('');
+      }
+
+      remove() {
+        if (!this.current || !this.current.dbid) { Alert.alert('', '지울 문자를 골라주세요.'); return; }
+
+        Alert.confirm('', '이 문자를 내역에서 지웁니다.\n\n되돌릴 수 없습니다.', () => {
+          this.call('sms.del', { dbid: this.current.dbid }, () => {
+            Alert.alert('', '지웠습니다.');
+            this.load();
+          });
+        });
+      }
+    }
+
+    let page = null;
+    $(document).ready(function () {
+      page = new KtSmsListPage();
+
+      // 처음 열면 이번 달로 잡아둔다
+      const now = new Date();
+      const pad = function (n) { return (n < 10 ? '0' : '') + n; };
+      const ym  = now.getFullYear() + '-' + pad(now.getMonth() + 1);
+      $('#dateFrom').val(ym + '-01');
+      $('#dateTo').val(ym + '-' + pad(now.getDate()));
+
+      page.load();
+
+      $('#btnSearch').on('click', function () { page.load(); });
+      $('#btnDelete').on('click', function () { page.remove(); });
+
+      $('#kind').on('change',  function () { page.load(); });
+      $('#count').on('change', function () { page.load(); });
+
+      $('#keyword').on('keyup',    function () { page.filter(); });
+      $('#dateFrom').on('change',  function () { page.filter(); });
+      $('#dateTo').on('change',    function () { page.filter(); });
+    });
+  </script>
+</th:block>
+</html>

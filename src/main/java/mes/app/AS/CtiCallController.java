@@ -423,6 +423,100 @@ public class CtiCallController {
         return result;
     }
 
+    // ── 팩스 보낼 파일 건네주기 ──────────────────────────────
+    //
+    //   KT 의 FaxSend 는 '그 PC 에 있는 파일의 경로' 를 받는다. 브라우저가 고른 파일은
+    //   그 PC 에 없으므로 서버를 거쳐 옮긴다.
+    //
+    //     화면 ──업로드──→ 서버(임시보관) ──토큰──→ 에이전트 ──내려받기──→ 그 PC 임시파일
+    //
+    //   보관한 파일은 에이전트가 가져가면 지운다. 안 가져가면 시간이 지나 치워진다.
+
+    private static final long FAX_FILE_TTL_MS = 30 * 60 * 1000L;
+
+    /** 토큰 → 보관한 파일 */
+    private final Map<String, File> faxFiles = new java.util.concurrent.ConcurrentHashMap<>();
+
+    @PostMapping("/fax-upload")
+    public AjaxResult faxUpload(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+
+        if (file == null || file.isEmpty()) {
+            result.success = false;
+            result.message = "보낼 파일을 고르지 않았습니다.";
+            return result;
+        }
+
+        String name = file.getOriginalFilename() == null ? "fax" : file.getOriginalFilename();
+
+        // 경로가 섞여 들어오면 엉뚱한 곳에 쓰게 된다. 파일 이름만 남긴다.
+        name = name.replace('\\', '/');
+        name = name.substring(name.lastIndexOf('/') + 1);
+
+        try {
+            sweepFaxFiles();
+
+            File dir = new File(System.getProperty("java.io.tmpdir"), "elv-fax");
+            if (!dir.isDirectory() && !dir.mkdirs()) {
+                result.success = false;
+                result.message = "서버에 파일을 보관하지 못했습니다.";
+                return result;
+            }
+
+            String token = java.util.UUID.randomUUID().toString().replace("-", "");
+            File saved = new File(dir, token + "_" + name);
+            file.transferTo(saved);
+            faxFiles.put(token, saved);
+
+            log.info("[CTI] 팩스 파일 보관: {} ({} bytes)", name, saved.length());
+
+            result.data = Map.of("token", token, "name", name, "size", saved.length());
+            return result;
+
+        } catch (Exception e) {
+            log.warn("[CTI] 팩스 파일 보관 실패: {}", e.getMessage());
+            result.success = false;
+            result.message = "파일을 올리지 못했습니다: " + e.getMessage();
+            return result;
+        }
+    }
+
+    /** 에이전트가 그 파일을 내려받는다. 한 번 가져가면 지운다. */
+    @GetMapping("/fax-file")
+    public ResponseEntity<?> faxFile(
+            @RequestHeader(value = "X-Cti-Secret", required = false) String secret,
+            @RequestParam(value = "line")  String line,
+            @RequestParam(value = "token") String token) {
+
+        ResponseEntity<Map<String, Object>> denied = checkAgent(secret);
+        if (denied != null) return denied;
+
+        if (resolveSite(line) == null) return unknownLine(line);
+
+        File f = faxFiles.get(token);
+        if (f == null || !f.isFile()) return ResponseEntity.notFound().build();
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .contentLength(f.length())
+                .body(new org.springframework.core.io.FileSystemResource(f));
+    }
+
+    /** 오래 남은 보관 파일을 치운다. 안 치우면 디스크가 천천히 찬다. */
+    private void sweepFaxFiles() {
+        long now = System.currentTimeMillis();
+
+        faxFiles.entrySet().removeIf(e -> {
+            File f = e.getValue();
+            if (f.isFile() && (now - f.lastModified()) < FAX_FILE_TTL_MS) return false;
+            if (f.isFile() && !f.delete()) log.warn("[CTI] 임시 팩스 파일을 지우지 못했습니다: {}", f);
+            return true;
+        });
+    }
+
     /** 에이전트가 호출 결과를 올린다. 기다리던 화면이 깨어난다. */
     @PostMapping("/call-result")
     public ResponseEntity<Map<String, Object>> callResult(

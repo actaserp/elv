@@ -1,0 +1,360 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>KT 문자발송</h2>
+        <a title="북마크" class="bookmark toggle">내 메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+        <li>KT API</li>
+        <li>문자</li>
+        <li>발송</li>
+      </ul>
+    </div>
+
+    <div class="tab-wrap">
+      <div class="tab-contents">
+        <section class="tab-item">
+
+          <div class="section-top">
+            <div class="search-wrap">
+              <dl>
+                <dt><label for="adType">주소록</label></dt>
+                <dd>
+                  <select id="adType">
+                    <option value="3">공유</option>
+                    <option value="2">개인</option>
+                    <option value="6">회사</option>
+                  </select>
+                </dd>
+              </dl>
+              <dl>
+                <dt><label for="keyword">검색</label></dt>
+                <dd><input type="text" id="keyword" placeholder="이름·번호·회사 등"></dd>
+              </dl>
+            </div>
+            <div class="btn-wrap">
+              <a class="btn btn-search" id="btnLoad">주소록 조회</a>
+              <a class="btn btn-save"   id="btnSend">보내기</a>
+            </div>
+          </div>
+
+          <div class="row">
+            <!-- 주소록에서 고르기 -->
+            <div class="wp40 mg-r10">
+              <div class="container-fluid col">
+                <div id="bookGrid" style="height:520px;"></div>
+                <p style="margin-top:6px; color:#888;">
+                  행을 두 번 누르면 받는 사람에 들어갑니다.
+                </p>
+              </div>
+            </div>
+
+            <!-- 받는 사람 -->
+            <div class="wp26 mg-r10">
+              <div class="container-fluid col">
+                <div id="toGrid" style="height:520px;"></div>
+                <div style="margin-top:6px;">
+                  <a class="btn btn-delete" id="btnRemove">빼기</a>
+                  <a class="btn" id="btnClear">비우기</a>
+                  <span id="toCount" style="margin-left:8px; color:#666;">0 / 32명</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 내용 -->
+            <div class="col wp32">
+              <div class="section">
+                <div class="container-fluid col">
+                  <table class="table-write">
+                    <colgroup><col style="width:28%"><col></colgroup>
+                    <tbody>
+                      <tr><th>직접 입력</th>
+                          <td>
+                            <input type="text" id="manualTel" placeholder="010-1234-5678">
+                            <a class="btn btn-add" id="btnAddTel" style="margin-top:4px;">추가</a>
+                          </td></tr>
+                      <tr><th>발신번호</th>
+                          <td><input type="text" id="caller" placeholder="비우면 연결된 회선으로 나갑니다"></td></tr>
+                      <tr><th>보낼 때</th>
+                          <td>
+                            <label><input type="radio" name="when" value="now" checked> 지금</label>
+                            <label style="margin-left:10px;"><input type="radio" name="when" value="later"> 예약</label>
+                            <input type="datetime-local" id="sendAt" style="margin-top:4px; display:none;">
+                          </td></tr>
+                    </tbody>
+                  </table>
+
+                  <div style="margin-top:10px;">
+                    <textarea id="message" rows="9" style="width:100%;"
+                              placeholder="보낼 내용을 적어주세요."></textarea>
+                    <div style="margin-top:4px; text-align:right;">
+                      <span id="byteInfo" style="color:#666;">0 / 80 바이트 · 단문</span>
+                    </div>
+                  </div>
+
+                  <p class="txt-guide" style="margin-top:10px; color:#888; line-height:1.6;">
+                    80바이트(한글 40자)를 넘으면 장문으로 나갑니다.<br>
+                    전화 받는 PC 의 전화연동 프로그램을 거쳐 보냅니다.
+                    그 PC 가 꺼져 있으면 발송되지 않습니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+      </div>
+    </div>
+  </div>
+  <footer style="margin-top:12px;"><p>Copyrightⓒ corp. All rights reserved.</p></footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <script type="text/javascript">
+    /*
+     * KT 문자발송
+     *
+     * 왼쪽에서 주소록을 뒤져 받는 사람을 모으고, 오른쪽에 내용을 적어 보낸다.
+     * KT 는 한 번에 32명까지 받고, 단문은 80바이트까지다(규격서 5.1.1).
+     */
+    const MAX_TO = 32;
+    const SMS_BYTES = 80;
+
+    class KtSmsSendPage {
+      constructor() {
+        this.bookGrid = null;
+        this.toGrid   = null;
+        this.bookAll  = [];
+        this.to       = [];      // [{name, tel}]
+        this.busy     = false;
+        this.init();
+      }
+
+      init() {
+        this.bookGrid = new wijmo.grid.FlexGrid('#bookGrid', {
+          autoGenerateColumns: false,
+          isReadOnly: true,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          columns: [
+            { binding: 'name',    header: '이름',     width: 90 },
+            { binding: 'mobile',  header: '휴대전화', width: 130, align: 'center' },
+            { binding: 'company', header: '회사',     width: '*', minWidth: 90 }
+          ],
+          itemsSource: new wijmo.collections.CollectionView([])
+        });
+        this.bookGrid.rowHeaders.columns.splice(0, 1);
+        this.bookGrid.hostElement.addEventListener('dblclick', () => {
+          const r = this.bookGrid.selectedItems[0];
+          if (r) this.add(r.name, r.mobile || r.office || r.home);
+        });
+
+        this.toGrid = new wijmo.grid.FlexGrid('#toGrid', {
+          autoGenerateColumns: false,
+          isReadOnly: true,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          columns: [
+            { binding: 'name', header: '이름', width: 80 },
+            { binding: 'tel',  header: '번호', width: '*', minWidth: 110, align: 'center' }
+          ],
+          itemsSource: new wijmo.collections.CollectionView([])
+        });
+        this.toGrid.rowHeaders.columns.splice(0, 1);
+      }
+
+      // ── KT 호출 ─────────────────────────────────────────
+
+      call(fn, args, done) {
+        if (this.busy) return;
+        this.busy = true;
+        this.lock(true);
+
+        AjaxUtil.postAsyncData('/api/AS/cti/call', {
+          fn: fn, args: JSON.stringify(args || {})
+        }, (res) => {
+          this.busy = false;
+          this.lock(false);
+
+          if (!res || !res.success) {
+            Alert.alert('', (res && res.message) ? res.message : '전화 프로그램과 통신하지 못했습니다.');
+            return;
+          }
+
+          let payload = null;
+          if (res.data) {
+            try { payload = JSON.parse(res.data); } catch (e) { payload = null; }
+          }
+          done(payload);
+        });
+      }
+
+      lock(on) {
+        ['btnLoad','btnSend'].forEach(function (id) {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.style.pointerEvents = on ? 'none' : '';
+          el.style.opacity       = on ? '0.5' : '';
+        });
+      }
+
+      // ── 주소록 ──────────────────────────────────────────
+
+      loadBook() {
+        const type = parseInt($('#adType').val(), 10);
+        this.call('address.dataList', { type: type, pdbid: '' }, (list) => {
+          this.bookAll = list || [];
+          this.filterBook();
+          if (!this.bookAll.length) Alert.alert('', '이 구분의 주소록이 비어 있습니다.');
+        });
+      }
+
+      filterBook() {
+        const q = ($('#keyword').val() || '').trim().toLowerCase();
+
+        let list = this.bookAll;
+        if (q) {
+          list = this.bookAll.filter(function (r) {
+            return ['name','mobile','office','home','company','team']
+                   .some(function (k) { return String(r[k] || '').toLowerCase().indexOf(q) >= 0; });
+          });
+        }
+        this.bookGrid.itemsSource = new wijmo.collections.CollectionView(list);
+      }
+
+      // ── 받는 사람 ───────────────────────────────────────
+
+      add(name, tel) {
+        const digits = String(tel || '').replace(/[^0-9]/g, '');
+        if (!digits) { Alert.alert('', '번호가 없는 사람입니다.'); return; }
+
+        if (this.to.some(function (t) { return t.tel === digits; })) return;   // 중복은 조용히 넘긴다
+        if (this.to.length >= MAX_TO) {
+          Alert.alert('', '한 번에 ' + MAX_TO + '명까지입니다.');
+          return;
+        }
+
+        this.to.push({ name: name || '', tel: digits });
+        this.refreshTo();
+      }
+
+      removeSelected() {
+        const r = this.toGrid.selectedItems[0];
+        if (!r) { Alert.alert('', '뺄 사람을 골라주세요.'); return; }
+        this.to = this.to.filter(function (t) { return t.tel !== r.tel; });
+        this.refreshTo();
+      }
+
+      refreshTo() {
+        this.toGrid.itemsSource = new wijmo.collections.CollectionView(this.to.slice());
+        $('#toCount').text(this.to.length + ' / ' + MAX_TO + '명');
+      }
+
+      // ── 내용 길이 ───────────────────────────────────────
+      //    KT 는 EUC-KR 바이트로 센다. 한글·전각은 2, 나머지는 1로 보면 실제와 맞는다.
+
+      bytes(s) {
+        let n = 0;
+        for (let i = 0; i < s.length; i++) n += (s.charCodeAt(i) > 127) ? 2 : 1;
+        return n;
+      }
+
+      refreshBytes() {
+        const n = this.bytes($('#message').val() || '');
+        const long = n > SMS_BYTES;
+        $('#byteInfo')
+          .text(n + ' / ' + SMS_BYTES + ' 바이트 · ' + (long ? '장문' : '단문'))
+          .css('color', long ? '#c62828' : '#666');
+      }
+
+      // ── 보내기 ──────────────────────────────────────────
+
+      /** KT 는 YYYYMMDDhhmm 으로 받는다 (규격서 5.2.1). datetime-local 은 2026-10-19T14:30 꼴. */
+      sendAt() {
+        const v = $('#sendAt').val() || '';
+        return v.replace(/[^0-9]/g, '').substring(0, 12);
+      }
+
+      send() {
+        const message = ($('#message').val() || '').trim();
+        const later   = $('input[name=when]:checked').val() === 'later';
+
+        if (!this.to.length) { Alert.alert('', '받는 사람을 넣어주세요.'); return; }
+        if (!message)        { Alert.alert('', '내용을 넣어주세요.'); $('#message').focus(); return; }
+
+        const n    = this.bytes(message);
+        const kind = n > SMS_BYTES ? '장문' : '단문';
+        const args = {
+          to      : this.to.map(function (t) { return t.tel; }),
+          message : message,
+          caller  : ($('#caller').val() || '').replace(/[^0-9]/g, '')
+        };
+
+        if (!later) {
+          Alert.confirm('', this.to.length + '명에게 ' + kind + '으로 보냅니다.\n\n보낸 문자는 취소할 수 없습니다.', () => {
+            this.call('sms.send', args, (r) => {
+              Alert.alert('', (r && r.sent ? r.sent : this.to.length) + '명에게 보냈습니다.');
+              $('#message').val('');
+              this.refreshBytes();
+            });
+          });
+          return;
+        }
+
+        const at = this.sendAt();
+        if (at.length !== 12) { Alert.alert('', '보낼 시각을 정해주세요.'); $('#sendAt').focus(); return; }
+
+        // 지난 시각으로 걸면 KT 가 어떻게 다루는지 규격서에 없다. 미리 막는다.
+        if (new Date($('#sendAt').val()) <= new Date()) {
+          Alert.alert('', '지난 시각으로는 예약할 수 없습니다.');
+          $('#sendAt').focus();
+          return;
+        }
+
+        args.sendDate = at;
+        const shown = at.substring(0,4) + '-' + at.substring(4,6) + '-' + at.substring(6,8) +
+                      ' ' + at.substring(8,10) + ':' + at.substring(10,12);
+
+        Alert.confirm('', shown + ' 에 ' + this.to.length + '명에게 ' + kind + '으로 보냅니다.\n\n' +
+                          '예약 내역은 [문자예약] 화면에서 고치거나 취소할 수 있습니다.', () => {
+          this.call('sms.reserve', args, () => {
+            Alert.alert('', '예약했습니다.');
+            $('#message').val('');
+            this.refreshBytes();
+          });
+        });
+      }
+    }
+
+    let page = null;
+    $(document).ready(function () {
+      page = new KtSmsSendPage();
+      page.loadBook();
+
+      $('#btnLoad').on('click',   function () { page.loadBook(); });
+      $('#btnSend').on('click',   function () { page.send(); });
+      $('#btnRemove').on('click', function () { page.removeSelected(); });
+      $('#btnClear').on('click',  function () { page.to = []; page.refreshTo(); });
+
+      $('#btnAddTel').on('click', function () {
+        page.add('', $('#manualTel').val());
+        $('#manualTel').val('').focus();
+      });
+      $('#manualTel').on('keyup', function (e) {
+        if (e.key === 'Enter') $('#btnAddTel').click();
+      });
+
+      $('input[name=when]').on('change', function () {
+        const later = $('input[name=when]:checked').val() === 'later';
+        $('#sendAt').toggle(later);
+        $('#btnSend').text(later ? '예약' : '보내기');
+      });
+
+      $('#adType').on('change', function () { page.loadBook(); });
+      $('#keyword').on('keyup', function () { page.filterBook(); });
+      $('#message').on('input', function () { page.refreshBytes(); });
+    });
+  </script>
+</th:block>
+</html>

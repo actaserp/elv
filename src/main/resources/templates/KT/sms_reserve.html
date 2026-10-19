@@ -1,0 +1,373 @@
+<html layout:decorate="~{layout_page}" xmlns:layout="http://www.w3.org/1999/xhtml">
+<th:block layout:fragment="content">
+  <div class="layout-contents">
+    <div class="page-title-wrap">
+      <div class="left">
+        <h2>KT 문자예약</h2>
+        <a title="북마크" class="bookmark toggle">내 메뉴</a>
+      </div>
+      <ul class="page-navi">
+        <li><img th:src="@{/images/icon/ico-nav-home.svg}" alt="홈아이콘"></li>
+        <li>KT API</li>
+        <li>문자</li>
+        <li>예약</li>
+      </ul>
+    </div>
+
+    <div class="tab-wrap">
+      <div class="tab-contents">
+        <section class="tab-item">
+
+          <div class="section-top">
+            <div class="search-wrap">
+              <dl>
+                <dt><label for="keyword">검색</label></dt>
+                <dd><input type="text" id="keyword" placeholder="번호·내용"></dd>
+              </dl>
+            </div>
+            <div class="btn-wrap">
+              <a class="btn btn-search" id="btnSearch">조회</a>
+              <a class="btn btn-save"   id="btnSave">저장</a>
+              <a class="btn btn-delete" id="btnCancel">예약취소</a>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="wp62 mg-r10">
+              <div class="container-fluid col">
+                <div id="grid" style="height:560px;"></div>
+                <p style="margin-top:6px; color:#888;">
+                  아직 보내지 않은 예약만 보입니다. 보낸 문자는 [문자내역] 에서 봅니다.
+                </p>
+              </div>
+            </div>
+
+            <div class="col wp36">
+              <div class="section">
+                <div class="container-fluid col">
+                  <table class="table-write">
+                    <colgroup><col style="width:30%"><col></colgroup>
+                    <tbody>
+                      <tr><th>받는 번호</th><td><input type="text" id="f_callee" readonly></td></tr>
+                      <tr><th>보낼 시각</th><td><input type="datetime-local" id="f_at"></td></tr>
+                    </tbody>
+                  </table>
+
+                  <div style="margin-top:10px;">
+                    <textarea id="f_message" rows="8" style="width:100%;"></textarea>
+                    <div style="margin-top:4px; text-align:right;">
+                      <span id="byteInfo" style="color:#666;">0 / 80 바이트</span>
+                    </div>
+                  </div>
+
+                  <p id="noSeq" style="margin-top:10px; color:#c62828; display:none;">
+                    이 건은 예약번호가 없어 고치거나 취소할 수 없습니다.<br>
+                    KT 통화매니저에서 다뤄주세요.
+                  </p>
+
+                  <p id="groupWarn" style="margin-top:10px; color:#e65100; display:none;">
+                    이 예약은 <b><span id="groupCount"></span>명</b>에게 한 묶음으로 걸려 있습니다.<br>
+                    고치거나 취소하면 <b>그 전원에게</b> 적용됩니다.
+                  </p>
+
+                  <p class="txt-guide" style="margin-top:10px; color:#888; line-height:1.6;">
+                    내용과 시각만 고칠 수 있습니다. 받는 사람을 바꾸려면
+                    예약을 취소하고 [문자발송] 에서 새로 예약해주세요.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+      </div>
+    </div>
+  </div>
+  <footer style="margin-top:12px;"><p>Copyrightⓒ corp. All rights reserved.</p></footer>
+</th:block>
+
+<th:block layout:fragment="scripts">
+  <script type="text/javascript">
+    /*
+     * KT 문자예약 — 아직 안 나간 예약을 보고, 내용·시각을 고치거나 취소한다.
+     *
+     * KT 에 "예약만 주는" 함수가 없다. GetSmsList 로 전체를 받아 Reserve 값이
+     * 있는 것만 거른다. sKind 의 각 숫자가 무엇인지는 매뉴얼에서 확인하지 못했고,
+     * 전체(1)를 받아 가리는 편이 틀릴 일이 없다.
+     *
+     * 고치고 취소하는 열쇠는 DBID 가 아니라 Group(seqno) 이다 — 규격서 5.2.2/5.2.4 가
+     * sSmsGroupSeqNo 를 받는다. 한 번 예약에 받는 사람이 여럿이면 한 묶음으로 움직인다.
+     */
+    const SMS_BYTES = 80;
+
+    class KtSmsReservePage {
+      constructor() {
+        this.grid    = null;
+        this.all     = [];
+        this.current = null;
+        this.busy    = false;
+        this.init();
+      }
+
+      init() {
+        this.grid = new wijmo.grid.FlexGrid('#grid', {
+          autoGenerateColumns: false,
+          isReadOnly: true,
+          selectionMode: wijmo.grid.SelectionMode.Row,
+          formatItem: (s, e) => {
+            if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader)
+              e.cell.style.textAlign = 'center';
+          },
+          columns: [
+            { binding: 'reserveNm', header: '보낼 시각', width: 150, align: 'center' },
+            { binding: 'callee',    header: '받는 번호', width: 130, align: 'center' },
+            { binding: 'message',   header: '내용',      width: '*', minWidth: 160 },
+            { binding: 'group',     header: '예약번호',  width: 110, align: 'center' }
+          ],
+          itemsSource: new wijmo.collections.CollectionView([])
+        });
+        this.grid.rowHeaders.columns.splice(0, 1);
+        new FlexGridContextMenu(this.grid);
+        this.grid.downloadFileName = 'KT문자예약';
+
+        // 보여주는 것과 고치는 것을 가른다 — 예약번호가 없어도 내용은 볼 수 있어야 한다.
+        // (예전에는 group 이 비면 그냥 빠져나가서, 눌러도 아무 일이 없었다)
+        this.grid.selectionChanged.addHandler(() => {
+          const r = this.grid.selectedItems[0];
+          if (!r) return;
+
+          this.current = r;
+          $('#f_callee').val(r.callee || '');
+          $('#f_message').val(r.message || '');
+          $('#f_at').val(this.toInput(r.reserve));
+          this.refreshBytes();
+
+          this.resolveSeq(r);
+        });
+      }
+
+      /**
+       * 고치거나 취소하려면 예약번호(sSmsGroupSeqNo)가 있어야 한다.
+       * 그런데 목록(GetSmsList)은 Group 을 안 채워준다 — 실측 확인.
+       *
+       * 그래서 고른 건만 GetReserveSMS 로 다시 읽어 본다. 거기에도 없으면
+       * LogicID 를 써 보고, 그것도 없으면 고칠 수 없다고 알린다.
+       */
+      resolveSeq(r) {
+        const apply = (seq) => {
+          if (this.current !== r) return;      // 그 사이 다른 행을 골랐다
+          r.seq = seq || '';
+          $('#f_message, #f_at').prop('readonly', !r.seq);
+          $('#noSeq').toggle(!r.seq);
+        };
+
+        // 한 번 예약에 여럿이면 KT 는 한 묶음으로 다룬다 — 한 줄만 고쳐도 전원에게 간다.
+        // 목록에는 사람 수만큼 줄이 보여서, 한 줄짜리 일로 오해하기 쉽다.
+        const mates = r.group
+                    ? this.all.filter(function (x) { return x.group === r.group; }).length
+                    : 1;
+        $('#groupCount').text(mates);
+        $('#groupWarn').toggle(mates > 1);
+
+        if (r.group)   { apply(r.group);   return; }
+        if (r.logicId) { apply(r.logicId); return; }
+        if (!r.dbid)   { apply('');        return; }
+
+        this.call('sms.reserveGet', { dbid: r.dbid }, function (d) {
+          apply(d ? (d.group || d.logicId || '') : '');
+        });
+      }
+
+      // ── KT 호출 ─────────────────────────────────────────
+
+      call(fn, args, done) {
+        if (this.busy) return;
+        this.busy = true;
+        this.lock(true);
+
+        AjaxUtil.postAsyncData('/api/AS/cti/call', {
+          fn: fn, args: JSON.stringify(args || {})
+        }, (res) => {
+          this.busy = false;
+          this.lock(false);
+
+          if (!res || !res.success) {
+            Alert.alert('', (res && res.message) ? res.message : '전화 프로그램과 통신하지 못했습니다.');
+            return;
+          }
+
+          let payload = null;
+          if (res.data) {
+            try { payload = JSON.parse(res.data); } catch (e) { payload = null; }
+          }
+          done(payload);
+        });
+      }
+
+      lock(on) {
+        ['btnSearch','btnSave','btnCancel'].forEach(function (id) {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.style.pointerEvents = on ? 'none' : '';
+          el.style.opacity       = on ? '0.5' : '';
+        });
+      }
+
+      // ── 날짜 변환 ───────────────────────────────────────
+      //    KT: YYYYMMDDhhmm  ↔  화면: YYYY-MM-DDThh:mm
+
+      toInput(s) {
+        const d = String(s || '').replace(/[^0-9]/g, '');
+        if (d.length < 12) return '';
+        return d.substring(0,4) + '-' + d.substring(4,6) + '-' + d.substring(6,8) +
+               'T' + d.substring(8,10) + ':' + d.substring(10,12);
+      }
+
+      toShown(s) {
+        const d = String(s || '').replace(/[^0-9]/g, '');
+        if (d.length < 12) return s || '';
+        return d.substring(0,4) + '-' + d.substring(4,6) + '-' + d.substring(6,8) +
+               ' ' + d.substring(8,10) + ':' + d.substring(10,12);
+      }
+
+      // ── 조회 ────────────────────────────────────────────
+
+      load() {
+        this.call('sms.list', { kind: 1, start: 0, count: 300 }, (list) => {
+          // 규격서 10.3 — 900 이 '예약전송 대기' 다. 아직 안 나간 것만 여기 보인다.
+          //
+          // 예전에는 Reserve 값이 있는 것을 모두 보여줬는데, 그 값은 문자가 나간 뒤에도
+          // 그대로 남아 있어서 이미 보낸 것과 취소한 것까지 목록에 섞였다.
+          this.all = (list || []).filter(function (r) {
+            return String(r.result || '').trim() === '900';
+          });
+          this.all.forEach((r) => { r.reserveNm = this.toShown(r.reserve); });
+
+          this.filter();
+          this.clear();
+
+          if (!this.all.length) Alert.alert('', '예약된 문자가 없습니다.');
+        });
+      }
+
+      filter() {
+        const q = ($('#keyword').val() || '').trim().toLowerCase();
+
+        let list = this.all;
+        if (q) {
+          list = this.all.filter(function (r) {
+            return ['callee','message','reserveNm']
+                   .some(function (k) { return String(r[k] || '').toLowerCase().indexOf(q) >= 0; });
+          });
+        }
+        this.grid.itemsSource = new wijmo.collections.CollectionView(list);
+      }
+
+      clear() {
+        this.current = null;
+        $('#f_callee').val('');
+        $('#f_message').val('');
+        $('#f_at').val('');
+        this.refreshBytes();
+      }
+
+      bytes(s) {
+        let n = 0;
+        for (let i = 0; i < s.length; i++) n += (s.charCodeAt(i) > 127) ? 2 : 1;
+        return n;
+      }
+
+      refreshBytes() {
+        const n = this.bytes($('#f_message').val() || '');
+        $('#byteInfo').text(n + ' / ' + SMS_BYTES + ' 바이트')
+                      .css('color', n > SMS_BYTES ? '#c62828' : '#666');
+      }
+
+      // ── 수정 / 취소 ─────────────────────────────────────
+
+      save() {
+        if (!this.current)       { Alert.alert('', '고칠 예약을 골라주세요.'); return; }
+        if (!this.current.seq)   { Alert.alert('', '이 건은 예약번호가 없어 고칠 수 없습니다.'); return; }
+
+        const message = ($('#f_message').val() || '').trim();
+        const at      = ($('#f_at').val() || '').replace(/[^0-9]/g, '').substring(0, 12);
+
+        if (!message)        { Alert.alert('', '내용을 넣어주세요.'); return; }
+        if (at.length !== 12) { Alert.alert('', '보낼 시각을 정해주세요.'); return; }
+        if (this.bytes(message) > SMS_BYTES) {
+          Alert.alert('', '내용이 깁니다. ' + SMS_BYTES + '바이트까지입니다.');
+          return;
+        }
+        if (new Date($('#f_at').val()) <= new Date()) {
+          Alert.alert('', '지난 시각으로는 예약할 수 없습니다.');
+          return;
+        }
+
+        const dbid = this.current.dbid;
+
+        this.call('sms.reserveEdit', {
+          seqno: this.current.seq, message: message, sendDate: at,
+          caller: this.current.caller || ''
+        }, () => {
+          // KT 목록은 고친 내용을 곧바로 보여주지 않는다 — 수정 자체는 먹었는데
+          // 목록만 옛것인 경우를 봤다. 그래서 '실패' 라고 단정하지 않고 사실대로만 말한다.
+          setTimeout(() => {
+            this.call('sms.list', { kind: 1, start: 0, count: 300 }, (list) => {
+              const row = (list || []).find(function (r) { return r.dbid === dbid; });
+
+              if (!row || row.message === message) Alert.alert('', '고쳤습니다.');
+              else Alert.alert('', '고쳤습니다.\n\n목록에는 잠시 뒤에 반영됩니다. ' +
+                                   '바로 안 바뀌어 보여도 예약은 바뀐 내용으로 나갑니다.');
+              this.load();
+            });
+          }, 1500);
+        });
+      }
+
+      cancel() {
+        if (!this.current)       { Alert.alert('', '취소할 예약을 골라주세요.'); return; }
+        if (!this.current.seq)   { Alert.alert('', '이 건은 예약번호가 없어 취소할 수 없습니다.'); return; }
+
+        const mates = this.all.filter((x) => x.group === this.current.group).length;
+        const warn  = mates > 1 ? '\n\n이 예약은 ' + mates + '명에게 한 묶음으로 걸려 있어 전원 취소됩니다.' : '';
+
+        Alert.confirm('', this.toShown(this.current.reserve) + ' 예약을 취소합니다.' + warn +
+                          '\n\n되돌릴 수 없습니다.', () => {
+          const gone = this.current.dbid;
+
+          this.call('sms.reserveCancel', {
+            seqno: this.current.seq, caller: this.current.caller || ''
+          }, () => {
+            // KT 목록은 바로 따라오지 않는다. 남아 있다고 해서 취소가 안 된 건 아니다.
+            setTimeout(() => {
+              this.call('sms.list', { kind: 1, start: 0, count: 300 }, (list) => {
+                const still = (list || []).some(function (r) {
+                  return r.dbid === gone && String(r.result || '').trim() === '900';
+                });
+
+                if (!still) Alert.alert('', '취소했습니다.');
+                else Alert.alert('', '취소했습니다.\n\n목록에는 잠시 뒤에 반영됩니다. ' +
+                                     '예정 시각에 문자가 오면 취소가 안 된 것이니 알려주세요.');
+                this.load();
+              });
+            }, 1500);
+          });
+        });
+      }
+    }
+
+    let page = null;
+    $(document).ready(function () {
+      page = new KtSmsReservePage();
+      page.load();
+
+      $('#btnSearch').on('click', function () { page.load(); });
+      $('#btnSave').on('click',   function () { page.save(); });
+      $('#btnCancel').on('click', function () { page.cancel(); });
+
+      $('#keyword').on('keyup',   function () { page.filter(); });
+      $('#f_message').on('input', function () { page.refreshBytes(); });
+    });
+  </script>
+</th:block>
+</html>
