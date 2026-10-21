@@ -42,8 +42,10 @@ import mes.domain.security.CustomAuthenticationToken;
 import mes.domain.security.Pbkdf2Sha256;
 import mes.domain.services.AccountService;
 import mes.domain.services.SqlRunner;
+import lombok.extern.slf4j.Slf4j;
 
 
+@Slf4j
 @RestController
 public class AccountController {
 	
@@ -706,6 +708,20 @@ public class AccountController {
 		}
 
 		String encodedPWD = Pbkdf2Sha256.encode(loginPwd2);
+
+		// ── 변경 전 값 기록 ────────────────────────────────────
+		// 이 화면은 성명·연락처·비밀번호를 덮어쓰기만 하고 이력을 남기지 않는다.
+		// 2026-10-19 에 남의 계정으로 로그인해 성명을 바꿔 버린 건을 조사할 때
+		// 이전 값을 어디서도 찾을 수 없었다. 최소한 로그로 남긴다.
+		String beforeName = user.getFirst_name();
+		String beforeTel  = user.getTel();
+		if (beforeName != null && !beforeName.equals(name)) {
+			log.warn("[내정보수정] 성명 변경 — userId={} 사번={} '{}' -> '{}', 연락처 '{}' -> '{}'",
+					user.getId(), user.getUsername(), beforeName, name, beforeTel, userHp);
+		} else {
+			log.info("[내정보수정] userId={} 사번={} 성명='{}' 연락처 '{}' -> '{}'",
+					user.getId(), user.getUsername(), name, beforeTel, userHp);
+		}
 
 		// ── 1. 본사DB auth_user: 비밀번호 + 성명 + 핸드폰 ───────
 		MapSqlParameterSource p1 = new MapSqlParameterSource();

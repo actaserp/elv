@@ -28,8 +28,14 @@ namespace ActasCti
             {
                 if (!isNew)
                 {
-                    MessageBox.Show("ACTAS 전화연동이 이미 실행 중입니다.\n\n작업표시줄 오른쪽 아이콘을 확인해주세요.",
-                                    "ACTAS 전화연동", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    // 종료가 덜 끝난 채 프로세스만 남아 있는 경우가 있었다. 그때는
+                    // 트레이에 아이콘이 없어서 '어디 있다는 거냐' 가 된다.
+                    MessageBox.Show(
+                        "ACTAS 전화연동이 이미 실행 중입니다.\n\n" +
+                        "작업표시줄 오른쪽 아이콘을 확인해주세요.\n" +
+                        "아이콘이 보이지 않으면 작업 관리자에서\n" +
+                        "'ACTAS 전화연동' 을 끝낸 뒤 다시 실행해주세요.",
+                        "ACTAS 전화연동", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
@@ -143,6 +149,9 @@ namespace ActasCti
             if (tray.ContextMenuStrip.InvokeRequired) tray.ContextMenuStrip.BeginInvoke(apply);
             else apply();
         }
+
+        /// <summary>종료가 이 시간 안에 안 끝나면 강제로 닫는다.</summary>
+        const int QUIT_WAIT_MS = 5000;
 
         static readonly Color Warn = Color.FromArgb(237, 108, 2);
         static bool lineUnknown;
@@ -414,8 +423,25 @@ namespace ActasCti
                 if (r != DialogResult.Yes) return;
             }
 
-            if (agent != null) agent.Stop();
             tray.Visible = false;
+
+            // 종료가 끝나지 않는 PC 가 있었다. kt.Logout() 이 COM 안에서 안 돌아오면
+            // Application.Exit() 까지 가지 못하고, 프로세스가 남아 KT 세션을 계속 문다.
+            // 그러면 다음 실행이 '이미 실행 중' 과 '이미 로그인 중' 으로 둘 다 막힌다.
+            //
+            // 깨끗한 종료를 먼저 시도하되, 시간을 끊어 반드시 끝나게 한다.
+            var watchdog = new Thread(() =>
+            {
+                Thread.Sleep(QUIT_WAIT_MS);
+                Logger.Write("종료가 끝나지 않아 강제로 닫습니다.");
+                Environment.Exit(0);
+            });
+            watchdog.IsBackground = true;
+            watchdog.Start();
+
+            try { if (agent != null) agent.Stop(); }
+            catch (Exception e) { Logger.Write("종료 처리 중 오류: " + e.Message); }
+
             Application.Exit();
         }
     }

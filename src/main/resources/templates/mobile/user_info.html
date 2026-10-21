@@ -324,7 +324,16 @@
         });
     }
 
+    // 저장 직전 재확인에 쓸 '수정 전' 값. 조회 응답을 그대로 보관한다.
+    //   2026-10-19 에 남의 계정으로 로그인한 상태에서 성명을 바꿔 버린 일이 있었다.
+    //   누구 계정인지 저장 전에 한 번 더 보여줘서 막는다.
+    let originalName    = '';
+    let originalLoginId = '';
+
     function bindUserInfo(data) {
+        originalName    = data.name || '';
+        originalLoginId = data.login_id || '';
+
         $('#login_id').val(data.login_id || '');
         $('#name').val(data.name);
         $('#loginPwd').val('');
@@ -339,6 +348,23 @@
             return false;
         }
 
+        // 누구 계정을 고치는지 저장 전에 한 번 더 확인시킨다.
+        // 성명이 바뀌면 다른 사람의 계정일 수 있으니 더 강하게 묻는다.
+        const newName = $('#name').val().trim();
+        let msg = '사번 ' + originalLoginId + ' (' + originalName + ') 님의 정보를 수정합니다.';
+
+        if (originalName && newName !== originalName) {
+            msg = '사번 ' + originalLoginId + ' 계정에 등록된 성명은 \'' + originalName + '\' 입니다.\n'
+                + '변경 후 성명은 \'' + newName + '\' 입니다.\n\n'
+                + '본인의 계정이 아니라면 취소하고 담당자에게 문의해 주세요.';
+        }
+
+        Alert.confirm('정보 수정 확인', msg, function () {
+            submitMyInfo();
+        });
+    });
+
+    function submitMyInfo() {
         // 전송 데이터
         let data = {
             'name'      : $('#name').val(),
@@ -346,8 +372,6 @@
             'loginPwd2' : $('#loginPwd2').val(),
             'userHp'    : $('#userHp').val(),
         };
-
-        console.log('전송 데이터:', data);
 
         // AJAX 요청
         $.ajax({
@@ -371,7 +395,7 @@
                 Alert.alert('', '에러가 발생하였습니다.');
             }
         });
-    });
+    }
 
     //이메일 정규식
     function emailValidate(emailVal){

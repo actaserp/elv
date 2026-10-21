@@ -13,7 +13,7 @@
 ; ─────────────────────────────────────────────────────────────
 
 #define AppName      "ACTAS 전화연동"
-#define AppVersion   "2.3.0"
+#define AppVersion   "2.3.2"
 #define Publisher    "ACTAS"
 #define ExeName      "ACTAS전화연동.exe"
 
@@ -66,6 +66,18 @@ RestartApplications=no
 
 [Languages]
 Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
+
+[Dirs]
+; KT SDK 는 제 자리(설치 폴더)의 KPA_API.dat · KPD_API.dat 에 쓴다. SQLite 라
+; 옆에 -wal · -shm 도 만든다. 그런데 Program Files 는 일반 사용자가 못 쓴다.
+;
+; 쓰기가 막히면 조용히 반쯤만 돈다 — COM 생성도 되고 Login() 도 200 을 받는데
+; (둘 다 DB 가 필요 없다) 이벤트 통로를 못 열어 EventLogin 이 영영 안 온다.
+; 화면에는 '연결하는 중…' 으로 멈춰 있고 어디가 고장인지 드러나지 않는다.
+; 관리자 권한으로 띄우면 멀쩡히 되는 것으로 확인했다.
+;
+; 사업체 PC 는 대개 일반 계정이므로 설치 때 이 폴더에 쓰기를 열어 준다.
+Name: "{app}"; Permissions: users-modify
 
 [Files]
 ; KT SDK 와 프로그램 전부. 하나라도 빠지면 PC 에 따라 1602 오류가 난다.
