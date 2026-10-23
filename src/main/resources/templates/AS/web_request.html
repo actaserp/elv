@@ -1960,11 +1960,15 @@
       }
 
       // 통화메모 칸 채우기 — 수신일자/고객명/전화번호
+      //
+      // 전화가 울리는 순간 서버가 통화기록을 한 줄 만들고 그 번호(memoSeq)를 같이 내려준다.
+      // 여기서 그 번호를 들고 있으면, 메모를 적어 저장할 때 새로 만들지 않고 그 행을 잇는다.
+      // 덕분에 안 받은 전화도 기록이 남고, 받은 전화는 한 줄로 이어진다.
       function applyToMemo(call, info) {
         var d = new Date();
         var p = function (n) { return String(n).padStart(2,'0'); };
 
-        document.getElementById('memoSeq').value       = '';   // 새 메모로 시작한다
+        document.getElementById('memoSeq').value       = call.memoSeq || '';
         document.getElementById('memoCalldate').value  =
           d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()) +
           'T' + p(d.getHours()) + ':' + p(d.getMinutes());

@@ -200,6 +200,17 @@ public class CtiCallController {
         Map<String, Object> payload = buildPayload(digits, callee, resultCode, false);
         if (!dbId.isBlank()) payload.put("dbId", dbId);   // 같은 통화의 상태 변화를 묶는 키
 
+        // 발신번호 조회는 한 번만 한다 — 알림의 고객명과 통화기록에 같이 쓴다
+        Map<String, Object> info = lookupCaller(site, digits);
+
+        // 울릴 때(201 수신중) 기록을 만든다. 받든 못 받든 남아야 한다.
+        // 그 뒤 이벤트는 같은 dbId 로 묶여 같은 seq 를 다시 내려보낸다.
+        String seq = "201".equals(resultCode)
+                   ? logCall(site, dbId, info, digits)
+                   : callSeqs.get(site + "|" + dbId);
+
+        if (seq != null) payload.put("memoSeq", seq);
+
         int sent = ctiPushService.pushIncomingCall(site, payload);
 
         // 에이전트가 윈도우 알림에 띄울 고객명. 화면을 안 띄워두는 곳에서는
@@ -207,7 +218,7 @@ public class CtiCallController {
         // 못 찾으면 빈 문자열 — 에이전트가 번호만 띄운다.
         return ResponseEntity.ok(Map.of(
                 "sent",   sent,
-                "callnm", callerNameFor(site, digits)));
+                "callnm", nameOf(info)));
     }
 
     /**
@@ -217,28 +228,91 @@ public class CtiCallController {
      * 안 되돌리면 이 스레드를 물려받는 다음 요청이 남의 사업체 DB 를 보게 된다.
      */
     private String callerNameFor(String site, String callnum) {
+        Map<String, Object> info = lookupCaller(site, callnum);
+        return nameOf(info);
+    }
+
+    /** 사업체 DB 로 넘어가 발신번호를 찾는다. 못 찾으면 null. */
+    private Map<String, Object> lookupCaller(String site, String callnum) {
         String spjangcd = tenantDbService.findInnerSpjangcd(site);
-        if (spjangcd == null) return "";
+        if (spjangcd == null) return null;
 
         try {
             TenantContext.set(spjangcd);
             TenantContext.setDbKey(site);
 
-            Map<String, Object> info = webRequestService.findCallerInfo(spjangcd, callnum);
-            if (info == null) return "";
-
-            Object nm = info.get("callnm");
-            if (nm == null || nm.toString().isBlank()) nm = info.get("actnm");
-            if (nm == null || nm.toString().isBlank()) nm = info.get("cltnm");
-
-            return nm == null ? "" : nm.toString().trim();
+            return webRequestService.findCallerInfo(spjangcd, callnum);
 
         } catch (Exception e) {
             log.warn("[CTI] 고객명 조회 실패 (알림은 번호만 나갑니다): {}", e.getMessage());
-            return "";
+            return null;
         } finally {
             TenantContext.clear();
         }
+    }
+
+    /** 사람에게 보여줄 이름. 전화번호부 → 현장 → 거래처 순으로 집는다. */
+    private static String nameOf(Map<String, Object> info) {
+        if (info == null) return "";
+
+        Object nm = info.get("callnm");
+        if (nm == null || nm.toString().isBlank()) nm = info.get("actnm");
+        if (nm == null || nm.toString().isBlank()) nm = info.get("cltnm");
+
+        return nm == null ? "" : nm.toString().trim();
+    }
+
+    // ── 통화기록 ─────────────────────────────────────────────
+    //
+    // 전화가 울리는 순간 TB_CALLMAIN 에 한 줄 만들고, 그 seq 를 화면으로 내려보낸다.
+    // 화면은 그 번호로 메모를 이어 쓴다 — 저장할 때 새로 만드는 게 아니라 고치는 것이다.
+    //
+    // 이렇게 해야 안 받은 전화도 기록이 남는다. 예전에는 사람이 메모를 써야만
+    // 행이 생겨서, 부재중은 누가 걸었는지조차 알 수 없었다.
+    //
+    // KT 는 한 통화에 이벤트를 여러 번 보낸다. dbId 로 묶어 처음 한 번만 만든다.
+
+    private final Map<String, String> callSeqs = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private String logCall(String site, String dbId, Map<String, Object> info, String callnum) {
+        String key = site + "|" + dbId;
+
+        String known = callSeqs.get(key);
+        if (known != null) return known;
+
+        String spjangcd = tenantDbService.findInnerSpjangcd(site);
+        if (spjangcd == null) return null;
+
+        String seq;
+        try {
+            TenantContext.set(spjangcd);
+            TenantContext.setDbKey(site);
+
+            seq = webRequestService.createCallLog(
+                    callnum, nameOf(info),
+                    str(info, "actcd"), str(info, "actnm"),
+                    str(info, "cltcd"), str(info, "cltnm"));
+
+        } catch (Exception e) {
+            log.warn("[CTI] 통화기록 생성 실패: {}", e.getMessage());
+            return null;
+        } finally {
+            TenantContext.clear();
+        }
+
+        if (seq != null) {
+            callSeqs.put(key, seq);
+
+            // dbId 가 없는 옛 이벤트까지 들어오면 키가 한없이 쌓인다. 적당히 끊는다.
+            if (callSeqs.size() > 500) callSeqs.clear();
+        }
+        return seq;
+    }
+
+    private static String str(Map<String, Object> m, String key) {
+        if (m == null) return "";
+        Object v = m.get(key);
+        return v == null ? "" : v.toString();
     }
 
     // ── 회선번호 → 사업체 ────────────────────────────────────

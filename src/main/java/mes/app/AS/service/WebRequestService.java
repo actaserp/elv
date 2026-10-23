@@ -429,6 +429,55 @@ public class WebRequestService {
         }
     }
 
+    /**
+     * 전화가 울리는 순간 통화기록을 한 줄 만든다. 만든 seq 를 돌려준다.
+     *
+     * 예전에는 담당자가 메모를 써서 [저장] 을 눌러야 비로소 행이 생겼다. 그래서
+     * 안 받은 전화는 아무 흔적도 남지 않았다 — 누가 걸었는지조차 알 수 없었다.
+     * 이제는 울릴 때 먼저 만들고, 담당자는 그 행에 이어 쓴다.
+     *
+     * 사업체에 따라 TB_CALLMAIN 이 없을 수 있다(다른 조회들도 그렇게 다룬다).
+     * 기록을 못 남기는 것이 전화를 못 받게 하는 일로 번지면 안 되므로, 실패는 삼킨다.
+     */
+    public String createCallLog(String callnum, String callnm,
+                                String actcd, String actnm, String cltcd, String cltnm) {
+        var now = java.time.LocalDateTime.now();
+        String calldate = now.toLocalDate().toString().replace("-", "");
+        String calltime = String.format("%02d%02d%02d",
+                now.getHour(), now.getMinute(), now.getSecond());
+
+        try {
+            String seq = getNextCallSeq(calldate.substring(0, 6));
+
+            MapSqlParameterSource p = new MapSqlParameterSource();
+            p.addValue("seq",      seq);
+            p.addValue("calldate", calldate);
+            p.addValue("calltime", calltime);
+            p.addValue("callnm",   callnm == null ? "" : callnm);
+            p.addValue("callnum",  callnum == null ? "" : callnum);
+            p.addValue("actcd",    actcd == null ? "" : actcd);
+            p.addValue("actnm",    actnm == null ? "" : actnm);
+            p.addValue("cltcd",    cltcd == null ? "" : cltcd);
+            p.addValue("cltnm",    cltnm == null ? "" : cltnm);
+            p.addValue("regdate",  calldate);
+
+            namedParameterJdbcTemplate.update("""
+                    INSERT INTO TB_CALLMAIN
+                        (seq, calldate, calltime, callnm, callnum,
+                         actcd, actnm, cltcd, cltnm, regdate)
+                    VALUES
+                        (:seq, :calldate, :calltime, :callnm, :callnum,
+                         :actcd, :actnm, :cltcd, :cltnm, :regdate)
+                    """, p);
+
+            return seq;
+
+        } catch (Exception e) {
+            log.warn("[CTI] 통화기록을 남기지 못했습니다 ({}): {}", callnum, e.getMessage());
+            return null;
+        }
+    }
+
     // ── 통화메모 삭제 (TB_CALLMAIN DELETE) ───────────────────
     public void deleteMemo(String spjangcd, String seq) {
 
