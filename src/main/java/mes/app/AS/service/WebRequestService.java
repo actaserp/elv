@@ -443,8 +443,9 @@ public class WebRequestService {
                                 String actcd, String actnm, String cltcd, String cltnm) {
         var now = java.time.LocalDateTime.now();
         String calldate = now.toLocalDate().toString().replace("-", "");
-        String calltime = String.format("%02d%02d%02d",
-                now.getHour(), now.getMinute(), now.getSecond());
+
+        // 기존 자료가 'HHmm' 네 자리다. 초까지 넣으면 칸을 넘겨 INSERT 가 깨진다.
+        String calltime = String.format("%02d%02d", now.getHour(), now.getMinute());
 
         try {
             String seq = getNextCallSeq(calldate.substring(0, 6));
@@ -454,7 +455,7 @@ public class WebRequestService {
             p.addValue("calldate", calldate);
             p.addValue("calltime", calltime);
             p.addValue("callnm",   callnm == null ? "" : callnm);
-            p.addValue("callnum",  callnum == null ? "" : callnum);
+            p.addValue("callnum",  dashTel(callnum));
             p.addValue("actcd",    actcd == null ? "" : actcd);
             p.addValue("actnm",    actnm == null ? "" : actnm);
             p.addValue("cltcd",    cltcd == null ? "" : cltcd);
@@ -470,12 +471,33 @@ public class WebRequestService {
                          :actcd, :actnm, :cltcd, :cltnm, :regdate)
                     """, p);
 
+            // 성공도 남긴다. 이게 없으면 기록이 안 보일 때 '배포가 안 된 건지,
+            // 실패한 건지, 이벤트가 안 온 건지' 를 가릴 수가 없다.
+            log.info("[CTI] 통화기록 생성: seq={}, {} {}, {} ({})",
+                     seq, calldate, calltime, callnum, callnm);
             return seq;
 
         } catch (Exception e) {
             log.warn("[CTI] 통화기록을 남기지 못했습니다 ({}): {}", callnum, e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * 010-1234-5678 꼴로 다듬는다. 기존 통화기록이 하이픈을 넣어 쌓여 있어서,
+     * 숫자만 넣으면 같은 번호가 두 가지 모양으로 섞인다.
+     */
+    static String dashTel(String num) {
+        String d = num == null ? "" : num.replaceAll("[^0-9]", "");
+        if (d.isEmpty()) return "";
+
+        if (d.startsWith("02") && d.length() >= 9)
+            return d.substring(0, 2) + "-" + d.substring(2, d.length() - 4) + "-" + d.substring(d.length() - 4);
+
+        if (d.length() == 10 || d.length() == 11)
+            return d.substring(0, 3) + "-" + d.substring(3, d.length() - 4) + "-" + d.substring(d.length() - 4);
+
+        return d;
     }
 
     // ── 통화메모 삭제 (TB_CALLMAIN DELETE) ───────────────────
@@ -491,19 +513,28 @@ public class WebRequestService {
     }
 
     // ── seq 채번 (yyyymm 기준 MAX + 1) ───────────────────────
+    /**
+     * 통화기록 번호 채번 — 'yyyymm' + 네 자리 일련번호 (예: 2026100001).
+     * 기존 자료가 그 꼴이라 맞춘다.
+     *
+     * 예전에는 그 달에 행이 없으면 ISNULL(..., 0) + 1 로 그냥 "1" 이 나왔다.
+     * 아래 yyyymm + "0001" 분기는 ISNULL 때문에 영영 타지 않았다.
+     * 그렇게 생긴 "1" 은 LEFT(seq,6) 조건에 안 걸려서 다음 채번도 또 "1" 을 뽑고,
+     * 기본키가 겹쳐 INSERT 가 통째로 실패했다 — 달이 바뀔 때마다 재현된다.
+     */
     private String getNextCallSeq(String yyyymm) {
         MapSqlParameterSource param = new MapSqlParameterSource();
         param.addValue("yyyymm", yyyymm);
+        param.addValue("base",   Long.parseLong(yyyymm + "0000"));
 
-        String sql = """
-                SELECT ISNULL(MAX(CAST(seq AS BIGINT)), 0) + 1
-                FROM TB_CALLMAIN
-                WHERE LEFT(seq, 6) = :yyyymm
-                """;
+        Long next = namedParameterJdbcTemplate.queryForObject("""
+                SELECT ISNULL(MAX(CAST(seq AS BIGINT)), :base) + 1
+                  FROM TB_CALLMAIN
+                 WHERE LEFT(seq, 6) = :yyyymm
+                   AND ISNUMERIC(seq) = 1
+                """, param, Long.class);
 
-        Long next = namedParameterJdbcTemplate.queryForObject(sql, param, Long.class);
-        if (next == null) next = Long.parseLong(yyyymm + "0001");
-        return String.valueOf(next);
+        return String.valueOf(next == null ? Long.parseLong(yyyymm + "0001") : next);
     }
 
     // ── 팝업: 현장 검색 (TB_E601) ────────────────────────────
