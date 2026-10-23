@@ -203,9 +203,19 @@ public class TenantDbService {
         MapSqlParameterSource p = new MapSqlParameterSource();
         p.addValue("site", site);
 
+        // tb_xa012 에는 db_key 가 없다. 거기 spjangcd 는 사업체 코드(GO·AN·DJ…) 자체이고,
+        // 사업체 DB 안에서 쓰는 사업장코드는 다른 값이다 (GO → ZZ).
+        //
+        // 그 값을 들고 있는 건 auth_user 다. 화면도 user.getSpjangcd() 로 같은 값을 써서
+        // 사업체 DB 를 조회한다 — 통화기록도 같은 값으로 넣어야 짝이 맞는다.
+        //
+        // 한 사업체의 사용자가 서로 다른 값을 들고 있을 수 있어 가장 많은 쪽을 택한다.
         Map<String, Object> row = sqlRunner.getRow("""
-                SELECT spjangcd FROM tb_xa012
+                SELECT spjangcd
+                  FROM auth_user
                  WHERE db_key = :site AND COALESCE(spjangcd, '') <> ''
+                 GROUP BY spjangcd
+                 ORDER BY COUNT(*) DESC
                  LIMIT 1
                 """, p);
 
