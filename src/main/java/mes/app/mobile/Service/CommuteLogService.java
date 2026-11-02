@@ -182,12 +182,16 @@ public class CommuteLogService {
 		q.addValue("workym", workym);
 		q.addValue("workday", workday);
 		q.addValue("idx", v.idx);
+
+		// 출근·퇴근·중간보고가 모두 tb_pb201 의 같은 행에 들어가므로 한 번에 읽는다
 		Map<String, Object> row = tenantSqlRunner.getRow("""
 				SELECT DB_NAME() AS db,
 				       (SELECT TOP 1 ISNULL(starttime, '') FROM tb_pb201
 				         WHERE spjangcd = :spjangcd AND perid = :perid AND workym = :workym AND workday = :workday AND idx = :idx) AS starttime,
 				       (SELECT TOP 1 ISNULL(endtime, '') FROM tb_pb201
-				         WHERE spjangcd = :spjangcd AND perid = :perid AND workym = :workym AND workday = :workday AND idx = :idx) AS endtime
+				         WHERE spjangcd = :spjangcd AND perid = :perid AND workym = :workym AND workday = :workday AND idx = :idx) AS endtime,
+				       (SELECT TOP 1 ISNULL(mid_time, '') FROM tb_pb201
+				         WHERE spjangcd = :spjangcd AND perid = :perid AND workym = :workym AND workday = :workday AND idx = :idx) AS mid_time
 				""", q);
 		if (row == null) {
 			v.result = "CHECK_FAIL";
@@ -196,8 +200,11 @@ public class CommuteLogService {
 		v.db = str(row.get("db"));
 		v.starttime = row.get("starttime") == null ? null : str(row.get("starttime"));
 		v.endtime = row.get("endtime") == null ? null : str(row.get("endtime"));
+		v.midTime = row.get("mid_time") == null ? null : str(row.get("mid_time"));
 
-		String expected = "OUT".equals(action) ? v.endtime : v.starttime;
+		String expected = "OUT".equals(action) ? v.endtime
+				: "MID".equals(action) ? v.midTime
+				: v.starttime;
 		v.result = (expected == null || expected.isBlank()) ? "MISSING" : "OK";
 		return v;
 	}
@@ -317,7 +324,7 @@ public class CommuteLogService {
 	}
 
 	private static class Verify {
-		String db, spjangcd, perid, starttime, endtime, result;
+		String db, spjangcd, perid, starttime, endtime, midTime, result;
 		Integer idx;
 	}
 }

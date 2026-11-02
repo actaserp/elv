@@ -98,7 +98,8 @@ public class MobileMainService {
                 SELECT t.starttime,
                        t.endtime,
                        t.workcd,
-                       t.remark
+                       t.remark,
+                       t.mid_time
                 FROM auth_user a
                 LEFT JOIN tb_pb201 t
                     ON  t.perid    = a.personid
@@ -125,7 +126,8 @@ public class MobileMainService {
                     t.starttime,
                     t.endtime,
                     t.idx,
-                    t.remark
+                    t.remark,
+                    t.mid_time
                 FROM auth_user a
                 LEFT JOIN tb_pb201 t
                     ON  t.perid    = a.personid
@@ -258,6 +260,30 @@ public class MobileMainService {
                     weekNum, holiyn, starttime, inFlag, workcd,
                     jitime, address, latitude, longitude, remark);
         }
+    }
+
+    // =========================================================
+    // 중간보고 저장 (출근 레코드의 mid_* 컬럼을 갱신)
+    //  하루 1건. 다시 누르면 시각·위치·비고를 덮어쓴다.
+    //  별도 테이블이 아니라 컬럼이므로 출근 기록을 지우면 중간보고도 함께 사라진다.
+    //  (별도 행이던 때는 출근을 지웠다 다시 등록하면 옛 중간보고가 되살아났다)
+    //  누른 횟수는 본사 commute_log 의 action=MID 기록으로 확인한다.
+    // =========================================================
+    @Transactional
+    public void saveMidReport(String spjangcd, String perId, String workym, String workday, int idx,
+                              String midTime, String address,
+                              String latitude, String longitude, String remark) {
+        jdbcTemplate.update("""
+                UPDATE tb_pb201
+                SET mid_time      = ?,
+                    mid_address   = ?,
+                    mid_latitude  = ?,
+                    mid_longitude = ?,
+                    mid_remark    = ?
+                WHERE spjangcd = ? AND perid = ? AND workym = ? AND workday = ? AND idx = ?
+                """,
+                midTime, address, latitude, longitude, remark,
+                spjangcd, perId, workym, workday, idx);
     }
 
     // =========================================================

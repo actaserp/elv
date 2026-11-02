@@ -2112,6 +2112,10 @@
                         if (row.latitude && row.longitude) {
                             addGpsMarker(row.latitude, row.longitude, row.Name, row.address, '\ucd9c\uadfc', '#1a7aff', bounds);
                         }
+                        // 중간보고 마커 (초록색)
+                        if (row.mid_latitude && row.mid_longitude) {
+                            addGpsMarker(row.mid_latitude, row.mid_longitude, row.Name, row.mid_address, '중간보고', '#34c759', bounds);
+                        }
                         // 퇴근 마커 (빨간색)
                         if (row.out_latitude && row.out_longitude) {
                             addGpsMarker(row.out_latitude, row.out_longitude, row.Name, row.out_address, '\ud1f4\uadfc', '#ff4444', bounds);
@@ -2128,7 +2132,7 @@
             if (bounds) bounds.extend(pos);
 
             // 카카오 기본 마커 모양 SVG — 출근(파란)/퇴근(빨간)
-            var svgColor = (type === '\ucd9c\uadfc') ? '#1a6fff' : '#ff3333';
+            var svgColor = (type === '\ucd9c\uadfc') ? '#1a6fff' : (type === '중간보고') ? '#34c759' : '#ff3333';
             var svgContent = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">'
                 + '<path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26S28 24.5 28 14C28 6.268 21.732 0 14 0z" fill="' + svgColor + '"/>'
                 + '<circle cx="14" cy="14" r="6" fill="white"/>'

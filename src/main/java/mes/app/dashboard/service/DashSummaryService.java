@@ -801,6 +801,10 @@ public class DashSummaryService {
                 t.out_latitude,
                 t.out_longitude,
                 t.out_address,
+                t.mid_latitude,
+                t.mid_longitude,
+                t.mid_address,
+                t.mid_time,
                 t.remark,
                 t.starttime,
                 t.endtime
@@ -817,6 +821,7 @@ public class DashSummaryService {
             AND (
                 (t.latitude IS NOT NULL AND t.longitude IS NOT NULL)
                 OR (t.out_latitude IS NOT NULL AND t.out_longitude IS NOT NULL)
+                OR (t.mid_latitude IS NOT NULL AND t.mid_longitude IS NOT NULL)
             )
         """;
         // username이 있을 때만 param에 추가

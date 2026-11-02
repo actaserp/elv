@@ -90,12 +90,16 @@ public class MobileMainController {
                 resultData.put("outOfficeTime", timeInfo.get("endtime"));   // ✅ idx=1 퇴근시간 (추가근무 진입 조건용)
                 resultData.put("workcd",        timeInfo.get("workcd"));
                 resultData.put("remark",        timeInfo.get("remark"));
+                // 중간보고 시각. 다시 누르면 덮어쓰므로 마지막 하나만 있다.
+                // 누른 횟수는 본사 commute_log 의 action=MID 기록으로 확인한다.
+                resultData.put("midTime",       timeInfo.get("mid_time"));
             }
 
             if (overtimeInfo != null) {
                 resultData.put("ovStartTime", overtimeInfo.get("starttime"));
-                // 추가근무 중일 때는 추가근무 레코드의 remark로 덮어씀
-                resultData.put("remark", overtimeInfo.get("remark"));
+                // 추가근무 중일 때는 추가근무 레코드의 remark·중간보고로 덮어씀
+                resultData.put("remark",  overtimeInfo.get("remark"));
+                resultData.put("midTime", overtimeInfo.get("mid_time"));
             }
         } else {
             // 사원이 아닌 관리 계정 — 화면이 divinm + last_name + RSPNM 을 그대로 이어붙이므로
@@ -248,6 +252,100 @@ public class MobileMainController {
         } catch (Exception e) {
             // 예전 e.printStackTrace() 는 서버 콘솔에만 찍혀 error.log 에서 찾을 수 없었다
             log.error("[Commute] 출근 저장 실패 perid={} work={}{}", perId, workym, workday, e);
+            result.success = false;
+            result.message = "오류가 발생하였습니다: " + e.getMessage();
+        }
+        return result;
+    }
+
+    // 중간보고 — 근무 중 위치·시각을 남긴다. 하루 1건이고 다시 누르면 덮어쓴다.
+    // 시도·결과는 출퇴근과 같이 CommuteLogService 가 남긴다 (action=MID).
+    @PostMapping("/submitMidReport")
+    public AjaxResult submitMidReport(
+            @RequestParam(value = "office")                       String office,
+            @RequestParam(value = "workym",    required = false)  String workym,
+            @RequestParam(value = "workday",   required = false)  String workday,
+            @RequestParam(value = "remark",    required = false)  String remark,
+            @RequestParam(value = "latitude",  required = false)  String latitude,
+            @RequestParam(value = "longitude", required = false)  String longitude,
+            @RequestParam(value = "gpsInfo",   required = false)  String gpsInfo,
+            @RequestParam(value = "attemptId", required = false)  String attemptId,
+            HttpServletRequest request,
+            Authentication auth) {
+        return commuteLogService.record("MID", attemptId, request, auth, office, workym, workday,
+                latitude, longitude, gpsInfo,
+                () -> submitMidReportInner(office, workym, workday, remark,
+                        latitude, longitude, gpsInfo, request, auth));
+    }
+
+    private AjaxResult submitMidReportInner(
+            String office, String workym, String workday, String remark,
+            String latitude, String longitude, String gpsInfo,
+            HttpServletRequest request, Authentication auth) {
+
+        AjaxResult result = new AjaxResult();
+        if (!(auth != null && auth.getPrincipal() instanceof User)) {
+            result.success = false;
+            result.code    = "UNAUTHORIZED";
+            result.message = "로그인이 필요합니다.";
+            return result;
+        }
+        User user = (User) auth.getPrincipal();
+
+        Map<String, Object> userInfo = tenantUserService.getUserInfo(user.getUsername());
+        if (userInfo == null) {
+            result.success = false;
+            result.message = "사용자 정보를 찾을 수 없습니다.";
+            return result;
+        }
+        String spjangcd = (String) userInfo.get("spjangcd");
+        String perId    = userInfo.get("personid") != null ? userInfo.get("personid").toString() : null;
+        if (perId == null) {
+            // 본사에서 만든 사업체 관리 계정(admin 등)은 사원이 아니라 근태 대상이 아니다
+            result.success = false;
+            result.message = "사원 정보가 없어 중간보고를 등록할 수 없습니다.";
+            return result;
+        }
+
+        // 대상 idx 는 서버가 정한다 — 퇴근하지 않은 레코드 중 가장 큰 idx.
+        // 퇴근 처리와 같은 방식이고, 화면이 보낸 값을 믿지 않는다.
+        List<Map<String, Object>> todayRecords =
+                mobileMainService.findTodayAllRecords(spjangcd, perId, workym, workday);
+
+        Map<String, Object> entity = todayRecords.stream()
+                .filter(r -> r.get("endtime") == null || r.get("endtime").toString().isEmpty())
+                .max(Comparator.comparing(r -> ((Number) r.get("idx")).intValue()))
+                .orElse(null);
+
+        if (entity == null) {
+            result.success = false;
+            result.message = "출근 기록이 없습니다.";
+            return result;
+        }
+        int targetIdx = ((Number) entity.get("idx")).intValue();
+
+        // 시도 기록이 저장 직후 이 키로 tb_pb201 을 다시 읽어 mid_time 이 들어갔는지 확인한다
+        request.setAttribute(mes.app.mobile.Service.CommuteLogService.ATTR_SPJANGCD, spjangcd);
+        request.setAttribute(mes.app.mobile.Service.CommuteLogService.ATTR_PERID, perId);
+        request.setAttribute(mes.app.mobile.Service.CommuteLogService.ATTR_IDX, targetIdx);
+
+        String midTime = LocalDateTime.now().toLocalTime().format(timeFormatter);
+
+        // 사내 근무는 위치를 남기지 않는다 (출퇴근과 같은 규칙)
+        String inFlag         = office != null && office.startsWith("inOffice") ? "0" : "1";
+        String finalAddress   = "1".equals(inFlag) ? gpsInfo : null;
+        String finalLatitude  = "1".equals(inFlag) && latitude  != null && !latitude.isEmpty()  ? latitude  : null;
+        String finalLongitude = "1".equals(inFlag) && longitude != null && !longitude.isEmpty() ? longitude : null;
+
+        try {
+            mobileMainService.saveMidReport(
+                    spjangcd, perId, workym, workday, targetIdx,
+                    midTime, finalAddress, finalLatitude, finalLongitude,
+                    remark != null ? remark.trim() : "");
+            result.success = true;
+            result.message = "중간보고가 등록되었습니다. (" + midTime + ")";
+        } catch (Exception e) {
+            log.error("[Commute] 중간보고 저장 실패 perid={} work={}{} idx={}", perId, workym, workday, targetIdx, e);
             result.success = false;
             result.message = "오류가 발생하였습니다: " + e.getMessage();
         }

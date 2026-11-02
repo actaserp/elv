@@ -33,6 +33,7 @@ public class CommuteCurrentService {
                 t.nomaltime, t.overtime, t.nighttime, t.holitime,
                 t.jitime, t.jotime, t.yuntime, t.abtime, t.bantime,
                 t.remark, t.out_remark, t.fixflag, t.address, t.out_address,
+                t.mid_time, t.mid_address, t.mid_remark,
                 a.first_name,
                 STUFF(
                     CASE WHEN t.jitime  = 1 THEN ', 지각' ELSE '' END +

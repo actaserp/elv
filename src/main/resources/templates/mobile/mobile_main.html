@@ -221,9 +221,12 @@
               </button>
             </div>
             <!-- 외부 버튼 -->
+            <!-- 왼쪽 버튼은 근무 중이면 「중간보고」로 바뀐다 (applyPrimaryButton).
+                 원래 이 상태에서 출근 버튼은 차단 메시지만 띄우고 아무 일도 못 했다. -->
             <div id="outside" style="display: none; gap: 13%; justify-content: center;">
-              <button onclick="submitCommute('outOfficeIn')" class="office_btn">
-                <i class="fa-solid fa-briefcase fa_xl" style="color: #ffffff;"></i><br>출근
+              <button id="btnPrimary" onclick="onPrimaryButton()" class="office_btn">
+                <i id="btnPrimaryIcon" class="fa-solid fa-briefcase fa_xl" style="color: #ffffff;"></i><br><span id="btnPrimaryText">출근</span><!--
+                --><span id="btnPrimarySub" style="display:none; font-size:10px; font-weight:normal; line-height:1.2; opacity:0.95;"></span>
               </button>
               <button onclick="submitCommute('outOfficeOut')" class="office_btn" style="background-color: red;">
                 <i class="fa-solid fa-person-walking fa_xl" style="color: #fafafa;"></i><br>퇴근
@@ -243,6 +246,8 @@
   // ✅ 전역 변수로 유저 ID 저장 (이름보다 empId가 더 안전)
   let currentUserInfo = null;
   let hasCheckedOut   = false; // ✅ idx=1 퇴근 완료 여부
+  let isWorking       = false; // 근무 중(출근했고 아직 퇴근 안 함) — 이때만 중간보고가 가능하다
+  let midTime         = null;  // 오늘 등록된 중간보고 시각 'HH:mm' (다시 누르면 덮어쓴다)
 
   const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -358,10 +363,18 @@
           // ✅ idx=1 퇴근 완료 여부 저장
           hasCheckedOut = !!result.data.outOfficeTime;
 
-          // ✅ 비고 표시 (출근 후 저장된 remark)
-          if (result.data.remark) {
-            document.getElementById('remarkInput').value = result.data.remark;
-          }
+          // 비고 입력칸은 비워 둔다.
+          // 예전에는 출근 비고(remark)를 여기에 채웠는데, 퇴근할 때 고치지 않으면
+          // 그 값이 그대로 out_remark 로 저장돼 출근 비고가 퇴근 비고로 복사됐다.
+          // 지금은 버튼을 누르는 시점에 입력칸에 쓴 값만 저장된다
+          // (출근→remark, 중간보고→mid_remark, 퇴근→out_remark — 모두 tb_pb201 의 컬럼).
+          // 저장된 비고는 출퇴근현황에서 확인한다.
+
+          // 중간보고 — 근무 중이면 왼쪽 버튼이 「중간보고」로 바뀐다
+          midTime   = result.data.midTime || null;
+          isWorking = (!!result.data.inOfficeTime && !result.data.outOfficeTime)
+                   || !!result.data.ovStartTime;
+          applyPrimaryButton();
 
           // ✅ 추가근무 출근시간 바인딩 (idx>=2)
           if (result.data.ovStartTime) {
@@ -545,9 +558,9 @@
     } catch (e) {
       console.warn('출퇴근 기록 저장 실패', e);
     }
-    // 중간 단계(CLICK·REQUEST·OVERTIME_CONFIRM/OK)는 폰에 쌓아만 두고,
+    // 중간 단계(CLICK·REQUEST·OVERTIME_CONFIRM/OK·MID_CONFIRM/OK)는 폰에 쌓아만 두고,
     // 결과가 정해진 단계에서 한 번에 보낸다 — 버튼 한 번에 전송 1회, 출퇴근 요청과 겹치지 않음
-    if (/^(BLOCK_|RESPONSE_|AJAX_ERROR|OVERTIME_CANCEL)/.test(stage)) {
+    if (/^(BLOCK_|RESPONSE_|AJAX_ERROR|OVERTIME_CANCEL|MID_CANCEL)/.test(stage)) {
       flushCommuteTrace();
     }
   }
@@ -601,6 +614,131 @@
       }
     } catch (e) { /* 미지원 */ }
   });
+
+  // 외부 왼쪽 버튼을 「출근」 ↔ 「중간보고」로 바꾼다.
+  // 사내 버튼은 그대로다 — 사내 출퇴근은 좌표를 저장하지 않아(inflag='0') 중간보고가 의미 없다.
+  function applyPrimaryButton() {
+    const btn  = document.getElementById('btnPrimary');
+    const icon = document.getElementById('btnPrimaryIcon');
+    const text = document.getElementById('btnPrimaryText');
+    const sub  = document.getElementById('btnPrimarySub');
+    if (!btn || !icon || !text) return;
+
+    if (isWorking) {
+      btn.style.backgroundColor = '#34c759';
+      icon.className   = 'fa-solid fa-location-dot fa_xl';
+      text.textContent = '중간보고';
+      // 버튼은 100x100 고정이다. '중간보고' 는 네 글자라 1.2em 이면 폭이 모자라 줄바꿈된다
+      text.style.fontSize = '0.95em';
+    } else {
+      // 출근 전이거나 퇴근을 마친 상태. 퇴근 후에는 추가근무 출근으로 쓰인다.
+      btn.style.backgroundColor = '';
+      icon.className   = 'fa-solid fa-briefcase fa_xl';
+      text.textContent = '출근';
+      text.style.fontSize = '';
+    }
+
+    // 등록된 중간보고 시각을 버튼 안에 작게.
+    // 다시 누르면 덮어쓰므로 항상 마지막 시각 하나만 보여준다 (누른 횟수는 본사 commute_log 에 남는다)
+    if (!sub) return;
+    if (isWorking && midTime) {
+      sub.textContent   = midTime;
+      sub.style.display = 'block';
+    } else {
+      sub.textContent   = '';
+      sub.style.display = 'none';
+    }
+  }
+
+  function onPrimaryButton() {
+    if (isWorking) {
+      submitMidReport();
+    } else {
+      submitCommute('outOfficeIn');
+    }
+  }
+
+  // ✅ 중간보고 — 하루 1건. 이미 있으면 확인을 받고 덮어쓴다(이전 시각·위치는 남지 않는다).
+  function submitMidReport() {
+    const now   = new Date();
+    const year  = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const date  = String(now.getDate()).padStart(2, '0');
+
+    commuteAttempt = {id: newAttemptId(), action: 'MID', office: 'outOfficeMid', workym: year + month, workday: date};
+    commuteTrace('CLICK');
+
+    if (midTime) {
+      commuteTrace('MID_CONFIRM');
+      Alert.confirm(
+              '',
+              '이미 ' + midTime + ' 에 중간보고가 등록되어 있습니다. \n현재 위치로 변경하시겠습니까?',
+              function () {
+                commuteTrace('MID_OK');
+                callMidReportApi(year, month, date);
+              },
+              function () {
+                commuteTrace('MID_CANCEL');
+              }
+      );
+      return;
+    }
+    callMidReportApi(year, month, date);
+  }
+
+  function callMidReportApi(year, month, date) {
+    // 출근과 같은 순서로 막는다 — 사용자정보 → 좌표 → 주소
+    if (!currentUserInfo) {
+      commuteTrace('BLOCK_USERINFO', {message: '사용자 정보를 불러오는 중입니다.'});
+      Alert.alert('', '사용자 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+    if (latitude == null || longitude == null) {
+      commuteTrace('BLOCK_GPS', {message: '위치정보를 불러오는 중입니다.'});
+      Alert.alert('', '위치정보를 불러오는 중입니다.\n잠시 후 다시 시도해주세요.', getGPSLocation);
+      return;
+    }
+    const address = document.getElementById('gpsInfo').innerText.trim();
+    if (!address) {
+      commuteTrace('BLOCK_ADDRESS', {message: '주소정보를 불러오는 중입니다.'});
+      Alert.alert('', '주소정보를 불러오는 중입니다.\n잠시 후 다시 시도해주세요.', getGPSLocation);
+      return;
+    }
+
+    let data = {
+      office:    'outOfficeMid',
+      workym:    year + month,
+      workday:   date,
+      remark:    document.getElementById('remarkInput').value.trim(),
+      gpsInfo:   address,
+      latitude:  latitude,
+      longitude: longitude,
+      attemptId: commuteAttempt ? commuteAttempt.id : ''
+    };
+
+    commuteTrace('REQUEST');
+    AjaxUtil.postAsyncData('/api/mobile_main/submitMidReport', data, function (result) {
+      if (result == null) {
+        commuteTrace('RESPONSE_NULL');
+        Alert.alert('', '오류가 발생하였습니다.');
+        return;
+      }
+      commuteTrace(result.success ? 'RESPONSE_OK' : 'RESPONSE_FAIL', {message: result.message || ''});
+      if (result.success) {
+        Alert.alert('', result.message, function () {
+          // 다음에 누를 버튼(퇴근)에 이 비고가 따라가지 않도록 비운다
+          document.getElementById('remarkInput').value = '';
+          if (typeof window.searchMainData === 'function') {
+            window.searchMainData();
+          } else {
+            reloadWindow();
+          }
+        });
+      } else {
+        Alert.alert('', result.message || '중간보고 등록에 실패하였습니다.');
+      }
+    }, commuteAjaxFailure);
+  }
 
   // ✅ 출퇴근 등록 메인 함수
   function submitCommute(office) {
@@ -746,6 +884,8 @@
             // 출퇴근 판정에 쓰는 officeTime(출근시간)·hasCheckedOut(퇴근여부)은
             // searchMainData() 안에서만 세팅되므로 이것으로 충분하다.
             Alert.alert('', result.message, function () {
+              // 다음에 누를 버튼(중간보고·퇴근)에 출근 비고가 따라가지 않도록 비운다
+              document.getElementById('remarkInput').value = '';
               if (typeof window.searchMainData === 'function') {
                 window.searchMainData();
               } else {
