@@ -91,34 +91,64 @@ public class DailyApprovalService {
         param.addValue("no",       no);
         param.addValue("indate",   indate);
 
-        String checkSql = "SELECT COUNT(*) AS cnt FROM TB_E063 WHERE spjangcd=:spjangcd AND papercd=:papercd AND perid=:perid";
+        // 머리행(TB_E063)은 사원+문서코드 당 1건
+        String checkSql = "SELECT COUNT(*) AS cnt FROM TB_E063 WHERE custcd=:custcd AND spjangcd=:spjangcd AND papercd=:papercd AND perid=:perid";
         List<Map<String, Object>> checkResult = sqlRunner.getRows(checkSql, param);
         int count = ((Number) checkResult.get(0).get("cnt")).intValue();
         if (count == 0) {
             namedParameterJdbcTemplate.update(
                 "INSERT INTO TB_E063 (custcd,spjangcd,papercd,perid) VALUES (:custcd,:spjangcd,:papercd,:perid)", param);
         }
-        namedParameterJdbcTemplate.update(
-            "INSERT INTO TB_E064 (custcd,spjangcd,papercd,no,perid,seq,kcperid,gubun,indate) VALUES (:custcd,:spjangcd,:papercd,:no,:perid,:seq,:kcperid,:gubun,:indate)", param);
+
+        // 상세행(TB_E064)은 같은 no 가 있으면 수정, 없으면 추가한다.
+        // 예전에는 항상 INSERT 라서, 그리드에서 행을 불러와 고쳐 저장하면
+        // PK(custcd,spjangcd,perid,papercd,no) 중복으로 저장이 실패했다 — 수정이 불가능했다.
+        String dupSql = "SELECT COUNT(*) AS cnt FROM TB_E064 WHERE custcd=:custcd AND spjangcd=:spjangcd AND papercd=:papercd AND perid=:perid AND no=:no";
+        List<Map<String, Object>> dupResult = sqlRunner.getRows(dupSql, param);
+        int lineCount = ((Number) dupResult.get(0).get("cnt")).intValue();
+        if (lineCount > 0) {
+            namedParameterJdbcTemplate.update("""
+                    UPDATE TB_E064
+                       SET seq=:seq, kcperid=:kcperid, gubun=:gubun, indate=:indate
+                     WHERE custcd=:custcd AND spjangcd=:spjangcd AND papercd=:papercd
+                       AND perid=:perid AND no=:no
+                    """, param);
+        } else {
+            namedParameterJdbcTemplate.update(
+                "INSERT INTO TB_E064 (custcd,spjangcd,papercd,no,perid,seq,kcperid,gubun,indate) VALUES (:custcd,:spjangcd,:papercd,:no,:perid,:seq,:kcperid,:gubun,:indate)", param);
+        }
     }
 
-    public void deleteApprovalLine(String perid, String papercd, String no, String kcperid, String spjangcd) {
+    /**
+     * 결재자 1명 삭제. 그 사원의 결재자가 하나도 남지 않을 때만 머리행(TB_E063)도 지운다.
+     *
+     * 예전에는 남은 행 확인에 'AND no=:no' 가 붙어 있었다. no 는 결재자마다 다른 값이라
+     * 지운 행의 no 로 세면 언제나 0건이고, 결재자 3명 중 1명만 지워도 머리행이 삭제돼
+     * 나머지 2명이 고아 행으로 남았다.
+     */
+    public void deleteApprovalLine(String spjangcd, String custcd, String perid,
+                                   String papercd, String no, String kcperid) {
         MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd", spjangcd);
+        param.addValue("custcd",   custcd);
         param.addValue("perid",    stripP(perid));
         param.addValue("papercd",  papercd);
         param.addValue("no",       no);
         param.addValue("kcperid",  stripP(kcperid));
-        param.addValue("spjangcd", spjangcd);
 
-        namedParameterJdbcTemplate.update(
-            "DELETE FROM TB_E064 WHERE perid=:perid AND papercd=:papercd AND no=:no AND kcperid=:kcperid AND spjangcd=:spjangcd", param);
+        int deleted = namedParameterJdbcTemplate.update(
+            "DELETE FROM TB_E064 WHERE custcd=:custcd AND spjangcd=:spjangcd AND papercd=:papercd AND perid=:perid AND no=:no AND kcperid=:kcperid", param);
+        if (deleted == 0) {
+            // 조건이 하나라도 어긋나면 아무것도 지우지 않는다 — '삭제되었습니다'로 끝나면 안 된다
+            throw new IllegalStateException("삭제할 결재자를 찾지 못했습니다.");
+        }
 
         List<Map<String, Object>> countResult = sqlRunner.getRows(
-            "SELECT COUNT(*) AS cnt FROM TB_E064 WHERE perid=:perid AND papercd=:papercd AND no=:no AND spjangcd=:spjangcd", param);
+            "SELECT COUNT(*) AS cnt FROM TB_E064 WHERE custcd=:custcd AND spjangcd=:spjangcd AND papercd=:papercd AND perid=:perid", param);
         int remaining = ((Number) countResult.get(0).get("cnt")).intValue();
         if (remaining == 0) {
             namedParameterJdbcTemplate.update(
-                "DELETE FROM TB_E063 WHERE perid=:perid AND papercd=:papercd AND spjangcd=:spjangcd", param);
+                "DELETE FROM TB_E063 WHERE custcd=:custcd AND spjangcd=:spjangcd AND papercd=:papercd AND perid=:perid", param);
         }
     }
 
@@ -425,6 +455,44 @@ public class DailyApprovalService {
     //  결재 목록 (approval_history)
     // ════════════════════════════════════════════════════════
 
+    /**
+     * 문서 한 건의 결재 진행 상황을 세는 조각. tb_e080 의 바깥 별칭 e 에 붙여 쓴다.
+     *
+     * tb_e080.appgubun 은 '결재자 한 사람의 처리결과'라서 문서 전체 상태로는 쓸 수 없다.
+     * 결재선 전체를 세어 문서 상태를 다시 계산하려고 결재자 행들을 한 번에 집계한다.
+     * seq='000' 은 PB 가 참조자용으로 넣는 행이라 결재 진행에서 제외한다.
+     */
+    private static final String DOC_STATUS_APPLY = """
+                OUTER APPLY (
+                    SELECT COUNT(CASE WHEN r.seq <> '000'                            THEN 1 END) AS cnt_line,
+                           COUNT(CASE WHEN r.seq <> '000' AND r.appgubun =  '101'    THEN 1 END) AS cnt_ok,
+                           COUNT(CASE WHEN r.appgubun = '131'                        THEN 1 END) AS cnt_rej,
+                           COUNT(CASE WHEN r.seq <> '000' AND r.appgubun <> '001'    THEN 1 END) AS cnt_done,
+                           MAX(r.appdate) AS last_appdate
+                    FROM tb_e080 r
+                    WHERE r.spjangcd = e.spjangcd AND r.appnum = e.appnum
+                ) s
+            """;
+
+    /** 위 집계로 문서 전체 상태를 내는 식 — 반려 / 결재완료 / 대기 / 결재중 */
+    private static final String DOC_STATUS_CASE = """
+                CASE WHEN s.cnt_rej > 0                            THEN '131'
+                     WHEN s.cnt_line > 0 AND s.cnt_ok = s.cnt_line THEN '101'
+                     WHEN s.cnt_done = 0                           THEN '001'
+                     ELSE '111' END
+            """;
+
+    /**
+     * 결재 목록 — 내가 상신한 문서.
+     *
+     * 문서 한 건이 한 줄이어야 한다. 예전에는 flag='1' 로 한 줄만 남기려 했지만
+     * flag 는 결재한 사람마다 '1' 로 남아서 2인 결재선 문서가 2줄로 나왔다.
+     * 결재자 행 중 대표행 1건만 고르는 방식으로 바꾼다.
+     *
+     * 대표행 우선순위 : 반려행 → 처리된 행 → 결재순서 뒤쪽
+     *   반려 문서는 반려한 사람의 사유·일자가 목록에 보여야 하기 때문이다.
+     * 결재구분은 대표행의 값이 아니라 DOC_STATUS_CASE 로 계산한 문서 전체 상태를 쓴다.
+     */
     public List<Map<String, Object>> getApprovalHistoryList(String spjangcd, String perid,
                                                              String startDate, String endDate,
                                                              String searchPayment, String searchText) {
@@ -436,29 +504,84 @@ public class DailyApprovalService {
         param.addValue("endDate",   endDate);
 
         StringBuilder sql = new StringBuilder("""
-                SELECT e.appnum, e.appperid, e.repoperid,
-                       e.appgubun,
+                SELECT x.appnum, x.appperid, x.repoperid,
+                       x.appgubun,
                        sc.com_cnam AS appgubun_display,
-                       e.repodate, e.appdate, e.title, e.remark,
-                       e.papercd,
+                       x.repodate, x.appdate, x.title, x.remark,
+                       x.papercd,
                        ca.com_cnam AS papercd_name
-                FROM tb_e080 e
-                LEFT JOIN TB_CA510 sc ON sc.com_cls='621' AND sc.com_code=e.appgubun
-                LEFT JOIN TB_CA510 ca ON ca.com_cls='620' AND ca.com_code=e.papercd
-                WHERE e.spjangcd=:spjangcd AND e.repoperid=:perid AND e.flag='1'
-                  AND e.repodate BETWEEN :startDate AND :endDate
+                FROM (
+                    SELECT e.appnum, e.appperid, e.repoperid, e.spjangcd,
+                           e.repodate, e.title, e.remark, e.papercd,
+                           s.last_appdate AS appdate,
+                """
+                + DOC_STATUS_CASE + """
+                           AS appgubun,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY e.spjangcd, e.appnum
+                               ORDER BY CASE WHEN e.appgubun =  '131' THEN 0 ELSE 1 END,
+                                        CASE WHEN e.appgubun =  '001' THEN 1 ELSE 0 END,
+                                        TRY_CAST(e.seq AS int) DESC
+                           ) AS rn
+                    FROM tb_e080 e
+                """
+                + DOC_STATUS_APPLY + """
+                    WHERE e.spjangcd=:spjangcd AND e.repoperid=:perid
+                      AND e.repodate BETWEEN :startDate AND :endDate
+                ) x
+                LEFT JOIN TB_CA510 sc ON sc.com_cls='621' AND sc.com_code=x.appgubun
+                LEFT JOIN TB_CA510 ca ON ca.com_cls='620' AND ca.com_code=x.papercd
+                WHERE x.rn = 1
                 """);
 
         if (searchPayment != null && !searchPayment.isBlank() && !"all".equals(searchPayment)) {
-            sql.append(" AND e.appgubun = :searchPayment");
+            // 검색조건도 문서 전체 상태 기준이다 (대표행의 처리결과가 아니다)
+            sql.append(" AND x.appgubun = :searchPayment");
             param.addValue("searchPayment", searchPayment);
         }
         if (searchText != null && !searchText.isBlank()) {
-            sql.append(" AND e.title LIKE :searchText");
+            sql.append(" AND x.title LIKE :searchText");
             param.addValue("searchText", "%" + searchText + "%");
         }
-        sql.append(" ORDER BY e.repodate DESC");
+        sql.append(" ORDER BY x.repodate DESC");
         return sqlRunner.getRows(sql.toString(), param);
+    }
+
+    /**
+     * 결재 목록 상단 카운트 — 내가 상신한 문서를 문서 전체 상태로 센다.
+     *
+     * 예전에는 결재 할 내역과 같은 getApprovalCount(appperid=나)를 돌려써서,
+     * 아래 그리드는 '내가 상신한 문서'인데 위 요약은 '내가 결재할 문서' 건수였다.
+     *
+     * appgubun1 대기(001) / appgubun2 결재완료(101) / appgubun3 반려(131) / appgubun4 결재중(111)
+     */
+    public List<Map<String, Object>> getApprovalCountByReporter(String spjangcd, String perid,
+                                                                 String startDate, String endDate) {
+        String purePerid = stripP(perid);
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("spjangcd",  spjangcd);
+        param.addValue("perid",     purePerid);
+        param.addValue("startDate", startDate);
+        param.addValue("endDate",   endDate);
+
+        String sql = """
+                SELECT COUNT(CASE WHEN d.st = '001' THEN 1 END) AS appgubun1,
+                       COUNT(CASE WHEN d.st = '101' THEN 1 END) AS appgubun2,
+                       COUNT(CASE WHEN d.st = '131' THEN 1 END) AS appgubun3,
+                       COUNT(CASE WHEN d.st = '111' THEN 1 END) AS appgubun4
+                FROM (
+                    SELECT DISTINCT e.appnum,
+                """
+                + DOC_STATUS_CASE + """
+                           AS st
+                    FROM tb_e080 e
+                """
+                + DOC_STATUS_APPLY + """
+                    WHERE e.spjangcd=:spjangcd AND e.repoperid=:perid
+                      AND e.repodate BETWEEN :startDate AND :endDate
+                ) d
+                """;
+        return sqlRunner.getRows(sql, param);
     }
 
     public List<Map<String, Object>> getApprovalLineByAppnum(String spjangcd, String appnum) {

@@ -35,6 +35,9 @@ public class MobileMainController {
     MobileMainService mobileMainService;
 
     @Autowired
+    mes.app.system.service.TenantDbService tenantDbService;
+
+    @Autowired
     TenantUserService tenantUserService;
 
     @Autowired
@@ -272,6 +275,17 @@ public class MobileMainController {
             @RequestParam(value = "attemptId", required = false)  String attemptId,
             HttpServletRequest request,
             Authentication auth) {
+        // 중간보고를 쓰지 않는 사업장은 여기서 막는다.
+        // 화면에서 버튼을 숨기는 것만으로는 이 API 를 직접 부르면 들어가 버린다.
+        String dbKey = (auth != null && auth.getPrincipal() instanceof User u) ? u.getDbKey() : null;
+        if (!tenantDbService.isMidReportEnabled(dbKey)) {
+            AjaxResult denied = new AjaxResult();
+            denied.success = false;
+            denied.code    = "MID_REPORT_DISABLED";
+            denied.message = "중간보고를 사용하지 않는 사업장입니다.";
+            return denied;
+        }
+
         return commuteLogService.record("MID", attemptId, request, auth, office, workym, workday,
                 latitude, longitude, gpsInfo,
                 () -> submitMidReportInner(office, workym, workday, remark,

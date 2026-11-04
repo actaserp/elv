@@ -641,6 +641,12 @@
          });
 
      </script>-->
+    <script th:inline="javascript">
+        /* 사업체별 중간보고 사용여부 (tb_tenant_db.use_mid_report).
+           설정이 없으면 사용으로 본다 — 기존 사업체의 동작이 바뀌지 않아야 한다. */
+        var USE_MID_REPORT = /*[[${use_mid_report}]]*/ true;
+    </script>
+
     <script type="text/javascript">
 
         let theGrid;
@@ -2113,7 +2119,7 @@
                             addGpsMarker(row.latitude, row.longitude, row.Name, row.address, '\ucd9c\uadfc', '#1a7aff', bounds);
                         }
                         // 중간보고 마커 (초록색)
-                        if (row.mid_latitude && row.mid_longitude) {
+                        if (USE_MID_REPORT && row.mid_latitude && row.mid_longitude) {
                             addGpsMarker(row.mid_latitude, row.mid_longitude, row.Name, row.mid_address, '중간보고', '#34c759', bounds);
                         }
                         // 퇴근 마커 (빨간색)

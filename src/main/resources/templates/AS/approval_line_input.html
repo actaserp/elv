@@ -206,6 +206,9 @@
                 document.getElementById('064no').value   = d.no      || '';
                 document.getElementById('gubuncd').value = d.gubun   || '';
                 setSelectedIndex(document.getElementById('kcperid'), d.kcpernm || '');
+                // 불러온 행을 고치는 상황이므로 확인 문구를 '수정하시겠습니까?'로 바꾼다.
+                // 예전에는 이 값이 '저장'에서 바뀌는 곳이 없어 save() 의 수정 분기가 죽어 있었다.
+                document.getElementById('btnSave').title = '수정';
               }
             }
           });

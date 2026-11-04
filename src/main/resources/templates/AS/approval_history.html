@@ -197,11 +197,13 @@
           showMarquee: true,
           isReadOnly: true,
           columns: [
-            { binding: 'userName',  header: '결재자명', width: '*', minWidth: 100, align: 'center' },
-            { binding: 'appgubun1', header: '결재대기', width: '*', minWidth: 100, align: 'center' },
-            { binding: 'appgubun2', header: '결재문서', width: '*', minWidth: 100, align: 'center' },
-            { binding: 'appgubun4', header: '보류문서', width: '*', minWidth: 100, align: 'center' },
-            { binding: 'appgubun3', header: '반려문서', width: '*', minWidth: 100, align: 'center' }
+            // 이 화면은 '내가 상신한 문서' 목록이라 카운트도 상신자 기준·문서 상태 기준이다.
+            // 예전 '보류문서' 자리는 집계에 보류 상태가 없어 '결재중'으로 바꿨다.
+            { binding: 'userName',  header: '상신자명',  width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appgubun1', header: '결재대기',  width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appgubun4', header: '결재중',    width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appgubun2', header: '결재완료',  width: '*', minWidth: 100, align: 'center' },
+            { binding: 'appgubun3', header: '반려문서',  width: '*', minWidth: 100, align: 'center' }
           ],
           itemsSource: viewdata
         });

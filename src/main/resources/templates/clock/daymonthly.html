@@ -320,6 +320,12 @@
 </th:block>
 <th:block layout:fragment="scripts">
     <th:block th:replace="common/columns_setting :: columns_setting"></th:block>
+    <script th:inline="javascript">
+        /* 사업체별 중간보고 사용여부 (tb_tenant_db.use_mid_report).
+           설정이 없으면 사용으로 본다 — 기존 사업체의 동작이 바뀌지 않아야 한다. */
+        var USE_MID_REPORT = /*[[${use_mid_report}]]*/ true;
+    </script>
+
     <script type="text/javascript">
         // 근태 지도 변수
         let map;
@@ -375,31 +381,33 @@
                     },
                     columns: [
                         {binding: 'fixflag',header: '마감', width: 70, align: 'center',visible: false},
-                        {binding: 'username', header: '사번', width: 90, align: 'center'},
+                        // 사번·사원명·직위·근무구분은 person / auth_user / tb_pz001 / sys_code
+                        // 조인값이라 tb_pb201 에 저장되지 않는다 — 고쳐도 반영되지 않으므로 편집을 막는다.
+                        {binding: 'username', header: '사번', width: 90, align: 'center', isReadOnly: true},
                         {binding: 'workymd', header: '일자', width: 100, align: 'center', isReadOnly: true },
-                        {binding: 'first_name', header: '사원명', width: 100, align: 'center' },
-                        {binding: 'RSPNM', header: '직위', width: 100, align: 'center' },
+                        {binding: 'first_name', header: '사원명', width: 100, align: 'center', isReadOnly: true },
+                        {binding: 'RSPNM', header: '직위', width: 100, align: 'center', isReadOnly: true },
                         {binding: 'starttime', header: '출근', width: 100, align: 'center' },
-                        {binding: 'mid_time', header: '중간보고', width: 100, align: 'center', isReadOnly: true },
+                        {binding: 'mid_time', header: '중간보고', width: 100, align: 'center', maxLength: 5 },
                         {binding: 'endtime', header: '퇴근', width: 100, align: 'center'},
                         {
+                            // 「구분」은 tb_pb201.workcd 에 저장된다. DataMap(workcd → worknm) 을
+                            // 붙이면 셀에는 이름이 보이고 고치면 코드가 데이터에 들어간다.
+                            // 예전에는 binding 이 'worknm' 이라, 고쳐도 workcd 는 그대로여서
+                            // 서버(item.get("workcd"))가 옛 값을 저장했다 — 저장이 안 되는 것처럼
+                            // 보인 원인. 2026-11-03 정정.
                             binding: 'workcd',
-                            visible: false
-                        },
-                        {
-                            binding: 'worknm',
                             header: '구분',
                             width: 100,
                             align: 'center',
-                            dataMap: null,
-                            cellTemplate: '${text}'
+                            dataMap: null
                         },
-                        {binding: 'address',     header: '\ucd9c\uadfc\uc704\uce58', width: 200, align: 'left'},
-                        {binding: 'mid_address', header: '중간위치',                 width: 200, align: 'left', isReadOnly: true},
-                        {binding: 'out_address', header: '\ud1f4\uadfc\uc704\uce58', width: 200, align: 'left'},
-                        {binding: 'remark',      header: '출근비고',                 width: 130, align: 'left', isReadOnly: true},
-                        {binding: 'mid_remark',  header: '중간비고',                 width: 130, align: 'left', isReadOnly: true},
-                        {binding: 'out_remark',  header: '퇴근비고',                 width: 130, align: 'left', isReadOnly: true},
+                        {binding: 'address',     header: '\ucd9c\uadfc\uc704\uce58', width: 200, align: 'left', maxLength: 50},
+                        {binding: 'mid_address', header: '중간위치',                 width: 200, align: 'left', maxLength: 100},
+                        {binding: 'out_address', header: '\ud1f4\uadfc\uc704\uce58', width: 200, align: 'left', maxLength: 100},
+                        {binding: 'remark',      header: '출근비고',                 width: 130, align: 'left', maxLength: 25},
+                        {binding: 'mid_remark',  header: '중간비고',                 width: 130, align: 'left', maxLength: 25},
+                        {binding: 'out_remark',  header: '퇴근비고',                 width: 130, align: 'left', maxLength: 25},
                         {binding: 'nomaltime', header: '근무시간', width: 100, align: 'center'},
                         {binding: 'worktime', header: '총근무시간', width: 100, align: 'center'},
                         {binding: 'jitime', header: '지각', width: 50, align: 'center'},
@@ -408,11 +416,21 @@
                         {binding: 'yuntime', header: '휴가', width: 50, align: 'center'},
                         {binding: 'abtime', header: '결근', width: 50, align: 'center'},
                         {binding: 'holitime', header: '특근', width: 50, align: 'center'},
-                        {binding: 'group_name', header: '근무구분', width: 100, align: 'center'},
+                        {binding: 'group_name', header: '근무구분', width: 100, align: 'center', isReadOnly: true},
 
                     ],
                     itemsSource: this.viewData, // 데이터를 설정할 배열
                 });
+
+                // 중간보고를 쓰지 않는 사업장은 관련 컬럼을 떼어낸다.
+                // 값이 비어도 헤더는 남아 빈 칸으로 보이므로 컬럼 자체를 없앤다.
+                if (!USE_MID_REPORT) {
+                    var midGrid = this.grid;
+                    ['mid_time', 'mid_address', 'mid_remark'].forEach(function (b) {
+                        var col = midGrid.columns.getColumn(b);
+                        if (col) midGrid.columns.remove(col);
+                    });
+                }
                 this.getWorkList();
 
                 // ✅ 행 선택 시 지도 포커스
@@ -438,7 +456,7 @@
                         addDayMonthlyMarker(item, item.latitude, item.longitude, item.address, '\ucd9c\uadfc', '#1a6fff', bounds);
                         hasMarker = true;
                     }
-                    if (item.mid_latitude && item.mid_longitude) {
+                    if (USE_MID_REPORT && item.mid_latitude && item.mid_longitude) {
                         addDayMonthlyMarker(item, item.mid_latitude, item.mid_longitude, item.mid_address, '중간보고', '#34c759', bounds);
                         hasMarker = true;
                     }
@@ -732,9 +750,9 @@
                     success: function(response) {
                         _this.workList = response.data;
 
-                        let worknmColumn = _this.grid.columns.find(col => col.binding === 'worknm');
-                        if (worknmColumn) {
-                            worknmColumn.dataMap = getTradeTypeDataMap(_this.workList);
+                        let workcdColumn = _this.grid.columns.find(col => col.binding === 'workcd');
+                        if (workcdColumn) {
+                            workcdColumn.dataMap = getTradeTypeDataMap(_this.workList);
                             _this.grid.refresh(true);
                         }
                     },
@@ -1357,7 +1375,7 @@
                             addDayMonthlyMarker(row, row.latitude, row.longitude, row.address, '\ucd9c\uadfc', '#1a7aff', bounds);
                         }
                         // 중간보고 마커 (초록색)
-                        if (row.mid_latitude && row.mid_longitude) {
+                        if (USE_MID_REPORT && row.mid_latitude && row.mid_longitude) {
                             addDayMonthlyMarker(row, row.mid_latitude, row.mid_longitude, row.mid_address, '중간보고', '#34c759', bounds);
                         }
                         // 퇴근 마커 (빨간색)

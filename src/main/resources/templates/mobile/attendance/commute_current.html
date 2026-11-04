@@ -35,6 +35,10 @@
   <script th:src="@{/assets_mobile/js/ui.js}"></script>
   <script th:inline="javascript">
     var sandanData = /*[[${session.sandanList}]]*/ [];
+
+    /* 사업체별 중간보고 사용여부 (tb_tenant_db.use_mid_report).
+       설정이 없으면 사용으로 본다 — 기존 사업체의 동작이 바뀌지 않아야 한다. */
+    var USE_MID_REPORT = /*[[${use_mid_report}]]*/ true;
   </script>
   <script type="text/javascript" th:src="@{/resource/ax5ui/ax5ui.all.min.js}"></script>
   <script type="text/javascript" th:src="@{/js/ax5commUtil.js}"></script>
@@ -137,31 +141,40 @@
     let fnsuccess = function (result) {
       if (result != null && result.data != null) {
         const items = result.data;
+        // 중간보고를 쓰지 않는 사업장은 관련 열 3개를 아예 빼낸다.
+        // 값이 비어도 헤더는 남아 빈 칸으로 보이기 때문이다.
+        const midTh    = USE_MID_REPORT ? '<th>중간보고</th>' : '';
+        const midLocTh = USE_MID_REPORT ? '<th>중간위치</th>' : '';
+        const midRmkTh = USE_MID_REPORT ? '<th>중간비고</th>' : '';
+
         let tableHtml = `
           <table>
             <tr>
-              <th>일자</th><th>근태</th><th>출근</th><th>중간보고</th>
+              <th>일자</th><th>근태</th><th>출근</th>${midTh}
               <th>퇴근</th><th>근무시간</th><th>구분</th>
-              <th>출근위치</th><th>중간위치</th><th>퇴근위치</th>
-              <th>출근비고</th><th>중간비고</th><th>퇴근비고</th>
+              <th>출근위치</th>${midLocTh}<th>퇴근위치</th>
+              <th>출근비고</th>${midRmkTh}<th>퇴근비고</th>
             </tr>`;
         items.forEach(item => {
           // 다시 누르면 덮어쓰므로 마지막 시각 하나만 보여준다 (누른 횟수는 본사 commute_log 에 남는다)
           const midTime = item.mid_time || '-';
+          const midTd    = USE_MID_REPORT ? `<td>${midTime}</td>` : '';
+          const midLocTd = USE_MID_REPORT ? `<td>${item.mid_address || ''}</td>` : '';
+          const midRmkTd = USE_MID_REPORT ? `<td>${item.mid_remark || ''}</td>` : '';
           tableHtml += `
             <tr>
               <td>${formatDateToYYMMDD(item.workym, item.workday)}</td>
               <td>${item.worknm || ''}</td>
               <td>${item.starttime || '--:--'}</td>
-              <td>${midTime}</td>
+              ${midTd}
               <td>${item.endtime || '--:--'}</td>
               <td>${item.worktime || '-'}</td>
               <td>${item.status_text || ''}</td>
               <td>${item.address || ''}</td>
-              <td>${item.mid_address || ''}</td>
+              ${midLocTd}
               <td>${item.out_address || ''}</td>
               <td>${item.remark || ''}</td>
-              <td>${item.mid_remark || ''}</td>
+              ${midRmkTd}
               <td>${item.out_remark || ''}</td>
             </tr>`;
         });
@@ -169,7 +182,7 @@
         document.querySelector('#theGrid').innerHTML = tableHtml;
       } else {
         document.querySelector('#theGrid').innerHTML =
-          `<tr><td colspan="13" style="text-align:center; padding:8px;">조회된 데이터가 없습니다.</td></tr>`;
+          `<tr><td colspan="${USE_MID_REPORT ? 13 : 10}" style="text-align:center; padding:8px;">조회된 데이터가 없습니다.</td></tr>`;
       }
     };
     AjaxUtil.getAsyncData(url, data, fnsuccess);

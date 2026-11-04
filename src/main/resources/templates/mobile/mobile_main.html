@@ -122,6 +122,10 @@
   if (!sessionStorage.getItem("spjangcd")) {
     sessionStorage.setItem("spjangcd", [[${session.spjangcd}]]);
   }
+
+  /* 사업체별 중간보고 사용여부 (tb_tenant_db.use_mid_report).
+     끄면 왼쪽 버튼이 「중간보고」로 바뀌지 않고 「출근」 그대로 남는다(도입 전 동작). */
+  var USE_MID_REPORT = /*[[${use_mid_report}]]*/ true;
 </script>
 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
 <div class="mobile-wrapper page-ticket-list">
@@ -624,7 +628,7 @@
     const sub  = document.getElementById('btnPrimarySub');
     if (!btn || !icon || !text) return;
 
-    if (isWorking) {
+    if (isWorking && USE_MID_REPORT) {
       btn.style.backgroundColor = '#34c759';
       icon.className   = 'fa-solid fa-location-dot fa_xl';
       text.textContent = '중간보고';
@@ -641,7 +645,7 @@
     // 등록된 중간보고 시각을 버튼 안에 작게.
     // 다시 누르면 덮어쓰므로 항상 마지막 시각 하나만 보여준다 (누른 횟수는 본사 commute_log 에 남는다)
     if (!sub) return;
-    if (isWorking && midTime) {
+    if (USE_MID_REPORT && isWorking && midTime) {
       sub.textContent   = midTime;
       sub.style.display = 'block';
     } else {
@@ -651,7 +655,7 @@
   }
 
   function onPrimaryButton() {
-    if (isWorking) {
+    if (isWorking && USE_MID_REPORT) {
       submitMidReport();
     } else {
       submitCommute('outOfficeIn');

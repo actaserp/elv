@@ -159,13 +159,15 @@ public class DailyApprovalController {
 
             String perid    = (String) userInfo.get("perid");
             String spjangcd = TenantContext.get();
+            String custcd   = dailyApprovalService.getCustcd(spjangcd);
 
             dailyApprovalService.deleteApprovalLine(
+                spjangcd,
+                custcd,
                 perid,
                 params.get("papercd"),
                 params.get("no"),
-                params.get("kcperid"),
-                spjangcd
+                params.get("kcperid")
             );
             result.success = true;
             result.message = "삭제하였습니다.";
@@ -354,7 +356,11 @@ public class DailyApprovalController {
         return result;
     }
 
-    /** 결재 목록 상단 카운트 */
+    /**
+     * 결재 목록 상단 카운트.
+     * 아래 그리드가 '내가 상신한 문서'이므로 카운트도 상신자(repoperid) 기준이다.
+     * 예전에는 결재 할 내역과 같은 getApprovalCount(결재자 기준)를 돌려썼다.
+     */
     @GetMapping("/history/read1")
     public AjaxResult historyRead1(@RequestParam String startDate,
                                    @RequestParam String endDate,
@@ -372,7 +378,7 @@ public class DailyApprovalController {
             String sd = LocalDate.parse(startDate).format(DateTimeFormatter.ofPattern("yyyyMMdd"));
             String ed = LocalDate.parse(endDate).format(DateTimeFormatter.ofPattern("yyyyMMdd"));
 
-            List<Map<String, Object>> paymentList = dailyApprovalService.getApprovalCount(spjangcd, perid, sd, ed);
+            List<Map<String, Object>> paymentList = dailyApprovalService.getApprovalCountByReporter(spjangcd, perid, sd, ed);
             result.success = true;
             result.data    = Map.of("userName", pernm, "paymentList", paymentList);
         } catch (Exception e) {

@@ -185,6 +185,15 @@
                        placeholder="02-6959-5020, 02-6959-5021 (여러 개면 쉼표)"/>
             </div>
 
+            <div class="modal-form-row">
+                <label>중간보고 사용</label>
+                <input type="checkbox" id="fUseMidReport" checked
+                       style="width:18px; height:18px; margin-right:8px;"/>
+                <span style="font-size:12px; color:#888;">
+                    끄면 출퇴근등록의 중간보고 버튼과 조회화면 중간보고 항목이 사라집니다
+                </span>
+            </div>
+
             <div class="modal-btn-wrap">
                 <button type="button" class="btn-delete" id="btnModalSave" style="width: 80px; height: 34px;">저장</button>
                 <button type="button" class="btn-delete" id="btnModalCancel" style="width: 80px; height: 34px; background:#888;">취소</button>
@@ -241,6 +250,7 @@
                     {binding: 'db_username', header: '사용자명',    width: 120, align: 'left'},
                     {binding: 'pool_size',   header: 'Pool Size',  width: 80,  align: 'center'},
                     {binding: 'cti_lines',   header: 'KT 회선',    width: 150, align: 'left'},
+                    {binding: 'use_mid_report', header: '중간보고', width: 90, align: 'center'},
                     {binding: 'connected',   header: '연결상태',    width: 90,  align: 'center'},
                 ],
                 itemsSource: new wijmo.collections.CollectionView([])
@@ -297,6 +307,7 @@
             $('#fDbPassword').val('');
             $('#fPoolSize').val(5);
             $('#fCtiLines').val('');
+            $('#fUseMidReport').prop('checked', true);   // 신규는 사용이 기본
             $('#modalOverlay').show();
         }
 
@@ -311,6 +322,7 @@
             $('#fDbPassword').val(item.db_password || '');
             $('#fPoolSize').val(item.pool_size || 5);
             $('#fCtiLines').val(item.cti_lines || '');
+            $('#fUseMidReport').prop('checked', item.use_mid_report !== 'N');
             $('#modalOverlay').show();
         }
 
@@ -327,6 +339,7 @@
             let db_password = $('#fDbPassword').val();
             let pool_size  = parseInt($('#fPoolSize').val()) || 5;
             let cti_lines  = $('#fCtiLines').val().trim();   // 전화가 오면 이 사업체 화면에 띄운다
+            let use_mid_report = $('#fUseMidReport').is(':checked') ? 'Y' : 'N';
             let id         = $('#editId').val();
 
             if (!spjangcd || !db_url || !db_username) {
@@ -336,7 +349,7 @@
 
             let payload = {
                 id: id || null,
-                spjangcd, db_alias, db_type, db_url, db_username, pool_size, cti_lines
+                spjangcd, db_alias, db_type, db_url, db_username, pool_size, cti_lines, use_mid_report
             };
             if (db_password) payload.db_password = db_password;
 

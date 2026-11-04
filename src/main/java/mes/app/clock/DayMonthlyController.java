@@ -87,6 +87,13 @@ public class DayMonthlyController {
                     result.message = "퇴근시간 형식이 올바르지 않습니다. (예: 09:30)";
                     return result;
                 }
+                // 중간보고 시간도 화면에서 직접 고칠 수 있게 열었으므로 출퇴근과 같은 검증을 받는다
+                String midtime = (String) item.get("mid_time");
+                if (midtime != null && !midtime.trim().isEmpty() && !midtime.matches("^\\d{2}:\\d{2}$")) {
+                    result.success = false;
+                    result.message = "중간보고 시간 형식이 올바르지 않습니다. (예: 09:30)";
+                    return result;
+                }
                 dayMonthlyService.saveDayData(item, spjangcd);
             }
             result.success = true;
@@ -131,6 +138,13 @@ public class DayMonthlyController {
                 if (endtime != null && !endtime.trim().isEmpty() && !endtime.matches("^\\d{2}:\\d{2}$")) {
                     result.success = false;
                     result.message = "퇴근시간 형식이 올바르지 않습니다. (예: 09:30)";
+                    return result;
+                }
+                // 중간보고 시간도 화면에서 직접 고칠 수 있게 열었으므로 출퇴근과 같은 검증을 받는다
+                String midtime = (String) item.get("mid_time");
+                if (midtime != null && !midtime.trim().isEmpty() && !midtime.matches("^\\d{2}:\\d{2}$")) {
+                    result.success = false;
+                    result.message = "중간보고 시간 형식이 올바르지 않습니다. (예: 09:30)";
                     return result;
                 }
                 dayMonthlyService.saveDayMagam(item, spjangcd);

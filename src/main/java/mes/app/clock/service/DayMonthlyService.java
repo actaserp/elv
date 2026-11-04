@@ -229,19 +229,31 @@ public class DayMonthlyService {
         String perid = String.valueOf(((Number) item.get("id")).intValue());
         int idx      = item.get("idx") != null ? ((Number) item.get("idx")).intValue() : 1;
 
-        String workcd    = (String) item.get("workcd");
-        String starttime = nullIfBlank((String) item.get("starttime"));
-        String endtime   = nullIfBlank((String) item.get("endtime"));
-        String address   = (String) item.get("address");
+        String workcd     = (String) item.get("workcd");
+        String starttime  = nullIfBlank((String) item.get("starttime"));
+        String endtime    = nullIfBlank((String) item.get("endtime"));
+        String address    = nullIfBlank((String) item.get("address"));
+        String outAddress = nullIfBlank((String) item.get("out_address"));
+        // 중간보고 시간·위치도 관리자가 고칠 수 있게 열었다 (예전엔 화면이 read-only 였고
+        // 저장 쿼리에도 없어서, 열어도 값이 반영되지 않았다)
+        String midTime    = nullIfBlank((String) item.get("mid_time"));
+        String midAddress = nullIfBlank((String) item.get("mid_address"));
 
         BigDecimal nomaltime = toBigDecimal(item.get("nomaltime"));
         BigDecimal overtime  = toBigDecimal(item.get("overtime"));
         BigDecimal nighttime = toBigDecimal(item.get("nighttime"));
         BigDecimal holitime  = toBigDecimal(item.get("holitime"));
         BigDecimal worktime  = toBigDecimal(item.get("worktime"));
-        Integer    jitime    = toInteger(item.get("jitime"));
-        Integer    yuntime   = toInteger(item.get("yuntime"));
-        Integer    abtime    = toInteger(item.get("abtime"));
+        // 지각·휴가·결근은 DB 가 numeric(5,2) 다. Integer 로 읽으면 반차(0.5) 입력이
+        // NumberFormatException 으로 떨어져 조용히 NULL 로 저장됐다.
+        BigDecimal jitime    = toBigDecimal(item.get("jitime"));
+        BigDecimal yuntime   = toBigDecimal(item.get("yuntime"));
+        BigDecimal abtime    = toBigDecimal(item.get("abtime"));
+
+        // 비고 3종 — 출근/중간보고/퇴근. 빈 칸으로 지우면 NULL 로 돌린다
+        String remark    = nullIfBlank((String) item.get("remark"));
+        String midRemark = nullIfBlank((String) item.get("mid_remark"));
+        String outRemark = nullIfBlank((String) item.get("out_remark"));
 
         // 존재 여부 확인
         String checkSql = """
@@ -254,24 +266,30 @@ public class DayMonthlyService {
             // UPDATE
             String updateSql = """
                     UPDATE tb_pb201
-                    SET workcd    = ?,
-                        starttime = ?,
-                        endtime   = ?,
-                        nomaltime = ?,
-                        jitime    = ?,
-                        overtime  = ?,
-                        nighttime = ?,
-                        yuntime   = ?,
-                        abtime    = ?,
-                        holitime  = ?,
-                        worktime  = ?,
-                        address   = ?
+                    SET workcd      = ?,
+                        starttime   = ?,
+                        endtime     = ?,
+                        nomaltime   = ?,
+                        jitime      = ?,
+                        overtime    = ?,
+                        nighttime   = ?,
+                        yuntime     = ?,
+                        abtime      = ?,
+                        holitime    = ?,
+                        worktime    = ?,
+                        address     = ?,
+                        out_address = ?,
+                        remark      = ?,
+                        mid_remark  = ?,
+                        out_remark  = ?,
+                        mid_time    = ?,
+                        mid_address = ?
                     WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ? AND idx = ?
                     """;
             return jdbcTemplate.update(updateSql,
                     workcd, starttime, endtime,
                     nomaltime, jitime, overtime, nighttime, yuntime, abtime, holitime, worktime,
-                    address,
+                    address, outAddress, remark, midRemark, outRemark, midTime, midAddress,
                     spjangcd, workym, workday, perid, idx);
         } else {
             // INSERT
@@ -280,14 +298,14 @@ public class DayMonthlyService {
                         (spjangcd, workym, workday, perid, idx, fixflag,
                          workcd, starttime, endtime,
                          nomaltime, jitime, overtime, nighttime, yuntime, abtime, holitime, worktime,
-                         address)
-                    VALUES (?, ?, ?, ?, ?, '0', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         address, out_address, remark, mid_remark, out_remark, mid_time, mid_address)
+                    VALUES (?, ?, ?, ?, ?, '0', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """;
             return jdbcTemplate.update(insertSql,
                     spjangcd, workym, workday, perid, idx,
                     workcd, starttime, endtime,
                     nomaltime, jitime, overtime, nighttime, yuntime, abtime, holitime, worktime,
-                    address);
+                    address, outAddress, remark, midRemark, outRemark, midTime, midAddress);
         }
     }
 
@@ -301,41 +319,51 @@ public class DayMonthlyService {
         String perid   = String.valueOf(((Number) item.get("id")).intValue());
         int    idx     = item.get("idx") != null ? ((Number) item.get("idx")).intValue() : 1;
 
-        String workcd    = (String) item.get("workcd");
-        String starttime = nullIfBlank((String) item.get("starttime"));
-        String endtime   = nullIfBlank((String) item.get("endtime"));
-        String address   = (String) item.get("address");
+        String workcd     = (String) item.get("workcd");
+        String starttime  = nullIfBlank((String) item.get("starttime"));
+        String endtime    = nullIfBlank((String) item.get("endtime"));
+        String address    = nullIfBlank((String) item.get("address"));
+        String outAddress = nullIfBlank((String) item.get("out_address"));
+        // 중간보고 시간·위치도 관리자가 고칠 수 있게 열었다 (예전엔 화면이 read-only 였고
+        // 저장 쿼리에도 없어서, 열어도 값이 반영되지 않았다)
+        String midTime    = nullIfBlank((String) item.get("mid_time"));
+        String midAddress = nullIfBlank((String) item.get("mid_address"));
 
         BigDecimal nomaltime = toBigDecimal(item.get("nomaltime"));
         BigDecimal overtime  = toBigDecimal(item.get("overtime"));
         BigDecimal nighttime = toBigDecimal(item.get("nighttime"));
         BigDecimal holitime  = toBigDecimal(item.get("holitime"));
         BigDecimal worktime  = toBigDecimal(item.get("worktime"));
-        Integer    jitime    = toInteger(item.get("jitime"));
-        Integer    yuntime   = toInteger(item.get("yuntime"));
-        Integer    abtime    = toInteger(item.get("abtime"));
+        // 지각·휴가·결근은 DB 가 numeric(5,2) 다. Integer 로 읽으면 반차(0.5) 입력이
+        // NumberFormatException 으로 떨어져 조용히 NULL 로 저장됐다.
+        BigDecimal jitime    = toBigDecimal(item.get("jitime"));
+        BigDecimal yuntime   = toBigDecimal(item.get("yuntime"));
+        BigDecimal abtime    = toBigDecimal(item.get("abtime"));
 
         String sql = """
                 UPDATE tb_pb201
-                SET fixflag   = '1',
-                    workcd    = ?,
-                    starttime = ?,
-                    endtime   = ?,
-                    nomaltime = ?,
-                    jitime    = ?,
-                    overtime  = ?,
-                    nighttime = ?,
-                    yuntime   = ?,
-                    abtime    = ?,
-                    holitime  = ?,
-                    worktime  = ?,
-                    address   = ?
+                SET fixflag     = '1',
+                    workcd      = ?,
+                    starttime   = ?,
+                    endtime     = ?,
+                    nomaltime   = ?,
+                    jitime      = ?,
+                    overtime    = ?,
+                    nighttime   = ?,
+                    yuntime     = ?,
+                    abtime      = ?,
+                    holitime    = ?,
+                    worktime    = ?,
+                    address     = ?,
+                    out_address = ?,
+                    mid_time    = ?,
+                    mid_address = ?
                 WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ? AND idx = ?
                 """;
         return jdbcTemplate.update(sql,
                 workcd, starttime, endtime,
                 nomaltime, jitime, overtime, nighttime, yuntime, abtime, holitime, worktime,
-                address,
+                address, outAddress, midTime, midAddress,
                 spjangcd, workym, workday, perid, idx);
     }
 

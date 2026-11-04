@@ -61,6 +61,36 @@
   }
   .summary-item .s-val { font-size:18px; font-weight:bold; color:#03428E; }
   .summary-item .s-lbl { font-size:11px; color:#666; margin-top:2px; }
+
+  /* 출퇴근 위치 지도 — 카드를 터치하면 아래에서 올라온다 */
+  .att-card.has-loc { cursor:pointer; }
+  .att-card.has-loc:active { background:#f4f7fb; }
+
+  .loc-sheet {
+    display:none; position:fixed; left:0; right:0; top:0; bottom:0;
+    background:rgba(0,0,0,0.45); z-index:9999;
+  }
+  .loc-sheet.on { display:block; }
+  .loc-sheet-inner {
+    position:absolute; left:0; right:0; bottom:0;
+    background:#fff; border-radius:14px 14px 0 0;
+    padding:12px 14px 16px;
+  }
+  .loc-sheet-head {
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;
+  }
+  .loc-sheet-title { font-size:15px; font-weight:bold; color:#03428E; }
+  .loc-sheet-close {
+    border:none; background:#eee; border-radius:6px;
+    width:30px; height:30px; font-size:15px; cursor:pointer;
+  }
+  #locMap { width:100%; height:56vh; border-radius:10px; background:#eceff3; }
+  .loc-legend {
+    display:flex; gap:12px; flex-wrap:wrap; font-size:12px; margin-top:10px; color:#444;
+  }
+  .loc-legend span { display:flex; align-items:center; gap:4px; }
+  .loc-legend i { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .loc-empty { padding:22px 10px; text-align:center; color:#888; font-size:13px; line-height:1.6; }
 </style>
 <head>
   <meta charset="UTF-8">
@@ -85,6 +115,14 @@
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
   <script th:src="@{/js/Mobile.js}"></script>
   <script src="https://kit.fontawesome.com/84dc79ac13.js" crossorigin="anonymous"></script>
+
+  <!-- 출퇴근 위치 지도. autoload=false 라 kakao.maps.load() 로 감싸 쓴다 -->
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=52c2b8b80bd58f19004f0c727c024f75&autoload=false"></script>
+  <script th:inline="javascript">
+    /* 사업체별 중간보고 사용여부 (tb_tenant_db.use_mid_report).
+       끄면 중간보고 마커를 찍지 않는다. 설정이 없으면 사용으로 본다. */
+    var USE_MID_REPORT = /*[[${use_mid_report}]]*/ true;
+  </script>
 </head>
 <body>
 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
@@ -196,6 +234,18 @@
   </div>
 </div>
 
+<!-- 출퇴근 위치 지도 — 일별 카드를 터치하면 열린다 -->
+<div class="loc-sheet" id="locSheet">
+  <div class="loc-sheet-inner">
+    <div class="loc-sheet-head">
+      <span class="loc-sheet-title" id="locTitle">출퇴근 위치</span>
+      <button type="button" class="loc-sheet-close" id="locClose">&#10005;</button>
+    </div>
+    <div id="locMap"></div>
+    <div class="loc-legend" id="locLegend"></div>
+  </div>
+</div>
+
 <script type="text/javascript">
   let currentTab = 'daily';
   const spjangcd = sessionStorage.getItem('spjangcd') || '';
@@ -304,8 +354,11 @@
       $('#sAbsent').text(absentCount);
       $('#sLeave').text(leaveCount);
 
+      // 지도에서 다시 쓰려고 조회 결과를 들고 있는다 (카드의 data-idx 로 찾는다)
+      dailyData = res.data;
+
       // 카드 렌더링
-      list.innerHTML = res.data.map(function(d) {
+      list.innerHTML = res.data.map(function(d, idx) {
         let cardCls = '';
         if (d.abtime == 1) cardCls = 'absent';
         else if (d.jitime == 1) cardCls = 'late';
@@ -322,9 +375,16 @@
         const dispDate = dateStr.length === 8
           ? dateStr.substring(0,4)+'.'+dateStr.substring(4,6)+'.'+dateStr.substring(6,8) : '';
 
-        return '<div class="att-card ' + cardCls + '">' +
+        // 좌표가 하나라도 있으면 터치해서 지도를 볼 수 있다.
+        // 사내 출퇴근(inflag='0')은 좌표를 남기지 않아 대상이 아니다.
+        const hasLoc = !!((d.latitude && d.longitude)
+                       || (d.out_latitude && d.out_longitude)
+                       || (USE_MID_REPORT && d.mid_latitude && d.mid_longitude));
+
+        return '<div class="att-card ' + cardCls + (hasLoc ? ' has-loc' : '') + '" data-idx="' + idx + '">' +
           '<div class="row1">' +
-            '<span class="name">' + (d.first_name || d.Name || '') + '</span>' +
+            '<span class="name">' + (d.first_name || d.Name || '')
+              + (hasLoc ? ' <span style="font-size:12px;">&#128205;</span>' : '') + '</span>' +
             '<span class="date">' + dispDate + '</span>' +
           '</div>' +
           '<div class="row2">' +
@@ -388,6 +448,122 @@
       document.getElementById('monthlyList').innerHTML = '<div class="empty-msg">조회 중 오류가 발생했습니다.</div>';
     });
   }
+
+  /* ===== 출퇴근 위치 지도 =====
+     조회 결과를 그대로 쓴다 — /api/clock/DayMonthly/read 가 좌표를 이미 내려주므로
+     서버를 더 부르지 않는다. 월별 탭은 tb_pb203 집계라 좌표가 없어 대상이 아니다. */
+  let dailyData = [];
+  let locMap = null, locMarkers = [], locOpenInfo = null;
+
+  // 핀 이미지. daymonthly·대시보드와 같은 모양·색을 쓴다.
+  // 거기서는 Blob URL 을 쓰는데, 여닫기를 반복하는 화면이라 여기서는 data URI 로 둔다(URL 누수 없음).
+  function locPin(color) {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">'
+      + '<path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26S28 24.5 28 14C28 6.268 21.732 0 14 0z" fill="' + color + '"/>'
+      + '<circle cx="14" cy="14" r="6" fill="white"/></svg>';
+    return new kakao.maps.MarkerImage(
+      'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg),
+      new kakao.maps.Size(28, 40),
+      { offset: new kakao.maps.Point(14, 40) }
+    );
+  }
+
+  function addLocMarker(lat, lng, name, address, type, color, time, bounds) {
+    const pos = new kakao.maps.LatLng(lat, lng);
+    bounds.extend(pos);
+
+    const marker = new kakao.maps.Marker({ position: pos, map: locMap, image: locPin(color) });
+    const info = new kakao.maps.InfoWindow({
+      content: '<div style="padding:6px;font-size:12px;max-width:230px;word-break:keep-all;">'
+        + '<span style="color:' + color + ';font-weight:bold;">[' + type + (time ? ' ' + time : '') + ']</span><br>'
+        + (name || '') + '<br>' + (address || '주소 없음')
+        + '</div>'
+    });
+    locMarkers.push(marker);
+
+    kakao.maps.event.addListener(marker, 'click', function() {
+      if (locOpenInfo) {
+        locOpenInfo.close();
+        if (locOpenInfo === info) { locOpenInfo = null; return; }
+      }
+      info.open(locMap, marker);
+      locOpenInfo = info;
+    });
+  }
+
+  function clearLocMarkers() {
+    if (locOpenInfo) { locOpenInfo.close(); locOpenInfo = null; }
+    locMarkers.forEach(function(m) { m.setMap(null); });
+    locMarkers = [];
+  }
+
+  function openLocationMap(idx) {
+    const d = dailyData[idx];
+    if (!d) return;
+
+    const name = d.first_name || d.Name || '';
+    $('#locTitle').text(name ? name + ' 출퇴근 위치' : '출퇴근 위치');
+    $('#locSheet').addClass('on');
+
+    // 지도는 처음 열 때 한 번만 만든다.
+    // 숨겨진 상태에서 만들면 크기가 0 이 되므로 시트를 띄운 뒤에 초기화하고,
+    // 두 번째부터는 relayout() 으로 크기를 다시 잡아 준다.
+    kakao.maps.load(function() {
+      if (!locMap) {
+        locMap = new kakao.maps.Map(document.getElementById('locMap'), {
+          center: new kakao.maps.LatLng(37.5665, 126.9780),
+          level: 5
+        });
+      } else {
+        locMap.relayout();
+      }
+
+      clearLocMarkers();
+      const bounds = new kakao.maps.LatLngBounds();
+      let legend = '', cnt = 0;
+
+      if (d.latitude && d.longitude) {
+        addLocMarker(d.latitude, d.longitude, name, d.address, '출근', '#1a6fff', d.starttime, bounds);
+        legend += '<span><i style="background:#1a6fff"></i>출근 ' + (d.starttime || '') + '</span>';
+        cnt++;
+      }
+      if (USE_MID_REPORT && d.mid_latitude && d.mid_longitude) {
+        addLocMarker(d.mid_latitude, d.mid_longitude, name, d.mid_address, '중간보고', '#34c759', d.mid_time, bounds);
+        legend += '<span><i style="background:#34c759"></i>중간보고 ' + (d.mid_time || '') + '</span>';
+        cnt++;
+      }
+      if (d.out_latitude && d.out_longitude) {
+        addLocMarker(d.out_latitude, d.out_longitude, name, d.out_address, '퇴근', '#ff3333', d.endtime, bounds);
+        legend += '<span><i style="background:#ff3333"></i>퇴근 ' + (d.endtime || '') + '</span>';
+        cnt++;
+      }
+
+      $('#locLegend').html(cnt > 0 ? legend
+        : '<div class="loc-empty">저장된 위치가 없습니다.<br>사내 출퇴근은 좌표를 남기지 않습니다.</div>');
+
+      // 한 곳이면 bounds 를 쓰면 과하게 확대되므로 중심만 옮긴다
+      if (cnt === 1) {
+        locMap.setCenter(bounds.getSouthWest());
+        locMap.setLevel(3);
+      } else if (cnt > 1) {
+        locMap.setBounds(bounds);
+      }
+    });
+  }
+
+  function closeLocationMap() {
+    $('#locSheet').removeClass('on');
+    if (locOpenInfo) { locOpenInfo.close(); locOpenInfo = null; }
+  }
+
+  // 카드는 조회할 때마다 다시 그려지므로 이벤트는 위임으로 건다
+  $(document).on('click', '#dailyList .att-card.has-loc', function() {
+    openLocationMap(parseInt($(this).attr('data-idx'), 10));
+  });
+  $(document).on('click', '#locClose', closeLocationMap);
+  $(document).on('click', '#locSheet', function(e) {
+    if (e.target === this) closeLocationMap();   // 어두운 바깥을 터치하면 닫는다
+  });
 </script>
 </body>
 </html>
