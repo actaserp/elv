@@ -194,6 +194,18 @@
                 </span>
             </div>
 
+            <div class="modal-form-row">
+                <label>연차 산정기준</label>
+                <select id="fAnnualBasis" style="width:150px; height:30px;">
+                    <option value="F">회계연도 기준</option>
+                    <option value="E">입사일 기준</option>
+                </select>
+                <span style="font-size:12px; color:#888; margin-left:8px;">
+                    연차를 새로 생성할 때만 쓰입니다. 이미 만들어진 발생행은 그대로 남으니,
+                    기준을 바꾸면 그 연도를 다시 생성해야 합니다
+                </span>
+            </div>
+
             <div class="modal-btn-wrap">
                 <button type="button" class="btn-delete" id="btnModalSave" style="width: 80px; height: 34px;">저장</button>
                 <button type="button" class="btn-delete" id="btnModalCancel" style="width: 80px; height: 34px; background:#888;">취소</button>
@@ -251,6 +263,9 @@
                     {binding: 'pool_size',   header: 'Pool Size',  width: 80,  align: 'center'},
                     {binding: 'cti_lines',   header: 'KT 회선',    width: 150, align: 'left'},
                     {binding: 'use_mid_report', header: '중간보고', width: 90, align: 'center'},
+                    {binding: 'annual_basis',   header: '연차기준', width: 100, align: 'center',
+                     dataMap: new wijmo.grid.DataMap(
+                         [{v: 'F', t: '회계연도'}, {v: 'E', t: '입사일'}], 'v', 't')},
                     {binding: 'connected',   header: '연결상태',    width: 90,  align: 'center'},
                 ],
                 itemsSource: new wijmo.collections.CollectionView([])
@@ -308,6 +323,7 @@
             $('#fPoolSize').val(5);
             $('#fCtiLines').val('');
             $('#fUseMidReport').prop('checked', true);   // 신규는 사용이 기본
+            $('#fAnnualBasis').val('F');                 // 신규는 회계연도가 기본
             $('#modalOverlay').show();
         }
 
@@ -323,6 +339,7 @@
             $('#fPoolSize').val(item.pool_size || 5);
             $('#fCtiLines').val(item.cti_lines || '');
             $('#fUseMidReport').prop('checked', item.use_mid_report !== 'N');
+            $('#fAnnualBasis').val(item.annual_basis === 'E' ? 'E' : 'F');
             $('#modalOverlay').show();
         }
 
@@ -340,6 +357,7 @@
             let pool_size  = parseInt($('#fPoolSize').val()) || 5;
             let cti_lines  = $('#fCtiLines').val().trim();   // 전화가 오면 이 사업체 화면에 띄운다
             let use_mid_report = $('#fUseMidReport').is(':checked') ? 'Y' : 'N';
+            let annual_basis   = $('#fAnnualBasis').val() === 'E' ? 'E' : 'F';
             let id         = $('#editId').val();
 
             if (!spjangcd || !db_url || !db_username) {
@@ -349,7 +367,8 @@
 
             let payload = {
                 id: id || null,
-                spjangcd, db_alias, db_type, db_url, db_username, pool_size, cti_lines, use_mid_report
+                spjangcd, db_alias, db_type, db_url, db_username, pool_size, cti_lines,
+                use_mid_report, annual_basis
             };
             if (db_password) payload.db_password = db_password;
 

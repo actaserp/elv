@@ -161,12 +161,6 @@
               </a>
             </li>
             <li>
-              <a class="btn btn-excell" title="월차생성" id="btnMonthlyCreate">
-                <img th:src="@{/images/icon/ico-edit.svg}" alt="월차생성 아이콘">
-                월차생성
-              </a>
-            </li>
-            <li>
               <a class="btn btn-excell" title="저장" id="btnSave">
                 <img th:src="@{/images/icon/ico-edit.svg}" alt="저장 아이콘">
                 저장
@@ -175,10 +169,21 @@
           </ul>
         </div>
       </div> <!--//section-top end -->
+      <p id="basisNotice" style="margin: 0 0 8px; font-size: 13px;"></p>
+      <p id="previewNotice" style="display: none; margin: 0 0 8px; padding: 8px 10px; font-size: 13px;
+                                   background: #fff4d6; border: 1px solid #e0c060; border-radius: 4px;"></p>
       <p style="margin: 0 0 6px; font-size: 12px; color: #777;">
-        연차생성은 근속 1년 이상(입사년도가 조회년도보다 2년 이상 이전)인 재직자를 근속연수 기준으로 생성합니다.
-        월차생성은 근속 1년 미만(직전년도 입사)인 재직자를 입사일로부터 기준일자까지 채운 개월수 1개월당 1일(최대 11일)로 생성합니다.
-        특정 직원만 생성하려면 사원명을 입력한 뒤 생성하세요.
+        연차생성 한 번으로 근속 1년 이상(근속연수 기준)과 1년 미만(기준일자까지 <b>개근한</b> 개월수 1개월당 1일, 최대 11일)을 함께 만듭니다.
+        결근이 기록된 달은 월차에서 제외됩니다(근로기준법 제60조 ②). 특정 직원만 생성하려면 사원명을 입력한 뒤 생성하세요.
+        이미 만들어진 직원을 다시 생성해도 <b>조정일과 그 이력은 그대로 남습니다.</b>
+        <br>
+        <b>1년 미만 직원의 월차는 매월 1일씩 늘어납니다.</b> 신규 입사자가 있으면 매월(또는 두세 달마다) 연차생성을 다시 돌리면 됩니다.
+        이때 쓰는 <b>「기존 생성분까지 다시 계산」</b>이 기본으로 선택되어 있습니다. 「신규 대상자만 생성」은 이미 만들어진 직원을 건너뛰므로 월차가 올라가지 않습니다.
+        <br>
+        <b>이월일</b>은 직전 연도 잔여를 <b>전액</b> 가져옵니다. 직전 연도를 생성하지 않았으면 0입니다.
+        <br>
+        <b>연차생성은 두 단계입니다.</b> 「연차생성」을 누르면 계산 결과를 목록에 <b>미리 보여주기만 하고 저장하지 않습니다.</b>
+        숫자를 확인한 뒤 <b>「저장」</b>을 눌러야 반영됩니다. 저장하지 않고 「검색」을 누르면 미리보기는 사라집니다.
         <br>
         <b>조정일</b> 칸만 직접 고칠 수 있습니다. 도입 시점에 이미 쓴 연차는 음수(예 -2), 특별히 더 주는 휴가는 양수로 적고 저장하세요.
         잔여일은 <b>이월 + 연차 + 조정 − 사용</b> 으로 자동 계산되며, 조정 내역은 사원별 이력에 남습니다.
@@ -202,13 +207,17 @@
     <div id="createModeBox">
       <h3 id="createModeTitle">연차생성</h3>
       <p class="desc" id="createModeDesc"></p>
+      <!-- 기본은 '1'(다시 계산). 1년 미만 직원의 월차가 매월 늘어나므로 평소에 쓰는 쪽이다.
+           '2'(신규만)를 기본으로 두면 이미 발생행이 있는 직원을 건너뛰어 월차가 멈춘다.
+           저장 전 미리보기가 있어 잘못 골라도 숫자를 보고 되돌릴 수 있다 -->
       <label>
-        <input type="radio" name="createMode" value="2" checked> 신규 대상자만 생성
-        <span>이미 생성된 직원은 건너뜁니다.</span>
+        <input type="radio" name="createMode" value="1" checked> 기존 생성분까지 다시 계산
+        <span>해당 연도의 발생일수·이월일·기간을 다시 계산합니다. 조정일·이력·사용내역은 그대로 남습니다.
+              1년 미만 직원의 월차를 반영하려면 이 쪽을 쓰세요.</span>
       </label>
       <label>
-        <input type="radio" name="createMode" value="1"> 기존 생성분 삭제 후 다시 생성
-        <span>해당 연도의 발생일수를 지우고 다시 계산합니다. 사용내역은 유지됩니다.</span>
+        <input type="radio" name="createMode" value="2"> 신규 대상자만 생성
+        <span>이미 생성된 직원은 건너뜁니다. 기존 직원의 숫자를 전혀 건드리지 않습니다.</span>
       </label>
       <div class="btns">
         <a id="createModeCancel">취소</a>
@@ -223,6 +232,13 @@
 
 </th:block>
 <th:block layout:fragment="scripts">
+  <script th:inline="javascript">
+    /* 사업체별 연차 산정기준 (tb_tenant_db.annual_basis).
+       'F' 회계연도(매년 1/1 일괄) / 'E' 입사일(사원별 입사 기념일).
+       설정이 없으면 회계연도로 본다 — 기존 사업체의 동작이 바뀌지 않아야 한다.
+       생성 결과를 가르는 건 서버(ClockYearlyService) 이고, 여기서는 안내에만 쓴다. */
+    var ANNUAL_BASIS = /*[[${annual_basis}]]*/ 'F';
+  </script>
   <th:block th:replace="common/columns_setting :: columns_setting"></th:block>
   <script type="text/javascript">
     class YearlyPage {
@@ -232,6 +248,7 @@
         this.grid = null;
         this.grid2 = null;
         this.adjustSnapshot = {};   // perid → 불러왔을 때의 조정일
+        this.preview = null;        // 저장 전 생성 미리보기 {params, count, changed}
         this.init();
       }
 
@@ -267,6 +284,15 @@
                   e.cell.style.fontWeight = 'bold';
                 }
               }
+              // 저장 전 미리보기에서 값이 달라지는 칸
+              if (col.binding === 'ewolnum' || col.binding === 'holinum'
+                || col.binding === 'startdate' || col.binding === 'enddate') {
+                const item = sender.rows[e.row] ? sender.rows[e.row].dataItem : null;
+                if (item && item.__changed) {
+                  e.cell.style.backgroundColor = '#ffe9c7';
+                  e.cell.style.fontWeight = 'bold';
+                }
+              }
             }
           },
           columns: [
@@ -275,6 +301,10 @@
             {binding: 'person_name', header: '사원명', width: 100, align: 'center', isReadOnly: true},
             {binding: 'RSPNM', header: '직위', width: 90, align: 'center', isReadOnly: true},
             {binding: 'rtdate', header: '입사일', width: 110, align: 'center', isReadOnly: true},
+            // 연차기간 — 입사일 기준에서는 사람마다 다르므로 보여준다.
+            // 회계연도 기준이면 전원 1/1~12/31 이라 아래에서 감춘다
+            {binding: 'startdate', header: '기간시작', width: 110, align: 'center', isReadOnly: true},
+            {binding: 'enddate', header: '기간종료', width: 110, align: 'center', isReadOnly: true},
             {binding: 'ewolnum', header: '이월일', width: 80, align: 'center', isReadOnly: true},
             {binding: 'holinum', header: '연차일수', width: 90, align: 'center', isReadOnly: true},
             {binding: 'monthnum', header: '조정일', width: 90, align: 'center', dataType: wijmo.DataType.Number},
@@ -363,7 +393,18 @@
 
         _this.viewData.sourceCollection = rows;
         _this.viewData2.sourceCollection = [];
+        _this.clearPreview();
       }//searchMainData
+
+      /** 저장 전 미리보기를 걷어낸다 */
+      clearPreview() {
+        this.preview = null;
+        $('#previewNotice').hide().html('');
+        try {
+          const c = this.grid.columns.getColumn('monthnum');
+          if (c) c.isReadOnly = false;
+        } catch (e) { /* 그리드를 못 찾으면 그냥 둔다 */ }
+      }
 
       num(v) {
         let n = Number(v);
@@ -427,8 +468,103 @@
         });
       }
 
-      /** 연차생성 / 월차생성 — PB uo_1 clicked + wf_createyear() */
-      generate(mode) {
+      /**
+       * 생성 미리보기를 목록에 얹는다. 아직 저장된 값이 아니다.
+       *
+       * 생성 결과에는 사용일이 없고(발생분만 계산한다) 조정일도 0 으로 온다. 조정일은 실제
+       * 저장에서 보존되므로 0 을 그대로 보여주면 날아가는 것처럼 보인다. 그래서 조회해 둔
+       * 값에서 조정일·사용일을 가져와 채우고 잔여일을 다시 계산한다.
+       *
+       * 생성 대상만 바꿔 끼우고 나머지 사원은 조회 결과를 그대로 둔다 —
+       * 생성방식 '2'(신규만)로 두 명만 대상일 때 목록이 두 줄로 줄어들면 비교가 안 된다.
+       */
+      applyPreview(params, rows) {
+        let _this = this;
+
+        if (!rows || !rows.length) {
+          Alert.alert('', '생성 대상이 없습니다.');
+          return;
+        }
+
+        let base = (this.viewData.items || []).map(function (d) { return Object.assign({}, d); });
+        let idx = {};
+        base.forEach(function (d, i) { idx[d.perid] = i; });
+
+        let changed = 0;
+        rows.forEach(function (r) {
+          let i = idx[r.perid];
+          let b = (i == null) ? null : base[i];
+
+          r.monthnum = b ? _this.num(b.monthnum) : _this.num(r.monthnum);
+          r.daynum   = b ? _this.num(b.daynum)   : 0;
+          r.restnum  = _this.num(r.ewolnum) + _this.num(r.holinum) + r.monthnum - r.daynum;
+          r.__changed = !b
+                     || _this.num(b.ewolnum) !== _this.num(r.ewolnum)
+                     || _this.num(b.holinum) !== _this.num(r.holinum)
+                     || (b.startdate || '') !== (r.startdate || '')
+                     || (b.enddate   || '') !== (r.enddate   || '');
+          if (r.__changed) changed++;
+
+          if (b) { r.rownum = b.rownum; base[i] = r; } else { base.push(r); }
+        });
+
+        this.viewData.sourceCollection = base;
+        this.viewData2.sourceCollection = [];
+        this.preview = {params: params, count: rows.length, changed: changed};
+
+        // 미리보기 중에는 조정일을 못 고치게 한다. [저장] 하나가 두 가지를 하면 헷갈린다
+        try {
+          const c = this.grid.columns.getColumn('monthnum');
+          if (c) c.isReadOnly = true;
+        } catch (e) { /* 그리드를 못 찾으면 그냥 둔다 */ }
+
+        $('#previewNotice').html(
+          '<b>저장 전 미리보기입니다.</b> 대상 ' + rows.length + '명 중 <b>' + changed
+          + '명</b>의 값이 달라집니다(색칠된 칸). 확인한 뒤 <b>[저장]</b>을 누르세요. '
+          + '저장하지 않고 <b>[검색]</b>을 누르면 미리보기는 사라집니다. '
+          + '미리보기 중에는 조정일을 고칠 수 없고, 사용일·잔여일은 저장 후 다시 계산됩니다.'
+        ).show();
+
+        try { this.grid.invalidate(); } catch (e) { /* 그리드를 못 찾으면 그냥 둔다 */ }
+      }
+
+      /** 미리보기로 띄운 생성 결과를 저장한다. 서버가 같은 조건으로 다시 계산해서 넣는다 */
+      saveGenerated() {
+        let _this = this;
+        let p = this.preview;
+        if (!p) return;
+
+        // 미리보기를 띄운 뒤 조회년도를 바꿔도 저장되는 것은 미리보기 때의 연도다.
+        // 화면에 보이는 숫자와 저장되는 값이 어긋나지 않도록 연도를 함께 묻는다
+        let msg = (p.params.year || '') + '년도 생성 결과 ' + p.count + '명을 저장하시겠습니까?';
+        Alert.confirm('', msg, function () {
+          AjaxUtil.postJsonData('/api/clock/Yearly/CreateSave', p.params, function (res) {
+            if (res && res.success) {
+              Alert.alert('', res.message || '저장되었습니다.');
+              _this.searchMainData();
+            } else {
+              Alert.alert('', (res && res.message) ? res.message : '저장에 실패했습니다.');
+            }
+          });
+        });
+      }
+
+      /** [저장] — 미리보기 중이면 생성 결과를, 아니면 조정일을 저장한다 */
+      save() {
+        if (this.preview) return this.saveGenerated();
+        return this.saveAdjust();
+      }
+
+      /**
+       * 연차생성 — 근속 1년 이상(연차)과 1년 미만(월차)을 한 번에 계산한다.
+       * 예전에는 버튼이 둘이어서 전원 생성에 두 번 눌러야 했다.
+       * 산정기준(회계연도/입사일)은 사업체 설정을 따르고 서버가 판단한다.
+       *
+       * <b>여기서는 저장하지 않는다.</b> 결과를 목록에 얹어 보여주고({@link #applyPreview})
+       * [저장] 을 눌러야 반영된다. 생성방식 '1' 은 기존 발생일수를 덮어쓰므로,
+       * 잘못 눌렀을 때 되돌릴 수 없는 것을 막으려고 두 단계로 나눴다.
+       */
+      generate() {
         let _this = this;
 
         let year = $('#year').val();
@@ -436,25 +572,28 @@
           Alert.alert('', '조회년도를 선택하세요.');
           return;
         }
-        // 생성하면 목록을 다시 불러오므로, 저장 안 한 조정일은 사라진다
+        // 생성하면 목록을 다시 그리므로, 저장 안 한 조정일은 사라진다
         if (this.changedAdjustRows().length > 0) {
           Alert.alert('', '저장하지 않은 조정일이 있습니다. 먼저 저장하거나 다시 조회한 뒤 생성해 주세요.');
           return;
         }
+        if (this.preview) {
+          Alert.alert('', '저장하지 않은 생성 결과가 있습니다. 먼저 저장하거나 다시 조회해 주세요.');
+          return;
+        }
 
-        let isMonthly = (mode === 'month');
-        let title = isMonthly ? '월차생성' : '연차생성';
-        let desc = isMonthly
-          ? year + '년도 월차를 생성합니다. (근속 1년 미만 재직자, 기준일자 ' + ($('#startdate').val() || '-') + ')'
-          : year + '년도 연차를 생성합니다. (근속 1년 이상 재직자)';
+        // 다이얼로그는 .text() 로 넣으므로 태그를 쓰지 않는다
+        let desc = year + '년도 연차를 계산해 미리 보여줍니다. 아직 저장하지 않습니다. '
+                 + '근속 1년 이상은 근속연수로, 1년 미만은 기준일자('
+                 + ($('#startdate').val() || '-') + ')까지 채운 개월수로 함께 계산합니다.';
 
         let name = ($('#name').val() || '').trim();
         if (name) {
           desc += ' 사원명 "' + name + '" 에 해당하는 직원만 생성합니다.';
         }
 
-        CreateModeDialog.open(title, desc, function (createFlag) {
-          let url = isMonthly ? '/api/clock/Yearly/MonthlyCreate' : '/api/clock/Yearly/YearlyCreate';
+        CreateModeDialog.open('연차생성', desc, function (createFlag) {
+          let url = '/api/clock/Yearly/Create';
           let data = {
             year: year,
             startdate: $('#startdate').val(),
@@ -466,8 +605,8 @@
 
           AjaxUtil.postJsonData(url, data, function (res) {
             if (res && res.success) {
-              Alert.alert('', res.message || '생성되었습니다.');
-              _this.searchMainData();
+              // 저장하지 않는다. 목록에 얹어 보여주고 [저장] 을 기다린다
+              _this.applyPreview(data, (res.data && res.data.rows) ? res.data.rows : []);
             } else {
               Alert.alert('', (res && res.message) ? res.message : '생성에 실패했습니다.');
             }
@@ -501,7 +640,7 @@
         this.callback = callback;
         $('#createModeTitle').text(title);
         $('#createModeDesc').text(desc);
-        $('input[name="createMode"][value="2"]').prop('checked', true);
+        $('input[name="createMode"][value="1"]').prop('checked', true);
         $('#createModeDim').show();
       },
       close() {
@@ -522,11 +661,37 @@
       yullinAuth.removeWriteButton();
       page = new YearlyPage();
 
-      // 쓰기 권한이 없으면 조정일도 고칠 수 없게 한다
+      // 산정기준은 본사 관리 화면(사업장 DB 관리)에서 정한다.
+      // 고객사 담당자는 그 화면을 볼 수 없어 지금 어느 기준으로 도는지 알 수 없으니 적어 준다.
+      (function () {
+        const entry = (ANNUAL_BASIS === 'E');
+        $('#basisNotice').html(
+          '산정기준: <b style="color:#2a6ebb;">'
+          + (entry ? '입사일 기준' : '회계연도 기준') + '</b>'
+          + '<span style="font-size:12px; color:#777;"> — '
+          + (entry ? '사원별 입사 기념일에 발생합니다.' : '매년 1월 1일에 일괄 발생합니다.')
+          + '</span>'
+          + '<span style="font-size:12px; color:#aaa;"> (변경은 본사 관리자에게 요청하세요)</span>'
+        );
+      })();
+
+      // 회계연도 기준이면 기간이 전원 똑같아서 자리만 차지한다
+      try {
+        if (ANNUAL_BASIS !== 'E') {
+          ['startdate', 'enddate'].forEach(function (b) {
+            const c = page.grid.columns.getColumn(b);
+            if (c) c.visible = false;
+          });
+        }
+      } catch (e) { /* 그리드를 못 찾으면 그냥 보이게 둔다 */ }
+
+      // 쓰기 권한이 없으면 조정일도 고칠 수 없게 한다.
+      // 연차생성도 데이터를 바꾸므로 같이 감춘다
       try {
         if (typeof userinfo !== 'undefined' && userinfo.can_write && !userinfo.can_write()) {
           page.grid.isReadOnly = true;
           $('#btnSave').hide();
+          $('#btnyearCreate').hide();
         }
       } catch (e) { /* 권한 정보를 못 읽으면 기존처럼 둔다 */ }
 
@@ -551,17 +716,20 @@
       });
 
       $('#btnSearch').click(function (ex) {
+        // 미리보기를 띄운 채 조회하면 저장하지 않은 생성 결과가 사라진다
+        if (page.preview) {
+          Alert.confirm('', '저장하지 않은 생성 결과가 있습니다. 조회하면 사라집니다. 계속하시겠습니까?',
+            function () { page.searchMainData(); });
+          return;
+        }
         page.searchMainData();
       });
 
       $('#btnyearCreate').click(function (ex) {
-        page.generate('year');
-      });
-      $('#btnMonthlyCreate').click(function (ex) {
-        page.generate('month');
+        page.generate();
       });
       $('#btnSave').click(function (ex) {
-        page.saveAdjust();
+        page.save();
       });
 
       $('#createModeOk').click(function () {

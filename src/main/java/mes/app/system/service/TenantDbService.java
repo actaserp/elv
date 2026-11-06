@@ -31,6 +31,14 @@ public class TenantDbService {
      */
     private final Map<String, Boolean> midReportCache = new ConcurrentHashMap<>();
 
+    /** 연차 산정기준 — 회계연도(매년 1/1 일괄 발생) */
+    public static final String ANNUAL_BASIS_FISCAL = "F";
+    /** 연차 산정기준 — 입사일(사원별 입사 기념일 발생) */
+    public static final String ANNUAL_BASIS_ENTRY  = "E";
+
+    /** 연차 산정기준 캐시. midReportCache 와 같은 이유로 통째로 담아 둔다 */
+    private final Map<String, String> annualBasisCache = new ConcurrentHashMap<>();
+
     /**
      * 이 사업체가 중간보고를 쓰는가. tb_tenant_db.use_mid_report = 'N' 이면 끈다.
      * 컬럼이 비어 있으면 'Y' 로 본다 — 중간보고는 이미 배포돼 전 사업체가 쓰던 기능이라
@@ -64,13 +72,58 @@ public class TenantDbService {
         return enabled;
     }
 
+    /**
+     * 이 사업체의 연차 산정기준. tb_tenant_db.annual_basis.
+     *
+     *   'F' 회계연도 — 매년 1/1 에 일괄 발생 (지금 모든 사업체의 동작)
+     *   'E' 입사일   — 사원별 입사 기념일에 발생
+     *
+     * 컬럼이 비어 있으면 'F' 로 본다 — 연차는 이미 5개 사업체가 회계연도로 쓰고 있어
+     * 설정이 없다고 기준이 바뀌면 안 된다(use_mid_report 와 같은 COALESCE 패턴).
+     *
+     * 이 값은 연차를 '생성'할 때만 쓴다. 조회는 TB_PB209 의 startdate·enddate 를
+     * 따르므로, 사업체가 중간에 기준을 바꿔도 과거 발생행의 숫자는 깨지지 않는다.
+     */
+    public String getAnnualBasis(String spjangcd) {
+        if (spjangcd == null || spjangcd.isBlank()) return ANNUAL_BASIS_FISCAL;
+
+        String cached = annualBasisCache.get(spjangcd);
+        if (cached != null) return cached;
+
+        String basis = ANNUAL_BASIS_FISCAL;
+        try {
+            MapSqlParameterSource p = new MapSqlParameterSource();
+            p.addValue("spjangcd", spjangcd);
+            Map<String, Object> row = sqlRunner.getRow("""
+                    SELECT COALESCE(annual_basis, 'F') AS annual_basis
+                    FROM tb_tenant_db
+                    WHERE spjangcd = :spjangcd AND db_alias = 'main'
+                    """, p);
+            if (row != null && ANNUAL_BASIS_ENTRY.equals(row.get("annual_basis"))) {
+                basis = ANNUAL_BASIS_ENTRY;
+            }
+        } catch (Exception e) {
+            // 컬럼이 아직 없거나 조회가 실패하면 기존 동작(회계연도)을 유지한다
+            log.warn("연차 산정기준 조회 실패 - 회계연도로 간주합니다. spjangcd={}", spjangcd, e);
+            return ANNUAL_BASIS_FISCAL;
+        }
+
+        annualBasisCache.put(spjangcd, basis);
+        return basis;
+    }
+
+    /** 입사일 기준을 쓰는 사업체인가 */
+    public boolean isEntryDateBasis(String spjangcd) {
+        return ANNUAL_BASIS_ENTRY.equals(getAnnualBasis(spjangcd));
+    }
     public List<Map<String, Object>> getList(String keyword) {
         MapSqlParameterSource param = new MapSqlParameterSource();
 
         String sql = """
                 SELECT t.id, t.spjangcd, x.spjangnm, t.db_alias, t.db_type, t.db_url, t.db_username, t.db_password, t.pool_size, t.custcd,
                        COALESCE(t.cti_lines, '') AS cti_lines,
-                       COALESCE(t.use_mid_report, 'Y') AS use_mid_report
+                       COALESCE(t.use_mid_report, 'Y') AS use_mid_report,
+                       COALESCE(t.annual_basis, 'F')   AS annual_basis
                 FROM tb_tenant_db t
                 LEFT JOIN tb_xa012 x ON x.spjangcd = t.spjangcd
                 WHERE 1=1
@@ -122,6 +175,13 @@ public class TenantDbService {
         String useMidReport = (midFlag != null && "N".equalsIgnoreCase(String.valueOf(midFlag).trim()))
                               ? "N" : "Y";
 
+        // 연차 산정기준 — 'E'(입사일) 라고 분명히 보내지 않으면 'F'(회계연도).
+        // 지금 돌아가는 사업체는 모두 회계연도라, 화면을 거치지 않는 저장에도 영향이 없다.
+        Object basisFlag   = param.get("annual_basis");
+        String annualBasis = (basisFlag != null
+                              && ANNUAL_BASIS_ENTRY.equalsIgnoreCase(String.valueOf(basisFlag).trim()))
+                             ? ANNUAL_BASIS_ENTRY : ANNUAL_BASIS_FISCAL;
+
         MapSqlParameterSource p = new MapSqlParameterSource();
         p.addValue("spjangcd",    spjangcd);
         p.addValue("db_alias",    dbAlias);
@@ -132,6 +192,7 @@ public class TenantDbService {
         p.addValue("custcd",      custcd);
         p.addValue("cti_lines",   ctiLines);
         p.addValue("use_mid_report", useMidReport);
+        p.addValue("annual_basis",   annualBasis);
 
         if (id == null || id.isBlank()) {
             if (dbPassword == null || dbPassword.isBlank()) {
@@ -139,8 +200,8 @@ public class TenantDbService {
             }
             p.addValue("db_password", dbPassword);
             sqlRunner.execute("""
-                    INSERT INTO tb_tenant_db (spjangcd, db_alias, db_type, db_url, db_username, db_password, pool_size, custcd, cti_lines, use_mid_report)
-                    VALUES (:spjangcd, :db_alias, :db_type, :db_url, :db_username, :db_password, :pool_size, :custcd, :cti_lines, :use_mid_report)
+                    INSERT INTO tb_tenant_db (spjangcd, db_alias, db_type, db_url, db_username, db_password, pool_size, custcd, cti_lines, use_mid_report, annual_basis)
+                    VALUES (:spjangcd, :db_alias, :db_type, :db_url, :db_username, :db_password, :pool_size, :custcd, :cti_lines, :use_mid_report, :annual_basis)
                     """, p);
         } else {
             p.addValue("id", Long.parseLong(id));
@@ -152,7 +213,8 @@ public class TenantDbService {
                     UPDATE tb_tenant_db
                     SET db_alias=:db_alias, db_type=:db_type, db_url=:db_url,
                         db_username=:db_username, pool_size=:pool_size, custcd=:custcd,
-                        cti_lines=:cti_lines, use_mid_report=:use_mid_report
+                        cti_lines=:cti_lines, use_mid_report=:use_mid_report,
+                        annual_basis=:annual_basis
                     WHERE id=:id
                     """, p);
 
@@ -165,6 +227,7 @@ public class TenantDbService {
 
         // 중간보고 사용여부가 바뀌었을 수 있으니 캐시를 비운다 (재로그인 없이 반영된다)
         midReportCache.remove(spjangcd);
+        annualBasisCache.remove(spjangcd);
 
         // 해당 DataSource만 개별 재연결 (다른 테넌트 영향 없음)
         String connectError = tenantDataSourceManager.addOrReplaceTenantDataSource(

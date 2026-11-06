@@ -14,6 +14,13 @@ package mes.app.mobile.Service;
  *   잔여 = 이월(iwolnum) + 발생(holinum) + 조정(monthnum) − 사용(TB_PB204 중 연차차감 대상)
  *
  * TB_PB204.perid 는 PB 가 넣은 행이 'p001', 웹이 넣은 행이 person.id(숫자 문자열)라 둘 다 받는다.
+ *
+ * 어느 발생행을 볼지는 "오늘이 그 발생행의 기간(startdate~enddate) 안에 드는가" 로 찾는다.
+ * 예전에는 hyear = 올해 로 찾았는데, 연차 산정기준이 입사일인 사업체에서는
+ * 1월 1일부터 입사기념일 전날까지가 아직 작년 발생분의 기간이라 잔여가 비어 버린다.
+ * 사용일수도 같은 기간으로 센다.
+ * 기간이 비어 있는 옛 PB 행은 그 해 전체(hyear + 0101~1231)로 보기 때문에,
+ * 회계연도 기준 사업체는 결과가 전과 똑같다. (2026-11-05 확인 — 7개 사업체 전원 동일)
  */
 public final class AnnualLeaveSql {
 
@@ -26,7 +33,8 @@ public final class AnnualLeaveSql {
      */
     public static final String OUTER_APPLY_BY_PERSON = """
             OUTER APPLY (
-                SELECT ISNULL(g.iwolnum, 0)  AS iwolnum,
+                SELECT TOP 1
+                       ISNULL(g.iwolnum, 0)  AS iwolnum,
                        ISNULL(g.holinum, 0)  AS holinum,
                        ISNULL(g.monthnum, 0) AS monthnum,
                        ISNULL(u.daynum, 0)   AS used,
@@ -41,15 +49,19 @@ public final class AnnualLeaveSql {
                                          AND w.yearflag = '1'
                          WHERE v.SPJANGCD = g.spjangcd
                            AND ISNULL(v.fixflag, '') = '1'
-                           AND LEFT(v.reqdate, 4) = g.hyear
+                           AND v.reqdate >= ISNULL(NULLIF(g.startdate, ''), g.hyear + '0101')
+                           AND v.reqdate <= ISNULL(NULLIF(g.enddate,   ''), g.hyear + '1231')
                            AND ( v.perid = g.perid
                               OR (p.id IS NOT NULL AND TRY_CAST(v.perid AS INT) = p.id) )
                   ) u
                  WHERE g.spjangcd = p.spjangcd
                    AND g.perid    = p.Code
-                   AND g.hyear    = CONVERT(CHAR(4), YEAR(GETDATE()))
                    AND g.hactcd   = '08'
                    AND g.hseq     = '00'
+                   AND CONVERT(CHAR(8), GETDATE(), 112)
+                       BETWEEN ISNULL(NULLIF(g.startdate, ''), g.hyear + '0101')
+                           AND ISNULL(NULLIF(g.enddate,   ''), g.hyear + '1231')
+                 ORDER BY g.hyear DESC
             ) ann
             """;
 }

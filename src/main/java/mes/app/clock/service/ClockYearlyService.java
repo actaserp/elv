@@ -1,5 +1,7 @@
 package mes.app.clock.service;
 
+import lombok.extern.slf4j.Slf4j;
+import mes.app.system.service.TenantDbService;
 import mes.domain.services.SqlRunner;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -26,6 +28,7 @@ import java.util.Map;
  * 사용내역은 웹에서는 TB_PB204(휴가신청, fixflag='1') 를 원장으로 본다.
  * TB_PB204.perid 는 PB 가 등록한 행은 'p001', 웹이 등록한 행은 person.id(숫자) 라서 두 형식 모두 매칭한다.
  */
+@Slf4j
 @Service
 public class ClockYearlyService {
 
@@ -42,6 +45,10 @@ public class ClockYearlyService {
 
     @Autowired
     SqlRunner sqlRunner;
+
+    /** 사업체별 연차 산정기준(tb_tenant_db.annual_basis)을 읽는다 */
+    @Autowired
+    TenantDbService tenantDbService;
 
     // ------------------------------------------------------------------ 조회
 
@@ -83,13 +90,18 @@ public class ClockYearlyService {
                         AND g.hactcd   = '08'
                         AND g.hseq     = '00'
                         AND g.perid    = e.perid
+                  /* 사용일수 — 발생행의 기간(startdate~enddate) 안에 든 확정 신청만 센다.
+                     PB 가 만든 옛 발생행처럼 기간이 비어 있거나, 발생행이 아예 없는 사원은
+                     해당 연도 전체로 둬서 예전 동작(달력연도)을 그대로 유지한다.
+                     기간으로 자르면 산정기준이 입사일이어도 이 쿼리는 손대지 않아도 맞는다 */
                   OUTER APPLY (
                         SELECT SUM(ISNULL(v.daynum, 0)) AS daynum
                           FROM TB_PB204 v
                           JOIN tb_pb210 w ON w.spjangcd = v.SPJANGCD AND w.workcd = v.workcd AND w.yearflag = '1'
                          WHERE v.SPJANGCD = e.spjangcd
                            AND ISNULL(v.fixflag, '') = '1'
-                           AND LEFT(v.reqdate, 4) = :year
+                           AND v.reqdate >= ISNULL(NULLIF(g.startdate, ''), :year + '0101')
+                           AND v.reqdate <= ISNULL(NULLIF(g.enddate,   ''), :year + '1231')
                            AND ( v.perid = e.perid
                               OR (e.personid IS NOT NULL AND TRY_CAST(v.perid AS INT) = e.personid) )
                   ) u
@@ -122,6 +134,14 @@ public class ClockYearlyService {
                       JOIN emp e ON e.spjangcd = g.spjangcd AND e.custcd = g.custcd AND e.perid = g.perid
                      WHERE g.hyear = :year AND g.hactcd = '08' AND g.hseq = '00'
                 ),
+                /* 사용내역을 자를 기간. 발생행의 startdate~enddate 를 쓴다.
+                   PB 가 만든 옛 행처럼 비어 있거나 발생행이 없으면 연도 전체로 둔다.
+                   gen 이 0행이어도 집계라 1행이 나오므로 기간은 항상 정해진다 */
+                period AS (
+                    SELECT ISNULL(MIN(NULLIF(g.startdate, '')), :year + '0101') AS startdate,
+                           ISNULL(MAX(NULLIF(g.enddate,   '')), :year + '1231') AS enddate
+                      FROM gen g
+                ),
                 uses AS (
                     SELECT v.reqdate, v.frdate, v.todate, v.daynum, v.workcd, w.worknm, w.yearflag, v.id AS vid,
                            SUM(CASE WHEN w.yearflag = '1' THEN ISNULL(v.daynum,0) ELSE 0 END)
@@ -129,8 +149,10 @@ public class ClockYearlyService {
                       FROM TB_PB204 v
                       JOIN tb_pb210 w ON w.spjangcd = v.SPJANGCD AND w.workcd = v.workcd
                       JOIN emp e ON e.spjangcd = v.SPJANGCD
+                      CROSS JOIN period pd
                      WHERE ISNULL(v.fixflag, '') = '1'
-                       AND LEFT(v.reqdate, 4) = :year
+                       AND v.reqdate >= pd.startdate
+                       AND v.reqdate <= pd.enddate
                        AND ( v.perid = e.perid OR TRY_CAST(v.perid AS INT) = e.personid )
                 ),
                 unioned AS (
@@ -167,35 +189,43 @@ public class ClockYearlyService {
     // ------------------------------------------------------- 생성(미리계산)
 
     /**
-     * 연차생성 — 근속 1년 이상자(정산년도 기준 입사년도 &lt;= 정산년도-2).
-     * PB wf_createyear('0') 의 llMonth &gt;= 12 분기.
+     * 연차·월차 생성(미리계산). 한 번에 근속 1년 이상(연차)과 1년 미만(월차)을 모두 만든다.
+     *
+     * 산정기준은 사업체 설정(tb_tenant_db.annual_basis)을 따른다.
+     *   'F' 회계연도 — 매년 1/1 에 일괄 발생. 기간은 정산년도 1/1~12/31.
+     *   'E' 입사일   — 사원별 입사 기념일에 발생. 기간은 그 기념일부터 1년.
+     *
+     * 이월은 직전 연도 잔여를 전액 넘긴다 ({@link #prevRemains}).
+     *
+     * @param dbKey 사업체 식별자(tb_tenant_db.spjangcd). 사업장코드('ZZ')가 아니다 —
+     *              둘을 혼동하면 설정을 못 찾아 조용히 회계연도로 돌아간다
      */
-    public List<Map<String, Object>> createYearly(String year, String spjangcd, String baseYm,
-                                                  String name, String rtclafi, String createFlag) {
-        return build(year, spjangcd, baseYm, name, rtclafi, createFlag, false);
+    public List<Map<String, Object>> createAll(String year, String spjangcd, String dbKey, String baseYm,
+                                               String name, String rtclafi, String createFlag) {
+        return build(year, spjangcd, dbKey, baseYm, name, rtclafi, createFlag);
     }
 
-    /**
-     * 월차생성 — 근속 1년 미만자(입사년도 = 정산년도-1).
-     * PB wf_createyear('0') 의 llMonth &lt; 12 분기. 기준일자까지 경과한 개월수에 비례한다.
-     */
-    public List<Map<String, Object>> createMonthly(String year, String spjangcd, String baseYm,
-                                                   String name, String rtclafi, String createFlag) {
-        return build(year, spjangcd, baseYm, name, rtclafi, createFlag, true);
-    }
-
-    private List<Map<String, Object>> build(String year, String spjangcd, String baseYm,
-                                            String name, String rtclafi, String createFlag,
-                                            boolean monthlyMode) {
+    private List<Map<String, Object>> build(String year, String spjangcd, String dbKey, String baseYm,
+                                            String name, String rtclafi, String createFlag) {
 
         int settleYear = Integer.parseInt(year);
         int[] base = parseYm(baseYm, settleYear);
         int baseYear = base[0], baseMonth = base[1];
 
+        boolean entryBasis = tenantDbService.isEntryDateBasis(dbKey);
+
+        // 직전 연도 잔여 = 이월액. 발생행이 없는 사원은 키가 없어 0 이 된다
+        Map<String, BigDecimal> carry = prevRemains(settleYear, spjangcd);
+        int negatives = 0;
+
+        // 월차 개근 판정용 결근 기록. 기록이 없는 사원은 키가 없어 전부 개근으로 본다
+        Map<String, java.util.TreeSet<String>> absents = absentDays(settleYear, spjangcd);
+        long droppedMonths = 0;
+
         List<Map<String, Object>> targets = getTargets(year, spjangcd, name, rtclafi);
         List<Map<String, Object>> rows = new ArrayList<>();
 
-        boolean deleteFirst = "1".equals(createFlag);
+        boolean regenerate = "1".equals(createFlag);
 
         for (Map<String, Object> t : targets) {
             String entdate = str(t.get("entdate"));
@@ -204,29 +234,53 @@ public class ClockYearlyService {
             int entYear;
             try { entYear = Integer.parseInt(entdate.substring(0, 4)); } catch (Exception e) { continue; }
 
-            // PB : if ls_stddate(입사 다음해 1/1) > ls_today(정산년 1/1) then continue
-            //      → 정산년도 및 그 이후 입사자는 대상 아님
-            if (entYear >= settleYear) continue;
+            /* 완성 계속근로연수 k — 근로기준법 제60조 ④ 의 가산(15 + (k-1)/2)이 붙는 시점 기준.
+               회계연도 : 1월 1일 시점으로 센다. 입사년도만 보므로 k = 정산년 − 입사년 − 1.
+               입사일   : 그 해 입사 기념일 시점으로 센다. 기념일은 정산년에 반드시 한 번 오므로
+                          k = 정산년 − 입사년.
+               같은 사람이 입사일 기준에서 1년 더 쌓이고, 그래서 가산이 최대 1년 빨리 붙는다.
+               이것이 "연차가 1일 부족하다" 민원의 실제 원인이다.
 
-            // PB : DATEDIFF(MONTH, 입사다음해 1/1, 정산년 1/1) — 두 값 모두 1월 1일이라 12의 배수가 된다
-            long months = (long) (settleYear - (entYear + 1)) * 12;
-            boolean underOneYear = months < 12;
+               기준을 바꾸면 두 가지가 달라진다 (2026-11-05 실측, DG·sj·ZQ 재직 153명 기준).
+                 ① 연차 대상자 중 발생일수가 1일 늘는 사람  : 41명
+                 ② 월차 대상이던 사람이 연차 대상으로 바뀜   : 26명
+                    직전년도 입사자는 회계연도 기준으로는 1/1 에 아직 1년 미만이라 월차(최대 11일)
+                    지만, 입사일 기준으로는 그 해 기념일에 1년을 채워 연차 15일이 된다.
+                    회계연도는 그 15일을 다음 해로 미루는 셈이다.
 
-            if (underOneYear != monthlyMode) continue;
+               k 를 이렇게 맞춰 두면 아래 분기는 두 기준이 완전히 같아진다. */
+            int k = entryBasis ? (settleYear - entYear) : (settleYear - entYear - 1);
+
+            if (k < 0) continue;                 // 아직 대상이 아니다
+            boolean monthly = (k == 0);          // 1년을 못 채웠으면 월차
 
             BigDecimal holinum;
-            long workedMonths = 0;
-            if (monthlyMode) {
-                // 입사일로부터 기준월 말일까지 채운 개월수 1개월당 1일 (1년 미만 월차, 최대 11일)
-                workedMonths = monthsWorked(entdate, baseYear, baseMonth);
-                holinum = monthlyDays(workedMonths);
+            long months;
+            if (monthly) {
+                /* 1년 미만 월차 — 채운 1개월마다 1일. 단 근로기준법 제60조 ② 는 "1개월 개근"
+                   을 조건으로 두므로, 결근이 기록된 달은 빼고 센다. */
+                long worked = monthsWorked(entdate, baseYear, baseMonth);
+                months = perfectMonths(entdate, worked, absents.get(str(t.get("perid"))));
+                droppedMonths += (worked - months);
+                holinum = monthlyDays(months);
             } else {
+                months = (long) k * 12;
                 holinum = tenureDays(months);
             }
             if (holinum.compareTo(BigDecimal.ZERO) <= 0) continue;
 
-            // PB : 이월 SELECT 가 주석처리되어 있어 이월은 항상 0
-            BigDecimal iwolnum = BigDecimal.ZERO;
+            /* 이월 — 직전 연도 잔여를 전액 넘긴다 (한도 없음).
+               잔여가 음수인 사람(발생분보다 많이 쓴 경우)은 0 으로 둔다. 선사용분을 다음 해
+               연차에서 깎는 것은 근로자에게 불이익이라, 정책 결정 없이 자동으로 하지 않는다.
+               대신 몇 명인지 로그에 남긴다 — PB 원본은 음수 이월을 그대로 넣었다(한양 2021년 -16). */
+            BigDecimal iwolnum = carry.getOrDefault(carryKey(str(t.get("custcd")), str(t.get("perid"))),
+                                                    BigDecimal.ZERO);
+            if (iwolnum.signum() < 0) {
+                negatives++;
+                iwolnum = BigDecimal.ZERO;
+            }
+
+            String[] period = periodOf(entryBasis, entdate, settleYear);
 
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", t.get("personid"));
@@ -241,17 +295,29 @@ public class ClockYearlyService {
             row.put("monthnum", BigDecimal.ZERO);
             row.put("daynum", BigDecimal.ZERO);
             row.put("restnum", iwolnum.add(holinum));
-            row.put("months", monthlyMode ? workedMonths : months);
+            row.put("months", months);
+            row.put("startdate", period[0]);
+            row.put("enddate", period[1]);
+            row.put("monthly", monthly ? "1" : "0");
             row.put("exists", t.get("already"));
             rows.add(row);
         }
 
-        // PB : '2' 신규만 등록 → 이미 발생행이 있으면 건너뛴다
-        if (!deleteFirst) {
+        // '2' 신규만 등록 → 이미 발생행이 있는 사원은 목록에서 뺀다
+        if (!regenerate) {
             rows.removeIf(r -> {
                 Object already = r.get("exists");
                 return already != null && !"0".equals(String.valueOf(already));
             });
+        }
+
+        if (negatives > 0) {
+            log.warn("직전 연도 잔여가 음수인 사원 {}명은 이월을 0 으로 두었습니다. spjangcd={} year={}",
+                    negatives, spjangcd, year);
+        }
+        if (droppedMonths > 0) {
+            log.info("결근이 기록되어 월차에서 제외한 개월수 합계 {}. spjangcd={} year={}",
+                    droppedMonths, spjangcd, year);
         }
 
         int no = 1;
@@ -260,6 +326,203 @@ public class ClockYearlyService {
             r.put("rownum", no++);
         }
         return rows;
+    }
+
+    /**
+     * 직전 연도 잔여 — 전액 이월(iwolnum)로 넘길 금액. 키는 {@link #carryKey}.
+     *
+     * 직전 기간은 <b>직전 연도(hyear = 정산년 − 1)의 발생행</b>이다.
+     * "가장 최근 발생행"을 찾지 않는 것은 일부러다 — 연차생성을 수년간 안 돌린 사업체에서는
+     * 몇 해 전 잔여가 한꺼번에 들어와 숫자가 폭발한다(경기 2024년 477일, 한양 2021년 330일이
+     * 그대로 올라온다). 공백 연도가 있으면 이월은 0 이고, 연속 운영부터 쌓인다.
+     *
+     * 잔여 = 이월 + 발생 + 조정 − 사용. 사용은 그 발생행의 기간(startdate~enddate)으로 자른다.
+     * 입사일 기준이면 그 기간이 달력연도를 넘어가므로, 기준이 무엇이든 이 쿼리 하나로 맞는다.
+     * 기간이 비어 있는 옛 PB 행은 그 해 전체로 본다 — getYearlyList 와 같은 규칙이다.
+     *
+     * 2026년 생성 시점에는 7개 사업체 모두 2025년 발생행이 0건이라 전원 이월 0 이다.
+     * 즉 지금 돌아가는 사업체의 숫자는 이 기능으로 변하지 않고, 2027년 생성부터 붙는다.
+     * (2026-11-05 실측 — 2027년 예상 이월: 동방 468일/25명, 삼정 555.5일/42명, LRT 1051일/70명)
+     */
+    private Map<String, BigDecimal> prevRemains(int settleYear, String spjangcd) {
+
+        MapSqlParameterSource p = new MapSqlParameterSource();
+        p.addValue("spjangcd", spjangcd);
+        p.addValue("prevyear", String.valueOf(settleYear - 1));
+
+        String sql = """
+                SELECT g.custcd, g.perid,
+                       ISNULL(g.iwolnum,0) + ISNULL(g.holinum,0) + ISNULL(g.monthnum,0)
+                           - ISNULL(u.daynum,0) AS restnum
+                  FROM TB_PB209 g
+                  LEFT JOIN person pr ON pr.Code = g.perid AND pr.spjangcd = g.spjangcd
+                  OUTER APPLY (
+                        SELECT SUM(ISNULL(v.daynum, 0)) AS daynum
+                          FROM TB_PB204 v
+                          JOIN tb_pb210 w ON w.spjangcd = v.SPJANGCD AND w.workcd = v.workcd
+                                         AND w.yearflag = '1'
+                         WHERE v.SPJANGCD = g.spjangcd
+                           AND ISNULL(v.fixflag, '') = '1'
+                           AND v.reqdate >= ISNULL(NULLIF(g.startdate, ''), g.hyear + '0101')
+                           AND v.reqdate <= ISNULL(NULLIF(g.enddate,   ''), g.hyear + '1231')
+                           AND ( v.perid = g.perid
+                              OR (pr.id IS NOT NULL AND TRY_CAST(v.perid AS INT) = pr.id) )
+                  ) u
+                 WHERE g.spjangcd = :spjangcd
+                   AND g.hyear    = :prevyear
+                   AND g.hactcd   = '08'
+                   AND g.hseq     = '00'
+                """;
+
+        Map<String, BigDecimal> out = new HashMap<>();
+        try {
+            for (Map<String, Object> r : nvl(this.sqlRunner.getRows(sql, p))) {
+                out.put(carryKey(str(r.get("custcd")), str(r.get("perid"))), dec(r.get("restnum")));
+            }
+        } catch (Exception e) {
+            // 이월을 못 읽어도 생성 자체는 되게 한다. 조용히 0 이 되면 안 되므로 로그는 남긴다
+            log.error("직전 연도 잔여를 읽지 못해 이월을 0 으로 둡니다. spjangcd={} prevyear={}",
+                    spjangcd, settleYear - 1, e);
+        }
+        return out;
+    }
+
+    /** TB_PB209 PK 중 사원을 가리키는 부분. custcd 가 여러 개인 사업체가 있어 함께 묶는다 */
+    private static String carryKey(String custcd, String perid) {
+        return custcd + "|" + perid;
+    }
+
+    /**
+     * 결근이 기록된 날짜. 1년 미만 월차의 개근 판정에 쓴다.
+     * 키는 TB_JA001.perid('p001' 형식), 값은 yyyyMMdd 를 정렬해 담은 집합.
+     *
+     * 결근은 일근태 tb_pb201.abtime 에 들어간다(numeric(5,2), 반일 결근 0.5 가능).
+     * 날짜는 workym(yyyyMM) + workday(dd) 를 붙여 만든다 — 한 컬럼이 아니다.
+     * tb_pb201.perid 는 person.id(숫자)지만 PB 가 만든 과거 행이 있을 수 있어 두 형식 모두 맞춘다.
+     *
+     * <b>기록이 없는 달은 개근으로 본다.</b> 반대로 두면(기록 없음 = 결근) 근태를 아직 쓰지
+     * 않는 사업체에서 월차가 전원 0 일이 되어 버린다. 2026-11-06 기준 7개 사업체 모두
+     * 결근 기록이 0 건이고 일근태 자체가 거의 쌓이지 않아, 지금은 이 판정이 결과를 바꾸지 않는다.
+     * 근태를 제대로 쓰기 시작하는 사업체부터 자동으로 반영된다.
+     *
+     * 월차 대상은 근속 1년 미만이라 직전 연도 1월부터 보면 충분하다.
+     */
+    private Map<String, java.util.TreeSet<String>> absentDays(int settleYear, String spjangcd) {
+
+        MapSqlParameterSource p = new MapSqlParameterSource();
+        p.addValue("spjangcd", spjangcd);
+        p.addValue("fromym", (settleYear - 1) + "01");
+
+        String sql = """
+                SELECT j.perid                     AS perid,
+                       t.workym + t.workday        AS absday
+                  FROM tb_pb201 t
+                  JOIN TB_JA001 j ON j.spjangcd = t.spjangcd
+                  LEFT JOIN person pr ON pr.Code = j.perid AND pr.spjangcd = j.spjangcd
+                 WHERE t.spjangcd = :spjangcd
+                   AND ISNULL(t.abtime, 0) > 0
+                   AND t.workym >= :fromym
+                   AND ( t.perid = j.perid
+                      OR (pr.id IS NOT NULL AND TRY_CAST(t.perid AS INT) = pr.id) )
+                """;
+
+        Map<String, java.util.TreeSet<String>> out = new HashMap<>();
+        try {
+            for (Map<String, Object> r : nvl(this.sqlRunner.getRows(sql, p))) {
+                String perid = str(r.get("perid"));
+                String day = str(r.get("absday"));
+                if (perid.isEmpty() || day.length() != 8) continue;
+                out.computeIfAbsent(perid, k -> new java.util.TreeSet<>()).add(day);
+            }
+        } catch (Exception e) {
+            // 결근을 못 읽어도 생성은 되게 한다. 전부 개근으로 보는 쪽이 안전하다
+            log.error("결근 기록을 읽지 못해 월차를 전부 개근으로 계산합니다. spjangcd={}", spjangcd, e);
+        }
+        return out;
+    }
+
+    /**
+     * 채운 개월 중 개근한 개월 수. 근로기준법 제60조 ② "1개월 개근 시 1일" 의 판정이다.
+     *
+     * 판정 단위가 <b>입사일 기준 1개월</b>이라는 점이 중요하다. 3월 3일 입사자의 첫 달은
+     * 3/3~4/2 이고 둘째 달은 4/3~5/2 다. 근태는 달력 월(workym)로 쌓이므로 경계가 맞지 않아,
+     * 날짜까지 조립해 구간별로 본다. 말일 보정은 LocalDate.plusMonths 가 처리한다
+     * (1/31 의 다음 달 경계는 2/28 또는 2/29).
+     *
+     * 결근 기록이 없으면 채운 개월수를 그대로 돌려준다 — 지금 모든 사업체가 이 경우다.
+     * 입사일이 깨져 있으면 판정하지 않는다(깎지 않는다).
+     */
+    private long perfectMonths(String entdate, long months, java.util.TreeSet<String> absents) {
+
+        if (months <= 0) return 0;
+        if (absents == null || absents.isEmpty()) return months;
+
+        LocalDate ent = parseDate(entdate);
+        if (ent == null) {
+            log.warn("입사일을 해석할 수 없어 개근 판정을 건너뜁니다. entdate={}", entdate);
+            return months;
+        }
+
+        long paid = 0;
+        for (long i = 1; i <= months; i++) {
+            LocalDate from = ent.plusMonths(i - 1);
+            LocalDate to = ent.plusMonths(i).minusDays(1);
+            // yyyyMMdd 는 사전순이 날짜순이라 문자열 범위로 자른다. to 는 포함이므로 inclusive
+            if (absents.subSet(ymd(from), true, ymd(to), true).isEmpty()) paid++;
+        }
+        return paid;
+    }
+
+    /** yyyyMMdd → LocalDate. 형식이 틀리거나 없는 날짜(2/30 등)면 null */
+    private static LocalDate parseDate(String yyyymmdd) {
+        if (yyyymmdd == null || yyyymmdd.length() != 8) return null;
+        try {
+            return LocalDate.of(Integer.parseInt(yyyymmdd.substring(0, 4)),
+                                Integer.parseInt(yyyymmdd.substring(4, 6)),
+                                Integer.parseInt(yyyymmdd.substring(6, 8)));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 발생분이 유효한 기간. 조회·집계(getYearlyList / getYearlyDetail / AnnualLeaveSql)가
+     * 이 기간을 보고 사용일수를 센다. 그래서 기준이 무엇이든 조회 쪽은 손대지 않아도 맞는다.
+     *
+     * 회계연도 : 정산년도 1/1 ~ 12/31
+     * 입사일   : 정산년도의 입사 기념일 ~ 다음해 기념일 전날 (달력연도를 넘어간다)
+     *
+     * 2월 29일 입사자는 평년에 그 날이 없으므로 2월 28일로 당긴다.
+     */
+    private String[] periodOf(boolean entryBasis, String entdate, int settleYear) {
+
+        if (!entryBasis || entdate == null || entdate.length() != 8) {
+            return new String[]{settleYear + "0101", settleYear + "1231"};
+        }
+        try {
+            int em = Integer.parseInt(entdate.substring(4, 6));
+            int ed = Integer.parseInt(entdate.substring(6, 8));
+            if (em < 1 || em > 12 || ed < 1 || ed > 31) {
+                return new String[]{settleYear + "0101", settleYear + "1231"};
+            }
+            LocalDate from = safeDate(settleYear, em, ed);
+            LocalDate to = safeDate(settleYear + 1, em, ed).minusDays(1);
+            return new String[]{ymd(from), ymd(to)};
+        } catch (Exception e) {
+            // 입사일이 깨져 있으면 기준을 적용할 수 없다 — 연도 전체로 둬서 최소한 조회는 되게 한다
+            log.warn("입사일을 해석할 수 없어 연도 전체로 둡니다. entdate={}", entdate);
+            return new String[]{settleYear + "0101", settleYear + "1231"};
+        }
+    }
+
+    /** 그 해에 없는 날짜(2/29 등)는 그 달 말일로 당긴다 */
+    private static LocalDate safeDate(int y, int m, int d) {
+        int last = java.time.YearMonth.of(y, m).lengthOfMonth();
+        return LocalDate.of(y, m, Math.min(d, last));
+    }
+
+    private static String ymd(LocalDate d) {
+        return String.format("%04d%02d%02d", d.getYear(), d.getMonthValue(), d.getDayOfMonth());
     }
 
     /** 생성 대상자 (재직자 + 입사일 보유) */
@@ -288,62 +551,89 @@ public class ClockYearlyService {
     // ------------------------------------------------------------------ 저장
 
     /**
-     * 발생행 저장. createFlag '1' = 삭제 후 등록, '2' = 신규만 등록.
-     * PB 는 hseq 조건 없이 삭제해 사용내역행까지 지우지만, 웹에서는 발생행(hseq='00')만 지운다.
+     * 발생행 저장. createFlag '1' = 이미 있어도 다시 계산, '2' = 신규만 등록.
+     *
+     * '1' 은 예전에 DELETE 후 INSERT 였다. 그래서 다시 생성할 때마다
+     * 손으로 넣은 조정일수(monthnum)와 그 이력(remark)이 함께 날아갔다.
+     * 지금은 UPDATE 로 발생일수와 기간만 바꾸고 조정일수·이력은 건드리지 않는다.
+     * 잔여는 그 조정일수를 포함해 다시 계산한다.
+     *
+     * remark 를 SELECT·UPDATE 하지 않는 것은 일부러다 — 남양·주원은 그 컬럼이 없어서
+     * 건드리는 순간 생성 자체가 터진다.
+     *
+     * 기간(startdate·enddate)은 사원마다 다를 수 있어 행에서 받는다. 입사일 기준이면
+     * 입사 기념일부터 1년이고, 회계연도 기준이면 전원 1/1~12/31 이다.
+     *
+     * 이월(ewolnum)도 행에서 받는다. 기본값은 직전 연도 잔여 전액이고, 생성 미리보기 화면에서
+     * 손으로 고친 값이 있으면 그것이 들어온다. 다시 생성하면 직전 연도에서 다시 계산되므로
+     * 몇 번 돌려도 같은 결과가 된다 — 이월은 올해 행이 아니라 작년 행을 보고 만든다.
      */
     public int saveGenerated(List<Map<String, Object>> rows, String year, String spjangcd, String createFlag) {
 
         if (rows == null || rows.isEmpty()) return 0;
 
-        boolean deleteFirst = "1".equals(createFlag);
+        boolean regenerate = "1".equals(createFlag);
         int saved = 0;
 
         for (Map<String, Object> row : rows) {
             String perid = str(row.get("perid"));
             if (perid.isEmpty()) continue;
-            String custcd = str(row.get("custcd"));
 
             MapSqlParameterSource p = new MapSqlParameterSource();
-            p.addValue("custcd", custcd);
+            p.addValue("custcd", str(row.get("custcd")));
             p.addValue("spjangcd", spjangcd);
             p.addValue("hyear", year);
             p.addValue("perid", perid);
             p.addValue("hactcd", HACTCD_YEAR);
             p.addValue("hseq", HSEQ_BASE);
 
-            boolean exists = this.sqlRunner.queryForCount("""
-                    SELECT COUNT(*) FROM TB_PB209
+            Map<String, Object> cur = this.sqlRunner.getRow("""
+                    SELECT monthnum FROM TB_PB209
                      WHERE custcd = :custcd AND spjangcd = :spjangcd AND hyear = :hyear
                        AND hactcd = :hactcd AND hseq = :hseq AND perid = :perid
-                    """, p) > 0;
+                    """, p);
 
-            if (exists) {
-                if (!deleteFirst) continue;   // '2' 신규만 등록
+            if (cur != null && !regenerate) continue;   // '2' 신규만 등록
+
+            BigDecimal iwolnum = dec(row.get("ewolnum"));
+            BigDecimal holinum = dec(row.get("holinum"));
+            // 이미 있는 행이면 그 조정일수를 그대로 쓴다. 새 행이면 0 으로 시작한다.
+            BigDecimal monthnum = (cur != null) ? dec(cur.get("monthnum")) : dec(row.get("monthnum"));
+
+            String startdate = str(row.get("startdate"));
+            String enddate = str(row.get("enddate"));
+            if (startdate.length() != 8) startdate = year + "0101";
+            if (enddate.length() != 8) enddate = year + "1231";
+
+            p.addValue("iwolnum", iwolnum);
+            p.addValue("holinum", holinum);
+            p.addValue("monthnum", monthnum);
+            p.addValue("restnum", iwolnum.add(holinum).add(monthnum));
+            p.addValue("hfdate", year + "0000");
+            p.addValue("htdate", year + "0000");
+            p.addValue("startdate", startdate);
+            p.addValue("enddate", enddate);
+
+            if (cur != null) {
                 this.sqlRunner.execute("""
-                        DELETE FROM TB_PB209
+                        UPDATE TB_PB209
+                           SET hfdate = :hfdate, htdate = :htdate,
+                               startdate = :startdate, enddate = :enddate,
+                               iwolnum = :iwolnum, holinum = :holinum, restnum = :restnum
                          WHERE custcd = :custcd AND spjangcd = :spjangcd AND hyear = :hyear
                            AND hactcd = :hactcd AND hseq = :hseq AND perid = :perid
                         """, p);
+            } else {
+                this.sqlRunner.execute("""
+                        INSERT INTO TB_PB209
+                               (custcd, spjangcd, hyear, hactcd, hseq, perid,
+                                hfdate, htdate, daynum, hflag, startdate, enddate,
+                                iwolnum, holinum, monthnum, restnum)
+                        VALUES (:custcd, :spjangcd, :hyear, :hactcd, :hseq, :perid,
+                                :hfdate, :htdate, 0, '1', :startdate, :enddate,
+                                :iwolnum, :holinum, :monthnum, :restnum)
+                        """, p);
             }
-
-            p.addValue("iwolnum", dec(row.get("ewolnum")));
-            p.addValue("holinum", dec(row.get("holinum")));
-            p.addValue("monthnum", dec(row.get("monthnum")));
-            p.addValue("restnum", dec(row.get("restnum")));
-            p.addValue("hfdate", year + "0000");
-            p.addValue("htdate", year + "0000");
-            p.addValue("startdate", year + "0101");
-            p.addValue("enddate", year + "1231");
-
-            this.sqlRunner.execute("""
-                    INSERT INTO TB_PB209
-                           (custcd, spjangcd, hyear, hactcd, hseq, perid,
-                            hfdate, htdate, daynum, hflag, startdate, enddate,
-                            iwolnum, holinum, monthnum, restnum)
-                    VALUES (:custcd, :spjangcd, :hyear, :hactcd, :hseq, :perid,
-                            :hfdate, :htdate, 0, '1', :startdate, :enddate,
-                            :iwolnum, :holinum, :monthnum, :restnum)
-                    """, p);
             saved++;
         }
         return saved;
@@ -501,10 +791,16 @@ public class ClockYearlyService {
     }
 
     /**
-     * 1년 미만 근로자 월차 — 입사일로부터 채운 1개월마다 1일, 최대 11일.
+     * 1년 미만 근로자 월차 — 개근한 1개월마다 1일, 최대 11일.
      *
      * PB 원본은 정산년도 1월 1일부터 기준일까지의 경과월수를 써서 (llMonth / 12) * 15 로 계산했다.
      * 입사월을 보지 않아 연말 입사자도 10일 이상이 나오므로, 입사일 기준으로 바꿨다. (2026-10-01)
+     *
+     * 넘겨받는 값은 {@link #perfectMonths} 를 거친 <b>개근 개월수</b>다. 채운 개월수가 아니다.
+     *
+     * 이 값은 매월 1 씩 늘어난다. 그래서 신입이 들어오면 매월(또는 두세 달마다) 연차생성을
+     * 다시 돌려야 숫자가 따라온다. 그때 생성방식은 반드시 '1'(기존 생성분까지 다시 계산)
+     * 이어야 한다 — '2'(신규만)는 이미 발생행이 있는 사원을 건너뛰어 월차가 멈춘다.
      */
     private BigDecimal monthlyDays(long workedMonths) {
         if (workedMonths <= 0) return BigDecimal.ZERO.setScale(1);

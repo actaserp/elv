@@ -3,6 +3,7 @@ package mes.app.clock;
 import lombok.extern.slf4j.Slf4j;
 import mes.app.annotation.ApiProduct;
 import mes.app.clock.service.ClockYearlyService;
+import mes.app.common.TenantContext;
 import mes.domain.entity.User;
 import mes.domain.model.AjaxResult;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,21 +43,51 @@ public class YearlyController {
         return result;
     }
 
-    /** 연차생성 — 근속 1년 이상자 */
+    /**
+     * 연차생성 미리보기 — 근속 1년 이상(연차)과 1년 미만(월차)을 한 번에 계산한다.
+     * 산정기준(회계연도/입사일)은 사업체 설정을 따른다.
+     *
+     * <b>저장하지 않는다.</b> 화면이 결과를 목록에 얹어 보여주고, 사용자가 [저장]을 누르면
+     * {@link #createSave} 로 다시 온다. 생성방식 '1' 은 기존 발생일수를 덮어쓰므로,
+     * 잘못 눌렀을 때 되돌릴 수 없는 것을 막으려고 두 단계로 나눴다.
+     */
+    @PostMapping("/Create")
+    public AjaxResult create(@RequestBody Map<String, Object> body, Authentication auth) {
+        return generate(body, auth, false);
+    }
+
+    /**
+     * 연차생성 저장 — 미리보기와 같은 조건으로 <b>서버가 다시 계산해서</b> 저장한다.
+     *
+     * 화면이 보낸 숫자를 그대로 쓰지 않는다. 미리보기와 저장 사이에 인사정보가 바뀌었으면
+     * 최신 값이 들어가고, 값을 고쳐 보내도 반영되지 않는다. 같은 조건이면 결과도 같다.
+     */
+    @PostMapping("/CreateSave")
+    @Transactional
+    public AjaxResult createSave(@RequestBody Map<String, Object> body, Authentication auth) {
+        return generate(body, auth, true);
+    }
+
+    /** @deprecated 버튼이 하나로 합쳐졌다. /Create + /CreateSave 를 쓴다. 옛 호출은 즉시 저장으로 둔다 */
+    @Deprecated
     @PostMapping("/YearlyCreate")
     @Transactional
-    public AjaxResult createYearly(@RequestBody Map<String, Object> body, HttpServletRequest request) {
-        return generate(body, false);
+    public AjaxResult createYearly(@RequestBody Map<String, Object> body, Authentication auth) {
+        return generate(body, auth, true);
     }
 
-    /** 월차생성 — 근속 1년 미만자 */
+    /** @deprecated 버튼이 하나로 합쳐졌다. /Create + /CreateSave 를 쓴다. 옛 호출은 즉시 저장으로 둔다 */
+    @Deprecated
     @PostMapping("/MonthlyCreate")
     @Transactional
-    public AjaxResult createMonthly(@RequestBody Map<String, Object> body, HttpServletRequest request) {
-        return generate(body, true);
+    public AjaxResult createMonthly(@RequestBody Map<String, Object> body, Authentication auth) {
+        return generate(body, auth, true);
     }
 
-    private AjaxResult generate(Map<String, Object> body, boolean monthly) {
+    /**
+     * @param persist false 면 계산만 하고 돌려준다(미리보기), true 면 저장까지 한다.
+     */
+    private AjaxResult generate(Map<String, Object> body, Authentication auth, boolean persist) {
 
         AjaxResult result = new AjaxResult();
 
@@ -78,9 +109,11 @@ public class YearlyController {
             return result;
         }
 
-        List<Map<String, Object>> rows = monthly
-                ? this.clockYearlyService.createMonthly(year, spjangcd, startdate, name, toRtclafi(rtflag), createFlag)
-                : this.clockYearlyService.createYearly(year, spjangcd, startdate, name, toRtclafi(rtflag), createFlag);
+        // 산정기준은 사업체 단위 설정이라 db_key 로 찾는다. 화면이 보내는 spjangcd('ZZ')가 아니다
+        String dbKey = currentDbKey(auth);
+
+        List<Map<String, Object>> rows =
+                this.clockYearlyService.createAll(year, spjangcd, dbKey, startdate, name, toRtclafi(rtflag), createFlag);
 
         if (rows.isEmpty()) {
             result.success = false;
@@ -90,16 +123,36 @@ public class YearlyController {
             return result;
         }
 
-        int saved = this.clockYearlyService.saveGenerated(rows, year, spjangcd, createFlag);
-
         Map<String, Object> data = new HashMap<>();
-        data.put("saved", saved);
         data.put("rows", rows);
+
+        if (!persist) {
+            // 미리보기 — 아직 저장하지 않았다. 화면이 목록에 얹어 보여준다
+            data.put("saved", 0);
+            result.success = true;
+            result.message = rows.size() + "명이 대상입니다. 내용을 확인한 뒤 [저장]을 누르세요.";
+            result.data = data;
+            return result;
+        }
+
+        int saved = this.clockYearlyService.saveGenerated(rows, year, spjangcd, createFlag);
+        data.put("saved", saved);
 
         result.success = true;
         result.message = saved + "명 생성되었습니다.";
         result.data = data;
         return result;
+    }
+
+    /**
+     * 지금 요청이 어느 사업체인가(tb_tenant_db.spjangcd = db_key).
+     * 로그인 사용자에서 먼저 찾고, 없으면 요청 컨텍스트에서 가져온다.
+     */
+    private String currentDbKey(Authentication auth) {
+        if (auth != null && auth.getPrincipal() instanceof User user && user.getDbKey() != null) {
+            return user.getDbKey();
+        }
+        return TenantContext.getDbKey();
     }
 
     /** 조정일수 저장 — 발생행의 monthnum 만 바꾸고 이력을 remark 에 남긴다 */
