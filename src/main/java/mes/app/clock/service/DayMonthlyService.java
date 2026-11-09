@@ -104,6 +104,10 @@ public class DayMonthlyService {
                         t.workday,
                         SUBSTRING(t.workym, 1, 4) + '-' + SUBSTRING(t.workym, 5, 2) + '-' + RIGHT('0' + t.workday, 2) AS workymd,
                         p.id,
+                        /* idx 를 내려주지 않아 화면이 행을 구분하지 못했다.
+                           저장은 전부 idx=1 로 가서 추가근무를 고치면 일반근무가 덮어써졌고,
+                           삭제는 그 날짜·사원의 행을 통째로 지웠다. 2026-11-09 정정 */
+                        t.idx,
                         t.worknum,
                         t.holiyn,
                         t.workyn,
@@ -227,7 +231,20 @@ public class DayMonthlyService {
         String workday = workymd.substring(8, 10);
 
         String perid = String.valueOf(((Number) item.get("id")).intValue());
-        int idx      = item.get("idx") != null ? ((Number) item.get("idx")).intValue() : 1;
+
+        /* 추가등록(화면 「추가등록」 버튼)으로 만든 행은 idx 를 서버가 정한다.
+           같은 날짜·사원의 max + 1 이다. 화면이 정하면 두 사람이 동시에 등록할 때
+           같은 번호가 되어 서로 덮어쓴다. 추가근무는 idx 2 이상으로 쌓인다. */
+        int idx;
+        if (Boolean.TRUE.equals(item.get("__isNew"))) {
+            Integer maxIdx = jdbcTemplate.queryForObject("""
+                    SELECT ISNULL(MAX(idx), 0) FROM tb_pb201
+                    WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
+                    """, Integer.class, spjangcd, workym, workday, perid);
+            idx = (maxIdx == null ? 0 : maxIdx) + 1;
+        } else {
+            idx = item.get("idx") != null ? ((Number) item.get("idx")).intValue() : 1;
+        }
 
         String workcd     = (String) item.get("workcd");
         String starttime  = nullIfBlank((String) item.get("starttime"));
@@ -283,13 +300,25 @@ public class DayMonthlyService {
                         mid_remark  = ?,
                         out_remark  = ?,
                         mid_time    = ?,
-                        mid_address = ?
+                        mid_address = ?,
+                        /* 위치를 빈 칸으로 지우면 좌표도 함께 지운다.
+                           좌표만 남으면 주소는 비었는데 지도에는 마커가 계속 떠서,
+                           화면에서 지웠다고 생각한 위치가 지도에 그대로 보인다.
+                           주소를 고치기만 한 경우(값이 있는 경우)에는 좌표를 건드리지 않는다 —
+                           관리자가 주소 문구만 다듬는 일이 많고, 그때 좌표를 잃으면 안 된다. */
+                        latitude      = CASE WHEN ? IS NULL THEN NULL ELSE latitude      END,
+                        longitude     = CASE WHEN ? IS NULL THEN NULL ELSE longitude     END,
+                        mid_latitude  = CASE WHEN ? IS NULL THEN NULL ELSE mid_latitude  END,
+                        mid_longitude = CASE WHEN ? IS NULL THEN NULL ELSE mid_longitude END,
+                        out_latitude  = CASE WHEN ? IS NULL THEN NULL ELSE out_latitude  END,
+                        out_longitude = CASE WHEN ? IS NULL THEN NULL ELSE out_longitude END
                     WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ? AND idx = ?
                     """;
             return jdbcTemplate.update(updateSql,
                     workcd, starttime, endtime,
                     nomaltime, jitime, overtime, nighttime, yuntime, abtime, holitime, worktime,
                     address, outAddress, remark, midRemark, outRemark, midTime, midAddress,
+                    address, address, midAddress, midAddress, outAddress, outAddress,
                     spjangcd, workym, workday, perid, idx);
         } else {
             // INSERT
@@ -357,13 +386,21 @@ public class DayMonthlyService {
                     address     = ?,
                     out_address = ?,
                     mid_time    = ?,
-                    mid_address = ?
+                    mid_address = ?,
+                    /* 위치를 지우면 좌표도 지운다 — 저장(savedata) 과 같은 규칙 */
+                    latitude      = CASE WHEN ? IS NULL THEN NULL ELSE latitude      END,
+                    longitude     = CASE WHEN ? IS NULL THEN NULL ELSE longitude     END,
+                    mid_latitude  = CASE WHEN ? IS NULL THEN NULL ELSE mid_latitude  END,
+                    mid_longitude = CASE WHEN ? IS NULL THEN NULL ELSE mid_longitude END,
+                    out_latitude  = CASE WHEN ? IS NULL THEN NULL ELSE out_latitude  END,
+                    out_longitude = CASE WHEN ? IS NULL THEN NULL ELSE out_longitude END
                 WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ? AND idx = ?
                 """;
         return jdbcTemplate.update(sql,
                 workcd, starttime, endtime,
                 nomaltime, jitime, overtime, nighttime, yuntime, abtime, holitime, worktime,
                 address, outAddress, midTime, midAddress,
+                address, address, midAddress, midAddress, outAddress, outAddress,
                 spjangcd, workym, workday, perid, idx);
     }
 
@@ -384,13 +421,20 @@ public class DayMonthlyService {
     // 일별 근태 삭제 (미마감 레코드만)
     // =========================================================
     @Transactional
-    public int deleteDayData(String spjangcd, String perid, String workym, String workday) {
+    /**
+     * 선택한 근무 1건을 지운다.
+     *
+     * <b>idx 를 반드시 받는다.</b> 예전에는 조건에 없어서 그 사원·그 날짜의 미마감 행을
+     * 전부 지웠다 — 추가근무(idx 2 이상)를 지우려 하면 일반근무까지 함께 사라졌다.
+     * 2026-11-09 동방에서 실제로 발생했다.
+     */
+    public int deleteDayData(String spjangcd, String perid, String workym, String workday, int idx) {
         String sql = """
                 DELETE FROM tb_pb201
-                WHERE spjangcd = ? AND perid = ? AND workym = ? AND workday = ?
+                WHERE spjangcd = ? AND perid = ? AND workym = ? AND workday = ? AND idx = ?
                   AND (fixflag = '0' OR fixflag IS NULL)
                 """;
-        return jdbcTemplate.update(sql, spjangcd, perid, workym, workday);
+        return jdbcTemplate.update(sql, spjangcd, perid, workym, workday, idx);
     }
 
     // =========================================================

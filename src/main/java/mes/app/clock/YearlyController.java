@@ -97,6 +97,8 @@ public class YearlyController {
         String name = str(body.get("name"));
         String rtflag = str(body.get("rtflag"));
         String createFlag = str(body.get("createFlag"));
+        // 이월 여부 — '0' 이면 이월하지 않는다. 안 보내면 전액 이월(종전 동작)
+        String carryFlag = str(body.get("carryFlag"));
 
         if (year.length() != 4) {
             result.success = false;
@@ -113,7 +115,8 @@ public class YearlyController {
         String dbKey = currentDbKey(auth);
 
         List<Map<String, Object>> rows =
-                this.clockYearlyService.createAll(year, spjangcd, dbKey, startdate, name, toRtclafi(rtflag), createFlag);
+                this.clockYearlyService.createAll(year, spjangcd, dbKey, startdate, name, toRtclafi(rtflag),
+                                                  createFlag, carryFlag);
 
         if (rows.isEmpty()) {
             result.success = false;

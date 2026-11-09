@@ -389,7 +389,19 @@ public class DayMonthlyController {
                     String workday = workymd.substring(8, 10);
                     String perid   = String.valueOf(((Number) idObj).intValue());
 
-                    deleteCount += dayMonthlyService.deleteDayData(spjangcd, perid, workym, workday);
+                    /* idx 가 없으면 지우지 않는다. 예전에는 조건 없이 그 날짜·사원의 행을
+                       통째로 지워, 추가근무를 지우려다 일반근무까지 사라졌다.
+                       옛 화면이 idx 를 안 보내면 1 로 넘겨 버리는 대신 건너뛴다 —
+                       잘못 지우는 것보다 안 지워지는 쪽이 낫다. */
+                    Object idxObj = item.get("idx");
+                    if (idxObj == null) {
+                        result.success = false;
+                        result.message = "삭제할 근무 번호를 찾지 못했습니다. 화면을 새로 고친 뒤 다시 시도하세요.";
+                        return result;
+                    }
+                    int idx = ((Number) idxObj).intValue();
+
+                    deleteCount += dayMonthlyService.deleteDayData(spjangcd, perid, workym, workday, idx);
                 }
             }
         } catch (Exception e) {

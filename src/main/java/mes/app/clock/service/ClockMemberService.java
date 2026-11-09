@@ -146,26 +146,40 @@ public class ClockMemberService {
             String workym  = date.format(DateTimeFormatter.ofPattern("yyyyMM"));
             String workday = date.format(DateTimeFormatter.ofPattern("dd"));
 
-            // 존재 여부 확인
-            String checkSql = """
+            /* 휴가로 쓸 수 있는 행 = 출근 기록이 없는 행.
+               예전에는 그 날짜에 행이 하나라도 있으면 전부 UPDATE 했다. 그래서
+                 · 출근해서 일한 행의 구분이 휴가로 덮어써지고(실측 GO 19건·AN 7건,
+                   전부 yuntime 0 이라 반차도 아니다)
+                 · 추가근무(idx 2 이상)가 있는 날은 그 행까지 휴가가 됐다.
+               2026-11-09 정정. */
+            String blankSql = """
                     SELECT COUNT(*) FROM tb_pb201
                     WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
+                      AND (starttime IS NULL OR starttime = '')
                     """;
-            int count = jdbcTemplate.queryForObject(checkSql, Integer.class, spjangcd, workym, workday, perid);
+            int blank = jdbcTemplate.queryForObject(blankSql, Integer.class, spjangcd, workym, workday, perid);
 
-            if (count > 0) {
-                // 행 존재 → 휴가 구분값만 UPDATE (remark 는 건드리지 않음)
+            if (blank > 0) {
+                // 출근 기록 없는 행만 휴가로 바꾼다 (remark 는 건드리지 않음)
                 jdbcTemplate.update("""
                         UPDATE tb_pb201
                         SET workcd = ?
                         WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
+                          AND (starttime IS NULL OR starttime = '')
                         """, workcd, spjangcd, workym, workday, perid);
             } else {
-                // 행 없음 → INSERT (remark 미입력)
+                /* 행이 아예 없거나, 있는 행이 전부 출근 기록을 갖고 있다.
+                   근무 기록을 덮지 않고 휴가 행을 따로 만든다.
+                   행이 없으면 MAX 가 0 이라 idx=1 — 예전과 같은 결과다. */
+                Integer maxIdx = jdbcTemplate.queryForObject("""
+                        SELECT ISNULL(MAX(idx), 0) FROM tb_pb201
+                        WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
+                        """, Integer.class, spjangcd, workym, workday, perid);
+
                 jdbcTemplate.update("""
-                        INSERT INTO tb_pb201 (spjangcd, workym, workday, perid, workcd)
-                        VALUES (?, ?, ?, ?, ?)
-                        """, spjangcd, workym, workday, perid, workcd);
+                        INSERT INTO tb_pb201 (spjangcd, workym, workday, perid, idx, workcd)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """, spjangcd, workym, workday, perid, (maxIdx == null ? 0 : maxIdx) + 1, workcd);
             }
         }
         return null;   // 성공
@@ -325,29 +339,26 @@ public class ClockMemberService {
             String workym  = date.format(DateTimeFormatter.ofPattern("yyyyMM"));
             String workday = date.format(DateTimeFormatter.ofPattern("dd"));
 
-            // 출근 정보(starttime) 존재 여부 확인 (퇴근 전일 수 있어 endtime 은 보지 않음)
-            String checkSql = """
-                    SELECT COUNT(*) FROM tb_pb201
+            /* 행마다 따로 판단한다.
+               예전에는 "그 날짜에 출근 기록이 하나라도 있으면 전부 UPDATE, 하나도 없으면 전부
+               DELETE" 였다. 같은 날 근무가 여러 건일 수 있어(추가근무 idx 2 이상), 휴가를
+               취소하면 다른 근무까지 함께 지워지거나 구분이 덮어써졌다. 2026-11-09 정정.
+               퇴근 전일 수 있으므로 endtime 은 보지 않는다. */
+
+            // 출근 기록이 있는 행 → 구분값만 '정상(01)' 으로 되돌린다 (remark 는 건드리지 않음)
+            jdbcTemplate.update("""
+                    UPDATE tb_pb201
+                    SET workcd = '01'
                     WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
                       AND starttime IS NOT NULL AND starttime <> ''
-                    """;
-            int hasCommute = jdbcTemplate.queryForObject(
-                    checkSql, Integer.class, spjangcd, workym, workday, perid);
+                    """, spjangcd, workym, workday, perid);
 
-            if (hasCommute > 0) {
-                // 출퇴근 정보 있음 → 구분값을 '정상(01)'으로 (remark 는 건드리지 않음)
-                jdbcTemplate.update("""
-                        UPDATE tb_pb201
-                        SET workcd = '01'
-                        WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
-                        """, spjangcd, workym, workday, perid);
-            } else {
-                // 출퇴근 정보 없음 → 행 삭제
-                jdbcTemplate.update("""
-                        DELETE FROM tb_pb201
-                        WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
-                        """, spjangcd, workym, workday, perid);
-            }
+            // 출근 기록이 없는 행 → 휴가 승인이 만들어 둔 행이므로 지운다
+            jdbcTemplate.update("""
+                    DELETE FROM tb_pb201
+                    WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
+                      AND (starttime IS NULL OR starttime = '')
+                    """, spjangcd, workym, workday, perid);
         }
     }
 }

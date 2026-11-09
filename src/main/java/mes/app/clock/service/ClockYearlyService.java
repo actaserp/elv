@@ -200,13 +200,21 @@ public class ClockYearlyService {
      * @param dbKey 사업체 식별자(tb_tenant_db.spjangcd). 사업장코드('ZZ')가 아니다 —
      *              둘을 혼동하면 설정을 못 찾아 조용히 회계연도로 돌아간다
      */
+    /**
+     * @param carryFlag 이월 여부. '0' 이면 이월하지 않고(전원 0), 그 밖의 값이면 직전 연도 잔여를
+     *                  전액 가져온다. 생성 팝업에서 매번 고른다.
+     *                  <b>이월하지 않으면 미사용분은 소멸한다.</b> 근로기준법 제60조 ⑦ 에 따라
+     *                  소멸한 연차는 수당 지급 대상이므로, 정산 절차가 있을 때만 쓸 선택지다.
+     */
     public List<Map<String, Object>> createAll(String year, String spjangcd, String dbKey, String baseYm,
-                                               String name, String rtclafi, String createFlag) {
-        return build(year, spjangcd, dbKey, baseYm, name, rtclafi, createFlag);
+                                               String name, String rtclafi, String createFlag,
+                                               String carryFlag) {
+        return build(year, spjangcd, dbKey, baseYm, name, rtclafi, createFlag, carryFlag);
     }
 
     private List<Map<String, Object>> build(String year, String spjangcd, String dbKey, String baseYm,
-                                            String name, String rtclafi, String createFlag) {
+                                            String name, String rtclafi, String createFlag,
+                                            String carryFlag) {
 
         int settleYear = Integer.parseInt(year);
         int[] base = parseYm(baseYm, settleYear);
@@ -214,13 +222,17 @@ public class ClockYearlyService {
 
         boolean entryBasis = tenantDbService.isEntryDateBasis(dbKey);
 
-        // 직전 연도 잔여 = 이월액. 발생행이 없는 사원은 키가 없어 0 이 된다
-        Map<String, BigDecimal> carry = prevRemains(settleYear, spjangcd);
+        /* 직전 연도 잔여 = 이월액. 발생행이 없는 사원은 키가 없어 0 이 된다.
+           '0' 을 고르면 아예 읽지 않는다 — 전원 이월 0 이 되므로 쿼리를 돌릴 이유가 없다. */
+        boolean carryOver = !"0".equals(carryFlag);
+        Map<String, BigDecimal> carry = carryOver ? prevRemains(settleYear, spjangcd) : Map.of();
         int negatives = 0;
 
         // 월차 개근 판정용 결근 기록. 기록이 없는 사원은 키가 없어 전부 개근으로 본다
         Map<String, java.util.TreeSet<String>> absents = absentDays(settleYear, spjangcd);
         long droppedMonths = 0;
+        int extraPersons = 0;      // 회계연도 k==1 에서 월차 잔여분을 더한 인원
+        long extraTotal = 0;       // 그 합계 일수
 
         List<Map<String, Object>> targets = getTargets(year, spjangcd, name, rtclafi);
         List<Map<String, Object>> rows = new ArrayList<>();
@@ -235,37 +247,67 @@ public class ClockYearlyService {
             try { entYear = Integer.parseInt(entdate.substring(0, 4)); } catch (Exception e) { continue; }
 
             /* 완성 계속근로연수 k — 근로기준법 제60조 ④ 의 가산(15 + (k-1)/2)이 붙는 시점 기준.
-               회계연도 : 1월 1일 시점으로 센다. 입사년도만 보므로 k = 정산년 − 입사년 − 1.
-               입사일   : 그 해 입사 기념일 시점으로 센다. 기념일은 정산년에 반드시 한 번 오므로
-                          k = 정산년 − 입사년.
-               같은 사람이 입사일 기준에서 1년 더 쌓이고, 그래서 가산이 최대 1년 빨리 붙는다.
-               이것이 "연차가 1일 부족하다" 민원의 실제 원인이다.
+               <b>두 기준이 같은 식을 쓴다.</b> 입사년도만 보고 k = 정산년 − 입사년.
 
-               기준을 바꾸면 두 가지가 달라진다 (2026-11-05 실측, DG·sj·ZQ 재직 153명 기준).
-                 ① 연차 대상자 중 발생일수가 1일 늘는 사람  : 41명
-                 ② 월차 대상이던 사람이 연차 대상으로 바뀜   : 26명
-                    직전년도 입사자는 회계연도 기준으로는 1/1 에 아직 1년 미만이라 월차(최대 11일)
-                    지만, 입사일 기준으로는 그 해 기념일에 1년을 채워 연차 15일이 된다.
-                    회계연도는 그 15일을 다음 해로 미루는 셈이다.
+               2026-11-09 이전에는 회계연도 기준만 −1 을 더 뺐다(k = 정산년 − 입사년 − 1).
+               1월 1일 시점에는 아직 1년을 못 채웠다는 계산이었는데, 그 결과
+                 · 입사 첫 해는 k < 0 이 되어 발생행이 아예 만들어지지 않았고(월차 0일),
+                 · 가산일수 도달이 법정보다 항상 1년 늦었다(3년차 16일이 4년째에 붙었다).
+               둘 다 근로기준법 미달이다. 회계연도 기준은 법에 있는 제도가 아니라 행정해석이
+               허용하는 편의 방식이고, 조건은 "근로자에게 법정보다 불리하지 않을 것" 하나다.
+               유리하게 주는 것은 허용되므로 −1 을 뺐다.
 
-               k 를 이렇게 맞춰 두면 아래 분기는 두 기준이 완전히 같아진다. */
-            int k = entryBasis ? (settleYear - entYear) : (settleYear - entYear - 1);
+               기준 차이는 이제 <b>기간(startdate~enddate)만</b> 남는다.
+               회계연도는 1/1~12/31, 입사일은 기념일~1년 뒤 전날. 발생일수는 같다. */
+            int k = settleYear - entYear;
 
             if (k < 0) continue;                 // 아직 대상이 아니다
             boolean monthly = (k == 0);          // 1년을 못 채웠으면 월차
 
             BigDecimal holinum;
             long months;
+            long extraMonths = 0;                // 회계연도 기준에서 가산한 1년 미만 월차 잔여분
             if (monthly) {
                 /* 1년 미만 월차 — 채운 1개월마다 1일. 단 근로기준법 제60조 ② 는 "1개월 개근"
-                   을 조건으로 두므로, 결근이 기록된 달은 빼고 센다. */
-                long worked = monthsWorked(entdate, baseYear, baseMonth);
+                   을 조건으로 두므로, 결근이 기록된 달은 빼고 센다.
+
+                   회계연도 기준은 이 행의 기간이 그 해 12/31 로 끝나므로, 기준일자가 다음 해로
+                   넘어가 있어도 12월까지만 센다. 기간 밖의 발생분을 이 행에 넣지 않기 위해서다.
+                   입사일 기준은 기간이 1년 미만 구간 전체를 덮으므로 기준일자를 그대로 쓴다. */
+                int cutYear = baseYear, cutMonth = baseMonth;
+                if (!entryBasis && (baseYear > settleYear)) {
+                    cutYear = settleYear;
+                    cutMonth = 12;
+                }
+                long worked = monthsWorked(entdate, cutYear, cutMonth);
                 months = perfectMonths(entdate, worked, absents.get(str(t.get("perid"))));
                 droppedMonths += (worked - months);
                 holinum = monthlyDays(months);
             } else {
                 months = (long) k * 12;
                 holinum = tenureDays(months);
+
+                /* 회계연도 기준에서 1년이 되는 해(k == 1) — 연차와 월차 구간이 한 해에 걸친다.
+                   1년 미만 월차는 입사일부터 1년 되는 날까지 최대 11일인데, 입사 첫 해(k == 0)
+                   행에는 그 해 12/31 까지의 분만 들어간다. 나머지는 이 해에 발생하므로 더한다.
+                   더하지 않으면 월차 11일이 보장되지 않는다(제60조 ②).
+
+                   예) 2024-06-24 입사 → 첫 해 6일(7/23~12/23) + 이 해 5일(1/23~5/23) = 11일
+
+                   입사일 기준은 k == 0 행의 기간이 1년 미만 구간 전체를 덮으므로 여기서 더하지
+                   않는다. 그 행을 다시 생성하면 11일까지 올라간다. */
+                if (!entryBasis && k == 1) {
+                    java.util.TreeSet<String> ab = absents.get(str(t.get("perid")));
+                    long all = perfectMonths(entdate, MONTHLY_MAX_DAYS, ab);
+                    // 입사 첫 해 12/31 까지 채운 개월수 = 그 해 12월을 기준월로 둔 것과 같다
+                    long first = perfectMonths(entdate, monthsWorked(entdate, entYear, 12), ab);
+                    extraMonths = Math.max(0, all - first);
+                    if (extraMonths > 0) {
+                        holinum = holinum.add(monthlyDays(extraMonths));
+                        extraPersons++;
+                        extraTotal += extraMonths;
+                    }
+                }
             }
             if (holinum.compareTo(BigDecimal.ZERO) <= 0) continue;
 
@@ -296,6 +338,8 @@ public class ClockYearlyService {
             row.put("daynum", BigDecimal.ZERO);
             row.put("restnum", iwolnum.add(holinum));
             row.put("months", months);
+            row.put("tenure", k);                 // 완성 계속근로연수
+            row.put("extramonths", extraMonths);  // 회계연도 k==1 에서 가산한 월차 잔여분(일수와 같다)
             row.put("startdate", period[0]);
             row.put("enddate", period[1]);
             row.put("monthly", monthly ? "1" : "0");
@@ -311,6 +355,13 @@ public class ClockYearlyService {
             });
         }
 
+        if (extraPersons > 0) {
+            log.info("1년이 되는 해라 1년 미만 월차 잔여분을 더한 사원 {}명, 합계 {}일. spjangcd={} year={}",
+                    extraPersons, extraTotal, spjangcd, year);
+        }
+        if (!carryOver) {
+            log.info("이월하지 않기로 선택되어 전원 이월 0 으로 생성합니다. spjangcd={} year={}", spjangcd, year);
+        }
         if (negatives > 0) {
             log.warn("직전 연도 잔여가 음수인 사원 {}명은 이월을 0 으로 두었습니다. spjangcd={} year={}",
                     negatives, spjangcd, year);

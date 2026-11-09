@@ -172,23 +172,7 @@
       <p id="basisNotice" style="margin: 0 0 8px; font-size: 13px;"></p>
       <p id="previewNotice" style="display: none; margin: 0 0 8px; padding: 8px 10px; font-size: 13px;
                                    background: #fff4d6; border: 1px solid #e0c060; border-radius: 4px;"></p>
-      <p style="margin: 0 0 6px; font-size: 12px; color: #777;">
-        연차생성 한 번으로 근속 1년 이상(근속연수 기준)과 1년 미만(기준일자까지 <b>개근한</b> 개월수 1개월당 1일, 최대 11일)을 함께 만듭니다.
-        결근이 기록된 달은 월차에서 제외됩니다(근로기준법 제60조 ②). 특정 직원만 생성하려면 사원명을 입력한 뒤 생성하세요.
-        이미 만들어진 직원을 다시 생성해도 <b>조정일과 그 이력은 그대로 남습니다.</b>
-        <br>
-        <b>1년 미만 직원의 월차는 매월 1일씩 늘어납니다.</b> 신규 입사자가 있으면 매월(또는 두세 달마다) 연차생성을 다시 돌리면 됩니다.
-        이때 쓰는 <b>「기존 생성분까지 다시 계산」</b>이 기본으로 선택되어 있습니다. 「신규 대상자만 생성」은 이미 만들어진 직원을 건너뛰므로 월차가 올라가지 않습니다.
-        <br>
-        <b>이월일</b>은 직전 연도 잔여를 <b>전액</b> 가져옵니다. 직전 연도를 생성하지 않았으면 0입니다.
-        <br>
-        <b>연차생성은 두 단계입니다.</b> 「연차생성」을 누르면 계산 결과를 목록에 <b>미리 보여주기만 하고 저장하지 않습니다.</b>
-        숫자를 확인한 뒤 <b>「저장」</b>을 눌러야 반영됩니다. 저장하지 않고 「검색」을 누르면 미리보기는 사라집니다.
-        <br>
-        <b>조정일</b> 칸만 직접 고칠 수 있습니다. 도입 시점에 이미 쓴 연차는 음수(예 -2), 특별히 더 주는 휴가는 양수로 적고 저장하세요.
-        잔여일은 <b>이월 + 연차 + 조정 − 사용</b> 으로 자동 계산되며, 조정 내역은 사원별 이력에 남습니다.
-      </p>
-      <div class="container-fluid" style="flex-direction: row; gap: 5px">
+           <div class="container-fluid" style="flex-direction: row; gap: 5px">
         <div style="flex: 0 0 50%; max-width: 50%;">
           <p id="selectedItem1"></p>
           <div id="member-grid" style="height: 100%;"></div>
@@ -212,13 +196,28 @@
            저장 전 미리보기가 있어 잘못 골라도 숫자를 보고 되돌릴 수 있다 -->
       <label>
         <input type="radio" name="createMode" value="1" checked> 기존 생성분까지 다시 계산
-        <span>해당 연도의 발생일수·이월일·기간을 다시 계산합니다. 조정일·이력·사용내역은 그대로 남습니다.
-              1년 미만 직원의 월차를 반영하려면 이 쪽을 쓰세요.</span>
+        <span>발생일수를 다시 계산합니다. 조정일·이력은 남습니다.</span>
       </label>
       <label>
         <input type="radio" name="createMode" value="2"> 신규 대상자만 생성
-        <span>이미 생성된 직원은 건너뜁니다. 기존 직원의 숫자를 전혀 건드리지 않습니다.</span>
+        <span>이미 생성된 직원은 건너뜁니다.</span>
       </label>
+
+      <!-- 이월 여부. 기본은 '1'(전액) — 종전 동작이다.
+           '0' 을 고르면 직전 연도 미사용분이 소멸한다. 근로기준법 제60조 ⑦ 에 따라
+           소멸한 연차는 수당 지급 대상이므로 설명에 적어 둔다 -->
+      <p style="margin: 14px 0 6px; font-size: 13px; font-weight: bold; border-top: 1px solid #ddd; padding-top: 12px;">
+        직전 연도 미사용분 이월
+      </p>
+      <label>
+        <input type="radio" name="carryMode" value="1" checked> 전액 이월
+        <span>직전 연도 잔여를 전액 가져옵니다.</span>
+      </label>
+      <label>
+        <input type="radio" name="carryMode" value="0"> 이월하지 않음
+        <span>이월일을 0으로 둡니다. <b style="color:#c0392b;">미사용분은 소멸하며 수당 지급 대상입니다.</b></span>
+      </label>
+
       <div class="btns">
         <a id="createModeCancel">취소</a>
         <a id="createModeOk">생성</a>
@@ -518,11 +517,31 @@
           if (c) c.isReadOnly = true;
         } catch (e) { /* 그리드를 못 찾으면 그냥 둔다 */ }
 
+        let how = ('2' === String(params.createFlag) ? '신규 대상자만' : '기존 생성분까지 다시 계산')
+                + ' / ' + ('0' === String(params.carryFlag) ? '<b style="color:#c0392b;">이월하지 않음</b>' : '전액 이월');
+
+        /* 1년이 되는 해에 1년 미만 월차 잔여분을 더한 인원 (회계연도 기준에서만 생긴다).
+           숫자가 갑자기 15일보다 커지는 이유를 화면에서 바로 알 수 있게 적어 준다 */
+        let extraCnt = 0, extraSum = 0, firstYear = 0;
+        rows.forEach(function (r) {
+          let e = _this.num(r.extramonths);
+          if (e > 0) { extraCnt++; extraSum += e; }
+          if (_this.num(r.tenure) === 0) firstYear++;
+        });
+
+        let note = [];
+        if (firstYear > 0) note.push('월차 ' + firstYear + '명');
+        if (extraCnt > 0)  note.push('월차 잔여분 가산 ' + extraCnt + '명 ' + extraSum + '일');
+        if (ANNUAL_BASIS === 'E') {
+          let one = rows.filter(function (r) { return _this.num(r.tenure) === 1; }).length;
+          if (one > 0) note.push('1년 경과 ' + one + '명은 직전 연도도 생성해야 월차 확정');
+        }
+        note = note.length ? '<br>' + note.join(' / ') : '';
+
         $('#previewNotice').html(
-          '<b>저장 전 미리보기입니다.</b> 대상 ' + rows.length + '명 중 <b>' + changed
-          + '명</b>의 값이 달라집니다(색칠된 칸). 확인한 뒤 <b>[저장]</b>을 누르세요. '
-          + '저장하지 않고 <b>[검색]</b>을 누르면 미리보기는 사라집니다. '
-          + '미리보기 중에는 조정일을 고칠 수 없고, 사용일·잔여일은 저장 후 다시 계산됩니다.'
+          '<b>저장 전 미리보기</b> — 대상 ' + rows.length + '명 중 <b>' + changed
+          + '명</b> 변경(색칠된 칸). <b>[저장]</b>을 눌러야 반영됩니다.'
+          + '<br>' + how + note
         ).show();
 
         try { this.grid.invalidate(); } catch (e) { /* 그리드를 못 찾으면 그냥 둔다 */ }
@@ -537,6 +556,9 @@
         // 미리보기를 띄운 뒤 조회년도를 바꿔도 저장되는 것은 미리보기 때의 연도다.
         // 화면에 보이는 숫자와 저장되는 값이 어긋나지 않도록 연도를 함께 묻는다
         let msg = (p.params.year || '') + '년도 생성 결과 ' + p.count + '명을 저장하시겠습니까?';
+        if ('0' === String(p.params.carryFlag)) {
+          msg += '\n\n이월하지 않도록 선택하셨습니다. 직전 연도 미사용분은 0이 됩니다.';
+        }
         Alert.confirm('', msg, function () {
           AjaxUtil.postJsonData('/api/clock/Yearly/CreateSave', p.params, function (res) {
             if (res && res.success) {
@@ -592,7 +614,7 @@
           desc += ' 사원명 "' + name + '" 에 해당하는 직원만 생성합니다.';
         }
 
-        CreateModeDialog.open('연차생성', desc, function (createFlag) {
+        CreateModeDialog.open('연차생성', desc, function (createFlag, carryFlag) {
           let url = '/api/clock/Yearly/Create';
           let data = {
             year: year,
@@ -600,6 +622,7 @@
             name: name,
             rtflag: $('#rtflag').val(),
             createFlag: createFlag,
+            carryFlag: carryFlag,
             spjangcd: sessionStorage.getItem('spjangcd'),
           };
 
@@ -640,7 +663,9 @@
         this.callback = callback;
         $('#createModeTitle').text(title);
         $('#createModeDesc').text(desc);
+        // 열 때마다 기본값으로 되돌린다 — 지난번 선택이 남아 있으면 모르고 누른다
         $('input[name="createMode"][value="1"]').prop('checked', true);
+        $('input[name="carryMode"][value="1"]').prop('checked', true);
         $('#createModeDim').show();
       },
       close() {
@@ -649,9 +674,10 @@
       },
       confirm() {
         let flag = $('input[name="createMode"]:checked').val();
+        let carry = $('input[name="carryMode"]:checked').val();
         let cb = this.callback;
         this.close();
-        if (cb) cb(flag);
+        if (cb) cb(flag, carry);
       }
     };
 

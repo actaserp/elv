@@ -328,6 +328,9 @@ public class MobileMainController {
 
         Map<String, Object> entity = todayRecords.stream()
                 .filter(r -> r.get("endtime") == null || r.get("endtime").toString().isEmpty())
+                // 출근하지 않은 행은 대상이 아니다. 휴가 승인이 만들어 둔 행에 중간보고가
+                // 찍히면 실제 근무 행은 비어 있고 휴가 행에만 기록이 남는다 (2026-11-09)
+                .filter(r -> r.get("starttime") != null && !r.get("starttime").toString().isEmpty())
                 .max(Comparator.comparing(r -> ((Number) r.get("idx")).intValue()))
                 .orElse(null);
 
@@ -425,6 +428,11 @@ public class MobileMainController {
 
         Map<String, Object> entity = todayRecords.stream()
                 .filter(r -> r.get("endtime") == null || r.get("endtime").toString().isEmpty())
+                /* 출근하지 않은 행은 퇴근 대상이 아니다.
+                   휴가 승인이 만들어 둔 행(출근 기록 없음)이 더 큰 idx 를 갖고 있으면
+                   거기에 퇴근만 찍히고, 정작 근무한 행은 퇴근 없이 남는다.
+                   게다가 idx>=2 라서 추가근무 퇴근으로 잘못 처리된다. (2026-11-09) */
+                .filter(r -> r.get("starttime") != null && !r.get("starttime").toString().isEmpty())
                 .max(Comparator.comparing(r -> ((Number) r.get("idx")).intValue()))
                 .orElse(null);
 

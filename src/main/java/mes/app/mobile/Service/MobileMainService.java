@@ -133,6 +133,10 @@ public class MobileMainService {
                     ON  t.perid    = a.personid
                     AND t.spjangcd = :spjangcd
                     AND t.idx      >= 2
+                    /* 출근 기록이 있는 행만 추가근무로 본다.
+                       휴가 승인이 만든 행은 출근 기록이 없는데 idx 가 2 이상일 수 있어,
+                       그대로 두면 화면이 "추가근무 중" 으로 판단해 버튼이 틀어진다 (2026-11-09) */
+                    AND t.starttime IS NOT NULL AND t.starttime <> ''
                     AND FORMAT(GETDATE(), 'dd')     = t.workday
                     AND FORMAT(GETDATE(), 'yyyyMM') = t.workym
                 WHERE a.username  = :username
