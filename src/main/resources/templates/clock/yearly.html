@@ -5,6 +5,36 @@
       text-align: center !important;
     }
 
+    /* 조정일 −/+ 단추.
+       Wijmo 의 셀 편집(더블클릭·타이핑)이 이 화면에서 끝까지 열리지 않아
+       셀 안의 단추를 눌러 0.5 씩 고치는 방식으로 바꿨다. (2026-11-10) */
+    .adj-dec, .adj-inc {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      line-height: 15px;
+      margin: 0 1px;
+      cursor: pointer;
+      border: 1px solid #b9c2cc;
+      border-radius: 3px;
+      background: #fff;
+      color: #33475b;
+      text-align: center;
+      font-weight: bold;
+      user-select: none;
+    }
+
+    .adj-dec:hover, .adj-inc:hover {
+      background: #e8f0fb;
+      border-color: #2a6ebb;
+    }
+
+    .adj-val {
+      display: inline-block;
+      min-width: 24px;
+      text-align: center;
+    }
+
     /* 생성방식 선택 (PB w_pb209_card 대응) */
     #createModeDim {
       display: none;
@@ -179,7 +209,7 @@
         </div>
 
         <div style="flex: 0 0 50%; max-width: 50%;">
-          <p id="selectedItem2"></p>
+          <p id="selectedItem2" style="margin: 0 0 6px; font-size: 13px;"></p>
           <div id="list-grid" style="height: 100%;"></div>
         </div>
       </div>
@@ -255,6 +285,9 @@
         let _this = this;
 
         // 조정일(monthnum)만 편집할 수 있다. 나머지는 생성 결과라 손대지 않는다.
+        // 소수점 1자리로 보여줄 칸. 날짜는 서버(/read)가 yyyy-MM-dd 로 내려주므로 여기서 손대지 않는다
+        const NUM_COLS = ['ewolnum', 'holinum', 'monthnum', 'daynum', 'restnum'];
+
         this.grid = new wijmo.grid.FlexGrid('#member-grid', {
           selectionMode: wijmo.grid.SelectionMode.Row,
           headersVisibility: wijmo.grid.HeadersVisibility.Column,
@@ -268,24 +301,37 @@
             //소수점1자리까지만
             if (e.panel.cellType === wijmo.grid.CellType.Cell) {
               const col = sender.columns[e.col];
-              if (col.binding === 'daynum' || col.binding === 'restnum'
-                || col.binding === 'ewolnum' || col.binding === 'holinum' || col.binding === 'monthnum') {
+              /* Wijmo 는 셀 DOM 을 재사용한다. 앞서 칠한 색을 지우지 않으면
+                 미리보기를 걷어낸 뒤에도 색이 그대로 남는다 */
+              e.cell.style.backgroundColor = '';
+              e.cell.style.fontWeight = '';
+              /* 조정일은 cellTemplate(−/+ 단추)이 칸을 그리므로 건드리지 않는다.
+                 innerHTML 을 덮어쓰면 단추가 사라진다 */
+              if (NUM_COLS.indexOf(col.binding) >= 0 && col.binding !== 'monthnum') {
                 const value = sender.getCellData(e.row, e.col, false);
                 if (typeof value === 'number') {
                   e.cell.innerHTML = (value % 1 === 0) ? value.toString() : value.toFixed(1);
                 }
               }
-              // 고친 칸은 눈에 띄게 둔다
+              // 고친 칸은 눈에 띄게 둔다. 미리보기 중이면 잠겨 있으니 회색으로 보여 준다
               if (col.binding === 'monthnum') {
-                const item = sender.rows[e.row] ? sender.rows[e.row].dataItem : null;
-                if (item && _this.isAdjustChanged(item)) {
-                  e.cell.style.backgroundColor = '#fff4d6';
-                  e.cell.style.fontWeight = 'bold';
+                if (_this.preview) {
+                  e.cell.style.backgroundColor = '#ededed';
+                  e.cell.style.color = '#999';
+                  e.cell.style.opacity = '0.45';   // −/+ 단추도 같이 흐려진다
+                } else {
+                  e.cell.style.color = '';
+                  e.cell.style.opacity = '';
+                  const item = sender.rows[e.row] ? sender.rows[e.row].dataItem : null;
+                  if (item && _this.isAdjustChanged(item)) {
+                    e.cell.style.backgroundColor = '#fff4d6';
+                    e.cell.style.fontWeight = 'bold';
+                  }
                 }
               }
               // 저장 전 미리보기에서 값이 달라지는 칸
               if (col.binding === 'ewolnum' || col.binding === 'holinum'
-                || col.binding === 'startdate' || col.binding === 'enddate') {
+                || col.binding === 'enddate') {
                 const item = sender.rows[e.row] ? sender.rows[e.row].dataItem : null;
                 if (item && item.__changed) {
                   e.cell.style.backgroundColor = '#ffe9c7';
@@ -295,41 +341,93 @@
             }
           },
           columns: [
-            {binding: 'rownum', header: '순번', width: 70, align: 'center', isReadOnly: true},
             {binding: 'perid', header: '사번', width: 80, align: 'center', isReadOnly: true},
             {binding: 'person_name', header: '사원명', width: 100, align: 'center', isReadOnly: true},
             {binding: 'RSPNM', header: '직위', width: 90, align: 'center', isReadOnly: true},
             {binding: 'rtdate', header: '입사일', width: 110, align: 'center', isReadOnly: true},
-            // 연차기간 — 입사일 기준에서는 사람마다 다르므로 보여준다.
-            // 회계연도 기준이면 전원 1/1~12/31 이라 아래에서 감춘다
-            {binding: 'startdate', header: '기간시작', width: 110, align: 'center', isReadOnly: true},
-            {binding: 'enddate', header: '기간종료', width: 110, align: 'center', isReadOnly: true},
+            /* 연차 만료일 — 입사일 기준은 사람마다 달라서 "언제까지 쓰나" 를 자주 묻는다.
+               회계연도 기준이면 전원 12/31 이라 아래에서 감춘다.
+               기간시작은 입사일의 월·일에 조회년도를 붙인 값이라 옆 칸과 겹쳐서 뺐다 */
+            {binding: 'enddate', header: '만료일', width: 103, align: 'center', isReadOnly: true},
             {binding: 'ewolnum', header: '이월일', width: 80, align: 'center', isReadOnly: true},
             {binding: 'holinum', header: '연차일수', width: 90, align: 'center', isReadOnly: true},
-            {binding: 'monthnum', header: '조정일', width: 90, align: 'center', dataType: wijmo.DataType.Number},
+            /* 조정일 — 셀 안의 −/+ 로 0.5 씩 고친다.
+               Wijmo 의 셀 편집(더블클릭·타이핑)이 이 화면에서는 끝까지 열리지 않았다.
+               단추는 그냥 DOM 클릭이라 Wijmo 편집 로직을 타지 않는다.
+               편집기를 쓰지 않으므로 칸 자체는 읽기전용으로 둔다. (2026-11-10) */
+            {binding: 'monthnum', header: '조정일', width: 100, align: 'center', isReadOnly: true,
+             cellTemplate: '<span class="adj-dec" title="0.5 줄이기">&minus;</span>'
+                         + '<span class="adj-val">${text}</span>'
+                         + '<span class="adj-inc" title="0.5 늘리기">+</span>'},
             {binding: 'daynum', header: '사용일', width: 80, align: 'center', isReadOnly: true},
             {binding: 'restnum', header: '잔여일', width: 80, align: 'center', isReadOnly: true},
           ],
           itemsSource: this.viewData, // 데이터를 설정할 배열
         });
 
-        // 조정일을 고치면 잔여일을 바로 다시 계산해 보여준다 (저장은 [저장] 버튼)
-        this.grid.cellEditEnded.addHandler((sender, e) => {
-          const col = sender.columns[e.col];
-          if (!col || col.binding !== 'monthnum') return;
-          const item = sender.rows[e.row].dataItem;
+
+
+        /* 조정일 −/+ 단추.
+           Wijmo 의 셀 편집기를 쓰지 않는다 — 이 화면에서는 더블클릭·타이핑으로
+           편집이 끝까지 열리지 않았다. 단추 클릭은 그냥 DOM 이벤트라 확실히 동작한다.
+           한 번에 0.5 씩 — 반차가 0.5 일이라 연차 조정의 최소 단위다. (2026-11-10) */
+        this.grid.hostElement.addEventListener('click', function (ev) {
+          const t = ev.target;
+          if (!t || !t.classList) return;
+          const dec = t.classList.contains('adj-dec');
+          const inc = t.classList.contains('adj-inc');
+          if (!dec && !inc) return;
+
+          ev.preventDefault();
+          ev.stopPropagation();
+
+          if (_this.preview) {
+            Alert.alert('', '미리보기 중에는 조정일을 고칠 수 없습니다. [검색]을 누르면 풀립니다.');
+            return;
+          }
+
+          const ht = _this.grid.hitTest(ev);
+          const gr = (ht && ht.row >= 0) ? _this.grid.rows[ht.row] : null;
+          const item = gr ? gr.dataItem : null;
+          if (!item) return;
+
+          let v = _this.num(item.monthnum) + (inc ? 0.5 : -0.5);
+          v = Math.round(v * 10) / 10;
+          if (v > 999.9) v = 999.9;
+          if (v < -999.9) v = -999.9;
+
+          item.monthnum = v;
           _this.recalcRest(item);
-          sender.invalidate();
+          _this.grid.invalidate();
         });
 
 
         this.grid.hostElement.addEventListener('dblclick', (e) => {
+          /* Wijmo 는 더블클릭으로 셀 편집기를 연다. 그게 열린 채로 여기서 동기 AJAX 로
+             상세를 읽고 그리드를 다시 그리면 편집기가 사라진다 —
+             조정일이 "클릭해도 안 고쳐진다" 던 원인이다.
+
+             칸 번호(hitTest.col)로 가리지 않는다. 만료일(enddate)이 숨은 컬럼이라
+             보이는 순서와 columns 의 번호가 한 칸 어긋날 수 있고, 그러면 조정일을
+             연차일수로 잘못 보아 그대로 상세를 읽어 버린다.
+             "편집이 시작됐는가" 로 보는 쪽이 어긋날 일이 없다. (2026-11-10) */
+          if (this.grid.activeEditor) return;
+
+          // 조정일 −/+ 를 연달아 누르면 더블클릭이 된다. 그때 상세를 읽지 않는다
+          const t = e.target;
+          if (t && t.classList && (t.classList.contains('adj-dec') || t.classList.contains('adj-inc'))) return;
+
           let hitTest = this.grid.hitTest(e);
           if (hitTest.cellType === wijmo.grid.CellType.Cell) {
-            let row = hitTest.row;
-            let selectedItem = this.grid.rows[row].dataItem;
+            let gr = this.grid.rows[hitTest.row];
+            let selectedItem = gr ? gr.dataItem : null;
             if (selectedItem && selectedItem.id != null) {
-              _this.showDetail(selectedItem.id);
+              _this.showDetail(selectedItem);
+            } else {
+              /* id 는 person.id 다. 사번(TB_JA001.perid)과 person.Code 가 안 맞으면
+                 비어 있고, 그러면 상세를 읽을 수 없다 */
+              $('#selectedItem2').html('<span style="color:#c0392b;">이 사원은 상세를 읽을 수 없습니다 (사원 연결 없음).</span>');
+              _this.viewData2.sourceCollection = [];
             }
           }
         });
@@ -348,6 +446,30 @@
             if (e.panel.cellType === wijmo.grid.CellType.ColumnHeader) {
               e.cell.style.textAlign = 'center';
             }
+            if (e.panel.cellType === wijmo.grid.CellType.Cell) {
+              const col = sender.columns[e.col];
+              /* 발생행의 신청일은 yyyy0000 이다 — 날짜가 아니라 "그 해" 라는 뜻이라
+                 서버가 포맷을 건너뛴다. 그대로 두면 2026-00-00 처럼 보여서 비워 둔다 */
+              if (col.binding === 'reqdate') {
+                const d = sender.getCellData(e.row, e.col, false);
+                if (typeof d === 'string' && d.endsWith('0000')) e.cell.textContent = '';
+              }
+              if (col.binding === 'daynum') {
+                const v = sender.getCellData(e.row, e.col, false);
+                if (typeof v === 'number') {
+                  e.cell.textContent = (v % 1 === 0) ? v.toString() : v.toFixed(1);
+                }
+              }
+              // 맨 아래 합계 줄
+              const gr = sender.rows[e.row];
+              if (gr && gr.dataItem && gr.dataItem.__total) {
+                e.cell.style.backgroundColor = '#eef3fa';
+                e.cell.style.fontWeight = 'bold';
+              } else {
+                e.cell.style.backgroundColor = '';
+                e.cell.style.fontWeight = '';
+              }
+            }
           },
           columns: [
             {binding: 'rownum', header: '순번', width: 70, align: 'center'},
@@ -358,12 +480,13 @@
             {binding: 'daynum', header: '기간', width: 80, align: 'center'},
             {binding: 'ewolnum', header: '이월일', width: 80, align: 'center'},
             {binding: 'holinum', header: '생성일', width: 80, align: 'center'},
-            {binding: 'monthnum', header: '조정일', width: 80, align: 'center'},
             {binding: 'restnum', header: '잔여일', width: 80, align: 'center'},
             {binding: 'remark', header: '조정 이력', width: '*', minWidth: 200},
           ],
           itemsSource: this.viewData2, // 데이터를 설정할 배열
         });
+
+
 
         new FlexGridContextMenu(this.grid2);
         this.grid2.downloadFileName = '연차내역';
@@ -392,6 +515,7 @@
 
         _this.viewData.sourceCollection = rows;
         _this.viewData2.sourceCollection = [];
+        $('#selectedItem2').html('');
         _this.clearPreview();
       }//searchMainData
 
@@ -399,15 +523,52 @@
       clearPreview() {
         this.preview = null;
         $('#previewNotice').hide().html('');
-        try {
-          const c = this.grid.columns.getColumn('monthnum');
-          if (c) c.isReadOnly = false;
-        } catch (e) { /* 그리드를 못 찾으면 그냥 둔다 */ }
+        // 다시 그리지 않으면 회색 표시와 색칠이 그대로 남는다
+        try { this.grid.invalidate(); } catch (e) { /* 그리드를 못 찾으면 그냥 둔다 */ }
       }
 
       num(v) {
         let n = Number(v);
         return isNaN(n) ? 0 : n;
+      }
+
+      /**
+       * 상세 내역 맨 아래에 합계 줄을 붙인다.
+       *
+       * Wijmo 의 columnFooters + GroupRow 는 쓰지 않는다 — 이 버전에서 그리는 도중
+       * dataItem 오류로 터져 상세가 통째로 안 보였다. 그냥 자료에 한 줄 더하는 쪽이
+       * 안전하다. 합계는 「기간」만 낸다 — 이월일·생성일은 발생행 한 줄에만 들어 있어
+       * 합계가 그 값과 같고, 잔여일은 줄마다 "그 신청까지 쓰고 남은 수" 라서
+       * 더하면 틀린 숫자가 된다. (2026-11-10)
+       */
+      withDetailTotal(rows) {
+        if (!rows || !rows.length) return rows || [];
+        let used = 0;
+        for (let i = 0; i < rows.length; i++) used += this.num(rows[i].daynum);
+        let out = rows.slice();
+        out.push({
+          rownum: '', worknm: '합계', reqdate: '', frdate: '', todate: '',
+          daynum: used, ewolnum: null, holinum: null, restnum: null, remark: '',
+          __total: true
+        });
+        return out;
+      }
+
+      /**
+       * yyyyMMdd 로 맞춘다.
+       * /read 는 서버에서 yyyy-MM-dd 로 포맷해 내려오지만 /Create(생성 결과)는 원본
+       * yyyyMMdd 그대로다. 형을 맞추지 않으면 값이 같은데도 전원 "변경" 으로 잡힌다
+       */
+      ymd(v) {
+        if (v == null) return '';
+        return String(v).replace(/[^0-9]/g, '').substring(0, 8);
+      }
+
+      /** yyyyMMdd → yyyy-MM-dd. 8자리가 아니면 그대로 둔다 */
+      dash(v) {
+        const s = this.ymd(v);
+        if (s.length !== 8) return v;
+        return s.substring(0, 4) + '-' + s.substring(4, 6) + '-' + s.substring(6, 8);
       }
 
       /** 저장하지 않은 조정일이 있는 행인가 */
@@ -489,7 +650,11 @@
         let idx = {};
         base.forEach(function (d, i) { idx[d.perid] = i; });
 
+        /* 어느 칸 때문에 달라지는지 따로 센다. 숫자만 "N명 변경" 으로 보여 주면
+           무엇이 바뀌는지 알 수 없어 저장을 결정하기 어렵다 */
         let changed = 0;
+        let diff = {neu: 0, ewolnum: 0, holinum: 0, enddate: 0};
+
         rows.forEach(function (r) {
           let i = idx[r.perid];
           let b = (i == null) ? null : base[i];
@@ -497,25 +662,40 @@
           r.monthnum = b ? _this.num(b.monthnum) : _this.num(r.monthnum);
           r.daynum   = b ? _this.num(b.daynum)   : 0;
           r.restnum  = _this.num(r.ewolnum) + _this.num(r.holinum) + r.monthnum - r.daynum;
-          r.__changed = !b
-                     || _this.num(b.ewolnum) !== _this.num(r.ewolnum)
-                     || _this.num(b.holinum) !== _this.num(r.holinum)
-                     || (b.startdate || '') !== (r.startdate || '')
-                     || (b.enddate   || '') !== (r.enddate   || '');
+
+          if (!b) {
+            diff.neu++;
+            r.__changed = true;
+          } else {
+            /* 조회로 받은 값과 생성 결과를 비교한다.
+               같은 칸이라도 한쪽이 숫자, 한쪽이 문자열로 올 수 있어 형을 맞춰서 본다.
+               날짜는 yyyyMMdd 문자열이지만 앞뒤 공백이 섞이는 경우가 있어 잘라낸다 */
+            let dE = _this.num(b.ewolnum) !== _this.num(r.ewolnum);
+            let dH = _this.num(b.holinum) !== _this.num(r.holinum);
+            let dD = _this.ymd(b.enddate) !== _this.ymd(r.enddate);
+            if (dE) diff.ewolnum++;
+            if (dH) diff.holinum++;
+            if (dD) diff.enddate++;
+            r.__changed = dE || dH || dD;
+          }
           if (r.__changed) changed++;
 
-          if (b) { r.rownum = b.rownum; base[i] = r; } else { base.push(r); }
+          /* 생성 결과의 날짜는 원본 yyyyMMdd 다. 조회 행과 섞어 놓으면 한 칸에서
+             2027-05-22 와 20270522 가 같이 보이므로 표기를 맞춘다 */
+          r.rtdate  = _this.dash(r.rtdate);
+          r.enddate = _this.dash(r.enddate);
+
+          if (b) { base[i] = r; } else { base.push(r); }
         });
 
         this.viewData.sourceCollection = base;
         this.viewData2.sourceCollection = [];
+        $('#selectedItem2').html('');
         this.preview = {params: params, count: rows.length, changed: changed};
 
-        // 미리보기 중에는 조정일을 못 고치게 한다. [저장] 하나가 두 가지를 하면 헷갈린다
-        try {
-          const c = this.grid.columns.getColumn('monthnum');
-          if (c) c.isReadOnly = true;
-        } catch (e) { /* 그리드를 못 찾으면 그냥 둔다 */ }
+        /* 미리보기 중에는 조정일을 못 고치게 한다 — [저장] 하나가 두 가지를 하면 헷갈린다.
+           막는 일은 −/+ 클릭 핸들러가 하고, 여기서는 회색으로 보이도록 다시 그린다 */
+        this.grid.invalidate();
 
         let how = ('2' === String(params.createFlag) ? '신규 대상자만' : '기존 생성분까지 다시 계산')
                 + ' / ' + ('0' === String(params.carryFlag) ? '<b style="color:#c0392b;">이월하지 않음</b>' : '전액 이월');
@@ -530,6 +710,13 @@
         });
 
         let note = [];
+        let why = [];
+        if (diff.neu > 0)      why.push('신규 ' + diff.neu);
+        if (diff.ewolnum > 0)  why.push('이월일 ' + diff.ewolnum);
+        if (diff.holinum > 0)  why.push('연차일수 ' + diff.holinum);
+        if (diff.enddate > 0)  why.push('만료일 ' + diff.enddate);
+        if (why.length) note.push('달라지는 칸: ' + why.join(' / '));
+        note.push('<b style="color:#c0392b;">미리보기 중에는 조정일을 고칠 수 없습니다. [검색]을 누르면 풀립니다.</b>');
         if (firstYear > 0) note.push('월차 ' + firstYear + '명');
         if (extraCnt > 0)  note.push('월차 잔여분 가산 ' + extraCnt + '명 ' + extraSum + '일');
         if (ANNUAL_BASIS === 'E') {
@@ -637,20 +824,21 @@
         });
       }
 
-      showDetail(id) {
+      showDetail(item) {
         let _this = this;
         let data = {
-          'id': id,
+          'id': item.id,
           year: $('#year').val(),
           spjangcd: sessionStorage.getItem('spjangcd'),
         };
         let result = AjaxUtil.getSyncData('/api/clock/Yearly/detail', data);
 
-        if (result && result.data != null) {
-          _this.viewData2.sourceCollection = result.data;
-        } else {
-          _this.viewData2.sourceCollection = [];
-        }
+        let rows = (result && result.data != null) ? result.data : [];
+        _this.viewData2.sourceCollection = _this.withDetailTotal(rows);
+        $('#selectedItem2').html(
+          rows.length ? '<b>' + (item.person_name || '') + '</b> 연차 내역'
+                      : (item.person_name || '') + ' — 내역이 없습니다.'
+        );
       }
 
 
@@ -704,10 +892,8 @@
       // 회계연도 기준이면 기간이 전원 똑같아서 자리만 차지한다
       try {
         if (ANNUAL_BASIS !== 'E') {
-          ['startdate', 'enddate'].forEach(function (b) {
-            const c = page.grid.columns.getColumn(b);
-            if (c) c.visible = false;
-          });
+          const c = page.grid.columns.getColumn('enddate');
+          if (c) c.visible = false;
         }
       } catch (e) { /* 그리드를 못 찾으면 그냥 보이게 둔다 */ }
 
