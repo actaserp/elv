@@ -93,15 +93,21 @@ public class ClockYearlyService {
                   /* 사용일수 — 발생행의 기간(startdate~enddate) 안에 든 확정 신청만 센다.
                      PB 가 만든 옛 발생행처럼 기간이 비어 있거나, 발생행이 아예 없는 사원은
                      해당 연도 전체로 둬서 예전 동작(달력연도)을 그대로 유지한다.
-                     기간으로 자르면 산정기준이 입사일이어도 이 쿼리는 손대지 않아도 맞는다 */
+                     기간으로 자르면 산정기준이 입사일이어도 이 쿼리는 손대지 않아도 맞는다.
+
+                     자르는 기준은 신청일(reqdate)이 아니라 휴가 시작일(frdate)이다.
+                     언제 신청했는지가 아니라 언제 쓰는지로 차감돼야 한다. 신청일로 자르면
+                     12월에 신청해 1월에 쓰는 휴가가 엉뚱한 해에 붙고, 일괄등록은 신청일을
+                     실행일로 찍으므로 집계에서 통째로 빠진다.
+                     시작일이 비어 있는 옛 자료는 예전처럼 신청일로 본다. (2026-11-17) */
                   OUTER APPLY (
                         SELECT SUM(ISNULL(v.daynum, 0)) AS daynum
                           FROM TB_PB204 v
                           JOIN tb_pb210 w ON w.spjangcd = v.SPJANGCD AND w.workcd = v.workcd AND w.yearflag = '1'
                          WHERE v.SPJANGCD = e.spjangcd
                            AND ISNULL(v.fixflag, '') = '1'
-                           AND v.reqdate >= ISNULL(NULLIF(g.startdate, ''), :year + '0101')
-                           AND v.reqdate <= ISNULL(NULLIF(g.enddate,   ''), :year + '1231')
+                           AND ISNULL(NULLIF(v.frdate, ''), v.reqdate) >= ISNULL(NULLIF(g.startdate, ''), :year + '0101')
+                           AND ISNULL(NULLIF(v.frdate, ''), v.reqdate) <= ISNULL(NULLIF(g.enddate,   ''), :year + '1231')
                            AND ( v.perid = e.perid
                               OR (e.personid IS NOT NULL AND TRY_CAST(v.perid AS INT) = e.personid) )
                   ) u
@@ -142,17 +148,20 @@ public class ClockYearlyService {
                            ISNULL(MAX(NULLIF(g.enddate,   '')), :year + '1231') AS enddate
                       FROM gen g
                 ),
+                /* 목록 화면과 같은 기준으로 자른다 — 신청일이 아니라 휴가 시작일.
+                   잔여 누계(cum_daynum)도 쓴 순서대로 쌓여야 하므로 시작일로 정렬한다 */
                 uses AS (
                     SELECT v.reqdate, v.frdate, v.todate, v.daynum, v.workcd, w.worknm, w.yearflag, v.id AS vid,
                            SUM(CASE WHEN w.yearflag = '1' THEN ISNULL(v.daynum,0) ELSE 0 END)
-                               OVER (ORDER BY v.reqdate, v.id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum_daynum
+                               OVER (ORDER BY ISNULL(NULLIF(v.frdate, ''), v.reqdate), v.id
+                                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum_daynum
                       FROM TB_PB204 v
                       JOIN tb_pb210 w ON w.spjangcd = v.SPJANGCD AND w.workcd = v.workcd
                       JOIN emp e ON e.spjangcd = v.SPJANGCD
                       CROSS JOIN period pd
                      WHERE ISNULL(v.fixflag, '') = '1'
-                       AND v.reqdate >= pd.startdate
-                       AND v.reqdate <= pd.enddate
+                       AND ISNULL(NULLIF(v.frdate, ''), v.reqdate) >= pd.startdate
+                       AND ISNULL(NULLIF(v.frdate, ''), v.reqdate) <= pd.enddate
                        AND ( v.perid = e.perid OR TRY_CAST(v.perid AS INT) = e.personid )
                 ),
                 unioned AS (
@@ -414,8 +423,9 @@ public class ClockYearlyService {
                                          AND w.yearflag = '1'
                          WHERE v.SPJANGCD = g.spjangcd
                            AND ISNULL(v.fixflag, '') = '1'
-                           AND v.reqdate >= ISNULL(NULLIF(g.startdate, ''), g.hyear + '0101')
-                           AND v.reqdate <= ISNULL(NULLIF(g.enddate,   ''), g.hyear + '1231')
+                           /* 신청일이 아니라 휴가 시작일로 자른다 (2026-11-17) */
+                           AND ISNULL(NULLIF(v.frdate, ''), v.reqdate) >= ISNULL(NULLIF(g.startdate, ''), g.hyear + '0101')
+                           AND ISNULL(NULLIF(v.frdate, ''), v.reqdate) <= ISNULL(NULLIF(g.enddate,   ''), g.hyear + '1231')
                            AND ( v.perid = g.perid
                               OR (pr.id IS NOT NULL AND TRY_CAST(v.perid AS INT) = pr.id) )
                   ) u

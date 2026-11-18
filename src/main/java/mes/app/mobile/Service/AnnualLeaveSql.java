@@ -49,8 +49,11 @@ public final class AnnualLeaveSql {
                                          AND w.yearflag = '1'
                          WHERE v.SPJANGCD = g.spjangcd
                            AND ISNULL(v.fixflag, '') = '1'
-                           AND v.reqdate >= ISNULL(NULLIF(g.startdate, ''), g.hyear + '0101')
-                           AND v.reqdate <= ISNULL(NULLIF(g.enddate,   ''), g.hyear + '1231')
+                           /* 신청일이 아니라 휴가 시작일로 자른다. 언제 신청했는지가 아니라
+                              언제 쓰는지로 차감돼야 한다. 연차관리 화면과 같은 기준.
+                              시작일이 빈 옛 자료는 예전처럼 신청일로 본다 (2026-11-17) */
+                           AND ISNULL(NULLIF(v.frdate, ''), v.reqdate) >= ISNULL(NULLIF(g.startdate, ''), g.hyear + '0101')
+                           AND ISNULL(NULLIF(v.frdate, ''), v.reqdate) <= ISNULL(NULLIF(g.enddate,   ''), g.hyear + '1231')
                            AND ( v.perid = g.perid
                               OR (p.id IS NOT NULL AND TRY_CAST(v.perid AS INT) = p.id) )
                   ) u
