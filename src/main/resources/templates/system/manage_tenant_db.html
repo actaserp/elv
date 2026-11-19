@@ -206,6 +206,15 @@
                 </span>
             </div>
 
+            <div class="modal-form-row">
+                <label>연중 입사자</label>
+                <select id="fAnnualProrate" style="width:150px; height:30px;">
+                    <option value="N">전액 부여</option>
+                    <option value="Y">비례 부여</option>
+                </select>
+                <span id="proRateHint" style="font-size:12px; color:#888; margin-left:8px;"></span>
+            </div>
+
             <div class="modal-btn-wrap">
                 <button type="button" class="btn-delete" id="btnModalSave" style="width: 80px; height: 34px;">저장</button>
                 <button type="button" class="btn-delete" id="btnModalCancel" style="width: 80px; height: 34px; background:#888;">취소</button>
@@ -266,6 +275,9 @@
                     {binding: 'annual_basis',   header: '연차기준', width: 100, align: 'center',
                      dataMap: new wijmo.grid.DataMap(
                          [{v: 'F', t: '회계연도'}, {v: 'E', t: '입사일'}], 'v', 't')},
+                    {binding: 'annual_prorate', header: '연중입사', width: 100, align: 'center',
+                     dataMap: new wijmo.grid.DataMap(
+                         [{v: 'N', t: '전액'}, {v: 'Y', t: '비례'}], 'v', 't')},
                     {binding: 'connected',   header: '연결상태',    width: 90,  align: 'center'},
                 ],
                 itemsSource: new wijmo.collections.CollectionView([])
@@ -287,6 +299,9 @@
             $('#btnReconnect').on('click', () => reconnectSelected());
             $('#btnReload').on('click', () => reloadAll());
             $('#btnModalSave').on('click', () => saveRecord());
+
+            // 입사일 기준에는 비례부여가 쓰이지 않는다 (서버도 회계연도일 때만 본다)
+            $('#fAnnualBasis').on('change', () => syncProrate());
             $('#btnModalCancel').on('click', () => closeModal());
             $('#modalOverlay').on('click', function(e) {
                 if (e.target === this) closeModal();
@@ -324,6 +339,8 @@
             $('#fCtiLines').val('');
             $('#fUseMidReport').prop('checked', true);   // 신규는 사용이 기본
             $('#fAnnualBasis').val('F');                 // 신규는 회계연도가 기본
+            $('#fAnnualProrate').val('N');               // 신규는 전액이 기본
+            syncProrate();
             $('#modalOverlay').show();
         }
 
@@ -340,7 +357,22 @@
             $('#fCtiLines').val(item.cti_lines || '');
             $('#fUseMidReport').prop('checked', item.use_mid_report !== 'N');
             $('#fAnnualBasis').val(item.annual_basis === 'E' ? 'E' : 'F');
+            $('#fAnnualProrate').val(item.annual_prorate === 'Y' ? 'Y' : 'N');
+            syncProrate();
             $('#modalOverlay').show();
+        }
+
+        /* 입사일 기준이면 비례부여 칸을 잠근다.
+           입사일 기준은 입사 기념일에 발생하므로 '전년도에 며칠 재직했나' 를 따질
+           구간이 없다 — 서버(ClockYearlyService)도 회계연도일 때만 이 설정을 본다.
+           켜 두면 아무 일도 일어나지 않아 오해만 생기므로 고르지 못하게 한다. */
+        function syncProrate() {
+            let entry = $('#fAnnualBasis').val() === 'E';
+            $('#fAnnualProrate').prop('disabled', entry);
+            if (entry) $('#fAnnualProrate').val('N');
+            $('#proRateHint').text(entry
+                ? '입사일 기준에는 쓰이지 않습니다 (발생 시점이 이미 법정과 같습니다)'
+                : '비례로 두면 입사 다음 해 연차가 15일 × (전년 재직일 ÷ 365) 로 줄어듭니다 (소수점 한 자리 반올림)');
         }
 
         function closeModal() {
@@ -358,6 +390,7 @@
             let cti_lines  = $('#fCtiLines').val().trim();   // 전화가 오면 이 사업체 화면에 띄운다
             let use_mid_report = $('#fUseMidReport').is(':checked') ? 'Y' : 'N';
             let annual_basis   = $('#fAnnualBasis').val() === 'E' ? 'E' : 'F';
+            let annual_prorate = $('#fAnnualProrate').val() === 'Y' ? 'Y' : 'N';
             let id         = $('#editId').val();
 
             if (!spjangcd || !db_url || !db_username) {
@@ -368,7 +401,7 @@
             let payload = {
                 id: id || null,
                 spjangcd, db_alias, db_type, db_url, db_username, pool_size, cti_lines,
-                use_mid_report, annual_basis
+                use_mid_report, annual_basis, annual_prorate
             };
             if (db_password) payload.db_password = db_password;
 

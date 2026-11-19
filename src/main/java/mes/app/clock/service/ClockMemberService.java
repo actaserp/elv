@@ -306,14 +306,15 @@ public class ClockMemberService {
 
     // =========================================================
     // 휴가 승인 취소 (TB_PB204 fixflag=0 + TB_PB201 원복)
-    //  - 해당 일자에 출퇴근정보(starttime/endtime) 존재 → workcd='01'(정상)
-    //  - 출퇴근정보 없음 → 행 삭제
+    //  이 휴가의 구분값이 찍힌 행만 되돌린다. 다른 구분(출장·외근 등)은 건드리지 않는다.
+    //  - 승인이 새로 만든 빈 행 → 삭제
+    //  - 승인이 구분값만 바꾼 행 → workcd='01'(정상) 복원
     // =========================================================
     @Transactional
     public void cancelMember(int id) {
         // 1) 대상 휴가 기간/사원 조회
         String selectSql = """
-                SELECT spjangcd, frdate, todate, perid
+                SELECT spjangcd, frdate, todate, perid, workcd
                 FROM tb_pb204
                 WHERE id = ?
                 """;
@@ -330,6 +331,7 @@ public class ClockMemberService {
         String frdateStr = String.valueOf(pb204.get("frdate"));
         String todateStr = String.valueOf(pb204.get("todate"));
         String perid     = String.valueOf(pb204.get("perid"));
+        String workcd    = String.valueOf(pb204.get("workcd"));
 
         LocalDate frdate = LocalDate.parse(frdateStr, DateTimeFormatter.ofPattern("yyyyMMdd"));
         LocalDate todate = LocalDate.parse(todateStr, DateTimeFormatter.ofPattern("yyyyMMdd"));
@@ -345,20 +347,45 @@ public class ClockMemberService {
                취소하면 다른 근무까지 함께 지워지거나 구분이 덮어써졌다. 2026-11-09 정정.
                퇴근 전일 수 있으므로 endtime 은 보지 않는다. */
 
-            // 출근 기록이 있는 행 → 구분값만 '정상(01)' 으로 되돌린다 (remark 는 건드리지 않음)
+            /* 되돌리는 대상은 이 휴가의 구분값(workcd)이 찍힌 행뿐이다.
+               예전에는 그 날짜·사원의 행을 구분값과 무관하게 고쳤다. 그래서
+                 · 출장(10)·외근(11) 으로 찍힌 행이 휴가 취소 한 번에 '01' 로 뭉개졌고,
+                 · 그 날짜의 빈 행을 조건 없이 전부 지웠다.
+               승인(saveMember)은 출근 기록이 있는 행을 건드리지 않는다. 취소도 같아야 한다.
+               2026-11-18 정정. */
+
+            // 1) 승인이 새로 만든 행 — 키와 구분값 말고는 전부 비어 있다. 지운다
+            jdbcTemplate.update("""
+                    DELETE FROM tb_pb201
+                    WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
+                      AND workcd = ?
+                      AND (starttime IS NULL OR starttime = '')
+                      AND (endtime   IS NULL OR endtime   = '')
+                      AND ISNULL(remark,  '') = '' AND ISNULL(memotxt, '') = ''
+                      AND ISNULL(address, '') = '' AND ISNULL(mid_time, '') = ''
+                      AND ISNULL(worknum, 0) = 0  AND ISNULL(nomaltime, 0) = 0
+                      AND ISNULL(worktime, 0) = 0
+                    """, spjangcd, workym, workday, perid, workcd);
+
+            // 2) 승인이 구분값만 바꾼 행 — 다른 값이 남아 있다. 구분값만 정상으로 되돌린다
             jdbcTemplate.update("""
                     UPDATE tb_pb201
                     SET workcd = '01'
                     WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
-                      AND starttime IS NOT NULL AND starttime <> ''
-                    """, spjangcd, workym, workday, perid);
-
-            // 출근 기록이 없는 행 → 휴가 승인이 만들어 둔 행이므로 지운다
-            jdbcTemplate.update("""
-                    DELETE FROM tb_pb201
-                    WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
+                      AND workcd = ?
                       AND (starttime IS NULL OR starttime = '')
-                    """, spjangcd, workym, workday, perid);
+                    """, spjangcd, workym, workday, perid, workcd);
+
+            /* 3) 옛 승인 로직(2026-11-09 이전)은 출근한 행까지 휴가로 덮었다.
+                  그렇게 덮인 행만 되돌린다 — 구분값이 이 휴가와 같은 경우로 한정하므로
+                  출장·외근 기록은 건드리지 않는다. */
+            jdbcTemplate.update("""
+                    UPDATE tb_pb201
+                    SET workcd = '01'
+                    WHERE spjangcd = ? AND workym = ? AND workday = ? AND perid = ?
+                      AND workcd = ?
+                      AND starttime IS NOT NULL AND starttime <> ''
+                    """, spjangcd, workym, workday, perid, workcd);
         }
     }
 }

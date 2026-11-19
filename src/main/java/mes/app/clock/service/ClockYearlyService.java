@@ -231,6 +231,10 @@ public class ClockYearlyService {
 
         boolean entryBasis = tenantDbService.isEntryDateBasis(dbKey);
 
+        /* 연중 입사자의 '입사 다음 해' 연차를 전년 재직기간에 비례해 줄 것인가.
+           회계연도 기준에서만 쓴다 — 입사일 기준은 발생 시점이 이미 법정과 같아 비례가 필요 없다. */
+        boolean prorate = !entryBasis && tenantDbService.isFirstYearProrated(dbKey);
+
         /* 직전 연도 잔여 = 이월액. 발생행이 없는 사원은 키가 없어 0 이 된다.
            '0' 을 고르면 아예 읽지 않는다 — 전원 이월 0 이 되므로 쿼리를 돌릴 이유가 없다. */
         boolean carryOver = !"0".equals(carryFlag);
@@ -242,6 +246,8 @@ public class ClockYearlyService {
         long droppedMonths = 0;
         int extraPersons = 0;      // 회계연도 k==1 에서 월차 잔여분을 더한 인원
         long extraTotal = 0;       // 그 합계 일수
+        int proratePersons = 0;    // 비례부여로 줄어든 인원
+        BigDecimal prorateCut = BigDecimal.ZERO;   // 그 합계 일수
 
         List<Map<String, Object>> targets = getTargets(year, spjangcd, name, rtclafi);
         List<Map<String, Object>> rows = new ArrayList<>();
@@ -295,6 +301,24 @@ public class ClockYearlyService {
             } else {
                 months = (long) k * 12;
                 holinum = tenureDays(months);
+
+                /* 비례부여 — 회계연도 기준에서 연중 입사자의 '입사 다음 해'(k == 1) 분만 줄인다.
+                   고용노동부 행정해석(근기 68207-620 등)이 인정하는 방식으로,
+                   전년도 재직기간이 1년이 안 되므로 그만큼의 비율로 준다.
+
+                     15일 × (입사일 ~ 입사년 12/31 일수 ÷ 365)
+
+                   k >= 2 는 전년도를 온전히 재직했으므로 비례하지 않는다.
+                   아래 월차 잔여분 가산은 그대로 더한다 — 1년 미만 월차 11일은 제60조 ② 의
+                   별개 권리라 비례 대상이 아니다. */
+                if (prorate && k == 1) {
+                    BigDecimal full = holinum;
+                    holinum = proratedDays(entdate, entYear, full);
+                    if (holinum.compareTo(full) < 0) {
+                        proratePersons++;
+                        prorateCut = prorateCut.add(full.subtract(holinum));
+                    }
+                }
 
                 /* 회계연도 기준에서 1년이 되는 해(k == 1) — 연차와 월차 구간이 한 해에 걸친다.
                    1년 미만 월차는 입사일부터 1년 되는 날까지 최대 11일인데, 입사 첫 해(k == 0)
@@ -367,6 +391,10 @@ public class ClockYearlyService {
         if (extraPersons > 0) {
             log.info("1년이 되는 해라 1년 미만 월차 잔여분을 더한 사원 {}명, 합계 {}일. spjangcd={} year={}",
                     extraPersons, extraTotal, spjangcd, year);
+        }
+        if (proratePersons > 0) {
+            log.info("연중 입사자 비례부여로 줄인 사원 {}명, 합계 {}일. spjangcd={} year={}",
+                    proratePersons, prorateCut, spjangcd, year);
         }
         if (!carryOver) {
             log.info("이월하지 않기로 선택되어 전원 이월 0 으로 생성합니다. spjangcd={} year={}", spjangcd, year);
@@ -849,6 +877,58 @@ public class ClockYearlyService {
         else if (months <= 240) d = 24;
         else                    d = 25;
         return BigDecimal.valueOf(d).setScale(1);
+    }
+
+    /**
+     * 연중 입사자의 '입사 다음 해' 비례 연차.
+     *
+     *   비례일수 = 전액 × (입사일 ~ 입사년 12/31 일수 ÷ 365)
+     *
+     * 입사일을 포함해 센다 — 그 날도 재직일이다.
+     *
+     * <b>소수점 한 자리로 반올림한다.</b> TB_PB209.holinum 이 decimal(3,1) 이라
+     * 그 단위가 테이블이 담을 수 있는 최소 단위이고, 계산값과 가장 가깝다
+     * (동방 8명 기준 계산값 합 99.4384 → 99.4, 오차 0.04일).
+     * 0.5일 단위로 올리면 1.06일을 더 주게 되고, 내리면 12월 입사자의 비례분이
+     * 0 이 되어 법정보다 불리해진다.
+     *
+     * 휴가 사용은 반차(0.5일) 단위라 잔여에 0.4 같은 꼬리가 남는다. 그 분은
+     * 퇴직·연말에 수당으로 정산한다 — 시스템이 임의로 올리거나 버리지 않는다.
+     *
+     * 전액을 넘기지 않는다 — 윤년에 1/1 입사면 366/365 로 비율이 1 을 넘는다.
+     *
+     * 입사일을 읽을 수 없으면 전액을 그대로 돌려준다. 설정을 해석하지 못했다고
+     * 법정보다 적게 주면 안 된다.
+     *
+     * 예) 전액 15일 기준
+     *   01-01 입사 → 365일 → 15.0          06-23 입사 → 192일 →  7.8904 →  7.9
+     *   03-04 입사 → 303일 → 12.4521 → 12.5  12-22 입사 →  10일 →  0.4110 →  0.4
+     */
+    private BigDecimal proratedDays(String entdate, int entYear, BigDecimal full) {
+        if (entdate == null || entdate.length() != 8) return full;
+
+        LocalDate ent;
+        try {
+            ent = LocalDate.of(entYear,
+                    Integer.parseInt(entdate.substring(4, 6)),
+                    Integer.parseInt(entdate.substring(6, 8)));
+        } catch (Exception e) {
+            return full;
+        }
+
+        LocalDate yearEnd = LocalDate.of(entYear, 12, 31);
+        if (ent.isAfter(yearEnd)) return full;
+
+        long worked = java.time.temporal.ChronoUnit.DAYS.between(ent, yearEnd) + 1;   // 입사일 포함
+
+        BigDecimal ratio = BigDecimal.valueOf(worked)
+                .divide(BigDecimal.valueOf(365), 10, java.math.RoundingMode.HALF_UP);
+
+        BigDecimal days = full.multiply(ratio).setScale(1, java.math.RoundingMode.HALF_UP);
+
+        if (days.compareTo(full) > 0) days = full;
+        if (days.signum() < 0) days = BigDecimal.ZERO;
+        return days.setScale(1);
     }
 
     /**

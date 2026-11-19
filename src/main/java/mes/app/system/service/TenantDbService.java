@@ -39,6 +39,9 @@ public class TenantDbService {
     /** 연차 산정기준 캐시. midReportCache 와 같은 이유로 통째로 담아 둔다 */
     private final Map<String, String> annualBasisCache = new ConcurrentHashMap<>();
 
+    /** 비례부여 설정 캐시. annualBasisCache 와 같다 */
+    private final Map<String, Boolean> prorateCache = new ConcurrentHashMap<>();
+
     /**
      * 이 사업체가 중간보고를 쓰는가. tb_tenant_db.use_mid_report = 'N' 이면 끈다.
      * 컬럼이 비어 있으면 'Y' 로 본다 — 중간보고는 이미 배포돼 전 사업체가 쓰던 기능이라
@@ -116,6 +119,43 @@ public class TenantDbService {
     public boolean isEntryDateBasis(String spjangcd) {
         return ANNUAL_BASIS_ENTRY.equals(getAnnualBasis(spjangcd));
     }
+
+    /**
+     * 회계연도 기준에서 연중 입사자의 '입사 다음 해' 연차를 비례로 줄 것인가.
+     * tb_tenant_db.annual_prorate.
+     *
+     *   'N' 전액 — 15일을 그대로 준다 (기본값, 지금까지의 동작)
+     *   'Y' 비례 — 15일 × (입사일~12/31 일수 ÷ 365), 고용노동부 행정해석 방식
+     *
+     * 컬럼이 아직 없거나 조회가 실패하면 'N'(전액) 으로 본다. 비례는 법정보다
+     * 적게 주는 방향이라, 설정을 못 읽었다고 적게 주면 안 된다.
+     *
+     * 입사일 기준('E') 사업체에는 쓰이지 않는다 — 발생 시점이 이미 법정과 같다.
+     */
+    public boolean isFirstYearProrated(String spjangcd) {
+        if (spjangcd == null || spjangcd.isBlank()) return false;
+
+        Boolean cached = prorateCache.get(spjangcd);
+        if (cached != null) return cached;
+
+        boolean prorate = false;
+        try {
+            MapSqlParameterSource p = new MapSqlParameterSource();
+            p.addValue("spjangcd", spjangcd);
+            Map<String, Object> row = sqlRunner.getRow("""
+                    SELECT COALESCE(annual_prorate, 'N') AS annual_prorate
+                    FROM tb_tenant_db
+                    WHERE spjangcd = :spjangcd AND db_alias = 'main'
+                    """, p);
+            prorate = (row != null && "Y".equals(row.get("annual_prorate")));
+        } catch (Exception e) {
+            log.warn("비례부여 설정 조회 실패 - 전액 부여로 간주합니다. spjangcd={}", spjangcd, e);
+            return false;
+        }
+
+        prorateCache.put(spjangcd, prorate);
+        return prorate;
+    }
     public List<Map<String, Object>> getList(String keyword) {
         MapSqlParameterSource param = new MapSqlParameterSource();
 
@@ -123,7 +163,8 @@ public class TenantDbService {
                 SELECT t.id, t.spjangcd, x.spjangnm, t.db_alias, t.db_type, t.db_url, t.db_username, t.db_password, t.pool_size, t.custcd,
                        COALESCE(t.cti_lines, '') AS cti_lines,
                        COALESCE(t.use_mid_report, 'Y') AS use_mid_report,
-                       COALESCE(t.annual_basis, 'F')   AS annual_basis
+                       COALESCE(t.annual_basis, 'F')   AS annual_basis,
+                       COALESCE(t.annual_prorate, 'N') AS annual_prorate
                 FROM tb_tenant_db t
                 LEFT JOIN tb_xa012 x ON x.spjangcd = t.spjangcd
                 WHERE 1=1
@@ -182,6 +223,12 @@ public class TenantDbService {
                               && ANNUAL_BASIS_ENTRY.equalsIgnoreCase(String.valueOf(basisFlag).trim()))
                              ? ANNUAL_BASIS_ENTRY : ANNUAL_BASIS_FISCAL;
 
+        // 연중 입사자 비례부여 — 'Y' 라고 분명히 보내지 않으면 'N'(전액, 종전 동작).
+        Object prorateFlag   = param.get("annual_prorate");
+        String annualProrate = (prorateFlag != null
+                                && "Y".equalsIgnoreCase(String.valueOf(prorateFlag).trim()))
+                               ? "Y" : "N";
+
         MapSqlParameterSource p = new MapSqlParameterSource();
         p.addValue("spjangcd",    spjangcd);
         p.addValue("db_alias",    dbAlias);
@@ -193,6 +240,7 @@ public class TenantDbService {
         p.addValue("cti_lines",   ctiLines);
         p.addValue("use_mid_report", useMidReport);
         p.addValue("annual_basis",   annualBasis);
+        p.addValue("annual_prorate", annualProrate);
 
         if (id == null || id.isBlank()) {
             if (dbPassword == null || dbPassword.isBlank()) {
@@ -200,8 +248,8 @@ public class TenantDbService {
             }
             p.addValue("db_password", dbPassword);
             sqlRunner.execute("""
-                    INSERT INTO tb_tenant_db (spjangcd, db_alias, db_type, db_url, db_username, db_password, pool_size, custcd, cti_lines, use_mid_report, annual_basis)
-                    VALUES (:spjangcd, :db_alias, :db_type, :db_url, :db_username, :db_password, :pool_size, :custcd, :cti_lines, :use_mid_report, :annual_basis)
+                    INSERT INTO tb_tenant_db (spjangcd, db_alias, db_type, db_url, db_username, db_password, pool_size, custcd, cti_lines, use_mid_report, annual_basis, annual_prorate)
+                    VALUES (:spjangcd, :db_alias, :db_type, :db_url, :db_username, :db_password, :pool_size, :custcd, :cti_lines, :use_mid_report, :annual_basis, :annual_prorate)
                     """, p);
         } else {
             p.addValue("id", Long.parseLong(id));
@@ -214,7 +262,7 @@ public class TenantDbService {
                     SET db_alias=:db_alias, db_type=:db_type, db_url=:db_url,
                         db_username=:db_username, pool_size=:pool_size, custcd=:custcd,
                         cti_lines=:cti_lines, use_mid_report=:use_mid_report,
-                        annual_basis=:annual_basis
+                        annual_basis=:annual_basis, annual_prorate=:annual_prorate
                     WHERE id=:id
                     """, p);
 
@@ -228,6 +276,7 @@ public class TenantDbService {
         // 중간보고 사용여부가 바뀌었을 수 있으니 캐시를 비운다 (재로그인 없이 반영된다)
         midReportCache.remove(spjangcd);
         annualBasisCache.remove(spjangcd);
+        prorateCache.remove(spjangcd);
 
         // 해당 DataSource만 개별 재연결 (다른 테넌트 영향 없음)
         String connectError = tenantDataSourceManager.addOrReplaceTenantDataSource(

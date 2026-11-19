@@ -267,6 +267,10 @@
        설정이 없으면 회계연도로 본다 — 기존 사업체의 동작이 바뀌지 않아야 한다.
        생성 결과를 가르는 건 서버(ClockYearlyService) 이고, 여기서는 안내에만 쓴다. */
     var ANNUAL_BASIS = /*[[${annual_basis}]]*/ 'F';
+
+    /* 연중 입사자의 '입사 다음 해' 연차를 전년 재직기간에 비례해 줄지 (tb_tenant_db.annual_prorate).
+       'Y' 비례 / 'N' 전액. 회계연도 기준에서만 쓴다. 여기서는 안내에만 쓴다. */
+    var ANNUAL_PRORATE = /*[[${annual_prorate}]]*/ 'N';
   </script>
   <th:block th:replace="common/columns_setting :: columns_setting"></th:block>
   <script type="text/javascript">
@@ -885,6 +889,10 @@
           + '<span style="font-size:12px; color:#777;"> — '
           + (entry ? '사원별 입사 기념일에 발생합니다.' : '매년 1월 1일에 일괄 발생합니다.')
           + '</span>'
+          // 비례부여는 입사 다음 해 숫자가 15일이 아니라 12.5일처럼 나와서, 적어 두지 않으면 오류로 본다
+          + (!entry && ANNUAL_PRORATE === 'Y'
+              ? '<span style="font-size:12px; color:#777;">입사 다음 해는 전년 재직기간에 비례합니다.</span>'
+              : '')
           + '<span style="font-size:12px; color:#aaa;"> (변경은 본사 관리자에게 요청하세요)</span>'
         );
       })();

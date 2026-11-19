@@ -59,6 +59,22 @@ public class TenantFeatureModelAdvice {
         }
     }
 
+    /**
+     * 연차 비례부여 여부 — {@code tb_tenant_db.annual_prorate}. 'Y' 비례 / 'N' 전액.
+     * 화면에서 {@code ${annual_prorate}} 로 쓴다. 설정이 없으면 'N'(기존 동작).
+     *
+     * annual_basis 와 같은 이유로 내려보낸다 — 연차 화면에 지금 어느 방식인지 적어 준다.
+     */
+    @ModelAttribute("annual_prorate")
+    public String annualProrate() {
+        try {
+            return tenantDbService.isFirstYearProrated(currentDbKey()) ? "Y" : "N";
+        } catch (Exception e) {
+            log.debug("연차 비례부여 여부를 판단할 수 없어 전액으로 둡니다.", e);
+            return "N";
+        }
+    }
+
     /** 지금 요청이 어느 사업체인가(db_key). 로그인 전 화면이면 null 일 수 있다 */
     private String currentDbKey() {
         String dbKey = null;
