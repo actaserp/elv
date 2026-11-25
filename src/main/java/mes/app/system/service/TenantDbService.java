@@ -29,7 +29,7 @@ public class TenantDbService {
      * 사업체가 7곳뿐이고 설정이 거의 바뀌지 않으므로 통째로 담아 둔다.
      * 관리 화면에서 저장하면 {@link #save} 가 비우므로 재로그인 없이 바로 반영된다.
      */
-    private final Map<String, Boolean> midReportCache = new ConcurrentHashMap<>();
+    private final Map<String, Setting<Boolean>> midReportCache = new ConcurrentHashMap<>();
 
     /** 연차 산정기준 — 회계연도(매년 1/1 일괄 발생) */
     public static final String ANNUAL_BASIS_FISCAL = "F";
@@ -37,10 +37,38 @@ public class TenantDbService {
     public static final String ANNUAL_BASIS_ENTRY  = "E";
 
     /** 연차 산정기준 캐시. midReportCache 와 같은 이유로 통째로 담아 둔다 */
-    private final Map<String, String> annualBasisCache = new ConcurrentHashMap<>();
+    private final Map<String, Setting<String>> annualBasisCache = new ConcurrentHashMap<>();
 
     /** 비례부여 설정 캐시. annualBasisCache 와 같다 */
-    private final Map<String, Boolean> prorateCache = new ConcurrentHashMap<>();
+    private final Map<String, Setting<Boolean>> prorateCache = new ConcurrentHashMap<>();
+
+    /**
+     * 설정 캐시가 살아 있는 시간.
+     *
+     * {@link #save} 도 캐시를 비우지만 그것은 <b>저장을 받은 그 서버</b>뿐이다.
+     * 로컬이나 다른 서버에서 설정을 바꾸면 나머지는 옛 값을 영원히 들고 있었다 —
+     * 경기 산정기준을 회계연도로 바꿨는데 운영 화면만 계속 입사일로 나왔고,
+     * 연차생성까지 입사일 기준으로 돌았다 (2026-11-25).
+     * 만료를 두면 어디서 바꾸든 이 시간 안에 모든 서버가 따라온다.
+     *
+     * 사업체 7곳 × 값 3개라 다 만료돼도 분당 21건이다.
+     */
+    private static final long SETTING_TTL_MS = 60_000L;
+
+    /**
+     * 읽은 시각을 함께 들고 있는 설정값.
+     *
+     * <b>만료돼도 값은 버리지 않는다.</b> 다시 읽다가 실패했을 때 되돌아갈 곳이기 때문이다.
+     * 본사 PG 는 여러 프로젝트가 접속수를 나눠 쓰고 있어 조회가 간헐적으로 실패하는데,
+     * 그때 기본값으로 떨어지면 입사일 기준 사업체가 잠깐 회계연도로 보인다.
+     * 그 상태로 연차를 생성하면 발생일수가 달라진다.
+     */
+    private static final class Setting<T> {
+        final T value;
+        final long readAt;
+        Setting(T value) { this.value = value; this.readAt = System.currentTimeMillis(); }
+        boolean fresh() { return System.currentTimeMillis() - readAt < SETTING_TTL_MS; }
+    }
 
     /**
      * 이 사업체가 중간보고를 쓰는가. tb_tenant_db.use_mid_report = 'N' 이면 끈다.
@@ -50,8 +78,8 @@ public class TenantDbService {
     public boolean isMidReportEnabled(String spjangcd) {
         if (spjangcd == null || spjangcd.isBlank()) return true;
 
-        Boolean cached = midReportCache.get(spjangcd);
-        if (cached != null) return cached;
+        Setting<Boolean> cached = midReportCache.get(spjangcd);
+        if (cached != null && cached.fresh()) return cached.value;
 
         boolean enabled = true;
         try {
@@ -66,12 +94,14 @@ public class TenantDbService {
                 enabled = !"N".equals(row.get("use_mid_report"));
             }
         } catch (Exception e) {
-            // 컬럼이 아직 없거나 조회가 실패하면 기존 동작(사용)을 유지한다
+            // 컬럼이 아직 없거나 조회가 실패하면 기존 동작(사용)을 유지한다.
+            // 전에 읽어 둔 값이 있으면 만료됐더라도 그것을 쓴다 — 조회가 한 번 실패했다고
+            // 설정이 바뀐 것처럼 굴면 안 된다.
             log.warn("중간보고 사용여부 조회 실패 - 사용으로 간주합니다. spjangcd={}", spjangcd, e);
-            return true;
+            return (cached != null) ? cached.value : true;
         }
 
-        midReportCache.put(spjangcd, enabled);
+        midReportCache.put(spjangcd, new Setting<>(enabled));
         return enabled;
     }
 
@@ -90,8 +120,8 @@ public class TenantDbService {
     public String getAnnualBasis(String spjangcd) {
         if (spjangcd == null || spjangcd.isBlank()) return ANNUAL_BASIS_FISCAL;
 
-        String cached = annualBasisCache.get(spjangcd);
-        if (cached != null) return cached;
+        Setting<String> cached = annualBasisCache.get(spjangcd);
+        if (cached != null && cached.fresh()) return cached.value;
 
         String basis = ANNUAL_BASIS_FISCAL;
         try {
@@ -106,12 +136,14 @@ public class TenantDbService {
                 basis = ANNUAL_BASIS_ENTRY;
             }
         } catch (Exception e) {
-            // 컬럼이 아직 없거나 조회가 실패하면 기존 동작(회계연도)을 유지한다
+            // 컬럼이 아직 없거나 조회가 실패하면 기존 동작(회계연도)을 유지한다.
+            // 전에 읽어 둔 값이 있으면 만료됐더라도 그것을 쓴다 — 입사일 기준 사업체가
+            // 조회 한 번 실패했다고 회계연도로 바뀌면 연차 발생일수가 달라진다.
             log.warn("연차 산정기준 조회 실패 - 회계연도로 간주합니다. spjangcd={}", spjangcd, e);
-            return ANNUAL_BASIS_FISCAL;
+            return (cached != null) ? cached.value : ANNUAL_BASIS_FISCAL;
         }
 
-        annualBasisCache.put(spjangcd, basis);
+        annualBasisCache.put(spjangcd, new Setting<>(basis));
         return basis;
     }
 
@@ -135,8 +167,8 @@ public class TenantDbService {
     public boolean isFirstYearProrated(String spjangcd) {
         if (spjangcd == null || spjangcd.isBlank()) return false;
 
-        Boolean cached = prorateCache.get(spjangcd);
-        if (cached != null) return cached;
+        Setting<Boolean> cached = prorateCache.get(spjangcd);
+        if (cached != null && cached.fresh()) return cached.value;
 
         boolean prorate = false;
         try {
@@ -149,11 +181,12 @@ public class TenantDbService {
                     """, p);
             prorate = (row != null && "Y".equals(row.get("annual_prorate")));
         } catch (Exception e) {
+            // 만료된 값이라도 전에 읽어 둔 것이 있으면 그것을 쓴다 (getAnnualBasis 와 같은 이유)
             log.warn("비례부여 설정 조회 실패 - 전액 부여로 간주합니다. spjangcd={}", spjangcd, e);
-            return false;
+            return (cached != null) ? cached.value : false;
         }
 
-        prorateCache.put(spjangcd, prorate);
+        prorateCache.put(spjangcd, new Setting<>(prorate));
         return prorate;
     }
     public List<Map<String, Object>> getList(String keyword) {
