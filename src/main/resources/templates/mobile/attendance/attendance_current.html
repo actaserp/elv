@@ -92,6 +92,12 @@
                 </div>
             </div>
             <div class="contents-wrap">
+                <!-- 연차 잔여. 아래 표는 가로로 길어 잔여 칸이 화면 밖으로 밀린다 -->
+                <div id="annSummary" style="display:none; margin:0 0 10px; padding:10px 12px;
+                     background:#f5f8ff; border:1px solid #d9e3f7; border-radius:6px;
+                     font-size:17px; font-weight:600;">
+                    연차 잔여 <span id="annRest">-</span>일
+                </div>
                 <div id="theGrid"></div>
                 <div class="srch-btn"></div>
             </div>
@@ -169,6 +175,19 @@
         return dateStr.slice(2, 10);
     }
 
+    /* 연차 잔여 — AnnualLeaveSql 기준으로 '오늘이 속한 발생분' 하나를 본다.
+       그래서 조회년도를 바꿔도 이 값은 따라 변하지 않는다. 지금 며칠 남았는지를 보는 칸이다.
+       이월·발생·조정·사용 내역은 일부러 띄우지 않는다 (2026-11-25 요청). */
+    function renderAnnSummary(ann) {
+        const box = document.getElementById('annSummary');
+        if (!ann || ann.restnum === '' || ann.restnum == null) {
+            box.style.display = 'none';
+            return;
+        }
+        document.getElementById('annRest').innerText = Number(ann.restnum);
+        box.style.display = 'block';
+    }
+
     function searchMainData() {
         // ✅ AjaxUtil이 내부적으로 withCtx() 호출 → $.ajaxPrefilter가 /elv 자동 추가
         //    절대경로 '/api/...' 그대로 사용하면 됨 (ctx 변수 불필요)
@@ -189,20 +208,10 @@
                 const annInfo = result.data.annInfo;
                 const vacitems = result.data.vacInfo;
 
+                renderAnnSummary(annInfo);
+
                 let tableHtml = `
                 <table>
-                    <tr style="display: none">
-                        <th>입사일</th>
-                        <td colspan="7" style="text-align: left">${annInfo.rtdate || ''}</td>
-                        <td></td>
-                    </tr><br>
-                    <tr style="display: none">
-                        <th>이월</th><td>${annInfo.ewolnum || ''}</td>
-                        <th>생성</th><td>${annInfo.holinum || ''}</td>
-                        <th>사용</th><td>${annInfo.daynum || ''}</td>
-                        <th>잔여</th><td>${annInfo.restnum || ''}</td>
-                        <td></td>
-                    </tr><br>
                     <tr>
                         <th>신청일</th><th>구분</th><th>연차</th>
                         <th>시작일</th><th>종료일</th><th>기간</th>
@@ -230,6 +239,7 @@
                 tableHtml += `</table>`;
                 document.querySelector('#theGrid').innerHTML = tableHtml;
             } else {
+                renderAnnSummary(null);   // 조회가 비면 앞서 띄운 잔여도 같이 지운다
                 document.querySelector('#theGrid').innerHTML =
                     `<tr><td colspan="6" style="text-align:center; padding:8px;">조회된 데이터가 없습니다.</td></tr>`;
             }

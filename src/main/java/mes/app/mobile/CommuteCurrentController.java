@@ -45,14 +45,10 @@ public class CommuteCurrentController {
         }
         String tenantUsername = userInfo.get("username") != null ? userInfo.get("username").toString() : null;
 
+        // workym('YYYYMM')·workday('DD') 는 그대로 내려보낸다.
+        // 예전에는 여기서 'YYYY.MM.DD' 로 바꿔 두고 화면에서 또 잘라내 '26-.1-24' 처럼 깨졌다.
+        // 날짜 표시는 화면(formatDateToYYMMDD)이 한 곳에서만 한다.
         List<Map<String, Object>> data = commuteCurrentService.getUserInfo(tenantUsername, workcd, searchFromDate, searchToDate);
-        for (Map<String, Object> dataDetail : data) {
-            String workym  = (String) dataDetail.get("workym");
-            String workday = (String) dataDetail.get("workday");
-            if (workym != null && workday != null && workym.length() == 6 && workday.length() == 2) {
-                dataDetail.put("workym", workym.substring(0, 4) + "." + workym.substring(4) + "." + workday);
-            }
-        }
         result.data = data;
         return result;
     }
